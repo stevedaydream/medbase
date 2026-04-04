@@ -36,8 +36,8 @@ async function seedIfEmpty(db: Database) {
   if (superRow[0].c === 0) {
     const hash = await sha256("Admin0000");
     await db.execute(
-      "INSERT INTO scheduler_users (code, name, role, pw_hash, is_active, sort_order) VALUES (?, ?, ?, ?, 1, 0)",
-      ["super", "系統管理員", "super", hash]
+      "INSERT INTO scheduler_users (code, name, role, pw_hash, is_active, sort_order, employee_id) VALUES (?, ?, ?, ?, 1, 0, ?)",
+      ["super", "系統管理員", "super", hash, "super"]
     );
     console.log("[seed] created default super account (Admin0000)");
   }
@@ -232,14 +232,21 @@ async function initSchema(db: Database) {
   // ── 排班系統使用者（含角色與密碼 hash）──────────────────
   await db.execute(`
     CREATE TABLE IF NOT EXISTS scheduler_users (
-      code       TEXT    PRIMARY KEY,
-      name       TEXT    NOT NULL,
-      role       TEXT    NOT NULL DEFAULT 'employee',
-      pw_hash    TEXT    NOT NULL,
-      is_active  INTEGER NOT NULL DEFAULT 1,
-      sort_order INTEGER NOT NULL DEFAULT 0
+      code        TEXT    PRIMARY KEY,
+      name        TEXT    NOT NULL,
+      role        TEXT    NOT NULL DEFAULT 'employee',
+      pw_hash     TEXT    NOT NULL,
+      is_active   INTEGER NOT NULL DEFAULT 1,
+      sort_order  INTEGER NOT NULL DEFAULT 0,
+      employee_id TEXT    UNIQUE
     );
   `);
+  // Migration: 舊資料庫補欄位（忽略已存在錯誤）
+  try {
+    await db.execute(`ALTER TABLE scheduler_users ADD COLUMN employee_id TEXT UNIQUE`);
+  } catch { /* 欄位已存在，忽略 */ }
+  // 回填：沒有 employee_id 的舊帳號以 code 補上
+  await db.execute(`UPDATE scheduler_users SET employee_id = code WHERE employee_id IS NULL`);
 
   // ── AHK 腳本（元資料，內容存磁碟）──────────────────────
   await db.execute(`

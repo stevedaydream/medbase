@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useEventListener } from "@vueuse/core";
-import { useEmergencyStore } from "@/stores/emergency";
 import Sidebar from "@/components/layout/Sidebar.vue";
 import TopBar from "@/components/layout/TopBar.vue";
 import OmniSearch from "@/components/OmniSearch.vue";
 
-const emergency = useEmergencyStore();
 const searchOpen = ref(false);
 
 // Ctrl+K global shortcut
@@ -22,10 +20,7 @@ useEventListener("keydown", (e: KeyboardEvent) => {
 </script>
 
 <template>
-  <div
-    class="flex h-screen overflow-hidden transition-colors duration-300"
-    :class="emergency.isActive ? 'bg-zinc-950' : 'bg-gray-950'"
-  >
+  <div class="flex h-screen overflow-hidden bg-gray-950">
     <Sidebar />
 
     <div class="flex flex-col flex-1 overflow-hidden">

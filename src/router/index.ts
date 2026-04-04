@@ -22,6 +22,7 @@ const router = createRouter({
     { path: "/acp/settings", component: () => import("@/views/AcpSettingsView.vue"), meta: { title: "ACP 設定" } },
     { path: "/ahk",      component: () => import("@/views/AhkView.vue"),       meta: { title: "AHK 管理",  fullHeight: true } },
     { path: "/schedule", component: () => import("@/views/SchedulerView.vue"), meta: { title: "排班表",    fullHeight: true } },
+    { path: "/tools",    component: () => import("@/views/ToolsView.vue"),     meta: { title: "臨床工具",  fullHeight: true } },
   ],
 });
 

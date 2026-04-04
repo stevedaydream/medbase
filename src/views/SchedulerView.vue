@@ -1025,12 +1025,12 @@ async function publishSchedule() {
 
 // ── Staff Management ──────────────────────────────────────────────────
 const {
-  staff, newStaffCode, newStaffName, staffFilter, isStaffLoading,
+  staff, newStaffCode, newStaffName, newStaffEmployeeId, staffFilter, isStaffLoading,
   resetPwTarget, resetPwInput, filteredStaff,
   saveStaffLocal, addStaff, removeStaff, importStaffFromSchedule,
   pullStaffFromCloud, pushStaffToCloud, resetUserPassword,
   addRowFromStaff, initScheduleFromStaff,
-  onStaffNameFocus, onStaffNameBlur,
+  onStaffNameFocus, onStaffNameBlur, onEmployeeIdChange,
 } = useStaff({ settings, setSetting, showToast, scheduleData, yyyyMM });
 
 // ── Month Navigation ──────────────────────────────────────────────────
@@ -1386,7 +1386,7 @@ async function createTemplate() {
 
         <!-- Search + Add -->
         <div class="flex gap-2">
-          <input v-model="staffFilter" placeholder="搜尋姓名或代號…"
+          <input v-model="staffFilter" placeholder="搜尋姓名、代號或員工編號…"
             class="flex-1 text-xs px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-gray-300 outline-none focus:border-gray-500" />
         </div>
 
@@ -1395,19 +1395,25 @@ async function createTemplate() {
           <table class="w-full text-xs">
             <thead>
               <tr class="bg-gray-800 text-gray-500">
-                <th class="px-3 py-2 text-left font-medium w-28">代號</th>
+                <th class="px-3 py-2 text-left font-medium w-28">員工編號</th>
+                <th class="px-3 py-2 text-left font-medium w-24">代號</th>
                 <th class="px-3 py-2 text-left font-medium">姓名</th>
                 <th class="px-3 py-2 text-left font-medium w-28">角色</th>
-                <th class="px-3 py-2 text-left font-medium w-28">密碼</th>
+                <th class="px-3 py-2 text-left font-medium w-24">密碼</th>
                 <th class="px-3 py-2 w-8"></th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="!filteredStaff.length">
-                <td colspan="5" class="px-3 py-4 text-center text-gray-700">尚無人員，請新增或從雲端拉取</td>
+                <td colspan="6" class="px-3 py-4 text-center text-gray-700">尚無人員，請新增或從雲端拉取</td>
               </tr>
               <template v-for="member in filteredStaff" :key="member.code">
               <tr class="border-t border-gray-800 hover:bg-gray-800/50 group">
+                <td class="px-3 py-2">
+                  <input v-model="member.employee_id" @change="onEmployeeIdChange(member)"
+                    placeholder="（未設定）"
+                    class="font-mono text-amber-300 bg-transparent outline-none w-full focus:bg-gray-800 px-1 rounded" />
+                </td>
                 <td class="px-3 py-2">
                   <input v-model="member.code" @change="saveStaffLocal"
                     class="font-mono text-blue-300 bg-transparent outline-none w-full focus:bg-gray-800 px-1 rounded" />
@@ -1441,7 +1447,7 @@ async function createTemplate() {
               <!-- Inline password reset row -->
               <tr v-if="resetPwTarget === member.code"
                 class="border-t border-gray-700 bg-gray-800/60">
-                <td colspan="5" class="px-3 py-2">
+                <td colspan="6" class="px-3 py-2">
                   <div class="flex items-center gap-2">
                     <span class="text-xs text-gray-500">新密碼：</span>
                     <input v-model="resetPwInput" type="password" placeholder="輸入新密碼"
@@ -1462,16 +1468,18 @@ async function createTemplate() {
         </div>
 
         <!-- Add new -->
-        <div class="flex gap-2 items-center">
+        <div class="flex gap-2 items-center flex-wrap">
+          <input v-model="newStaffEmployeeId" @keyup.enter="addStaff" placeholder="員工編號" maxlength="20"
+            class="w-28 text-xs px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-amber-300 font-mono outline-none focus:border-amber-600" />
           <input v-model="newStaffCode" @keyup.enter="addStaff" placeholder="代號（英數）" maxlength="16"
-            class="w-32 text-xs px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-blue-300 font-mono outline-none focus:border-blue-600" />
+            class="w-28 text-xs px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-blue-300 font-mono outline-none focus:border-blue-600" />
           <input v-model="newStaffName" @keyup.enter="addStaff" placeholder="姓名" maxlength="20"
             class="flex-1 text-xs px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-gray-200 outline-none focus:border-gray-500" />
           <button @click="addStaff" class="text-xs px-3 py-1.5 bg-blue-700 hover:bg-blue-600 text-white rounded whitespace-nowrap">+ 新增</button>
         </div>
 
         <p class="text-xs text-gray-700">
-          雲端人員名單儲存在 Google Sheets「Staff」分頁（代號 / 姓名兩欄）。代號和姓名可直接點擊編輯。
+          員工編號為登入帳號（amber）；代號（blue）用於班表識別。雲端人員名單儲存在 Google Sheets「Staff」分頁。
         </p>
       </div>
     </div>

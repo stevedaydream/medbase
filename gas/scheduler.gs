@@ -43,8 +43,14 @@ function doPost(e) {
         const staffSheet = ss.getSheetByName('Staff');
         if (!staffSheet) return json({ ok: false, error: 'Staff sheet missing' });
         const rows = staffSheet.getDataRange().getValues().slice(1);
-        const user = rows.find(r => r[0] === p.code && r[3] === p.pwHash && r[4] !== 0);
-        if (!user) return json({ ok: false, error: '代號或密碼錯誤' });
+        // 欄位順序：代號[0] 姓名[1] 角色[2] pw_hash[3] 啟用[4] 員工編號[5]
+        // 以員工編號（r[5]）比對，相容舊資料（r[5] 為空時 fallback 比對代號 r[0]）
+        const user = rows.find(r => {
+          const eid = String(r[5] || '');
+          const match = eid ? eid === p.code : String(r[0]) === p.code;
+          return match && r[3] === p.pwHash && r[4] !== 0;
+        });
+        if (!user) return json({ ok: false, error: '員工編號或密碼錯誤' });
         return json({ ok: true, data: { code: user[0], name: user[1], role: user[2] } });
       }
 
@@ -79,11 +85,11 @@ function doPost(e) {
         return json({ ok: true });
       }
 
-      // ── 儲存員工名單（含 role/pw_hash） ─────────────────────────
+      // ── 儲存員工名單（含 role/pw_hash/employee_id） ──────────────
       case 'saveStaff': {
         let sh = ss.getSheetByName('Staff') || ss.insertSheet('Staff');
-        const hd = ['代號', '姓名', '角色', 'pw_hash', '啟用'];
-        const rw = p.data.map(r => [r.code, r.name, r.role || 'employee', r.pw_hash || '', 1]);
+        const hd = ['代號', '姓名', '角色', 'pw_hash', '啟用', '員工編號'];
+        const rw = p.data.map(r => [r.code, r.name, r.role || 'employee', r.pw_hash || '', 1, r.employee_id || '']);
         sh.clearContents();
         sh.getRange(1, 1, 1, hd.length).setValues([hd]);
         if (rw.length) sh.getRange(2, 1, rw.length, hd.length).setValues(rw);
@@ -184,8 +190,13 @@ function handleApi(p) {
         const staffSheet = ss.getSheetByName('Staff');
         if (!staffSheet) return { ok: false, error: 'Staff sheet missing' };
         const rows = staffSheet.getDataRange().getValues().slice(1);
-        const user = rows.find(r => String(r[0]) === String(p.code) && String(r[3]) === String(p.pwHash) && r[4] != 0);
-        if (!user) return { ok: false, error: '代號或密碼錯誤' };
+        // 欄位順序：代號[0] 姓名[1] 角色[2] pw_hash[3] 啟用[4] 員工編號[5]
+        const user = rows.find(r => {
+          const eid = String(r[5] || '');
+          const match = eid ? eid === String(p.code) : String(r[0]) === String(p.code);
+          return match && String(r[3]) === String(p.pwHash) && r[4] != 0;
+        });
+        if (!user) return { ok: false, error: '員工編號或密碼錯誤' };
         return { ok: true, data: { code: String(user[0]), name: String(user[1]), role: String(user[2]) } };
       }
       case 'getSchedule': {

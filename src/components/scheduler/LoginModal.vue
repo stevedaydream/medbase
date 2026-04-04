@@ -11,27 +11,27 @@ export interface SessionUser {
 
 const emit = defineEmits<{ "logged-in": [user: SessionUser] }>();
 
-const code    = ref("");
-const password = ref("");
-const error   = ref("");
-const loading = ref(false);
+const employeeId = ref("");
+const password   = ref("");
+const error      = ref("");
+const loading    = ref(false);
 
 async function login() {
   error.value = "";
-  const c = code.value.trim();
-  const p = password.value;
-  if (!c || !p) { error.value = "請輸入代號與密碼"; return; }
+  const eid = employeeId.value.trim();
+  const p   = password.value;
+  if (!eid || !p) { error.value = "請輸入員工編號與密碼"; return; }
 
   loading.value = true;
   try {
     const hash = await sha256(p);
     const db   = await getDb();
     const rows = await db.select<SessionUser[]>(
-      "SELECT code, name, role FROM scheduler_users WHERE code = ? AND pw_hash = ? AND is_active = 1",
-      [c, hash]
+      "SELECT code, name, role FROM scheduler_users WHERE employee_id = ? AND pw_hash = ? AND is_active = 1",
+      [eid, hash]
     );
     if (rows.length === 0) {
-      error.value = "代號或密碼錯誤";
+      error.value = "員工編號或密碼錯誤";
     } else {
       emit("logged-in", rows[0]);
     }
@@ -55,11 +55,11 @@ async function login() {
       <!-- Form -->
       <div class="space-y-3">
         <div>
-          <label class="block text-xs text-gray-500 mb-1">員工代號</label>
+          <label class="block text-xs text-gray-500 mb-1">員工編號</label>
           <input
-            v-model="code"
+            v-model="employeeId"
             @keyup.enter="login"
-            placeholder="例：A01"
+            placeholder="例：E001"
             autocomplete="username"
             class="w-full text-sm px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-200 font-mono outline-none focus:border-blue-500 transition-colors"
           />
@@ -91,7 +91,7 @@ async function login() {
 
       <!-- Hint -->
       <p class="mt-5 text-center text-xs text-gray-700">
-        預設超級帳號：<span class="font-mono text-gray-600">super</span> ／ <span class="font-mono text-gray-600">Admin0000</span>
+        預設超級帳號：員工編號 <span class="font-mono text-gray-600">super</span> ／ 密碼 <span class="font-mono text-gray-600">Admin0000</span>
       </p>
     </div>
   </div>

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useIntervalFn } from "@vueuse/core";
-import { useEmergencyStore } from "@/stores/emergency";
 import { getDb } from "@/db";
 
 interface Protocol {
@@ -23,14 +22,12 @@ interface TimerState {
   expired: boolean;
 }
 
-const emergency = useEmergencyStore();
 const protocols = ref<Protocol[]>([]);
 const selected = ref<Protocol | null>(null);
 const checkedActions = ref<Set<number>>(new Set());
 const timerStates = ref<TimerState[]>([]);
 
 onMounted(async () => {
-  emergency.activate();
   const db = await getDb();
   protocols.value = await db.select<Protocol[]>("SELECT * FROM emergency_protocols ORDER BY name");
   // Seed demo data if empty
@@ -67,7 +64,7 @@ async function seedDemo(db: any) {
       { label: "CPR 輪換", seconds: 120 },
       { label: "Epi 再給藥", seconds: 300 },
     ]),
-    JSON.stringify([{ label: "Code Blue 專線", ext: "7000" }, { label: "ICU", ext: "5100" }]),
+    JSON.stringify([{ label: "9595 專線", ext: "7000" }, { label: "SICU", ext: "2552" }]),
   ]);
 }
 

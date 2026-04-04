@@ -8,6 +8,7 @@ export interface StaffMember {
   name: string;
   role?: string;
   is_active?: number;
+  employee_id?: string;
 }
 
 interface ScheduleRow { name: string; days: (string | null)[] }
@@ -22,11 +23,12 @@ export function useStaff(deps: {
 }) {
   const { settings, setSetting, showToast, scheduleData } = deps;
 
-  const staff          = ref<StaffMember[]>([]);
-  const newStaffCode   = ref("");
-  const newStaffName   = ref("");
-  const staffFilter    = ref("");
-  const isStaffLoading = ref(false);
+  const staff               = ref<StaffMember[]>([]);
+  const newStaffCode        = ref("");
+  const newStaffName        = ref("");
+  const newStaffEmployeeId  = ref("");
+  const staffFilter         = ref("");
+  const isStaffLoading      = ref(false);
   const resetPwTarget  = ref<string | null>(null);
   const resetPwInput   = ref("");
 
@@ -34,12 +36,27 @@ export function useStaff(deps: {
     staffFilter.value
       ? staff.value.filter(s =>
           s.name.includes(staffFilter.value) ||
-          s.code.toLowerCase().includes(staffFilter.value.toLowerCase()))
+          s.code.toLowerCase().includes(staffFilter.value.toLowerCase()) ||
+          (s.employee_id ?? "").toLowerCase().includes(staffFilter.value.toLowerCase()))
       : staff.value
   );
 
   async function saveStaffLocal() {
     await setSetting("staff", JSON.stringify(staff.value));
+  }
+
+  async function onEmployeeIdChange(member: StaffMember) {
+    await saveStaffLocal();
+    if (!member.employee_id?.trim()) return;
+    try {
+      const db = await getDb();
+      await db.execute(
+        `UPDATE scheduler_users SET employee_id = ? WHERE code = ?`,
+        [member.employee_id.trim(), member.code]
+      );
+    } catch (e) {
+      showToast(`員工編號同步失敗：${(e as Error).message}`);
+    }
   }
 
   let _editingOldName = "";
@@ -55,13 +72,18 @@ export function useStaff(deps: {
   }
 
   function addStaff() {
-    const code = newStaffCode.value.trim();
-    const name = newStaffName.value.trim();
+    const code        = newStaffCode.value.trim();
+    const name        = newStaffName.value.trim();
+    const employee_id = newStaffEmployeeId.value.trim() || undefined;
     if (!code || !name) return;
     if (staff.value.some(s => s.code === code)) { showToast("代號重複"); return; }
-    staff.value.push({ code, name, role: "employee", is_active: 1 });
-    newStaffCode.value = "";
-    newStaffName.value = "";
+    if (employee_id && staff.value.some(s => s.employee_id === employee_id)) {
+      showToast("員工編號重複"); return;
+    }
+    staff.value.push({ code, name, role: "employee", is_active: 1, employee_id });
+    newStaffCode.value       = "";
+    newStaffName.value       = "";
+    newStaffEmployeeId.value = "";
     saveStaffLocal();
   }
 
@@ -103,6 +125,7 @@ export function useStaff(deps: {
         .map(r => ({
           code: r[0].trim(), name: r[1].trim(),
           role: r[2]?.trim() || "employee", is_active: 1,
+          employee_id: r[3]?.trim() || undefined,
         }));
       await saveStaffLocal();
       showToast(`已載入 ${staff.value.length} 位人員`);
@@ -130,6 +153,7 @@ export function useStaff(deps: {
             code: s.code, name: s.name,
             role: s.role ?? "employee",
             pw_hash: pwMap.get(s.code) ?? "",
+            employee_id: s.employee_id ?? "",
           })),
         }),
         mode: "no-cors",
@@ -150,11 +174,12 @@ export function useStaff(deps: {
       const hash = await sha256(pw);
       const db   = await getDb();
       await db.execute(
-        `INSERT INTO scheduler_users (code, name, role, pw_hash, is_active, sort_order)
-         VALUES (?, ?, ?, ?, 1, 0)
+        `INSERT INTO scheduler_users (code, name, role, pw_hash, is_active, sort_order, employee_id)
+         VALUES (?, ?, ?, ?, 1, 0, ?)
          ON CONFLICT(code) DO UPDATE SET pw_hash = excluded.pw_hash,
-           name = excluded.name, role = excluded.role`,
-        [code, member.name, member.role ?? "employee", hash]
+           name = excluded.name, role = excluded.role,
+           employee_id = excluded.employee_id`,
+        [code, member.name, member.role ?? "employee", hash, member.employee_id ?? code]
       );
       showToast(`${member.name} 密碼已重設`);
     } catch (e) {
@@ -185,11 +210,11 @@ export function useStaff(deps: {
   }
 
   return {
-    staff, newStaffCode, newStaffName, staffFilter, isStaffLoading,
+    staff, newStaffCode, newStaffName, newStaffEmployeeId, staffFilter, isStaffLoading,
     resetPwTarget, resetPwInput, filteredStaff,
     saveStaffLocal, addStaff, removeStaff, importStaffFromSchedule,
     pullStaffFromCloud, pushStaffToCloud, resetUserPassword,
     addRowFromStaff, initScheduleFromStaff,
-    onStaffNameFocus, onStaffNameBlur,
+    onStaffNameFocus, onStaffNameBlur, onEmployeeIdChange,
   };
 }

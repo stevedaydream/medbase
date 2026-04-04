@@ -1,6 +1,6 @@
 # MedBase — 臨床醫囑查詢 + 排班系統
 
-> 最後更新：2026-04-04（動態班別每日目標 + 國定假日管理 + 桌機/手機預約總表）
+> 最後更新：2026-04-04（員工編號登入；急救模式移除；臨床工具集新增）
 
 ---
 
@@ -82,7 +82,7 @@ medbase/
 ### 4.2 排班系統
 | 表格 | 說明 |
 |------|------|
-| `scheduler_users` | 員工帳號 + pw_hash + role |
+| `scheduler_users` | 員工帳號 + pw_hash + role + employee_id（登入帳號）|
 | `scheduler_staff` | 排班用員工清單（名稱、代號） |
 | `scheduler_shifts` | 班別定義（代碼、顏色） |
 | `scheduler_schedule_YYYYMM` | 每月草稿班表 |
@@ -123,6 +123,7 @@ medbase/
 - ✅ AHK 腳本管理（CRUD、套組、自動 Reload）
 - ✅ ACP 評估系統
 - ✅ xlsx 匯入（自費品項、醫師通訊錄、健保藥典）
+- ✅ 臨床工具集（`/tools`）：校正鈣、ABG 判讀、血糖胰島素試算、每日營養需求、FiO₂ 換算
 
 ### 6.2 排班系統（桌機）
 - ✅ 角色登入（super/admin/scheduler/employee）、Tab 權限控制
