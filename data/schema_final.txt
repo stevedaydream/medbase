@@ -1,0 +1,71 @@
+
+=== physicians ===
+  id INTEGER
+  name TEXT
+  department TEXT
+  title TEXT
+  ext TEXT
+  his_account TEXT
+  his_password TEXT
+  phs_account TEXT
+  phs_password TEXT
+  notes TEXT
+  created_at TEXT
+  is_vs INTEGER
+
+=== sets ===
+  id INTEGER
+  name TEXT
+  surgery_type TEXT
+  physician_id INTEGER
+  department_id INTEGER
+  notes TEXT
+
+=== set_items ===
+  id INTEGER
+  set_id INTEGER
+  hospital_code TEXT
+  quantity INTEGER
+  is_optional INTEGER
+  sort_order INTEGER
+  price INTEGER
+  notes TEXT
+
+=== items ===
+  hospital_code TEXT
+  name_en TEXT
+  name_zh TEXT
+  category TEXT
+  body_part TEXT
+  unit TEXT
+  price INTEGER
+  supplier TEXT
+  notes TEXT
+
+=== sets sample ===
+(18, '蔡明霖乳房自費(兩種都要術後衣) - BCT', 'BCT', None)
+(15, '多位醫師 - RIRS', 'RIRS', None)
+(14, '內視鏡雷射(URSL、RIRS、Bladder stone)', '內視鏡雷射(URSL、RIRS、Bladder stone)', None)
+(17, '蔡明霖乳房自費(兩種都要術後衣) - 全切', '全切', None)
+(12, '劉哲瑋 - Kyphoplasty', 'Kyphoplasty', '劉哲瑋')
+(10, '劉哲瑋 - spine endoscopy', 'spine endoscopy', '劉哲瑋')
+(11, '劉哲瑋 - spine endoscopy laminectomy', 'spine endoscopy laminectomy', '劉哲瑋')
+(5, '原永健 - THR/bipolar', 'THR/bipolar', '原永健')
+(4, '曾兆寧 - THR/bipolar', 'THR/bipolar', '曾兆寧')
+(3, '曾兆寧 - TKR', 'TKR', '曾兆寧')
+
+=== set_items sample ===
+(1, 1, 'M1C50965', 1, 0, 1)
+(2, 1, 'M1C00206', 1, 0, 2)
+(3, 1, 'M1Z00420', 2, 0, 3)
+(4, 2, 'M1C50107', 1, 0, 4)
+(5, 2, 'M1C50106', 1, 0, 5)
+
+=== physicians is_vs=1 ===
+(7, '王世鋒', '泌尿科', 1)
+(40, '劉哲瑋', 'ORTHO', 1)
+(42, '陳鍾沛', 'ORTHO', 1)
+(46, '原永健', 'ORTHO', 1)
+(49, '鄭正文', 'ORTHO', 1)
+(51, '鄧修國', 'ORTHO', 1)
+(53, '曾兆寧', 'ORTHO', 1)

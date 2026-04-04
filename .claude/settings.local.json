@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(cargo --version)",
+      "Bash(npm create:*)",
+      "Bash(cp -r g:/project/medbase/medbase/. g:/project/medbase/)",
+      "Bash(rm -rf g:/project/medbase/medbase)",
+      "Bash(npm install:*)",
+      "Bash(python -c \":*)",
+      "Bash(python -c \"import sys; data = sys.stdin.buffer.read\\(\\); print\\(data.decode\\(''''utf-8'''', errors=''''replace''''\\)\\)\")",
+      "Bash(python data/normalize.py)",
+      "Bash(python:*)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(python3 -c \"import sqlite3; print\\(sqlite3.sqlite_version\\)\")",
+      "Bash(wc -l \"G:/project/medbase/src/views\"/*.vue)",
+      "Bash(node -e \"const p=require\\(''./package.json''\\); console.log\\(p.dependencies[''@tauri-apps/plugin-fs''], p.dependencies[''@tauri-apps/plugin-dialog'']\\)\")",
+      "Bash(sqlite3:*)",
+      "Bash(python3:*)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(find /g/project/scheduler -name *.js -o -name *.ts)",
+      "Bash(clasp --version)",
+      "Bash(clasp login:*)",
+      "Bash(clasp list:*)",
+      "Bash(for id:*)",
+      "Bash(do echo:*)",
+      "Bash(clasp push:*)",
+      "Bash(clasp deployments:*)",
+      "Bash(clasp deploy:*)",
+      "Bash(head -20 echo \"---\" grep -n \"try\\\\|catch\\\\|error\" \"G:/project/medbase/src/views/SchedulerView.vue\")",
+      "Bash(head -20 echo \"---\" grep -n \"await db\\\\.\\\\|await.*db\\\\.\" G:/project/medbase/src/views/AcpSettingsView.vue)",
+      "Bash(head -30 echo \"---\" grep -n \"async function\\\\|await db\\\\.\" G:/project/medbase/src/views/ItemsView.vue)",
+      "Bash(wc -l \"G:/project/medbase/gas/scheduler.gs\" grep -n \"^function buildMobileHtml\\\\|^}\" \"G:/project/medbase/gas/scheduler.gs\")",
+      "Bash(node -e \":*)",
+      "Bash(node:*)"
+    ]
+  }
+}

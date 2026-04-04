@@ -1,0 +1,42 @@
+找到 40/40 筆
+
+M1C00213: zh='骨水泥分配器(已滅菌)氣球椎體成形術系統'  en='IMEDICOM-CEMENT DISPENSER'  price=71520
+M1C00219: zh='泰瑞斯蒙締客脊椎用成形骨泥'  en='TECRES MENDEC SPINE'  price=24000
+M1C00223: zh='奧斯特抗生素骨水泥'  en=None  price=17850
+M1C00904: zh='半月軟骨縫合修補器'  en='Meniscal Cinch'  price=21038
+M1C01501: zh='異體韌帶'  en='CTS MEMTENDINOSUS TENDON'  price=91300
+M1C02421: zh='關節鏡鑽頭'  en='BUR'  price=6475
+M1C11912: zh='關節鏡專用氣化棒探頭'  en='Arthrocard'  price=21000
+M1C12503: zh='靈威特關節鏡手術引水導管'  en='Arthroscopy tubing'  price=3024
+M1C13101: zh='無菌包布'  en=None  price=1600
+M1C25925: zh='AR-1606三點懸臂式消毒袋'  en=None  price=6000
+M1C25926: zh='關節鏡專用套管'  en='AR-6560cannula 5.75mm'  price=1625
+M1C25942: zh='帕拉丁縫合錨釘'  en='PALADIN'  price=15000
+M1C25947: zh='思維拉克縫合錨釘'  en='SwiveLock 4.75mm'  price=30750
+M1C25958: zh='艾思瑞斯普仕拉克縫合錨釘-不可吸收普仕拉克縫合錨釘'  en='ARTHREX PUSHLOCK SUTURE ANCHOR-PEEK PUSHLOCK'  price=31900
+M1C26616: zh='韌帶懸吊固定裝置'  en='XO Button'  price=17500
+M1C50801: zh='關節軔帶懸吊系統(人工韌帶)'  en=None  price=72560
+M1C50802: zh='艾思瑞斯泰若普肌腱固定懸吊鈕'  en='ARTHREX TIGHT-ROPE SYNDESMOSIS REPAIR SYSTEM'  price=37500
+M1C50803: zh='前十字韌帶懸吊韌帶固定紐'  en='TightRope RT'  price=30800
+M1C51236: zh='鐿鈦脊椎固定系統:微創2節'  en=None  price=94080
+M1C51237: zh='鐿鈦脊椎固定系統:微創3節'  en=None  price=132480
+M1F25814: zh='軟骨注射植入物'  en='Oligo'  price=77000
+M1G02417: zh='4.史達美克史達射頻電極-甲狀腺'  en=None  price=34650
+M1G02924: zh='凡圖滋雙極射頻電極'  en=None  price=71500
+M1H40905: zh='利奇血球細胞分離組'  en='PRP'  price=15500
+M1M00524: zh='威德一次性使用輸尿管導引鞘(康成)'  en=None  price=35400
+M1M00528: zh='甫笙一次性電子軟式輸尿管鏡'  en=None  price=80960
+M1M01303: zh='波士頓科技斯若緹取石網'  en=None  price=6563
+M1M05201: zh='多尼爾醫用鈥雷射(硬式都要簽)'  en=None  price=5330
+M1M05204: zh='軟式輸尿管鏡(啟動力)'  en=None  price=121000
+M1M21607: zh='★喉返神經監測器(美敦力泛特肌電圖用氣管內管)'  en=None  price=22375
+M1M21905: zh='★球狀探針'  en=None  price=5600
+M1M21910: zh='★因諾美神經監測儀及其配件-喉返神經電極監測組+喉管電極貼片+單極探頭+皮下針電極INOMED C2 NERVEMONITOR'  en=None  price=27684
+M1N25306: zh='★瀚醫生技防粘連可吸收膠HANBIO BARRIGEL#5ML(濃度40MG/ML)'  en=None  price=8650
+M1N25310: zh='馬適得可吸收防沾黏薄膜'  en='MAST Adhesion \nBarrier Film'  price=30000
+M1W73024: zh='拋棄式旋轉刮刀及磨刀'  en='Shaver'  price=4970
+M1X 55022: zh='★柯惠利嘉修爾艾賽克含塗層分離器COVIDIEN LIGASURE'  en=None  price=32945
+M1X02605: zh='佛柔美得抗沾黏凝膠'  en='Fziomed'  price=39123
+M1Z00428: zh='斯爾弗止血基質組'  en='SURGIFLO with Thrombin'  price=39840
+M1Z08124: zh='內視鏡磨鑽'  en='Shaverblade'  price=34200
+M1Z08602: zh='高頻熱凝電燒'  en='Vaporflex'  price=75350
