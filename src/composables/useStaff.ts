@@ -120,12 +120,13 @@ export function useStaff(deps: {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
       const rows: string[][] = (json.values ?? []).slice(1);
+      // Sheets 欄位順序：[0]代號 [1]姓名 [2]角色 [3]pw_hash [4]啟用 [5]員工編號
       staff.value = rows
         .filter(r => r[0]?.trim() && r[1]?.trim())
         .map(r => ({
           code: r[0].trim(), name: r[1].trim(),
           role: r[2]?.trim() || "employee", is_active: 1,
-          employee_id: r[3]?.trim() || undefined,
+          employee_id: r[5]?.trim() || undefined,
         }));
       await saveStaffLocal();
       showToast(`已載入 ${staff.value.length} 位人員`);

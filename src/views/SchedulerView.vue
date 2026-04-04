@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { check as checkUpdate } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { getDb } from "@/db";
 import * as XLSX from "xlsx";
 import { readFile, writeFile } from "@tauri-apps/plugin-fs";
@@ -497,12 +499,59 @@ async function loadSettings() {
 watch(yyyyMM, () => { loadMonthStatus(); loadProjectionBase(); loadScheduleFromDb(); });
 watch(() => currentYear.value, loadHolidays);
 
+// 設定變動自動儲存（debounce 800ms，避免每次按鍵都寫 DB）
+let settingsTimer: ReturnType<typeof setTimeout> | null = null;
+watch(settings, () => {
+  if (settingsTimer) clearTimeout(settingsTimer);
+  settingsTimer = setTimeout(async () => {
+    await setSetting("spreadsheet_id", settings.value.spreadsheetId);
+    await setSetting("api_key",        settings.value.apiKey);
+    await setSetting("gas_url",        settings.value.gasUrl);
+    await setSetting("sheet_prefix",   settings.value.sheetPrefix);
+  }, 800);
+}, { deep: true });
+
 async function setSetting(key: string, value: string) {
   const db = await getDb();
   await db.execute(
     "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
     [`scheduler_${key}`, value]
   );
+}
+
+// ── Updater ───────────────────────────────────────────────────────────
+const updateAvailable  = ref(false);
+const updateVersion    = ref("");
+const updateNotes      = ref("");
+const updateDownloading = ref(false);
+let _updateObj: Awaited<ReturnType<typeof checkUpdate>> | null = null;
+
+async function checkForUpdate() {
+  try {
+    const update = await checkUpdate();
+    if (update?.available) {
+      _updateObj       = update;
+      updateVersion.value = update.version ?? "";
+      updateNotes.value   = update.body ?? "";
+      updateAvailable.value = true;
+    } else {
+      showToast("已是最新版本");
+    }
+  } catch {
+    showToast("檢查更新失敗，請確認網路連線");
+  }
+}
+
+async function installUpdate() {
+  if (!_updateObj) return;
+  updateDownloading.value = true;
+  try {
+    await _updateObj.downloadAndInstall();
+    await relaunch();
+  } catch {
+    showToast("更新安裝失敗");
+    updateDownloading.value = false;
+  }
 }
 
 async function saveAllSettings() {
@@ -1657,6 +1706,23 @@ async function createTemplate() {
           </span>
           <span v-if="!holidayList.filter(h => h.date.startsWith(String(currentYear))).length"
             class="text-xs text-gray-700">尚未設定 {{ currentYear }} 年假日</span>
+        </div>
+      </div>
+
+      <!-- 版本與更新 -->
+      <div class="border-t border-gray-800 pt-3 flex items-center gap-3 flex-wrap">
+        <span class="text-xs text-gray-600">MedBase v{{ $appVersion ?? '0.1.0' }}</span>
+        <button @click="checkForUpdate"
+          class="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded">
+          檢查更新
+        </button>
+        <div v-if="updateAvailable"
+          class="flex items-center gap-2 px-3 py-1.5 bg-emerald-900/40 border border-emerald-700/50 rounded text-xs text-emerald-300">
+          <span>🎉 發現新版本 v{{ updateVersion }}</span>
+          <button @click="installUpdate" :disabled="updateDownloading"
+            class="px-2 py-0.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white rounded">
+            {{ updateDownloading ? '安裝中…' : '立即更新' }}
+          </button>
         </div>
       </div>
 

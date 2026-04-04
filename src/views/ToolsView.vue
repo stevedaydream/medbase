@@ -266,9 +266,6 @@ const fio2Result = computed(() => {
   return { fio2, note, pf, pfLabel };
 });
 
-function resetTool(id: ToolId) {
-  activeTool.value = id;
-}
 </script>
 
 <template>

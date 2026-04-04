@@ -156,9 +156,15 @@ medbase/
 
 | # | 問題 | 位置 | 處理方式 |
 |---|------|------|---------|
-| 1 | **Dev 模式 super 預設登入未還原** | `SchedulerView.vue:56` | `session = ref(null)` |
+| 1 | **Dev 模式 super 預設登入未還原** | `SchedulerView.vue` | `session = ref(null)` |
 | 2 | **mobile/.env 無 .gitignore** | `mobile/` | 新增 `.gitignore` 含 `.env` |
 | 3 | **SHA-256 無鹽值** | `scheduler_users.pw_hash` | 升級為 bcrypt 或加 salt prefix |
+
+### ✅ 近期修復
+
+| # | 問題 | 修復方式 |
+|---|------|---------|
+| — | 設定頁 Spreadsheet ID / API Key / GAS URL 無法持久化 | 加 `watch(settings, ..., { deep: true })` debounce 800ms 自動寫入 DB |
 
 ### 🟡 技術債（Phase 4）
 

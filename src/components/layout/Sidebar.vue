@@ -92,7 +92,7 @@ function onDocPointerMove(e: PointerEvent) {
   if (found !== null && found >= 0) dragTo.value = found;
 }
 
-function onDocPointerUp(e: PointerEvent) {
+function onDocPointerUp(_e: PointerEvent) {
   document.removeEventListener("pointermove", onDocPointerMove);
   document.removeEventListener("pointerup",   onDocPointerUp);
 

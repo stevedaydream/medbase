@@ -32,7 +32,10 @@
       "Bash(head -30 echo \"---\" grep -n \"async function\\\\|await db\\\\.\" G:/project/medbase/src/views/ItemsView.vue)",
       "Bash(wc -l \"G:/project/medbase/gas/scheduler.gs\" grep -n \"^function buildMobileHtml\\\\|^}\" \"G:/project/medbase/gas/scheduler.gs\")",
       "Bash(node -e \":*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(netlify deploy:*)",
+      "Bash(netlify status:*)",
+      "Bash(netlify sites:list:*)"
     ]
   }
 }
