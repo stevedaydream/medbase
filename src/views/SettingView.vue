@@ -467,7 +467,7 @@ async function saveSettings() {
         </div>
 
         <!-- 日誌列表 -->
-        <div v-for="(entry, i) in changelog" :key="entry.version"
+        <div v-for="entry in changelog" :key="entry.version"
           class="relative pl-4 border-l-2 transition-colors"
           :class="entry.version === APP_VERSION ? 'border-blue-600' : 'border-gray-800'">
           <div class="flex items-baseline gap-2 mb-1.5">
