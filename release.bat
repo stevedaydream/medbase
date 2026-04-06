@@ -45,6 +45,9 @@ echo.
 echo [1/4] Updating version numbers...
 
 :: Use [System.IO.File] to avoid UTF-8 BOM corruption
+powershell -NoProfile -Command "$enc = New-Object System.Text.UTF8Encoding($false); $f = 'package.json'; [System.IO.File]::WriteAllText($f, ([System.IO.File]::ReadAllText($f) -replace '\"version\": \"%CURRENT_VER%\"', '\"version\": \"%NEW_VER%\"'), $enc)"
+if errorlevel 1 ( echo ERROR: package.json failed & pause & exit /b 1 )
+
 powershell -NoProfile -Command "$enc = New-Object System.Text.UTF8Encoding($false); $f = 'src-tauri\tauri.conf.json'; [System.IO.File]::WriteAllText($f, ([System.IO.File]::ReadAllText($f) -replace '\"version\": \"%CURRENT_VER%\"', '\"version\": \"%NEW_VER%\"'), $enc)"
 if errorlevel 1 ( echo ERROR: tauri.conf.json failed & pause & exit /b 1 )
 
@@ -58,7 +61,7 @@ echo   Done.
 
 echo.
 echo [2/4] Git commit...
-git add src-tauri/tauri.conf.json src-tauri/Cargo.toml src/components/layout/Sidebar.vue
+git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src/components/layout/Sidebar.vue
 git commit -m "chore: bump version to %NEW_VER%"
 if errorlevel 1 ( echo ERROR: git commit failed & pause & exit /b 1 )
 
