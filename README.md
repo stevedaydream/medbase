@@ -124,13 +124,13 @@ Actions 頁面：`https://github.com/stevedaydream/medbase/actions`
 ```bash
 cd mobile
 # 設定環境變數
-echo "VITE_GAS_URL=https://script.google.com/macros/s/.../exec" > .env
+echo "VITE_GAS_URL=https://script.google.com/macros/s/YOUR_GAS_DEPLOYMENT_ID/exec" > .env
 
 npm run build
-netlify deploy --prod --dir=dist --site=c0cf9c01-b6bc-4168-af03-d76fc853fbff
+netlify deploy --prod --dir=dist --site=YOUR_NETLIFY_SITE_ID
 ```
 
-**站台網址：** `https://dapper-travesseiro-256d2b.netlify.app`
+**站台網址：** `https://your-app.netlify.app`
 
 ---
 
@@ -140,7 +140,7 @@ netlify deploy --prod --dir=dist --site=c0cf9c01-b6bc-4168-af03-d76fc853fbff
 cd gas
 clasp push --force
 clasp deploy \
-  --deploymentId AKfycbxORGI_XtO-2_fnWJZMvSm74Aj8pp0NfqQUhCsp-gVdDltoDFoyv0VYdiTbVEa0YwXNzw \
+  --deploymentId YOUR_GAS_DEPLOYMENT_ID \
   --description "更新說明"
 ```
 
