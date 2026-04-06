@@ -25,7 +25,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM1MUVFM0Y1Mjc3NDY0N0EKUldSNlpIUW45ZU1leFNMZGRjaGUzQWNCYjNSM29YeXBlRUY1YkJ1WEdxN3RhR1JhNEZiaktxVkcK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ1NkY5MEM1NjY0MjgxMzEKUldReGdVSm14WkJ2UlRncWdXRmxFM2tzNDkxZW0rMC9BUVYrRWxkdnNqbzdqTnNGTEk3Um5EcTAK",
       "endpoints": [
         "https://github.com/stevedaydream/medbase/releases/latest/download/latest.json"
       ]
