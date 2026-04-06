@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
+import { useCloudSettings } from "@/stores/cloudSettings";
 
 // ── 型別 ────────────────────────────────────────────────────────
 interface Physician { id: number; name: string; department: string | null; is_vs: number; }
@@ -223,6 +224,67 @@ async function removeItem(si: SetItem) {
   } catch (e) { toast(`刪除失敗：${(e as Error).message}`); }
 }
 
+// ── 雲端同步 ──────────────────────────────────────────────────────
+const cloud = useCloudSettings();
+onMounted(() => cloud.load());
+const isSyncing = ref(false);
+
+async function pushToCloud() {
+  if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
+  isSyncing.value = true;
+  try {
+    const db = await getDb();
+    const setsData = await db.select<SetRow[]>(`
+      SELECT s.*, p.name AS phys_name
+      FROM sets s LEFT JOIN physicians p ON s.physician_id = p.id
+    `);
+    const setItemsData = await db.select<SetItem[]>("SELECT * FROM set_items ORDER BY set_id, sort_order");
+    await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "saveSets", sets: setsData, setItems: setItemsData }),
+      mode: "no-cors",
+    });
+    toast(`已上傳 ${setsData.length} 個套組至雲端`);
+  } catch (e) { toast(`上傳失敗：${(e as Error).message}`); }
+  finally { isSyncing.value = false; }
+}
+
+async function pullFromCloud() {
+  if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
+  isSyncing.value = true;
+  try {
+    const res = await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "getSets" }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
+    const { sets: cloudSets, setItems: cloudSetItems } = json;
+    if (!cloudSets?.length) { toast("雲端無套組資料"); return; }
+    const db = await getDb();
+    // 清空後重建（保留自增 id 一致性）
+    await db.execute("DELETE FROM set_items");
+    await db.execute("DELETE FROM sets");
+    for (const s of cloudSets) {
+      await db.execute(
+        "INSERT INTO sets (id, name, surgery_type, physician_id, department_id, notes) VALUES (?,?,?,?,?,?)",
+        [s.id, s.name, s.surgery_type||null, s.physician_id||null, null, s.notes||null]
+      );
+    }
+    for (const si of cloudSetItems) {
+      await db.execute(
+        "INSERT INTO set_items (id, set_id, hospital_code, quantity, is_optional, sort_order, notes) VALUES (?,?,?,?,?,?,?)",
+        [si.id, si.set_id, si.hospital_code||null, si.quantity, si.is_optional, si.sort_order, si.notes||null]
+      );
+    }
+    await loadAll();
+    toast(`已從雲端同步 ${cloudSets.length} 個套組`);
+  } catch (e) { toast(`下載失敗：${(e as Error).message}`); }
+  finally { isSyncing.value = false; }
+}
+
 async function doDelete() {
   if (!deleteTarget.value) return;
   try {
@@ -254,19 +316,31 @@ async function doDelete() {
           ＋
         </button>
       </div>
+      <!-- 雲端同步 -->
+      <div class="px-3 py-2 border-b border-gray-800 flex gap-1.5">
+        <button @click="pullFromCloud" :disabled="isSyncing"
+          class="flex-1 text-xs py-1 bg-blue-800/60 hover:bg-blue-700 disabled:opacity-40 text-blue-200 rounded">
+          {{ isSyncing ? '…' : '↓ 雲端同步' }}
+        </button>
+        <button @click="pushToCloud" :disabled="isSyncing"
+          class="flex-1 text-xs py-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-200 rounded">
+          {{ isSyncing ? '…' : '↑ 上傳' }}
+        </button>
+      </div>
 
       <!-- 分組列表 -->
       <div class="flex-1 overflow-y-auto py-1">
         <div v-for="group in grouped" :key="group.name" class="mb-1">
           <!-- 醫師群組標題 -->
-          <div class="px-3 py-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
-            {{ group.name }}
+          <div class="px-3 pt-3 pb-1.5 flex items-center gap-2">
+            <span class="text-sm font-bold text-white tracking-wide">{{ group.name }}</span>
+            <span class="text-[10px] text-gray-600 bg-gray-800 rounded-full px-1.5 py-0.5">{{ group.items.length }}</span>
           </div>
           <!-- 套組項目 -->
           <button
             v-for="s in group.items" :key="s.id"
             @click="selectSet(s)"
-            class="w-full flex items-center justify-between px-3 py-2 text-left text-xs transition-colors"
+            class="w-full flex items-center justify-between pl-6 pr-3 py-2 text-left text-xs transition-colors"
             :class="activeSet?.id === s.id
               ? 'bg-blue-600 text-white'
               : 'text-gray-300 hover:bg-gray-800'"

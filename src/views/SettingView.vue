@@ -2,6 +2,8 @@
 import { ref, watch, onMounted } from "vue";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
+import { check as checkUpdate } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 
 const cloud = useCloudSettings();
 onMounted(() => cloud.load());
@@ -109,6 +111,95 @@ function copyGasCode() {
     if (gasCopyTimer) clearTimeout(gasCopyTimer);
     gasCopyTimer = setTimeout(() => { gasCopied.value = false; }, 2000);
   });
+}
+
+// ── Updater ───────────────────────────────────────────────────────────
+const APP_VERSION = "0.1.4";
+
+const updateChecking    = ref(false);
+const updateAvailable   = ref(false);
+const updateVersion     = ref("");
+const updateNotes       = ref("");
+const updateDownloading = ref(false);
+let _updateObj: Awaited<ReturnType<typeof checkUpdate>> | null = null;
+
+async function checkForUpdate() {
+  updateChecking.value = true;
+  try {
+    const update = await checkUpdate();
+    if (update?.available) {
+      _updateObj          = update;
+      updateVersion.value = update.version ?? "";
+      updateNotes.value   = update.body ?? "";
+      updateAvailable.value = true;
+    } else {
+      showToast("已是最新版本");
+    }
+  } catch (e) {
+    const msg = (e as Error).message ?? "";
+    if (msg.includes("dev") || msg.includes("updater") || import.meta.env.DEV) {
+      showToast("開發模式下無法檢查更新，請使用打包版本");
+    } else {
+      showToast("檢查更新失敗，請確認網路連線");
+    }
+  } finally { updateChecking.value = false; }
+}
+
+async function installUpdate() {
+  if (!_updateObj) return;
+  updateDownloading.value = true;
+  try {
+    await _updateObj.downloadAndInstall();
+    await relaunch();
+  } catch {
+    showToast("更新安裝失敗");
+    updateDownloading.value = false;
+  }
+}
+
+// ── 更新日誌（從 GitHub Releases 抓取，快取於本地 DB）─────────────────
+interface ChangelogEntry { version: string; date: string; body: string }
+
+const changelog         = ref<ChangelogEntry[]>([]);
+const changelogFetchedAt = ref("");
+const changelogLoading  = ref(false);
+
+onMounted(async () => {
+  try {
+    const db = await getDb();
+    const rows = await db.select<{ key: string; value: string }[]>(
+      "SELECT key, value FROM app_settings WHERE key IN (?, ?)",
+      ["changelog_cache", "changelog_fetched_at"]
+    );
+    for (const r of rows) {
+      if (r.key === "changelog_cache")      changelog.value = JSON.parse(r.value);
+      if (r.key === "changelog_fetched_at") changelogFetchedAt.value = r.value;
+    }
+  } catch { /* ignore */ }
+});
+
+async function fetchChangelog() {
+  changelogLoading.value = true;
+  try {
+    const res = await fetch("https://api.github.com/repos/stevedaydream/medbase/releases", {
+      headers: { Accept: "application/vnd.github+json" },
+    });
+    if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+    const releases: { tag_name: string; published_at: string; body: string }[] = await res.json();
+    const parsed: ChangelogEntry[] = releases.map(r => ({
+      version: r.tag_name.replace(/^v/, ""),
+      date:    r.published_at.slice(0, 10),
+      body:    r.body ?? "",
+    }));
+    changelog.value = parsed;
+    const now = new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei" });
+    changelogFetchedAt.value = now;
+    const db = await getDb();
+    await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", ["changelog_cache", JSON.stringify(parsed)]);
+    await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", ["changelog_fetched_at", now]);
+  } catch (e) {
+    showToast(`無法取得日誌：${(e as Error).message}`);
+  } finally { changelogLoading.value = false; }
 }
 
 // ── Guide ─────────────────────────────────────────────────────────────
@@ -322,6 +413,77 @@ async function saveSettings() {
           </div>
         </div>
       </div><!-- end guide -->
+    </section>
+
+    <!-- ── 版本與更新 ──────────────────────────────────────────────── -->
+    <section class="space-y-4">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">版本與更新</h2>
+
+      <!-- 目前版本 + 檢查按鈕 -->
+      <div class="flex items-center gap-4 p-4 bg-gray-800 rounded-lg border border-gray-700">
+        <div class="flex-1">
+          <p class="text-xs text-gray-500 mb-0.5">目前版本</p>
+          <p class="text-xl font-bold text-white font-mono">v{{ APP_VERSION }}</p>
+        </div>
+        <div class="flex flex-col items-end gap-2">
+          <button @click="checkForUpdate" :disabled="updateChecking || updateDownloading"
+            class="text-xs px-4 py-1.5 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white rounded transition-colors">
+            {{ updateChecking ? '檢查中…' : '檢查更新' }}
+          </button>
+          <p class="text-[11px] text-gray-600">透過 GitHub Releases 自動更新</p>
+        </div>
+      </div>
+
+      <!-- 發現新版本 -->
+      <div v-if="updateAvailable"
+        class="p-4 bg-emerald-900/30 border border-emerald-700/60 rounded-lg space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs text-emerald-400 font-semibold">🎉 發現新版本 v{{ updateVersion }}</p>
+          </div>
+          <button @click="installUpdate" :disabled="updateDownloading"
+            class="text-xs px-4 py-1.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white rounded font-semibold">
+            {{ updateDownloading ? '安裝中…' : '立即更新' }}
+          </button>
+        </div>
+        <pre v-if="updateNotes" class="text-xs text-emerald-300/80 whitespace-pre-wrap font-sans leading-relaxed">{{ updateNotes }}</pre>
+      </div>
+
+      <!-- 更新日誌 -->
+      <div class="space-y-3">
+        <div class="flex items-center gap-3">
+          <p class="text-xs text-gray-500 font-semibold">更新日誌</p>
+          <span v-if="changelogFetchedAt" class="text-[11px] text-gray-700">上次同步：{{ changelogFetchedAt }}</span>
+          <button @click="fetchChangelog" :disabled="changelogLoading"
+            class="ml-auto text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-gray-400 hover:text-gray-200 rounded transition-colors">
+            {{ changelogLoading ? '取得中…' : '↻ 從 GitHub 更新' }}
+          </button>
+        </div>
+
+        <!-- 無資料提示 -->
+        <div v-if="!changelog.length && !changelogLoading"
+          class="py-6 text-center text-xs text-gray-600">
+          尚無快取，點擊「從 GitHub 更新」載入日誌
+        </div>
+
+        <!-- 日誌列表 -->
+        <div v-for="(entry, i) in changelog" :key="entry.version"
+          class="relative pl-4 border-l-2 transition-colors"
+          :class="entry.version === APP_VERSION ? 'border-blue-600' : 'border-gray-800'">
+          <div class="flex items-baseline gap-2 mb-1.5">
+            <span class="text-sm font-bold font-mono"
+              :class="entry.version === APP_VERSION ? 'text-blue-400' : 'text-gray-400'">
+              v{{ entry.version }}
+            </span>
+            <span class="text-[11px] text-gray-600">{{ entry.date }}</span>
+            <span v-if="entry.version === APP_VERSION"
+              class="text-[10px] px-1.5 py-0.5 bg-blue-900/60 border border-blue-700/50 text-blue-300 rounded-full">
+              目前版本
+            </span>
+          </div>
+          <pre class="text-xs text-gray-500 whitespace-pre-wrap font-sans leading-relaxed">{{ entry.body || '（無說明）' }}</pre>
+        </div>
+      </div>
     </section>
 
     <!-- Toast -->

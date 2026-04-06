@@ -192,6 +192,72 @@ function doPost(e) {
         return json({ ok: true, data });
       }
 
+      // ── 儲存自費品項（桌機端推送） ────────────────────────────────
+      case 'saveItems': {
+        let sh = ss.getSheetByName('Items') || ss.insertSheet('Items');
+        const hd = ['hospital_code','name_zh','name_en','purpose','unit','price','supplier','notes','depts'];
+        const rw = (p.data || []).map(r => [
+          r.hospital_code, r.name_zh||'', r.name_en||'', r.purpose||'',
+          r.unit||'', r.price ?? '', r.supplier||'', r.notes||'',
+          (r.depts||[]).join(',')
+        ]);
+        sh.clearContents();
+        sh.getRange(1,1,1,hd.length).setValues([hd]);
+        if (rw.length) sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        return json({ ok: true });
+      }
+
+      // ── 拉取自費品項（桌機端拉取） ────────────────────────────────
+      case 'getItems': {
+        const sh = ss.getSheetByName('Items');
+        if (!sh || sh.getLastRow() < 2) return json({ ok: true, data: [] });
+        const rows = sh.getDataRange().getValues().slice(1);
+        const data = rows.filter(r => r[0]).map(r => ({
+          hospital_code: String(r[0]||''), name_zh: String(r[1]||''), name_en: String(r[2]||''),
+          purpose: String(r[3]||''), unit: String(r[4]||''), price: r[5] !== '' ? Number(r[5]) : null,
+          supplier: String(r[6]||''), notes: String(r[7]||''),
+          depts: r[8] ? String(r[8]).split(',').map(d=>d.trim()).filter(Boolean) : []
+        }));
+        return json({ ok: true, data });
+      }
+
+      // ── 儲存套組（桌機端推送） ────────────────────────────────────
+      case 'saveSets': {
+        // Sets sheet
+        let sh1 = ss.getSheetByName('Sets') || ss.insertSheet('Sets');
+        const hd1 = ['id','name','surgery_type','physician_id','phys_name','notes'];
+        const rw1 = (p.sets||[]).map(r => [r.id, r.name||'', r.surgery_type||'', r.physician_id??'', r.phys_name||'', r.notes||'']);
+        sh1.clearContents();
+        sh1.getRange(1,1,1,hd1.length).setValues([hd1]);
+        if (rw1.length) sh1.getRange(2,1,rw1.length,hd1.length).setValues(rw1);
+        // SetItems sheet
+        let sh2 = ss.getSheetByName('SetItems') || ss.insertSheet('SetItems');
+        const hd2 = ['id','set_id','hospital_code','quantity','is_optional','sort_order','notes'];
+        const rw2 = (p.setItems||[]).map(r => [r.id, r.set_id, r.hospital_code||'', r.quantity, r.is_optional, r.sort_order, r.notes||'']);
+        sh2.clearContents();
+        sh2.getRange(1,1,1,hd2.length).setValues([hd2]);
+        if (rw2.length) sh2.getRange(2,1,rw2.length,hd2.length).setValues(rw2);
+        return json({ ok: true });
+      }
+
+      // ── 拉取套組（桌機端拉取） ────────────────────────────────────
+      case 'getSets': {
+        const sh1 = ss.getSheetByName('Sets');
+        const sh2 = ss.getSheetByName('SetItems');
+        const sets = sh1 && sh1.getLastRow() >= 2
+          ? sh1.getDataRange().getValues().slice(1).filter(r=>r[0]).map(r=>({
+              id: Number(r[0]), name: String(r[1]||''), surgery_type: String(r[2]||''),
+              physician_id: r[3]!=='' ? Number(r[3]) : null, phys_name: String(r[4]||''), notes: String(r[5]||'')
+            })) : [];
+        const setItems = sh2 && sh2.getLastRow() >= 2
+          ? sh2.getDataRange().getValues().slice(1).filter(r=>r[0]).map(r=>({
+              id: Number(r[0]), set_id: Number(r[1]), hospital_code: String(r[2]||''),
+              quantity: Number(r[3]||1), is_optional: Number(r[4]||0),
+              sort_order: Number(r[5]||0), notes: String(r[6]||'')
+            })) : [];
+        return json({ ok: true, sets, setItems });
+      }
+
       default:
         return json({ ok: false, error: `Unknown action: ${p.action}` });
     }
