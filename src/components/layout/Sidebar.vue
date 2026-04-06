@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { check as checkUpdate } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 
 const route  = useRoute();
 const router = useRouter();
@@ -121,6 +123,47 @@ onUnmounted(() => {
   document.removeEventListener("pointermove", onDocPointerMove);
   document.removeEventListener("pointerup",   onDocPointerUp);
 });
+
+// ── Updater ───────────────────────────────────────────────────────────
+const updateAvailable   = ref(false);
+const updateVersion     = ref("");
+const updateDownloading = ref(false);
+const updateToast       = ref("");
+let _updateObj: Awaited<ReturnType<typeof checkUpdate>> | null = null;
+let _toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showUpdateToast(msg: string) {
+  updateToast.value = msg;
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { updateToast.value = ""; }, 2500);
+}
+
+async function checkForUpdate() {
+  try {
+    const update = await checkUpdate();
+    if (update?.available) {
+      _updateObj          = update;
+      updateVersion.value = update.version ?? "";
+      updateAvailable.value = true;
+    } else {
+      showUpdateToast("已是最新版本");
+    }
+  } catch {
+    showUpdateToast("檢查更新失敗，請確認網路連線");
+  }
+}
+
+async function installUpdate() {
+  if (!_updateObj) return;
+  updateDownloading.value = true;
+  try {
+    await _updateObj.downloadAndInstall();
+    await relaunch();
+  } catch {
+    showUpdateToast("更新安裝失敗");
+    updateDownloading.value = false;
+  }
+}
 </script>
 
 <template>
@@ -183,8 +226,25 @@ onUnmounted(() => {
       </RouterLink>
     </div>
 
-    <!-- Footer -->
-    <div class="px-4 py-3 text-xs text-gray-700">v0.1.0</div>
+    <!-- 版本與更新 -->
+    <div class="px-3 pb-3 space-y-2">
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-gray-600">v0.1.2</span>
+        <button @click="checkForUpdate"
+          class="text-xs px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 rounded transition-colors">
+          檢查更新
+        </button>
+      </div>
+      <div v-if="updateAvailable"
+        class="flex items-center gap-2 px-2 py-1.5 bg-emerald-900/40 border border-emerald-700/50 rounded text-xs text-emerald-300">
+        <span>🎉 v{{ updateVersion }}</span>
+        <button @click="installUpdate" :disabled="updateDownloading"
+          class="px-2 py-0.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white rounded">
+          {{ updateDownloading ? '安裝中…' : '立即更新' }}
+        </button>
+      </div>
+      <p v-if="updateToast" class="text-xs text-gray-500">{{ updateToast }}</p>
+    </div>
 
     <!-- Drag ghost -->
     <Teleport to="body">
