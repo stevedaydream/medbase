@@ -230,7 +230,7 @@ async function installUpdate() {
     <!-- 版本與更新 -->
     <div class="px-3 pb-3 space-y-2">
       <div class="flex items-center gap-2">
-        <span class="text-xs text-gray-600">v0.1.3</span>
+        <span class="text-xs text-gray-600">v0.1.4</span>
         <button @click="checkForUpdate"
           class="text-xs px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 rounded transition-colors">
           檢查更新
