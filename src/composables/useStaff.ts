@@ -2,6 +2,7 @@ import { ref, computed, type Ref, type ComputedRef } from "vue";
 import { getDb } from "@/db";
 import { sha256 } from "@/utils/sha256";
 import { toRaw } from "vue";
+import { useCloudSettings } from "@/stores/cloudSettings";
 
 export interface StaffMember {
   code: string;
@@ -12,16 +13,15 @@ export interface StaffMember {
 }
 
 interface ScheduleRow { name: string; days: (string | null)[] }
-interface Settings { spreadsheetId: string; apiKey: string; gasUrl: string }
 
 export function useStaff(deps: {
-  settings:     Ref<Settings>;
   setSetting:   (key: string, value: string) => Promise<void>;
   showToast:    (msg: string) => void;
   scheduleData: Ref<ScheduleRow[]>;
   yyyyMM:       ComputedRef<string>;
 }) {
-  const { settings, setSetting, showToast, scheduleData } = deps;
+  const { setSetting, showToast, scheduleData } = deps;
+  const cloud = useCloudSettings();
 
   const staff               = ref<StaffMember[]>([]);
   const newStaffCode        = ref("");
@@ -110,12 +110,12 @@ export function useStaff(deps: {
   }
 
   async function pullStaffFromCloud() {
-    if (!settings.value.spreadsheetId || !settings.value.apiKey) {
+    if (!cloud.spreadsheetId || !cloud.apiKey) {
       showToast("請先設定 Spreadsheet ID 與 API Key"); return;
     }
     isStaffLoading.value = true;
     try {
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${settings.value.spreadsheetId}/values/Staff?key=${settings.value.apiKey}`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${cloud.spreadsheetId}/values/Staff?key=${cloud.apiKey}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json();
@@ -136,7 +136,7 @@ export function useStaff(deps: {
   }
 
   async function pushStaffToCloud() {
-    if (!settings.value.gasUrl) { showToast("請先設定 GAS Web App URL"); return; }
+    if (!cloud.gasUrl) { showToast("請先設定 GAS Web App URL"); return; }
     if (!staff.value.length) { showToast("人員名單為空"); return; }
     isStaffLoading.value = true;
     try {
@@ -145,7 +145,7 @@ export function useStaff(deps: {
         "SELECT code, pw_hash FROM scheduler_users"
       );
       const pwMap = new Map(userRows.map(r => [r.code, r.pw_hash]));
-      await fetch(settings.value.gasUrl, {
+      await fetch(cloud.gasUrl, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({

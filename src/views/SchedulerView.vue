@@ -13,6 +13,7 @@ import BookingTab   from "@/components/scheduler/BookingTab.vue";
 import { runProjection, DEFAULT_POOLS, type RotationPool } from "@/utils/rotationEngine";
 import { useShifts, isDerived, type Shift, type ShiftTargets } from "@/composables/useShifts";
 import { useStaff } from "@/composables/useStaff";
+import { useCloudSettings } from "@/stores/cloudSettings";
 
 // ── Types ─────────────────────────────────────────────────────────────
 interface ScheduleRow {
@@ -28,10 +29,8 @@ export interface RequestEntry {
 }
 
 // ── Settings ──────────────────────────────────────────────────────────
+const cloud = useCloudSettings();
 const settings = ref({
-  spreadsheetId: "",
-  apiKey: "",
-  gasUrl: "",
   localPath: "",
   sheetPrefix: "Schedule_",
 });
@@ -473,15 +472,13 @@ function toggleSubtract(si: number, key: DayTypeKey, code: string, e: Event) {
 onMounted(async () => { await loadSettings(); });
 
 async function loadSettings() {
+  await cloud.load();
   try {
     const db   = await getDb();
     const rows = await db.select<{ key: string; value: string }[]>(
       "SELECT key, value FROM app_settings WHERE key LIKE 'scheduler_%'"
     );
     const m = Object.fromEntries(rows.map(r => [r.key.replace("scheduler_", ""), r.value]));
-    if (m.spreadsheet_id)  settings.value.spreadsheetId = m.spreadsheet_id;
-    if (m.api_key)         settings.value.apiKey        = m.api_key;
-    if (m.gas_url)         settings.value.gasUrl        = m.gas_url;
     if (m.local_path)      settings.value.localPath     = m.local_path;
     if (m.sheet_prefix)    settings.value.sheetPrefix   = m.sheet_prefix || "Schedule_";
     if (m.last_sync)       lastSync.value               = m.last_sync;
@@ -504,10 +501,7 @@ let settingsTimer: ReturnType<typeof setTimeout> | null = null;
 watch(settings, () => {
   if (settingsTimer) clearTimeout(settingsTimer);
   settingsTimer = setTimeout(async () => {
-    await setSetting("spreadsheet_id", settings.value.spreadsheetId);
-    await setSetting("api_key",        settings.value.apiKey);
-    await setSetting("gas_url",        settings.value.gasUrl);
-    await setSetting("sheet_prefix",   settings.value.sheetPrefix);
+    await setSetting("sheet_prefix", settings.value.sheetPrefix);
   }, 800);
 }, { deep: true });
 
@@ -555,11 +549,8 @@ async function installUpdate() {
 }
 
 async function saveAllSettings() {
-  await setSetting("spreadsheet_id", settings.value.spreadsheetId);
-  await setSetting("api_key",        settings.value.apiKey);
-  await setSetting("gas_url",        settings.value.gasUrl);
-  await setSetting("local_path",     settings.value.localPath);
-  await setSetting("sheet_prefix",   settings.value.sheetPrefix);
+  await setSetting("local_path",   settings.value.localPath);
+  await setSetting("sheet_prefix", settings.value.sheetPrefix);
   showToast("設定已儲存");
 }
 
@@ -679,7 +670,7 @@ function parseValues(values: string[][]): ScheduleRow[] {
 
 // ── Pull from Google Sheets ───────────────────────────────────────────
 async function pullFromCloud() {
-  if (!settings.value.spreadsheetId || !settings.value.apiKey) {
+  if (!cloud.spreadsheetId || !cloud.apiKey) {
     activeTab.value = "settings";
     showToast("請先設定 Spreadsheet ID 與 API Key");
     return;
@@ -687,8 +678,8 @@ async function pullFromCloud() {
   isLoading.value = true;
   try {
     const url =
-      `https://sheets.googleapis.com/v4/spreadsheets/${settings.value.spreadsheetId}` +
-      `/values/${encodeURIComponent(sheetName.value)}?key=${settings.value.apiKey}`;
+      `https://sheets.googleapis.com/v4/spreadsheets/${cloud.spreadsheetId}` +
+      `/values/${encodeURIComponent(sheetName.value)}?key=${cloud.apiKey}`;
     const res = await fetch(url);
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: { message: res.statusText } }));
@@ -726,8 +717,8 @@ async function createNewMonthSheet() {
     ? staff.value.map(s => ({ name: s.name, days: Array(31).fill(null) as (string|null)[] }))
     : [];
   // Push to GAS — GAS will create the sheet tab
-  if (settings.value.gasUrl) {
-    await fetch(settings.value.gasUrl, {
+  if (cloud.gasUrl) {
+    await fetch(cloud.gasUrl, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({
@@ -984,7 +975,7 @@ async function importXlsx() {
 
 // ── Push to Google Sheets via GAS ────────────────────────────────────
 async function pushToCloud() {
-  if (!settings.value.gasUrl) {
+  if (!cloud.gasUrl) {
     activeTab.value = "settings";
     showToast("請先設定 GAS Web App URL");
     return;
@@ -994,7 +985,7 @@ async function pushToCloud() {
   try {
     // First sync local XLSX
     if (settings.value.localPath) await doWriteXlsx(false);
-    await fetch(settings.value.gasUrl, {
+    await fetch(cloud.gasUrl, {
       method:  "POST",
       headers: { "Content-Type": "text/plain" }, // avoid preflight
       body:    JSON.stringify({
@@ -1040,8 +1031,8 @@ async function publishSchedule() {
   isLoading.value = true;
   try {
     if (settings.value.localPath) await doWriteXlsx(false);
-    if (settings.value.gasUrl) {
-      await fetch(settings.value.gasUrl, {
+    if (cloud.gasUrl) {
+      await fetch(cloud.gasUrl, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({
@@ -1052,7 +1043,7 @@ async function publishSchedule() {
         }),
         mode: "no-cors",
       });
-      await fetch(settings.value.gasUrl, {
+      await fetch(cloud.gasUrl, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({ action: "saveConfig", key: "booking_open", value: "false" }),
@@ -1080,7 +1071,7 @@ const {
   pullStaffFromCloud, pushStaffToCloud, resetUserPassword,
   addRowFromStaff, initScheduleFromStaff,
   onStaffNameFocus, onStaffNameBlur, onEmployeeIdChange,
-} = useStaff({ settings, setSetting, showToast, scheduleData, yyyyMM });
+} = useStaff({ setSetting, showToast, scheduleData, yyyyMM });
 
 // ── Month Navigation ──────────────────────────────────────────────────
 function prevMonth() {
@@ -1387,9 +1378,6 @@ async function createTemplate() {
       :year="currentYear"
       :month="currentMonth"
       :shifts="shifts"
-      :gas-url="settings.gasUrl"
-      :spreadsheet-id="settings.spreadsheetId"
-      :api-key="settings.apiKey"
       @pull-done="onRequestsPulled"
       @adopt="onAdoptRequest"
       @ignore="onIgnoreRequest"
@@ -1403,7 +1391,6 @@ async function createTemplate() {
       :shifts="shifts"
       :year="currentYear"
       :month="currentMonth"
-      :gas-url="settings.gasUrl"
       class="flex-1 overflow-hidden"
     />
 
@@ -1538,17 +1525,17 @@ async function createTemplate() {
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-xs text-gray-500 mb-1">Spreadsheet ID（讀取用）</label>
-          <input v-model="settings.spreadsheetId" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
+          <input v-model="cloud.spreadsheetId" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
             class="w-full text-xs px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-gray-200 font-mono outline-none focus:border-gray-500" />
         </div>
         <div>
           <label class="block text-xs text-gray-500 mb-1">Google API Key（讀取用）</label>
-          <input v-model="settings.apiKey" type="password" placeholder="AIzaSy..."
+          <input v-model="cloud.apiKey" type="password" placeholder="AIzaSy..."
             class="w-full text-xs px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-gray-200 font-mono outline-none focus:border-gray-500" />
         </div>
         <div>
           <label class="block text-xs text-gray-500 mb-1">GAS Web App URL（上傳用）</label>
-          <input v-model="settings.gasUrl" placeholder="https://script.google.com/macros/s/.../exec"
+          <input v-model="cloud.gasUrl" placeholder="https://script.google.com/macros/s/.../exec"
             class="w-full text-xs px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-gray-200 font-mono outline-none focus:border-gray-500" />
         </div>
         <div>
@@ -1711,7 +1698,7 @@ async function createTemplate() {
 
       <!-- 版本與更新 -->
       <div class="border-t border-gray-800 pt-3 flex items-center gap-3 flex-wrap">
-        <span class="text-xs text-gray-600">MedBase v{{ $appVersion ?? '0.1.0' }}</span>
+        <span class="text-xs text-gray-600">MedBase v0.1.0</span>
         <button @click="checkForUpdate"
           class="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded">
           檢查更新

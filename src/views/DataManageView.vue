@@ -2,6 +2,8 @@
 import { ref, computed, onMounted, watch } from "vue";
 import { getDb } from "@/db";
 import * as XLSX from "xlsx";
+import { save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { writeFile } from "@tauri-apps/plugin-fs";
 
 // ── 型別定義 ────────────────────────────────────────────────────
 interface Item {
@@ -197,20 +199,73 @@ async function exportFullDb() {
       }
     }
 
-    const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
-    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
     const date = new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
-    a.href = url;
-    a.download = `medbase_full_backup_${date}.xlsx`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast("success", "完整資料庫匯出完成！");
+    const path = await saveDialog({
+      defaultPath: `medbase_full_backup_${date}.xlsx`,
+      filters: [{ name: "Excel", extensions: ["xlsx"] }],
+    });
+    if (!path) return; // 使用者取消
+
+    const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
+    await writeFile(path, buf);
+    showToast("success", "完整備份已儲存！");
   } catch (err: any) {
     showToast("error", `匯出失敗：${err?.message ?? err}`);
   } finally {
     exportingFull.value = false;
+  }
+}
+
+// ── 備份 / 還原 app_settings ─────────────────────────────────────
+const exportingSettings = ref(false);
+const importingSettings = ref(false);
+const settingsImportInput = ref<HTMLInputElement | null>(null);
+
+async function exportSettings() {
+  exportingSettings.value = true;
+  try {
+    const db   = await getDb();
+    const rows = await db.select<{ key: string; value: string }[]>("SELECT key, value FROM app_settings");
+    const json = JSON.stringify(rows, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    const date = new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
+    a.href = url;
+    a.download = `medbase_settings_${date}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("success", "設定備份完成！");
+  } catch (err: any) {
+    showToast("error", `備份失敗：${err?.message ?? err}`);
+  } finally {
+    exportingSettings.value = false;
+  }
+}
+
+async function handleSettingsImport(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  if (!confirm("確定還原設定？將覆蓋現有的所有程式設定（不影響臨床資料）。")) {
+    if (settingsImportInput.value) settingsImportInput.value.value = "";
+    return;
+  }
+  importingSettings.value = true;
+  try {
+    const text = await file.text();
+    const rows: { key: string; value: string }[] = JSON.parse(text);
+    if (!Array.isArray(rows)) throw new Error("格式錯誤：預期為陣列");
+    const db = await getDb();
+    for (const r of rows) {
+      if (typeof r.key !== "string" || typeof r.value !== "string") continue;
+      await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", [r.key, r.value]);
+    }
+    showToast("success", `設定還原完成，共匯入 ${rows.length} 筆。`);
+  } catch (err: any) {
+    showToast("error", `還原失敗：${err?.message ?? err}`);
+  } finally {
+    importingSettings.value = false;
+    if (settingsImportInput.value) settingsImportInput.value.value = "";
   }
 }
 
@@ -413,23 +468,47 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
       </button>
 
       <div class="mt-auto pt-4 border-t border-gray-800 flex flex-col gap-2">
+        <!-- 設定備份 -->
+        <p class="px-3 text-[10px] text-gray-600 uppercase tracking-wider">程式設定</p>
         <button
-          @click="exportFullDb"
-          :disabled="exportingFull"
-          class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors text-gray-400 hover:bg-gray-800 hover:text-blue-400 disabled:opacity-40"
+          @click="exportSettings"
+          :disabled="exportingSettings"
+          class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors text-gray-400 hover:bg-gray-800 hover:text-amber-400 disabled:opacity-40"
         >
-          <span>{{ exportingFull ? '⌛' : '📤' }}</span>
-          <span>完整備份 (XLSX)</span>
+          <span>{{ exportingSettings ? '⌛' : '⚙️' }}</span>
+          <span>備份設定 (JSON)</span>
         </button>
         <label
-          class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors text-gray-400 hover:bg-gray-800 hover:text-emerald-400 cursor-pointer"
-          :class="{ 'opacity-40 cursor-wait': importingFull }"
+          class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors text-gray-400 hover:bg-gray-800 hover:text-amber-400 cursor-pointer"
+          :class="{ 'opacity-40 cursor-wait': importingSettings }"
         >
-          <span>{{ importingFull ? '⌛' : '📥' }}</span>
-          <span>完整匯入 (XLSX)</span>
-          <input ref="fullImportInput" type="file" accept=".xlsx" class="hidden"
-            :disabled="importingFull" @change="handleFullImport" />
+          <span>{{ importingSettings ? '⌛' : '⚙️' }}</span>
+          <span>還原設定 (JSON)</span>
+          <input ref="settingsImportInput" type="file" accept=".json" class="hidden"
+            :disabled="importingSettings" @change="handleSettingsImport" />
         </label>
+
+        <!-- 完整備份 -->
+        <div class="border-t border-gray-800 pt-2">
+          <p class="px-3 text-[10px] text-gray-600 uppercase tracking-wider mb-2">完整資料庫</p>
+          <button
+            @click="exportFullDb"
+            :disabled="exportingFull"
+            class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors text-gray-400 hover:bg-gray-800 hover:text-blue-400 disabled:opacity-40"
+          >
+            <span>{{ exportingFull ? '⌛' : '📤' }}</span>
+            <span>完整備份 (XLSX)</span>
+          </button>
+          <label
+            class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors text-gray-400 hover:bg-gray-800 hover:text-emerald-400 cursor-pointer"
+            :class="{ 'opacity-40 cursor-wait': importingFull }"
+          >
+            <span>{{ importingFull ? '⌛' : '📥' }}</span>
+            <span>完整匯入 (XLSX)</span>
+            <input ref="fullImportInput" type="file" accept=".xlsx" class="hidden"
+              :disabled="importingFull" @change="handleFullImport" />
+          </label>
+        </div>
       </div>
     </div>
 

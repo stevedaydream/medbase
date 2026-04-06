@@ -165,6 +165,33 @@ function doPost(e) {
         return json({ ok: true, data: sh.getDataRange().getValues() });
       }
 
+      // ── 儲存醫師通訊錄（桌機端推送） ──────────────────────────────
+      case 'savePhysicians': {
+        let sh = ss.getSheetByName('Physicians') || ss.insertSheet('Physicians');
+        const hd = ['姓名', '科別', '職稱', '分機', 'HIS帳號', 'HIS密碼', 'PHS帳號', 'PHS密碼', '備註'];
+        const rw = (p.data || []).map(r => [
+          r.name, r.department, r.title, r.ext,
+          r.his_account, r.his_password, r.phs_account, r.phs_password, r.notes
+        ]);
+        sh.clearContents();
+        sh.getRange(1, 1, 1, hd.length).setValues([hd]);
+        if (rw.length) sh.getRange(2, 1, rw.length, hd.length).setValues(rw);
+        return json({ ok: true });
+      }
+
+      // ── 拉取醫師通訊錄（桌機端拉取） ──────────────────────────────
+      case 'getPhysicians': {
+        const sh = ss.getSheetByName('Physicians');
+        if (!sh || sh.getLastRow() < 2) return json({ ok: true, data: [] });
+        const rows = sh.getDataRange().getValues().slice(1);
+        const data = rows.map(r => ({
+          name: String(r[0] || ''), department: String(r[1] || ''), title: String(r[2] || ''),
+          ext: String(r[3] || ''), his_account: String(r[4] || ''), his_password: String(r[5] || ''),
+          phs_account: String(r[6] || ''), phs_password: String(r[7] || ''), notes: String(r[8] || '')
+        })).filter(r => r.name);
+        return json({ ok: true, data });
+      }
+
       default:
         return json({ ok: false, error: `Unknown action: ${p.action}` });
     }

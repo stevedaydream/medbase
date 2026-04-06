@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from "vue";
 import QRCode from "qrcode";
 import { getDb } from "@/db";
 import type { RequestEntry } from "@/views/SchedulerView.vue";
+import { useCloudSettings } from "@/stores/cloudSettings";
 
 interface StaffMember { code: string; name: string; role?: string }
 interface ScheduleRow { name: string; days: (string | null)[] }
@@ -17,10 +18,9 @@ const props = defineProps<{
   year:         number;
   month:        number;
   shifts:       Shift[];
-  gasUrl:       string;
-  spreadsheetId: string;
-  apiKey:       string;
 }>();
+
+const cloud = useCloudSettings();
 
 const emit = defineEmits<{
   "pull-done": [requests: RequestEntry[]];
@@ -71,9 +71,9 @@ async function saveBookingConfig() {
     await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)", [k, v]);
 
   // Sync to GAS Config sheet
-  if (props.gasUrl) {
+  if (cloud.gasUrl) {
     for (const [k, v] of pairs) {
-      await fetch(props.gasUrl, {
+      await fetch(cloud.gasUrl, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: JSON.stringify({ action: "saveConfig", key: k.replace("scheduler_", ""), value: v }),
@@ -157,13 +157,13 @@ function toast(msg: string) {
 }
 
 async function pullRequests() {
-  if (!props.spreadsheetId || !props.apiKey) {
+  if (!cloud.spreadsheetId || !cloud.apiKey) {
     toast("請先在設定填入 Spreadsheet ID 與 API Key"); return;
   }
   isLoading.value = true;
   try {
     const sheetName = `Requests_${yyyyMM.value}`;
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${props.spreadsheetId}/values/${encodeURIComponent(sheetName)}?key=${props.apiKey}`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${cloud.spreadsheetId}/values/${encodeURIComponent(sheetName)}?key=${cloud.apiKey}`;
     const res = await fetch(url);
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: { message: res.statusText } }));

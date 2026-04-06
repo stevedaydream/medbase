@@ -26,3 +26,12 @@ dist-ssr
 # Tauri signing keys (never commit)
 *.key
 *.key.pub
+
+# Hospital-specific raw data (sensitive: physician credentials, HIS passwords)
+data/
+
+# Mobile PWA environment (contains GAS URL)
+mobile/.env
+
+# Tauri build output
+src-tauri/target/

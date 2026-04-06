@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { getDb } from "@/db";
+import { useCloudSettings } from "@/stores/cloudSettings";
 
 interface StaffMember { code: string; name: string; role?: string }
 interface Shift        { code: string; color: string }
@@ -22,8 +23,9 @@ const props = defineProps<{
   shifts: Shift[];
   year:   number;
   month:  number;
-  gasUrl: string;
 }>();
+
+const cloud = useCloudSettings();
 
 // ── Types ─────────────────────────────────────────────────────────────
 interface DayChoice    { v1: string | null; v2: string | null; v3: string | null }
@@ -181,7 +183,7 @@ async function clearPersonDraft(code: string, e: MouseEvent) {
 
 // ── Cloud sync ────────────────────────────────────────────────────────
 async function syncToCloud() {
-  if (!props.gasUrl) { toast("請先在設定填入 GAS Web App URL"); return; }
+  if (!cloud.gasUrl) { toast("請先在設定填入 GAS Web App URL"); return; }
   const toSync = Object.values(drafts.value).filter(d =>
     d.days.some(x => x.v1 || x.v2 || x.v3)
   );
@@ -190,7 +192,7 @@ async function syncToCloud() {
   let ok = 0;
   try {
     for (const draft of toSync) {
-      await fetch(props.gasUrl, {
+      await fetch(cloud.gasUrl, {
         method:  "POST",
         headers: { "Content-Type": "text/plain" },
         body:    JSON.stringify({

@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
 import * as XLSX from "xlsx";
+import { useCloudSettings } from "@/stores/cloudSettings";
 
 interface Physician { id: number; name: string; department: string; title: string; ext: string; his_account: string; his_password: string; phs_account: string; phs_password: string; notes: string; }
 
@@ -11,6 +12,8 @@ const deptFilter = ref("");
 const vsOnly = ref(false);
 const selected = ref<Physician | null>(null);
 const toast = ref("");
+const syncing = ref(false);
+const cloud = useCloudSettings();
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
 const departments = computed(() => {
@@ -19,7 +22,10 @@ const departments = computed(() => {
   return Array.from(seen).sort();
 });
 
-onMounted(async () => { await load(); });
+onMounted(async () => {
+  await cloud.load();
+  await load();
+});
 
 async function load() {
   const db = await getDb();
@@ -36,9 +42,62 @@ const filtered = () => physicians.value.filter((p) => {
 
 function copy(text: string) {
   navigator.clipboard.writeText(text);
-  toast.value = `已複製：${text}`;
+  showToast(`已複製：${text}`);
+}
+
+async function pushToCloud() {
+  if (!cloud.gasUrl) { showToast("請先在排班設定填入 GAS Web App URL"); return; }
+  syncing.value = true;
+  try {
+    const res = await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "savePhysicians", data: physicians.value }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error);
+    showToast(`已推送 ${physicians.value.length} 筆到雲端`);
+  } catch (err) {
+    showToast(`推送失敗：${(err as Error).message}`);
+  } finally {
+    syncing.value = false;
+  }
+}
+
+async function pullFromCloud() {
+  if (!cloud.gasUrl) { showToast("請先在排班設定填入 GAS Web App URL"); return; }
+  syncing.value = true;
+  try {
+    const res = await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "getPhysicians" }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error);
+    const rows: Omit<Physician, "id">[] = json.data;
+    if (!rows.length) { showToast("雲端無資料"); return; }
+    const db = await getDb();
+    for (const r of rows) {
+      await db.execute(
+        `INSERT OR REPLACE INTO physicians (name, department, title, ext, his_account, his_password, phs_account, phs_password, notes)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        [r.name, r.department, r.title, r.ext, r.his_account, r.his_password, r.phs_account, r.phs_password, r.notes]
+      );
+    }
+    await load();
+    showToast(`已從雲端拉取 ${rows.length} 筆`);
+  } catch (err) {
+    showToast(`拉取失敗：${(err as Error).message}`);
+  } finally {
+    syncing.value = false;
+  }
+}
+
+function showToast(msg: string) {
+  toast.value = msg;
   if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { toast.value = ""; }, 2000);
+  toastTimer = setTimeout(() => { toast.value = ""; }, 2500);
 }
 
 // 批次匯入 XLSX（對應 parse-data.cjs 輸出格式）
@@ -116,10 +175,22 @@ async function importXlsx(e: Event) {
       </div>
 
       <!-- Import button -->
-      <label class="mb-3 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-800 text-green-100 text-xs cursor-pointer hover:bg-green-700 transition-colors">
+      <label class="mb-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-800 text-green-100 text-xs cursor-pointer hover:bg-green-700 transition-colors">
         📥 批次匯入 XLSX
         <input type="file" accept=".xlsx,.xls" class="hidden" @change="importXlsx" />
       </label>
+
+      <!-- Cloud sync buttons -->
+      <div class="mb-3 flex gap-1">
+        <button @click="pushToCloud" :disabled="syncing"
+          class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-blue-800 text-blue-100 text-xs hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer">
+          {{ syncing ? '…' : '☁️↑' }} 推送
+        </button>
+        <button @click="pullFromCloud" :disabled="syncing"
+          class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-indigo-800 text-indigo-100 text-xs hover:bg-indigo-700 disabled:opacity-50 transition-colors cursor-pointer">
+          {{ syncing ? '…' : '☁️↓' }} 拉取
+        </button>
+      </div>
 
       <p class="text-gray-600 text-xs mb-2">共 {{ filtered().length }} 人</p>
 
