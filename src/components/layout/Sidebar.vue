@@ -26,8 +26,9 @@ const DEFAULT_NAV: NavItem[] = [
 const navItems = ref<NavItem[]>([...DEFAULT_NAV]);
 
 const bottomNav: NavItem[] = [
-  { path: "/ahk",  icon: "⌨",  label: "AHK 管理" },
-  { path: "/data", icon: "⚙️", label: "資料管理" },
+  { path: "/ahk",      icon: "⌨",  label: "AHK 管理" },
+  { path: "/data",     icon: "⚙️", label: "資料管理" },
+  { path: "/settings", icon: "🔧", label: "設定" },
 ];
 
 // ── Persist order ──────────────────────────────────────────────────────
