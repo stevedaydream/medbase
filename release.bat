@@ -19,6 +19,14 @@ if "%CURRENT_VER%"=="" (
     pause & exit /b 1
 )
 
+echo.
+echo [1] New release  (bump version, commit, tag, push)
+echo [2] Re-push tag  (delete + recreate tag to retrigger Actions)
+echo.
+set /p MODE=Choose (1/2):
+if "%MODE%"=="2" goto REPUSH
+
+:: --- NEW RELEASE ---
 set /p NEW_VER=Enter new version (e.g. 0.1.3):
 if "%NEW_VER%"=="" (
     echo ERROR: Version cannot be empty
@@ -69,6 +77,42 @@ if errorlevel 1 ( echo ERROR: push tag failed & pause & exit /b 1 )
 echo.
 echo ========================================
 echo   Done! v%NEW_VER% pushed.
+echo   Actions: https://github.com/stevedaydream/medbase/actions
+echo ========================================
+pause
+exit /b 0
+
+:: --- RE-PUSH ---
+:REPUSH
+echo.
+set /p REPUSH_VER=Tag to re-push (leave blank for current v%CURRENT_VER%):
+if "%REPUSH_VER%"=="" set REPUSH_VER=%CURRENT_VER%
+
+echo.
+echo Will delete and re-push tag v%REPUSH_VER%
+set /p CONFIRM2=Continue? (y/N):
+if /i not "%CONFIRM2%"=="y" ( echo Cancelled. & pause & exit /b 0 )
+
+echo.
+echo [1/3] Deleting local tag v%REPUSH_VER%...
+git tag -d v%REPUSH_VER%
+if errorlevel 1 ( echo WARNING: local tag not found, continuing... )
+
+echo.
+echo [2/3] Deleting remote tag v%REPUSH_VER%...
+git push origin --delete v%REPUSH_VER%
+if errorlevel 1 ( echo WARNING: remote tag not found, continuing... )
+
+echo.
+echo [3/3] Creating and pushing tag v%REPUSH_VER%...
+git tag v%REPUSH_VER%
+if errorlevel 1 ( echo ERROR: failed to create tag & pause & exit /b 1 )
+git push origin v%REPUSH_VER%
+if errorlevel 1 ( echo ERROR: push tag failed & pause & exit /b 1 )
+
+echo.
+echo ========================================
+echo   Done! v%REPUSH_VER% re-pushed.
 echo   Actions: https://github.com/stevedaydream/medbase/actions
 echo ========================================
 pause

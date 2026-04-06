@@ -136,11 +136,14 @@ async function checkForUpdate() {
       showToast("已是最新版本");
     }
   } catch (e) {
-    const msg = (e as Error).message ?? "";
+    const msg = String((e as any)?.message ?? e ?? "unknown");
+    console.error("[updater]", msg);
     if (msg.includes("dev") || msg.includes("updater") || import.meta.env.DEV) {
       showToast("開發模式下無法檢查更新，請使用打包版本");
+    } else if (msg.includes("Not Found") || msg.includes("404")) {
+      showToast("尚未發布更新套件，請稍後再試");
     } else {
-      showToast("檢查更新失敗，請確認網路連線");
+      showToast(`更新檢查失敗：${msg.slice(0, 80)}`);
     }
   } finally { updateChecking.value = false; }
 }
