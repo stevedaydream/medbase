@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "MedBase ???典??怠??亥岷蝟餌絞",
+        "title": "MedBase — 臨床醫囑查詢系統",
         "width": 1280,
         "height": 800,
         "minWidth": 900,

@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
@@ -10,28 +10,28 @@ const router = useRouter();
 interface NavItem { path: string; icon: string; label: string }
 
 const DEFAULT_NAV: NavItem[] = [
-  { path: "/medications", icon: "??", label: "?亦摮" },
-  { path: "/prescriptions", icon: "??", label: "?憟?" },
-  { path: "/surgery",     icon: "?", label: "???蔭" },
-  { path: "/disease",     icon: "?", label: "?曄?撣貉?" },
-  { path: "/examination", icon: "?", label: "瑼Ｘ?蔭" },
-  { path: "/items",       icon: "?", label: "?芾祥??" },
-  { path: "/sets",        icon: "??儭?, label: "憟?蝞∠?" },
-  { path: "/acp",         icon: "??", label: "ACP 閰摯" },
-  { path: "/physicians",  icon: "???儭?, label: "?怠葦???? },
-  { path: "/schedule",    icon: "??", label: "?銵? },
-  { path: "/tools",       icon: "?妙", label: "?典?撌亙" },
+  { path: "/medications", icon: "💊", label: "藥物字典" },
+  { path: "/prescriptions", icon: "📋", label: "處方套組" },
+  { path: "/surgery",     icon: "🔪", label: "手術處置" },
+  { path: "/disease",     icon: "🏥", label: "疾病常規" },
+  { path: "/examination", icon: "🔬", label: "檢查處置" },
+  { path: "/items",       icon: "📦", label: "自費品項" },
+  { path: "/sets",        icon: "🗂️", label: "套組管理" },
+  { path: "/acp",         icon: "📜", label: "ACP 評估" },
+  { path: "/physicians",  icon: "👨‍⚕️", label: "醫師通訊錄" },
+  { path: "/schedule",    icon: "📅", label: "排班表" },
+  { path: "/tools",       icon: "🧮", label: "臨床工具" },
 ];
 
 const navItems = ref<NavItem[]>([...DEFAULT_NAV]);
 
 const bottomNav: NavItem[] = [
-  { path: "/ahk",      icon: "??,  label: "AHK 蝞∠?" },
-  { path: "/data",     icon: "??", label: "鞈?蝞∠?" },
-  { path: "/settings", icon: "?", label: "閮剖?" },
+  { path: "/ahk",      icon: "⌨",  label: "AHK 管理" },
+  { path: "/data",     icon: "⚙️", label: "資料管理" },
+  { path: "/settings", icon: "🔧", label: "設定" },
 ];
 
-// ?? Persist order ??????????????????????????????????????????????????????
+// ── Persist order ──────────────────────────────────────────────────────
 const STORAGE_KEY = "sidebar-nav-order";
 
 onMounted(() => {
@@ -52,7 +52,7 @@ function saveOrder() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(navItems.value.map(n => n.path)));
 }
 
-// ?? Pointer-based drag ?????????????????????????????????????????????????
+// ── Pointer-based drag ─────────────────────────────────────────────────
 const dragFrom   = ref<number | null>(null);
 const dragTo     = ref<number | null>(null);
 const isDragging = ref(false);
@@ -110,7 +110,7 @@ function onDocPointerUp(_e: PointerEvent) {
     navItems.value = items;
     saveOrder();
   } else if (!isDragging.value && from !== null) {
-    // It was a click ??navigate
+    // It was a click — navigate
     router.push(navItems.value[from].path);
   }
 
@@ -125,7 +125,7 @@ onUnmounted(() => {
   document.removeEventListener("pointerup",   onDocPointerUp);
 });
 
-// ?? Updater ???????????????????????????????????????????????????????????
+// ── Updater ───────────────────────────────────────────────────────────
 const updateAvailable   = ref(false);
 const updateVersion     = ref("");
 const updateDownloading = ref(false);
@@ -147,10 +147,10 @@ async function checkForUpdate() {
       updateVersion.value = update.version ?? "";
       updateAvailable.value = true;
     } else {
-      showUpdateToast("撌脫??啁???);
+      showUpdateToast("已是最新版本");
     }
   } catch {
-    showUpdateToast("瑼Ｘ?湔憭望?嚗?蝣箄?蝬脰楝???");
+    showUpdateToast("檢查更新失敗，請確認網路連線");
   }
 }
 
@@ -161,7 +161,7 @@ async function installUpdate() {
     await _updateObj.downloadAndInstall();
     await relaunch();
   } catch {
-    showUpdateToast("?湔摰?憭望?");
+    showUpdateToast("更新安裝失敗");
     updateDownloading.value = false;
   }
 }
@@ -173,7 +173,7 @@ async function installUpdate() {
     <!-- Logo -->
     <div class="px-4 py-5 border-b border-gray-800">
       <span class="text-lg font-bold tracking-tight text-white">MedBase</span>
-      <p class="text-xs mt-0.5 text-gray-500">?典??怠??亥岷蝟餌絞</p>
+      <p class="text-xs mt-0.5 text-gray-500">臨床醫囑查詢系統</p>
     </div>
 
     <!-- Emergency protocol link (fixed) -->
@@ -185,8 +185,8 @@ async function installUpdate() {
           ? 'bg-red-700 text-white'
           : 'bg-red-950/50 text-red-400 hover:bg-red-900/50'"
       >
-        <span class="text-base">?</span>
-        <span>?望交?憓?/span>
+        <span class="text-base">🚨</span>
+        <span>危急情境</span>
       </RouterLink>
     </div>
 
@@ -212,7 +212,7 @@ async function installUpdate() {
       </div>
     </nav>
 
-    <!-- 摨嚗??恣??-->
+    <!-- 底部：資料管理 -->
     <div class="px-3 pb-2 border-t border-gray-800 mt-2 pt-2">
       <RouterLink
         v-for="item in bottomNav" :key="item.path"
@@ -227,21 +227,21 @@ async function installUpdate() {
       </RouterLink>
     </div>
 
-    <!-- ????-->
+    <!-- 版本與更新 -->
     <div class="px-3 pb-3 space-y-2">
       <div class="flex items-center gap-2">
         <span class="text-xs text-gray-600">v0.1.3</span>
         <button @click="checkForUpdate"
           class="text-xs px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 rounded transition-colors">
-          瑼Ｘ?湔
+          檢查更新
         </button>
       </div>
       <div v-if="updateAvailable"
         class="flex items-center gap-2 px-2 py-1.5 bg-emerald-900/40 border border-emerald-700/50 rounded text-xs text-emerald-300">
-        <span>?? v{{ updateVersion }}</span>
+        <span>🎉 v{{ updateVersion }}</span>
         <button @click="installUpdate" :disabled="updateDownloading"
           class="px-2 py-0.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white rounded">
-          {{ updateDownloading ? '摰?銝凌? : '蝡?湔' }}
+          {{ updateDownloading ? '安裝中…' : '立即更新' }}
         </button>
       </div>
       <p v-if="updateToast" class="text-xs text-gray-500">{{ updateToast }}</p>
