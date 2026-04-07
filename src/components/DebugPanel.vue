@@ -27,6 +27,17 @@ async function handleExport() {
   }
 }
 
+const copied = ref<number | null>(null)
+
+function copyEntry(entry: { id: number; time: string; level: string; message: string; detail?: string }) {
+  const text = entry.detail
+    ? `[${entry.time}] ${entry.level.toUpperCase()} ${entry.message}\n${entry.detail}`
+    : `[${entry.time}] ${entry.level.toUpperCase()} ${entry.message}`
+  navigator.clipboard.writeText(text)
+  copied.value = entry.id
+  setTimeout(() => { copied.value = null }, 1500)
+}
+
 const levelClass: Record<string, string> = {
   error: 'bg-red-900 text-red-300',
   warn:  'bg-yellow-900 text-yellow-300',
@@ -67,21 +78,25 @@ const levelClass: Record<string, string> = {
       >
         <div
           class="flex items-start gap-2 px-3 py-1 hover:bg-gray-900 cursor-pointer select-text"
-          @click="entry.detail ? toggle(entry.id) : undefined"
+          @click="entry.detail ? toggle(entry.id) : copyEntry(entry)"
+          @dblclick.stop="copyEntry(entry)"
+          :title="copied === entry.id ? '已複製' : '點擊複製 / 展開堆疊'"
         >
           <span class="shrink-0 text-gray-500 mt-0.5">{{ entry.time }}</span>
           <span
             class="shrink-0 rounded px-1 py-0.5 text-[10px] leading-none mt-0.5"
             :class="levelClass[entry.level]"
           >{{ entry.level.toUpperCase() }}</span>
-          <span class="text-gray-200 break-all leading-relaxed">{{ entry.message }}</span>
+          <span class="break-all leading-relaxed transition-colors" :class="copied === entry.id ? 'text-green-400' : 'text-gray-200'">{{ copied === entry.id ? '✓ 已複製' : entry.message }}</span>
           <span v-if="entry.detail" class="ml-auto shrink-0 text-gray-600 mt-0.5">
             {{ expanded.has(entry.id) ? '▲' : '▼' }}
           </span>
         </div>
         <div
           v-if="entry.detail && expanded.has(entry.id)"
-          class="px-3 pb-2 pt-0.5 text-gray-500 whitespace-pre-wrap break-all bg-gray-900"
+          class="px-3 pb-2 pt-0.5 text-gray-500 whitespace-pre-wrap break-all bg-gray-900 cursor-pointer hover:text-gray-400"
+          @click.stop="copyEntry(entry)"
+          :title="'點擊複製完整記錄'"
         >{{ entry.detail }}</div>
       </div>
     </div>

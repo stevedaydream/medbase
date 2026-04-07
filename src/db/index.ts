@@ -295,6 +295,14 @@ async function initSchema(db: Database) {
 
   // ── ACP (Advance Care Planning) 評估系統 ──────────────────────
   await db.execute(`
+    CREATE TABLE IF NOT EXISTS acp_categories (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT    NOT NULL UNIQUE,
+      na_reasons TEXT    NOT NULL DEFAULT '[]'
+    );
+  `);
+
+  await db.execute(`
     CREATE TABLE IF NOT EXISTS acp_sets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,

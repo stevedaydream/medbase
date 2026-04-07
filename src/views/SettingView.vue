@@ -140,7 +140,7 @@ async function checkForUpdate() {
   } catch (e) {
     const msg = String((e as any)?.message ?? e ?? "unknown");
     console.error("[updater]", msg);
-    if (msg.includes("dev") || msg.includes("updater") || import.meta.env.DEV) {
+    if (import.meta.env.DEV || msg.includes("cannot be used") || msg.toLowerCase().includes("dev mode")) {
       showToast("開發模式下無法檢查更新，請使用打包版本");
     } else if (msg.includes("Not Found") || msg.includes("404")) {
       showToast("尚未發布更新套件，請稍後再試");
