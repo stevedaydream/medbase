@@ -4,6 +4,20 @@
 
 ---
 
+## 功能概覽
+
+| 模組 | 說明 |
+|------|------|
+| 自費耗材 | 品項查詢、套組管理、科別篩選 |
+| 醫師通訊錄 | 帳密查詢複製、雲端同步（GAS） |
+| 常用分機 | 分機快查、分類管理 |
+| 排班系統 | 班表編輯、人員管理、3 志願預約（手機 PWA） |
+| 臨床知識庫 | 藥物、處方、術式、疾病、檢查 |
+| 危急情境 | ACLS / 急救流程卡 |
+| 資料管理 | 選擇性 XLSX 備份/還原、整體 DB 備份/還原 |
+
+---
+
 ## 開發環境
 
 ```bash
@@ -16,49 +30,49 @@ npm run tauri dev
 ```bash
 npm run tauri build
 # 輸出：src-tauri/target/release/bundle/
-#   msi/MedBase_x.x.x_x64_en-US.msi
 #   nsis/MedBase_x.x.x_x64-setup.exe
+#   msi/MedBase_x.x.x_x64_en-US.msi
 ```
 
 ---
 
-## 自動更新（GitHub Releases）
+## 發布新版本
 
-### 運作原理
+執行專案根目錄的 `release.bat`，選擇 **[1] New release**：
 
 ```
-推送 tag v*
-  → GitHub Actions 自動 build + 簽章
-  → 建立 GitHub Release，上傳安裝檔與 latest.json
-  → 使用者在 App 設定頁點「檢查更新」
-  → 發現新版本 → 下載 → 安裝 → 重啟
+[1] New release  (bump version, commit, tag, push)
+[2] Re-push tag  (delete + recreate tag to retrigger Actions)
 ```
+
+腳本會自動：
+1. 更新 `tauri.conf.json`、`package.json`、`Cargo.toml` 版本號
+2. Git commit + tag + push
+3. 觸發 GitHub Actions 自動 build 並建立 Release
+
+> Actions 頁面：`https://github.com/stevedaydream/medbase/actions`
+
+完成後 Release Assets 包含：
+- `MedBase_x.x.x_x64-setup.exe`
+- `MedBase_x.x.x_x64_en-US.msi`
+- `latest.json`（自動更新端點）
 
 ---
 
-### 初次設定（只需做一次）
+## 自動更新設定（初次或換機時）
 
-#### 1. 產生簽章金鑰對
+### 1. 產生簽章金鑰對
 
 ```bash
-npm run tauri signer generate -- -w ./src-tauri/medbase.key
+npx tauri signer generate -w medbase.key
 ```
 
-輸出範例：
-```
-pubkey: dW50cnVzdGVkIGNvbW1lbnQ...（這串是公鑰）
-```
-
-> ⚠️ `medbase.key` 已加入 `.gitignore`，請勿 commit。
-
----
-
-#### 2. 將公鑰填入 tauri.conf.json
+產生的 `medbase.key.pub` 內容填入 `src-tauri/tauri.conf.json`：
 
 ```json
 "plugins": {
   "updater": {
-    "pubkey": "貼上上面產生的公鑰字串",
+    "pubkey": "（貼上 .pub 檔案內容）",
     "endpoints": [
       "https://github.com/stevedaydream/medbase/releases/latest/download/latest.json"
     ]
@@ -66,56 +80,42 @@ pubkey: dW50cnVzdGVkIGNvbW1lbnQ...（這串是公鑰）
 }
 ```
 
+> ⚠️ `medbase.key` 已加入 `.gitignore`，請勿 commit。
+
+### 2. 設定 GitHub Secrets
+
+前往 `Settings → Secrets → Actions`，新增：
+
+| Secret | 值 |
+|--------|---|
+| `TAURI_SIGNING_PRIVATE_KEY` | `medbase.key` 檔案的完整內容 |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | 金鑰密碼（無密碼請刪除此 Secret） |
+
+### 3. App 內更新流程
+
+設定頁 → 點「**檢查更新**」→ 發現新版本 → 「**立即更新**」→ 自動下載安裝 → 重啟
+
 ---
 
-#### 3. 設定 GitHub Secrets
+## 資料備份與遷移
 
-前往 `https://github.com/stevedaydream/medbase/settings/secrets/actions`，新增：
+所有資料儲存於單一 SQLite 檔案：
 
-| Secret 名稱 | 值 |
-|------------|---|
-| `TAURI_SIGNING_PRIVATE_KEY` | `medbase.key` 檔案的完整內容（貼上全文） |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | 產生金鑰時設定的密碼（若無則留空） |
-
----
-
-### 發布新版本
-
-#### 1. 修改版本號
-
-`src-tauri/tauri.conf.json`：
-```json
-{
-  "version": "0.2.0"
-}
+```
+%APPDATA%\com.medbase.app\medbase.db
 ```
 
-#### 2. Commit 並推送 tag
+### 整體備份（推薦）
 
-```bash
-git add -A
-git commit -m "release: v0.2.0"
-git tag v0.2.0
-git push origin main --tags
-```
+資料管理頁 → **備份 / 還原** → **備份 DB 檔 / 還原 DB 檔**
 
-#### 3. 等待 GitHub Actions 完成
+單一 `.db` 檔包含全部資料與設定，適合搬機或重裝時使用。還原後 App 自動重新啟動。
 
-Actions 頁面：`https://github.com/stevedaydream/medbase/actions`
+### 選擇性備份（XLSX）
 
-完成後 GitHub Release 會自動建立，包含：
-- `MedBase_x.x.x_x64_en-US.msi`
-- `MedBase_x.x.x_x64-setup.exe`
-- `latest.json`（App 更新檢查端點）
+資料管理頁 → 勾選備份群組 → **備份選取項目 (XLSX)**
 
----
-
-### App 內更新流程（使用者端）
-
-1. 開啟 MedBase → 排班系統 → 設定 Tab
-2. 點「**檢查更新**」
-3. 若有新版本，顯示版本號與「**立即更新**」按鈕
-4. 點「立即更新」→ 自動下載安裝 → 重啟 App
+每個 Sheet 對應一張資料表，可用 Excel 瀏覽與編輯。
 
 ---
 
@@ -123,14 +123,10 @@ Actions 頁面：`https://github.com/stevedaydream/medbase/actions`
 
 ```bash
 cd mobile
-# 設定環境變數
-echo "VITE_GAS_URL=https://script.google.com/macros/s/YOUR_GAS_DEPLOYMENT_ID/exec" > .env
-
+echo "VITE_GAS_URL=https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec" > .env
 npm run build
-netlify deploy --prod --dir=dist --site=YOUR_NETLIFY_SITE_ID
+netlify deploy --prod --dir=dist
 ```
-
-**站台網址：** `https://your-app.netlify.app`
 
 ---
 
@@ -139,10 +135,17 @@ netlify deploy --prod --dir=dist --site=YOUR_NETLIFY_SITE_ID
 ```bash
 cd gas
 clasp push --force
-clasp deploy \
-  --deploymentId YOUR_GAS_DEPLOYMENT_ID \
-  --description "更新說明"
+clasp deploy --deploymentId YOUR_DEPLOYMENT_ID --description "更新說明"
 ```
+
+---
+
+## 開發輔助
+
+| 快速鍵 | 功能 |
+|--------|------|
+| `Ctrl+K` | 全域搜尋（Omnibar） |
+| `Ctrl+Shift+D` | Debug 日誌面板（開發/除錯用） |
 
 ---
 
