@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
-import { getDb } from "@/db";
+import { getDb, closeDb } from "@/db";
 import * as XLSX from "xlsx";
-import { save as saveDialog } from "@tauri-apps/plugin-dialog";
-import { writeFile } from "@tauri-apps/plugin-fs";
+import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialog";
+import { writeFile, copyFile } from "@tauri-apps/plugin-fs";
+import { appDataDir, join } from "@tauri-apps/api/path";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { useCloudSettings } from "@/stores/cloudSettings";
 
 // ── 型別定義 ────────────────────────────────────────────────────
@@ -502,6 +504,48 @@ async function confirmFullImport() {
 function cancelImport() {
   importPreview.value = null;
   pendingImportData.value = null;
+}
+
+// ── 整體 DB 備份 / 還原 ───────────────────────────────────────────
+const dbBackingUp  = ref(false);
+const dbRestoring  = ref(false);
+
+async function backupDb() {
+  dbBackingUp.value = true;
+  try {
+    const dbPath = await join(await appDataDir(), "medbase.db");
+    const date   = new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
+    const dest   = await saveDialog({
+      defaultPath: `medbase_${date}.db`,
+      filters: [{ name: "SQLite Database", extensions: ["db"] }],
+    });
+    if (!dest) return;
+    await copyFile(dbPath, dest);
+    showToast("success", "資料庫備份完成！");
+  } catch (err: any) {
+    showToast("error", `備份失敗：${err?.message ?? err}`);
+  } finally {
+    dbBackingUp.value = false;
+  }
+}
+
+async function restoreDb() {
+  const src = await openDialog({
+    filters: [{ name: "SQLite Database", extensions: ["db"] }],
+    multiple: false,
+  });
+  if (!src || typeof src !== "string") return;
+  if (!confirm("確定還原資料庫？這會覆蓋所有現有資料，App 將自動重新啟動。")) return;
+  dbRestoring.value = true;
+  try {
+    const dbPath = await join(await appDataDir(), "medbase.db");
+    await closeDb();
+    await copyFile(src, dbPath);
+    await relaunch();
+  } catch (err: any) {
+    showToast("error", `還原失敗：${err?.message ?? err}`);
+    dbRestoring.value = false;
+  }
 }
 
 // ── 載入資料 ─────────────────────────────────────────────────────
@@ -1022,7 +1066,25 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
       <!-- ── 備份 / 還原 ──────────────────────────── -->
       <div v-if="activeTab === 'backup'" class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
 
-        <!-- ① 匯出區 -->
+        <!-- ① DB 整體備份 -->
+        <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+          <h3 class="font-semibold text-gray-100 flex items-center gap-2 mb-1">
+            <span>🗄️</span> 資料庫整體備份 / 還原
+          </h3>
+          <p class="text-xs text-gray-500 mb-4">備份單一 <span class="font-mono text-gray-400">medbase.db</span> 檔案，包含所有資料與設定，搬機或重裝時使用。還原後 App 自動重新啟動。</p>
+          <div class="flex gap-3">
+            <button @click="backupDb" :disabled="dbBackingUp || dbRestoring"
+              class="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-600 text-white text-sm font-medium transition-colors disabled:opacity-40">
+              {{ dbBackingUp ? '備份中…' : '💾 備份 DB 檔' }}
+            </button>
+            <button @click="restoreDb" :disabled="dbBackingUp || dbRestoring"
+              class="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-700 hover:bg-amber-600 text-white text-sm font-medium transition-colors disabled:opacity-40">
+              {{ dbRestoring ? '還原中…' : '📂 還原 DB 檔' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- ② 匯出區 -->
         <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
           <div class="flex items-center justify-between mb-4">
             <h3 class="font-semibold text-gray-100 flex items-center gap-2">

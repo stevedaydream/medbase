@@ -35,6 +35,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "resources": ["medbase_schema.sql"],
     "icon": [
       "icons/32x32.png",

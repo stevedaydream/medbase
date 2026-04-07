@@ -1,8 +1,15 @@
 import Database from "@tauri-apps/plugin-sql";
-import { seedItems } from "./seed";
+import { seedPhysicians, seedContacts } from "./seed";
 import { sha256 } from "@/utils/sha256";
 
 let db: Database | null = null;
+
+export async function closeDb(): Promise<void> {
+  if (db) {
+    await db.close();
+    db = null;
+  }
+}
 
 export async function getDb(): Promise<Database> {
   if (!db) {
@@ -15,21 +22,35 @@ export async function getDb(): Promise<Database> {
 
 /** 只在第一次（items 為空時）匯入種子資料 */
 async function seedIfEmpty(db: Database) {
-  // ① Items Seed
-  const rows = await db.select<{ c: number }[]>("SELECT COUNT(*) as c FROM items");
-  if (rows[0].c === 0) {
-    for (const item of seedItems) {
-      await db.execute(
-        "INSERT INTO items (hospital_code, name_en, name_zh, purpose, unit, price, supplier, notes) VALUES (?,?,?,?,?,?,?,?)",
-        [item.hospital_code, item.name_en, item.name_zh,
-         item.category ?? item.body_part ?? null, item.unit ?? null, item.price ?? 0, item.supplier ?? null,
-         item.notes !== null ? String(item.notes) : null]
-      );
+  // ① 醫師通訊錄
+  if (seedPhysicians.length > 0) {
+    const rows = await db.select<{ c: number }[]>("SELECT COUNT(*) as c FROM physicians");
+    if (rows[0].c === 0) {
+      for (const p of seedPhysicians) {
+        await db.execute(
+          "INSERT INTO physicians (name, department, title, ext, his_account, his_password, phs_account, phs_password, notes) VALUES (?,?,?,?,?,?,?,?,?)",
+          [p.name, p.department, p.title, p.ext, p.his_account, p.his_password, p.phs_account, p.phs_password, p.notes]
+        );
+      }
+      console.log("[seed] imported", seedPhysicians.length, "physicians");
     }
-    console.log("[seed] imported", seedItems.length, "items");
   }
 
-  // ② Scheduler super 帳號（預設密碼 Admin0000，首次啟動建立）
+  // ② 常用分機
+  if (seedContacts.length > 0) {
+    const rows = await db.select<{ c: number }[]>("SELECT COUNT(*) as c FROM contacts");
+    if (rows[0].c === 0) {
+      for (const c of seedContacts) {
+        await db.execute(
+          "INSERT INTO contacts (label, ext, category, notes) VALUES (?,?,?,?)",
+          [c.label, c.ext, c.category, c.notes]
+        );
+      }
+      console.log("[seed] imported", seedContacts.length, "contacts");
+    }
+  }
+
+  // ③ Scheduler super 帳號（預設密碼 Admin0000，首次啟動建立）
   const superRow = await db.select<{ c: number }[]>(
     "SELECT COUNT(*) as c FROM scheduler_users WHERE code = 'super'"
   );
@@ -42,7 +63,7 @@ async function seedIfEmpty(db: Database) {
     console.log("[seed] created default super account (Admin0000)");
   }
 
-  // ③ ACP Categories Seed
+  // ④ ACP Categories Seed
   const acpRows = await db.select<{ c: number }[]>("SELECT COUNT(*) as c FROM acp_categories");
   if (acpRows[0].c === 0) {
     const defaultCats = [

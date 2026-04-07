@@ -17,6 +17,10 @@
     "dialog:allow-open",
     "dialog:allow-save",
     {
+      "identifier": "fs:allow-copy-file",
+      "allow": [{ "path": "$HOME/**" }]
+    },
+    {
       "identifier": "fs:allow-read-text-file",
       "allow": [{ "path": "$HOME/**" }]
     },
