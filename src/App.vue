@@ -4,17 +4,23 @@ import { useEventListener } from "@vueuse/core";
 import Sidebar from "@/components/layout/Sidebar.vue";
 import TopBar from "@/components/layout/TopBar.vue";
 import OmniSearch from "@/components/OmniSearch.vue";
+import DebugPanel from "@/components/DebugPanel.vue";
 
 const searchOpen = ref(false);
+const debugOpen = ref(false);
 
-// Ctrl+K global shortcut
 useEventListener("keydown", (e: KeyboardEvent) => {
   if ((e.ctrlKey || e.metaKey) && e.key === "k") {
     e.preventDefault();
     searchOpen.value = !searchOpen.value;
   }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "D") {
+    e.preventDefault();
+    debugOpen.value = !debugOpen.value;
+  }
   if (e.key === "Escape") {
     searchOpen.value = false;
+    debugOpen.value = false;
   }
 });
 </script>
@@ -36,5 +42,8 @@ useEventListener("keydown", (e: KeyboardEvent) => {
 
     <!-- Omnibar overlay -->
     <OmniSearch v-if="searchOpen" @close="searchOpen = false" />
+
+    <!-- Debug panel -->
+    <DebugPanel v-if="debugOpen" />
   </div>
 </template>

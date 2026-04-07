@@ -39,5 +39,10 @@ export const useCloudSettings = defineStore("cloudSettings", () => {
     saveTimer = setTimeout(persist, 800);
   });
 
-  return { spreadsheetId, apiKey, gasUrl, loaded, load };
+  async function reload() {
+    loaded.value = false;
+    await load();
+  }
+
+  return { spreadsheetId, apiKey, gasUrl, loaded, load, reload };
 });

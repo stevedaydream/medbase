@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { getVersion } from "@tauri-apps/api/app";
 
 const cloud = useCloudSettings();
 onMounted(() => cloud.load());
@@ -114,7 +115,8 @@ function copyGasCode() {
 }
 
 // ── Updater ───────────────────────────────────────────────────────────
-const APP_VERSION = "0.1.4";
+const APP_VERSION = ref("…");
+onMounted(async () => { APP_VERSION.value = await getVersion(); });
 
 const updateChecking    = ref(false);
 const updateAvailable   = ref(false);

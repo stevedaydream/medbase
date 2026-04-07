@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
-import * as XLSX from "xlsx";
 import { useCloudSettings } from "@/stores/cloudSettings";
 
 interface Physician { id: number; name: string; department: string; title: string; ext: string; his_account: string; his_password: string; phs_account: string; phs_password: string; notes: string; }
@@ -14,6 +13,7 @@ const selected = ref<Physician | null>(null);
 const toast = ref("");
 const syncing = ref(false);
 const cloud = useCloudSettings();
+const pullTitleFilter = ref("主治醫師"); // 預設只拉主治醫師
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
 const departments = computed(() => {
@@ -75,18 +75,38 @@ async function pullFromCloud() {
     });
     const json = await res.json();
     if (!json.ok) throw new Error(json.error);
-    const rows: Omit<Physician, "id">[] = json.data;
+    let rows: Omit<Physician, "id">[] = json.data;
     if (!rows.length) { showToast("雲端無資料"); return; }
+
+    // 依職稱篩選
+    if (pullTitleFilter.value) {
+      rows = rows.filter(r => r.title === pullTitleFilter.value);
+      if (!rows.length) { showToast(`雲端無「${pullTitleFilter.value}」資料`); return; }
+    }
+
     const db = await getDb();
+    let inserted = 0, updated = 0;
     for (const r of rows) {
-      await db.execute(
-        `INSERT OR REPLACE INTO physicians (name, department, title, ext, his_account, his_password, phs_account, phs_password, notes)
-         VALUES (?,?,?,?,?,?,?,?,?)`,
-        [r.name, r.department, r.title, r.ext, r.his_account, r.his_password, r.phs_account, r.phs_password, r.notes]
+      const existing = await db.select<{ id: number }[]>(
+        "SELECT id FROM physicians WHERE name = ?", [r.name]
       );
+      if (existing.length) {
+        await db.execute(
+          `UPDATE physicians SET department=?, title=?, ext=?, his_account=?, his_password=?, phs_account=?, phs_password=?, notes=? WHERE id=?`,
+          [r.department, r.title, r.ext ?? null, r.his_account, r.his_password, r.phs_account, r.phs_password, r.notes, existing[0].id]
+        );
+        updated++;
+      } else {
+        await db.execute(
+          `INSERT INTO physicians (name, department, title, ext, his_account, his_password, phs_account, phs_password, notes) VALUES (?,?,?,?,?,?,?,?,?)`,
+          [r.name, r.department, r.title, r.ext ?? null, r.his_account, r.his_password, r.phs_account, r.phs_password, r.notes]
+        );
+        inserted++;
+      }
     }
     await load();
-    showToast(`已從雲端拉取 ${rows.length} 筆`);
+    const filterLabel = pullTitleFilter.value ? `（${pullTitleFilter.value}）` : "";
+    showToast(`拉取完成${filterLabel}：新增 ${inserted} 筆，更新 ${updated} 筆`);
   } catch (err) {
     showToast(`拉取失敗：${(err as Error).message}`);
   } finally {
@@ -100,45 +120,6 @@ function showToast(msg: string) {
   toastTimer = setTimeout(() => { toast.value = ""; }, 2500);
 }
 
-// 批次匯入 XLSX（對應 parse-data.cjs 輸出格式）
-async function importXlsx(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0];
-  if (!file) return;
-  try {
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf);
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws, { defval: "" });
-    const db = await getDb();
-    let count = 0;
-    for (const row of rows) {
-      const name = (row["name"] ?? row["姓名"] ?? "").trim();
-      if (!name) continue;
-      await db.execute(
-        `INSERT OR REPLACE INTO physicians (name, department, title, ext, his_account, his_password, phs_account, phs_password, notes)
-         VALUES (?,?,?,?,?,?,?,?,?)`,
-        [
-          name,
-          (row["department"] ?? row["科別"] ?? "").trim(),
-          (row["title"] ?? row["職稱"] ?? "主治醫師").trim(),
-          (row["ext"] ?? row["分機"] ?? "").trim(),
-          (row["his_account"] ?? row["HIS帳號"] ?? "").trim(),
-          (row["his_password"] ?? row["HIS密碼"] ?? "").trim(),
-          (row["phs_account"] ?? "").trim(),
-          (row["phs_password"] ?? "").trim(),
-          (row["notes"] ?? row["備註"] ?? "").trim(),
-        ]
-      );
-      count++;
-    }
-    (e.target as HTMLInputElement).value = "";
-    await load();
-    alert(`✓ 已匯入 ${count} 位醫師`);
-  } catch (err) {
-    alert(`匯入失敗：${(err as Error).message}`);
-    (e.target as HTMLInputElement).value = "";
-  }
-}
 </script>
 
 <template>
@@ -174,14 +155,8 @@ async function importXlsx(e: Event) {
         >主治醫師</button>
       </div>
 
-      <!-- Import button -->
-      <label class="mb-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-800 text-green-100 text-xs cursor-pointer hover:bg-green-700 transition-colors">
-        📥 批次匯入 XLSX
-        <input type="file" accept=".xlsx,.xls" class="hidden" @change="importXlsx" />
-      </label>
-
       <!-- Cloud sync buttons -->
-      <div class="mb-3 flex gap-1">
+      <div class="mb-1 flex gap-1">
         <button @click="pushToCloud" :disabled="syncing"
           class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-blue-800 text-blue-100 text-xs hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer">
           {{ syncing ? '…' : '☁️↑' }} 推送
@@ -190,6 +165,17 @@ async function importXlsx(e: Event) {
           class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-indigo-800 text-indigo-100 text-xs hover:bg-indigo-700 disabled:opacity-50 transition-colors cursor-pointer">
           {{ syncing ? '…' : '☁️↓' }} 拉取
         </button>
+      </div>
+      <!-- 拉取職稱篩選 -->
+      <div class="mb-3 flex items-center gap-1.5">
+        <span class="text-[10px] text-gray-600 shrink-0">拉取篩選</span>
+        <select v-model="pullTitleFilter"
+          class="flex-1 px-2 py-1 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 text-xs focus:outline-none focus:border-indigo-500">
+          <option value="">全部職稱</option>
+          <option value="主治醫師">主治醫師</option>
+          <option value="住院醫師">住院醫師</option>
+          <option value="護理師">護理師</option>
+        </select>
       </div>
 
       <p class="text-gray-600 text-xs mb-2">共 {{ filtered().length }} 人</p>
@@ -209,7 +195,7 @@ async function importXlsx(e: Event) {
     <div class="flex-1 rounded-xl bg-gray-900 border border-gray-800 p-5 overflow-y-auto">
       <div v-if="!selected" class="flex flex-col items-center justify-center h-full text-gray-600 gap-2">
         <span class="text-4xl">👨‍⚕️</span>
-        <p class="text-sm">選擇醫師，或點「批次匯入 XLSX」載入 physicians_parsed.xlsx</p>
+        <p class="text-sm">選擇醫師查看詳細資料</p>
       </div>
       <div v-else>
         <div class="flex items-start justify-between mb-5">

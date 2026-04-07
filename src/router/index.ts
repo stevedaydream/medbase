@@ -16,6 +16,7 @@ const router = createRouter({
     { path: "/emergency", component: () => import("@/views/EmergencyView.vue"), meta: { title: "危急情境" } },
     { path: "/items", component: () => import("@/views/ItemsView.vue"), meta: { title: "自費品項" } },
     { path: "/physicians", component: () => import("@/views/PhysiciansView.vue"), meta: { title: "醫師通訊錄" } },
+    { path: "/contacts",   component: () => import("@/views/ContactsView.vue"),   meta: { title: "常用分機" } },
     { path: "/sets",  component: () => import("@/views/SetsView.vue"),      meta: { title: "套組管理" } },
     { path: "/data",  component: () => import("@/views/DataManageView.vue"), meta: { title: "資料管理" } },
     { path: "/acp",   component: () => import("@/views/AcpView.vue"),        meta: { title: "ACP 評估" } },

@@ -62,6 +62,7 @@ echo   Done.
 echo.
 echo [2/4] Git commit...
 git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src/components/layout/Sidebar.vue
+:: Note: SettingView.vue reads version dynamically via getVersion() - no manual update needed
 git commit -m "chore: bump version to %NEW_VER%"
 if errorlevel 1 ( echo ERROR: git commit failed & pause & exit /b 1 )
 

@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import * as XLSX from "xlsx";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
+import { useCloudSettings } from "@/stores/cloudSettings";
 
 // ── 型別定義 ────────────────────────────────────────────────────
 interface Item {
@@ -29,7 +30,7 @@ interface ProtocolForm {
   contacts: { label: string; ext: string }[];
   notes: string;
 }
-type Tab = "items" | "physicians" | "emergency";
+type Tab = "items" | "physicians" | "emergency" | "backup";
 
 // ── 狀態 ────────────────────────────────────────────────────────
 const activeTab   = ref<Tab>("items");
@@ -152,15 +153,15 @@ async function handleXlsx(e: Event) {
       results.push({ sheet: "自費品項", upserted: ok, skipped: skip });
     }
 
-    // ④ sets（FK → doctors, departments）
+    // ④ sets（FK → physicians）
     {
       let ok = 0, skip = 0;
       for (const r of rows("sets")) {
         if (!isNum(r.id) || !r.name) { skip++; continue; }
         await db.execute(
-          `INSERT OR REPLACE INTO sets (id,name,surgery_type,doctor_id,department_id,notes)
+          `INSERT OR REPLACE INTO sets (id,name,surgery_type,physician_id,department_id,notes)
            VALUES (?,?,?,?,?,?)`,
-          [r.id, r.name, n(r.surgery_type), n(r.doctor_id), n(r.department_id), n(r.notes)]);
+          [r.id, r.name, n(r.surgery_type), n(r.physician_id ?? r.doctor_id), n(r.department_id), n(r.notes)]);
         ok++;
       }
       results.push({ sheet: "套組", upserted: ok, skipped: skip });
@@ -194,47 +195,173 @@ async function handleXlsx(e: Event) {
   }
 }
 
-// ── 匯出完整資料庫 ────────────────────────────────────────────────
+// ── 備份群組定義 ──────────────────────────────────────────────────
+interface BackupGroup { key: string; label: string; icon: string; tables: string[]; desc: string }
+
+const BACKUP_GROUPS: BackupGroup[] = [
+  { key: "clinical",   label: "臨床資料",   icon: "🩺", tables: ["medications","prescriptions","surgery","disease","examination"], desc: "藥物、處方、術式、疾病、檢查" },
+  { key: "items",      label: "自費耗材",   icon: "📦", tables: ["items","item_depts"],            desc: "品項主表與科別對應" },
+  { key: "sets",       label: "手術套組",   icon: "🗂",  tables: ["sets","set_items"],              desc: "套組與套組品項明細" },
+  { key: "physicians", label: "醫師通訊錄", icon: "👤", tables: ["physicians"],                     desc: "醫師帳號、分機、密碼" },
+  { key: "scheduler",  label: "排班系統",   icon: "📅", tables: ["scheduler_users","app_settings"],desc: "排班使用者與班表設定" },
+  { key: "emergency",  label: "危急情境",   icon: "🚨", tables: ["emergency_protocols"],            desc: "ACLS / 急救流程卡" },
+  { key: "contacts",   label: "常用分機",   icon: "📞", tables: ["contacts"],                       desc: "常用電話分機" },
+  { key: "acp",        label: "ACP 評估",   icon: "📋", tables: ["acp_sets","acp_items","acp_records"], desc: "預立醫療評估集與記錄" },
+  { key: "ahk",        label: "AHK 腳本",   icon: "⌨",  tables: ["ahk_scripts","ahk_groups","ahk_group_scripts"], desc: "AHK 腳本元資料與套組" },
+];
+
+// FK 相依順序（匯入時依此順序執行）
+const FK_ORDER = [
+  "physicians","medications","prescriptions","surgery","disease","examination",
+  "items","item_depts","sets","set_items",
+  "scheduler_users","emergency_protocols","contacts",
+  "acp_sets","acp_items","acp_records",
+  "ahk_scripts","ahk_groups","ahk_group_scripts",
+  "app_settings",
+];
+
+const TABLE_LABELS: Record<string, string> = {
+  medications:"藥物", prescriptions:"處方", surgery:"術式", disease:"疾病", examination:"檢查",
+  items:"自費品項", item_depts:"品項科別",
+  sets:"套組", set_items:"套組品項",
+  physicians:"醫師通訊錄",
+  scheduler_users:"排班使用者", app_settings:"程式設定",
+  emergency_protocols:"危急情境",
+  contacts:"常用分機",
+  acp_sets:"ACP評估集", acp_items:"ACP項目", acp_records:"ACP記錄",
+  ahk_scripts:"AHK腳本", ahk_groups:"AHK套組", ahk_group_scripts:"AHK套組腳本",
+};
+
+const selectedGroups = ref<Set<string>>(new Set(BACKUP_GROUPS.map(g => g.key)));
+function toggleGroup(key: string) {
+  const s = new Set(selectedGroups.value);
+  s.has(key) ? s.delete(key) : s.add(key);
+  selectedGroups.value = s;
+}
+function selectAll()  { selectedGroups.value = new Set(BACKUP_GROUPS.map(g => g.key)); }
+function selectNone() { selectedGroups.value = new Set(); }
+
+function getSelectedTables(): string[] {
+  const sel = new Set<string>();
+  for (const g of BACKUP_GROUPS) {
+    if (selectedGroups.value.has(g.key)) g.tables.forEach(t => sel.add(t));
+  }
+  return FK_ORDER.filter(t => sel.has(t));
+}
+
+// ── 清空本地資料庫 ────────────────────────────────────────────────
+const showClearConfirm = ref(false);
+const clearInput = ref("");
+const clearing = ref(false);
+const CLEAR_KEYWORD = "清空資料";
+
+// 清空用獨立勾選（預設全不勾，避免誤操作）
+const clearGroups = ref<Set<string>>(new Set());
+function toggleClearGroup(key: string) {
+  const s = new Set(clearGroups.value);
+  s.has(key) ? s.delete(key) : s.add(key);
+  clearGroups.value = s;
+}
+
+// FK 反向刪除順序
+const FK_DELETE_ORDER = [
+  "ahk_group_scripts","ahk_scripts","ahk_groups",
+  "acp_records","acp_items","acp_sets",
+  "contacts","emergency_protocols",
+  "set_items","sets","item_depts","items",
+  "physicians","scheduler_users",
+  "medications","prescriptions","surgery","disease","examination",
+  "app_settings",
+];
+
+async function clearLocalDb() {
+  const selectedTables = new Set<string>();
+  for (const g of BACKUP_GROUPS) {
+    if (clearGroups.value.has(g.key)) g.tables.forEach(t => selectedTables.add(t));
+  }
+  if (selectedTables.size === 0) return;
+
+  clearing.value = true;
+  try {
+    const db = await getDb();
+    for (const t of FK_DELETE_ORDER) {
+      if (!selectedTables.has(t)) continue;
+      try { await db.execute(`DELETE FROM ${t}`); } catch { /* 略過 */ }
+    }
+    await loadAll();
+    showClearConfirm.value = false;
+    clearInput.value = "";
+    clearGroups.value = new Set();
+    showToast("success", `已清空 ${clearGroups.value.size || selectedTables.size} 個群組的資料`);
+  } catch (err: any) {
+    showToast("error", `清空失敗：${err?.message ?? err}`);
+  } finally {
+    clearing.value = false;
+  }
+}
+
+// ── 匯出（選擇性） ────────────────────────────────────────────────
 const exportingFull = ref(false);
-async function exportFullDb() {
+async function exportSelected() {
   exportingFull.value = true;
   try {
     const db = await getDb();
-    const tables = [
-      "medications", "prescriptions", "surgery", "disease", "examination",
-      "items", "item_depts", "sets", "set_items", "physicians",
-      "emergency_protocols", "app_settings", "scheduler_users",
-      "ahk_scripts", "ahk_groups", "ahk_group_scripts", "contacts",
-      "acp_sets", "acp_items", "acp_records"
-    ];
-
+    const tables = getSelectedTables();
     const wb = XLSX.utils.book_new();
+    let exported = 0;
     for (const table of tables) {
       try {
         const data = await db.select<any[]>(`SELECT * FROM ${table}`);
         if (data && data.length > 0) {
-          const ws = XLSX.utils.json_to_sheet(data);
-          XLSX.utils.book_append_sheet(wb, ws, table.substring(0, 31));
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), table);
+          exported++;
         }
-      } catch (e) {
-        console.warn(`Export table ${table} failed:`, e);
-      }
+      } catch (e) { console.warn(`Export ${table} failed:`, e); }
     }
-
+    if (exported === 0) { showToast("error", "選取的項目均無資料，未產生檔案"); return; }
     const date = new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
     const path = await saveDialog({
-      defaultPath: `medbase_full_backup_${date}.xlsx`,
+      defaultPath: `medbase_backup_${date}.xlsx`,
       filters: [{ name: "Excel", extensions: ["xlsx"] }],
     });
-    if (!path) return; // 使用者取消
-
+    if (!path) return;
     const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
     await writeFile(path, buf);
-    showToast("success", "完整備份已儲存！");
+    showToast("success", `備份完成！共 ${exported} 個資料表`);
   } catch (err: any) {
-    showToast("error", `匯出失敗：${err?.message ?? err}`);
+    showToast("error", `備份失敗：${err?.message ?? err}`);
   } finally {
     exportingFull.value = false;
+  }
+}
+
+// ── 範本下載 ──────────────────────────────────────────────────────
+const downloadingTemplate = ref(false);
+async function downloadTemplate() {
+  downloadingTemplate.value = true;
+  try {
+    const db = await getDb();
+    const wb = XLSX.utils.book_new();
+    for (const table of FK_ORDER) {
+      try {
+        const cols = await db.select<{ name: string }[]>(`PRAGMA table_info(${table})`);
+        if (!cols.length) continue;
+        const ws = XLSX.utils.aoa_to_sheet([cols.map(c => c.name)]);
+        XLSX.utils.book_append_sheet(wb, ws, table);
+      } catch (e) { console.warn(`Template ${table} failed:`, e); }
+    }
+    const path = await saveDialog({
+      defaultPath: "medbase_template.xlsx",
+      filters: [{ name: "Excel", extensions: ["xlsx"] }],
+    });
+    if (!path) return;
+    const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
+    await writeFile(path, buf);
+    showToast("success", "範本已下載！每個 sheet 為一個資料表，填入後可直接匯入。");
+  } catch (err: any) {
+    showToast("error", `下載失敗：${err?.message ?? err}`);
+  } finally {
+    downloadingTemplate.value = false;
   }
 }
 
@@ -282,6 +409,7 @@ async function handleSettingsImport(e: Event) {
       if (typeof r.key !== "string" || typeof r.value !== "string") continue;
       await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", [r.key, r.value]);
     }
+    await useCloudSettings().reload();
     showToast("success", `設定還原完成，共匯入 ${rows.length} 筆。`);
   } catch (err: any) {
     showToast("error", `還原失敗：${err?.message ?? err}`);
@@ -291,56 +419,89 @@ async function handleSettingsImport(e: Event) {
   }
 }
 
-// ── 匯入完整資料庫 ────────────────────────────────────────────────
+// ── 匯入完整資料庫（含預覽確認） ──────────────────────────────────
 const importingFull = ref(false);
 const fullImportInput = ref<HTMLInputElement | null>(null);
+
+interface ImportPreviewRow { table: string; label: string; rows: number }
+const importPreview = ref<ImportPreviewRow[] | null>(null);
+const pendingImportData = ref<{ table: string; data: any[] }[] | null>(null);
 
 async function handleFullImport(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
-  if (!confirm("警告：匯入完整資料庫將會覆蓋現有資料（以 ID/主鍵對應），確定繼續？")) {
-    if (fullImportInput.value) fullImportInput.value.value = "";
-    return;
-  }
+  if (fullImportInput.value) fullImportInput.value.value = "";
 
-  importingFull.value = true;
   try {
     const buf = await file.arrayBuffer();
     const wb  = XLSX.read(buf, { type: "array" });
-    const db  = await getDb();
 
-    let totalUpserted = 0;
+    // 解析預覽（依 FK 順序）
+    const preview: ImportPreviewRow[] = [];
+    const pending: { table: string; data: any[] }[] = [];
+
+    for (const table of FK_ORDER) {
+      const ws = wb.Sheets[table];
+      if (!ws) continue;
+      const data = XLSX.utils.sheet_to_json<any>(ws);
+      preview.push({ table, label: TABLE_LABELS[table] ?? table, rows: data.length });
+      if (data.length > 0) pending.push({ table, data });
+    }
+
+    // 也收錄不在 FK_ORDER 的自訂 sheet（向下相容）
     for (const sheetName of wb.SheetNames) {
+      if (FK_ORDER.includes(sheetName)) continue;
       const ws = wb.Sheets[sheetName];
       const data = XLSX.utils.sheet_to_json<any>(ws);
-      if (data.length === 0) continue;
-
-      // 取得欄位名稱
-      const columns = Object.keys(data[0]);
-      const placeholders = columns.map(() => "?").join(",");
-      const colNames = columns.join(",");
-
-      for (const row of data) {
-        const values = columns.map(col => {
-          const val = row[col];
-          return (val === "" || val === undefined) ? null : val;
-        });
-        await db.execute(
-          `INSERT OR REPLACE INTO ${sheetName} (${colNames}) VALUES (${placeholders})`,
-          values
-        );
-        totalUpserted++;
+      if (data.length > 0) {
+        preview.push({ table: sheetName, label: sheetName, rows: data.length });
+        pending.push({ table: sheetName, data });
       }
     }
 
+    if (preview.length === 0) { showToast("error", "檔案中找不到可識別的資料表"); return; }
+
+    importPreview.value = preview;
+    pendingImportData.value = pending;
+  } catch (err: any) {
+    showToast("error", `讀取失敗：${err?.message ?? err}`);
+  }
+}
+
+async function confirmFullImport() {
+  if (!pendingImportData.value) return;
+  importingFull.value = true;
+  try {
+    const db = await getDb();
+    let total = 0;
+    for (const { table, data } of pendingImportData.value) {
+      const columns = Object.keys(data[0]);
+      const ph = columns.map(() => "?").join(",");
+      const cols = columns.join(",");
+      for (const row of data) {
+        const vals = columns.map(c => {
+          const v = row[c];
+          return (v === "" || v === undefined) ? null : v;
+        });
+        await db.execute(`INSERT OR REPLACE INTO ${table} (${cols}) VALUES (${ph})`, vals);
+        total++;
+      }
+    }
     await loadAll();
-    showToast("success", `完整匯入完成！共更新 ${totalUpserted} 筆資料。`);
+    await useCloudSettings().reload();
+    showToast("success", `匯入完成！共更新 ${total} 筆資料。`);
+    importPreview.value = null;
+    pendingImportData.value = null;
   } catch (err: any) {
     showToast("error", `匯入失敗：${err?.message ?? err}`);
   } finally {
     importingFull.value = false;
-    if (fullImportInput.value) fullImportInput.value.value = "";
   }
+}
+
+function cancelImport() {
+  importPreview.value = null;
+  pendingImportData.value = null;
 }
 
 // ── 載入資料 ─────────────────────────────────────────────────────
@@ -533,9 +694,10 @@ async function doDelete() {
 }
 
 const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
-  { key: "items",      icon: "📦",  label: "自費品項",   count: () => items.value.length },
-  { key: "physicians", icon: "👨‍⚕️", label: "醫師通訊錄", count: () => physicians.value.length },
-  { key: "emergency",  icon: "🚨",  label: "危急情境",   count: () => protocols.value.length },
+  { key: "items",      icon: "📦", label: "自費品項",   count: () => items.value.length },
+  { key: "physicians", icon: "👤", label: "醫師通訊錄", count: () => physicians.value.length },
+  { key: "emergency",  icon: "🚨", label: "危急情境",   count: () => protocols.value.length },
+  { key: "backup",     icon: "💾", label: "備份 / 還原", count: () => 0 },
 ];
 </script>
 
@@ -556,59 +718,16 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
           <span class="text-base leading-none">{{ tab.icon }}</span>
           <span>{{ tab.label }}</span>
         </span>
-        <span class="text-[11px] font-mono text-gray-600">{{ tab.count() }}</span>
+        <span v-if="tab.count() > 0" class="text-[11px] font-mono text-gray-600">{{ tab.count() }}</span>
       </button>
 
-      <div class="mt-auto pt-4 border-t border-gray-800 flex flex-col gap-2">
-        <!-- 設定備份 -->
-        <p class="px-3 text-[10px] text-gray-600 uppercase tracking-wider">程式設定</p>
-        <button
-          @click="exportSettings"
-          :disabled="exportingSettings"
-          class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors text-gray-400 hover:bg-gray-800 hover:text-amber-400 disabled:opacity-40"
-        >
-          <span>{{ exportingSettings ? '⌛' : '⚙️' }}</span>
-          <span>備份設定 (JSON)</span>
-        </button>
-        <label
-          class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors text-gray-400 hover:bg-gray-800 hover:text-amber-400 cursor-pointer"
-          :class="{ 'opacity-40 cursor-wait': importingSettings }"
-        >
-          <span>{{ importingSettings ? '⌛' : '⚙️' }}</span>
-          <span>還原設定 (JSON)</span>
-          <input ref="settingsImportInput" type="file" accept=".json" class="hidden"
-            :disabled="importingSettings" @change="handleSettingsImport" />
-        </label>
-
-        <!-- 完整備份 -->
-        <div class="border-t border-gray-800 pt-2">
-          <p class="px-3 text-[10px] text-gray-600 uppercase tracking-wider mb-2">完整資料庫</p>
-          <button
-            @click="exportFullDb"
-            :disabled="exportingFull"
-            class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors text-gray-400 hover:bg-gray-800 hover:text-blue-400 disabled:opacity-40"
-          >
-            <span>{{ exportingFull ? '⌛' : '📤' }}</span>
-            <span>完整備份 (XLSX)</span>
-          </button>
-          <label
-            class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors text-gray-400 hover:bg-gray-800 hover:text-emerald-400 cursor-pointer"
-            :class="{ 'opacity-40 cursor-wait': importingFull }"
-          >
-            <span>{{ importingFull ? '⌛' : '📥' }}</span>
-            <span>完整匯入 (XLSX)</span>
-            <input ref="fullImportInput" type="file" accept=".xlsx" class="hidden"
-              :disabled="importingFull" @change="handleFullImport" />
-          </label>
-        </div>
-      </div>
     </div>
 
     <!-- ── 右側內容 ─────────────────────────────────── -->
     <div class="flex flex-col flex-1 overflow-hidden">
 
       <!-- Header -->
-      <div class="flex items-center gap-3 px-5 py-3 border-b border-gray-800 shrink-0">
+      <div v-if="activeTab !== 'backup'" class="flex items-center gap-3 px-5 py-3 border-b border-gray-800 shrink-0">
         <input
           v-model="search"
           :placeholder="`搜尋${tabs.find(t=>t.key===activeTab)?.label}…`"
@@ -900,6 +1019,167 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
 
       </div>
 
+      <!-- ── 備份 / 還原 ──────────────────────────── -->
+      <div v-if="activeTab === 'backup'" class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+
+        <!-- ① 匯出區 -->
+        <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-gray-100 flex items-center gap-2">
+              <span>📤</span> 備份資料
+            </h3>
+            <div class="flex gap-2">
+              <button @click="selectAll"  class="text-xs text-gray-500 hover:text-blue-400">全選</button>
+              <span class="text-gray-700">·</span>
+              <button @click="selectNone" class="text-xs text-gray-500 hover:text-red-400">全消</button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 mb-5">
+            <label
+              v-for="g in BACKUP_GROUPS" :key="g.key"
+              class="flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors"
+              :class="selectedGroups.has(g.key)
+                ? 'border-blue-600 bg-blue-950/30'
+                : 'border-gray-800 hover:border-gray-700'"
+            >
+              <input type="checkbox" :checked="selectedGroups.has(g.key)"
+                @change="toggleGroup(g.key)"
+                class="mt-0.5 accent-blue-500 shrink-0" />
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5 text-sm text-gray-200 font-medium">
+                  <span>{{ g.icon }}</span> {{ g.label }}
+                </div>
+                <div class="text-[11px] text-gray-500 mt-0.5 truncate">{{ g.desc }}</div>
+              </div>
+            </label>
+          </div>
+
+          <div class="flex gap-3">
+            <button
+              @click="exportSelected"
+              :disabled="exportingFull || selectedGroups.size === 0"
+              class="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-600 text-white text-sm font-medium transition-colors disabled:opacity-40"
+            >
+              {{ exportingFull ? '備份中…' : '備份選取項目 (XLSX)' }}
+            </button>
+            <button
+              @click="downloadTemplate"
+              :disabled="downloadingTemplate"
+              class="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm transition-colors disabled:opacity-40"
+            >
+              {{ downloadingTemplate ? '下載中…' : '下載空白範本 (XLSX)' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- ② 還原區 -->
+        <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+          <h3 class="font-semibold text-gray-100 flex items-center gap-2 mb-4">
+            <span>📥</span> 還原資料
+          </h3>
+
+          <!-- 步驟 1：選檔（無預覽時） -->
+          <div v-if="!importPreview">
+            <p class="text-xs text-gray-500 mb-3">選取備份 XLSX 檔案，系統會先顯示檔案內容供確認，再執行匯入。</p>
+            <div class="flex gap-3">
+              <label
+                class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer"
+                :class="importingFull
+                  ? 'bg-gray-700 text-gray-500 cursor-wait'
+                  : 'bg-emerald-800 hover:bg-emerald-700 text-white'"
+              >
+                {{ importingFull ? '讀取中…' : '選擇備份檔案 (XLSX)' }}
+                <input ref="fullImportInput" type="file" accept=".xlsx" class="hidden"
+                  :disabled="importingFull" @change="handleFullImport" />
+              </label>
+
+              <!-- 設定備份（JSON） -->
+              <button @click="exportSettings" :disabled="exportingSettings"
+                class="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm transition-colors disabled:opacity-40">
+                {{ exportingSettings ? '備份中…' : '備份程式設定 (JSON)' }}
+              </button>
+              <label class="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm transition-colors cursor-pointer"
+                :class="{ 'opacity-40 cursor-wait': importingSettings }">
+                {{ importingSettings ? '還原中…' : '還原程式設定 (JSON)' }}
+                <input ref="settingsImportInput" type="file" accept=".json" class="hidden"
+                  :disabled="importingSettings" @change="handleSettingsImport" />
+              </label>
+            </div>
+          </div>
+
+          <!-- 步驟 2：預覽確認 -->
+          <div v-if="importPreview" class="space-y-3">
+            <p class="text-sm text-amber-400 font-medium">檔案內容預覽 — 確認後才會寫入資料庫</p>
+            <div class="grid grid-cols-3 gap-1.5">
+              <div v-for="row in importPreview" :key="row.table"
+                class="flex items-center justify-between px-3 py-1.5 rounded-lg bg-gray-800 text-xs">
+                <span class="text-gray-300">{{ row.label }}</span>
+                <span class="font-mono text-emerald-400 ml-2">{{ row.rows }} 筆</span>
+              </div>
+            </div>
+            <p class="text-xs text-gray-500">匯入將以 INSERT OR REPLACE 執行，以 ID / 主鍵對應覆蓋現有資料。</p>
+            <div class="flex gap-3">
+              <button
+                @click="confirmFullImport"
+                :disabled="importingFull"
+                class="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-medium transition-colors disabled:opacity-40"
+              >{{ importingFull ? '匯入中…' : '確認匯入' }}</button>
+              <button
+                @click="cancelImport"
+                :disabled="importingFull"
+                class="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm transition-colors"
+              >取消</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ③ 注意事項 -->
+        <div class="text-xs text-gray-600 space-y-1 px-1">
+          <p>・備份 XLSX 每個 Sheet 對應一張資料表，可用 Excel 直接瀏覽</p>
+          <p>・還原時依 FK 相依順序匯入，自動處理外鍵衝突</p>
+          <p>・<span class="text-amber-500">班表設定</span>儲存於「排班系統」群組的 app_settings 中，備份排班時請勾選此項</p>
+          <p>・AHK 腳本<span class="text-amber-500">檔案內容</span>需另外手動備份，此處僅備份元資料</p>
+        </div>
+
+        <!-- ④ 危險操作 -->
+        <div class="bg-red-950/30 rounded-xl border border-red-900/50 p-5">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="font-semibold text-red-400 flex items-center gap-2">
+              <span>⚠️</span> 清空本地資料
+            </h3>
+            <div class="flex gap-2">
+              <button @click="clearGroups = new Set(BACKUP_GROUPS.map(g => g.key))" class="text-xs text-gray-500 hover:text-red-400">全選</button>
+              <span class="text-gray-700">·</span>
+              <button @click="clearGroups = new Set()" class="text-xs text-gray-500 hover:text-gray-400">全消</button>
+            </div>
+          </div>
+          <p class="text-xs text-gray-500 mb-3">勾選要清除的項目，操作不可復原，執行前請先備份。</p>
+
+          <div class="grid grid-cols-2 gap-1.5 mb-4">
+            <label
+              v-for="g in BACKUP_GROUPS" :key="g.key"
+              class="flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors"
+              :class="clearGroups.has(g.key)
+                ? 'border-red-700 bg-red-950/40'
+                : 'border-gray-800 hover:border-gray-700'"
+            >
+              <input type="checkbox" :checked="clearGroups.has(g.key)"
+                @change="toggleClearGroup(g.key)"
+                class="accent-red-500 shrink-0" />
+              <span class="text-sm">{{ g.icon }} {{ g.label }}</span>
+            </label>
+          </div>
+
+          <button
+            @click="showClearConfirm = true"
+            :disabled="clearGroups.size === 0"
+            class="px-4 py-2 rounded-lg bg-red-900/60 hover:bg-red-800 border border-red-700 text-red-300 text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >清空選取項目（{{ clearGroups.size }} 個群組）</button>
+        </div>
+
+      </div>
+
     </div><!-- /右側 -->
   </div><!-- /外層 -->
 
@@ -1096,6 +1376,46 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             class="px-5 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-medium">
             確認刪除
           </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- ── 清空資料庫確認 Modal ──────────────────── -->
+  <Teleport to="body">
+    <div v-if="showClearConfirm"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      @click.self="showClearConfirm = false; clearInput = ''">
+      <div class="w-full max-w-sm bg-gray-900 rounded-2xl border border-red-800 shadow-2xl p-6">
+        <div class="text-3xl mb-3 text-center">⚠️</div>
+        <h3 class="font-semibold text-red-400 text-center mb-1">確認清空</h3>
+        <p class="text-sm text-gray-400 text-center mb-3">
+          以下資料將被永久刪除，此操作<span class="text-red-400 font-semibold">無法復原</span>。
+        </p>
+        <div class="flex flex-wrap gap-1 justify-center mb-4">
+          <span v-for="g in BACKUP_GROUPS.filter(g => clearGroups.has(g.key))" :key="g.key"
+            class="px-2 py-0.5 rounded-full bg-red-900/50 text-red-300 text-xs">
+            {{ g.icon }} {{ g.label }}
+          </span>
+        </div>
+        <p class="text-xs text-gray-500 mb-2 text-center">
+          輸入「<span class="text-red-400 font-mono">{{ CLEAR_KEYWORD }}</span>」以確認
+        </p>
+        <input
+          v-model="clearInput"
+          :placeholder="CLEAR_KEYWORD"
+          class="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-100 text-sm text-center focus:outline-none focus:border-red-500 mb-4"
+        />
+        <div class="flex gap-3">
+          <button
+            @click="showClearConfirm = false; clearInput = ''"
+            class="flex-1 px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm"
+          >取消</button>
+          <button
+            @click="clearLocalDb"
+            :disabled="clearInput !== CLEAR_KEYWORD || clearing"
+            class="flex-1 px-4 py-2 rounded-lg bg-red-700 hover:bg-red-600 text-white text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >{{ clearing ? '清空中…' : '確認清空' }}</button>
         </div>
       </div>
     </div>
