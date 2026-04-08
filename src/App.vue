@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { useEventListener } from "@vueuse/core";
 import Sidebar from "@/components/layout/Sidebar.vue";
 import TopBar from "@/components/layout/TopBar.vue";
 import OmniSearch from "@/components/OmniSearch.vue";
 import DebugPanel from "@/components/DebugPanel.vue";
+import { useUiSettings } from "@/stores/uiSettings";
 
 const searchOpen = ref(false);
 const debugOpen = ref(false);
+const uiSettings = useUiSettings();
+onMounted(() => uiSettings.load());
 
 useEventListener("keydown", (e: KeyboardEvent) => {
   if ((e.ctrlKey || e.metaKey) && e.key === "k") {

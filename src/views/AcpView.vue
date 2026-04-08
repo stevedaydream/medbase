@@ -109,7 +109,7 @@ const tabs = [
   <div class="flex h-full overflow-hidden bg-zinc-950">
     <!-- Left Sidebar: Sets -->
     <div class="w-64 border-r border-zinc-800 bg-zinc-900/50 p-4 flex flex-col">
-      <h3 class="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">評估套組</h3>
+      <h3 class="text-lg font-bold text-zinc-500 uppercase tracking-widest mb-4">評估套組</h3>
       <div class="flex-1 overflow-y-auto space-y-2">
         <button v-for="s in sets" :key="s.id"
                 @click="selectSet(s.id)"
@@ -121,7 +121,7 @@ const tabs = [
         </button>
       </div>
       <div class="pt-4 border-t border-zinc-800">
-        <router-link to="/acp/settings" class="text-xs text-zinc-500 hover:text-blue-400 flex items-center gap-2 px-2">
+        <router-link to="/acp/settings" class="text-lg text-zinc-500 hover:text-blue-400 flex items-center gap-2 px-2">
           ⚙️ 模板設定
         </router-link>
       </div>
@@ -134,9 +134,9 @@ const tabs = [
         <div class="grid grid-cols-12 gap-4">
           <!-- Total Score -->
           <div class="col-span-3 bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex flex-col justify-center items-center">
-            <p class="text-[10px] text-zinc-500 font-bold uppercase mb-1">總完成率</p>
+            <p class="text-[15px] text-zinc-500 font-bold uppercase mb-1">總完成率</p>
             <p class="text-4xl font-black" :class="Number(totalStats.rate) >= 80 ? 'text-green-400' : 'text-amber-400'">{{ totalStats.rate }}%</p>
-            <div class="mt-2 flex gap-3 text-[10px] font-mono text-zinc-400">
+            <div class="mt-2 flex gap-3 text-[13px] font-mono text-zinc-400">
               <span>已開:{{ totalStats.prescribed }}</span>
               <span>未開:{{ totalStats.unprescribed }}</span>
               <span>NA:{{ totalStats.na }}</span>
@@ -150,14 +150,14 @@ const tabs = [
                  :class="activeTab === t.key ? 'border-blue-500/50 ring-1 ring-blue-500/20' : ''">
               <div class="flex justify-between items-center mb-1">
                 <span class="text-xs font-bold text-zinc-300">{{ t.label }}</span>
-                <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500">{{ 
+                <span class="text-[15px] font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500">{{ 
                   t.key === 'general' ? generalStats.rate : t.key === 'medication' ? medicationStats.rate : procedureStats.rate 
                 }}%</span>
               </div>
               <div class="flex justify-between items-end">
                 <div class="space-y-0.5">
-                  <p class="text-[10px] text-zinc-500">已/未/NA</p>
-                  <p class="text-sm font-mono font-bold text-zinc-200">
+                  <p class="text-[15px] text-zinc-500">已/未/NA</p>
+                  <p class="text-lg font-mono font-bold text-zinc-200">
                     {{ t.key === 'general' ? `${generalStats.prescribed}/${generalStats.unprescribed}/${generalStats.na}` : 
                        t.key === 'medication' ? `${medicationStats.prescribed}/${medicationStats.unprescribed}/${medicationStats.na}` : 
                        `${procedureStats.prescribed}/${procedureStats.unprescribed}/${procedureStats.na}` }}
@@ -205,17 +205,17 @@ const tabs = [
             <!-- Status Buttons -->
             <div class="flex bg-zinc-950 p-1 rounded-xl border border-zinc-800 shrink-0">
               <button @click="evalStates[item.id].status = 'prescribed'" 
-                      class="px-4 py-2 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all"
+                      class="px-4 py-2 rounded-lg text-[15px] font-black uppercase tracking-wider transition-all"
                       :class="evalStates[item.id]?.status === 'prescribed' ? 'bg-green-600 text-white shadow-lg shadow-green-900/20' : 'text-zinc-600 hover:text-zinc-400'">
                 已開
               </button>
               <button @click="evalStates[item.id].status = 'unprescribed'" 
-                      class="px-4 py-2 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all"
+                      class="px-4 py-2 rounded-lg text-[15px] font-black uppercase tracking-wider transition-all"
                       :class="evalStates[item.id]?.status === 'unprescribed' ? 'bg-zinc-700 text-white shadow-inner' : 'text-zinc-600 hover:text-zinc-400'">
                 未開
               </button>
               <button @click="evalStates[item.id].status = 'na'" 
-                      class="px-4 py-2 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all"
+                      class="px-4 py-2 rounded-lg text-[15px] font-black uppercase tracking-wider transition-all"
                       :class="evalStates[item.id]?.status === 'na' ? 'bg-amber-600 text-white shadow-lg shadow-amber-900/20' : 'text-zinc-600 hover:text-zinc-400'">
                 N/A
               </button>

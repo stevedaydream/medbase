@@ -13,7 +13,7 @@ const emit = defineEmits<{ toast: [msg: string] }>()
 const DOW = ['日','一','二','三','四','五','六']
 
 // ── Month / computed ──────────────────────────────────────────────────
-const yyyyMM = computed(() => props.config.booking_month ?? formatNow())
+const yyyyMM = computed(() => String(props.config.booking_month ?? formatNow()))
 function formatNow() {
   const d = new Date()
   return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}`
@@ -21,7 +21,7 @@ function formatNow() {
 const year        = computed(() => parseInt(yyyyMM.value.slice(0,4)))
 const month       = computed(() => parseInt(yyyyMM.value.slice(4,6)))
 const daysInMonth = computed(() => new Date(year.value, month.value, 0).getDate())
-const isOpen      = computed(() => props.config.booking_open === 'true')
+const isOpen      = computed(() => String(props.config.booking_open) === 'true')
 
 const dayList = computed(() =>
   Array.from({ length: daysInMonth.value }, (_, i) => {
@@ -34,6 +34,7 @@ const dayList = computed(() =>
 // ── Draft state ───────────────────────────────────────────────────────
 interface DayVote { v1: string|null; v2: string|null; v3: string|null }
 type Votes = Record<number, DayVote>  // key = 1-based day
+interface RequestRow { code: string; name: string; days: DayVote[] }
 
 const DRAFT_KEY = computed(() => `mb_draft_${yyyyMM.value}`)
 const votes = ref<Votes>({})
@@ -53,6 +54,21 @@ function saveDraft() {
 }
 
 watch(yyyyMM, loadDraft, { immediate: true })
+
+// ── Other submitted requests (read-only) ─────────────────────────────
+const otherRequests   = ref<RequestRow[]>([])
+const loadingRequests = ref(false)
+
+async function loadRequests() {
+  loadingRequests.value = true
+  const r = await gasApi<RequestRow[]>('getRequests', { yyyyMM: yyyyMM.value })
+  loadingRequests.value = false
+  if (r.ok && r.data) {
+    otherRequests.value = r.data.filter(row => row.code !== props.session.code)
+  }
+}
+
+watch(yyyyMM, loadRequests, { immediate: true })
 
 // ── Bottom sheet picker ───────────────────────────────────────────────
 const pickerOpen = ref(false)
@@ -156,7 +172,7 @@ function getCellVote(d: number): DayVote {
           <!-- DOW row -->
           <tr class="sticky top-[37px] z-10">
             <th class="sticky left-0 z-20 bg-gray-950 border-b border-r border-gray-800 px-3 py-1 text-gray-600 font-normal text-xs text-left">
-              {{ session.name }}
+              星期
             </th>
             <th v-for="day in dayList" :key="day.d"
               class="border-b border-gray-800 text-center py-1 font-normal"
@@ -168,32 +184,49 @@ function getCellVote(d: number): DayVote {
           </tr>
         </thead>
         <tbody>
+          <!-- ── Other users' submitted requests (read-only) ── -->
+          <tr v-if="loadingRequests && otherRequests.length === 0">
+            <td :colspan="dayList.length + 1" class="text-center text-gray-600 text-xs py-2">載入中…</td>
+          </tr>
+          <tr v-for="req in otherRequests" :key="req.code">
+            <td class="sticky left-0 z-10 bg-gray-950 border-b border-r border-gray-800 px-3 py-2 font-medium text-gray-400 whitespace-nowrap min-w-[4.5rem]">
+              {{ req.name }}
+            </td>
+            <td v-for="day in dayList" :key="day.d"
+              class="border-b border-gray-800/60 text-center py-2 relative cursor-default"
+              :class="day.isSat ? 'bg-blue-950/5' : day.isSun ? 'bg-red-950/5' : ''">
+              <span v-if="req.days[day.d - 1]?.v1"
+                class="inline-block px-1 py-0.5 rounded text-xs font-bold leading-tight min-w-[1.75rem] text-center bg-blue-900/50 text-blue-300 border border-blue-800">
+                {{ req.days[day.d - 1].v1 }}
+              </span>
+              <span v-else class="inline-block min-w-[1.75rem] text-gray-800 text-center">·</span>
+              <span v-if="req.days[day.d - 1]?.v2"
+                class="absolute bottom-1 right-1 w-1.5 h-1.5 rounded-full bg-violet-500/60"></span>
+              <span v-if="req.days[day.d - 1]?.v3"
+                class="absolute bottom-1 left-1 w-1.5 h-1.5 rounded-full bg-amber-500/60"></span>
+            </td>
+          </tr>
+
+          <!-- ── Current user's draft (interactive) ── -->
           <tr>
-            <!-- Name sticky cell -->
-            <td class="sticky left-0 z-10 bg-gray-950 border-b border-r border-gray-800 px-3 py-2 font-medium text-gray-300 whitespace-nowrap min-w-[4.5rem]">
+            <td class="sticky left-0 z-10 bg-gray-950 border-b border-t-2 border-r border-t-blue-900 border-gray-800 px-3 py-2 font-semibold text-blue-300 whitespace-nowrap min-w-[4.5rem]">
               {{ session.name }}
             </td>
-            <!-- Day cells -->
             <td v-for="day in dayList" :key="day.d"
-              class="border-b border-gray-800/60 text-center py-2 relative"
+              class="border-b border-t-2 border-t-blue-900/40 border-gray-800/60 text-center py-2 relative"
               :class="[
                 isOpen ? 'cursor-pointer active:bg-gray-800' : 'cursor-default opacity-70',
                 day.isSat ? 'bg-blue-950/5' : day.isSun ? 'bg-red-950/5' : '',
               ]"
               @click="openPicker(day.d)">
-
-              <!-- v1 badge -->
               <span v-if="getCellVote(day.d).v1"
                 class="inline-block px-1 py-0.5 rounded text-xs font-bold leading-tight min-w-[1.75rem] text-center bg-blue-900/80 text-blue-200 border border-blue-700">
                 {{ getCellVote(day.d).v1 }}
               </span>
               <span v-else class="inline-block min-w-[1.75rem] text-gray-800 text-center">·</span>
-
-              <!-- v2 dot -->
               <span v-if="getCellVote(day.d).v2"
                 class="absolute bottom-1 right-1 w-1.5 h-1.5 rounded-full bg-violet-500"
                 :title="`v2: ${getCellVote(day.d).v2}`"></span>
-              <!-- v3 dot -->
               <span v-if="getCellVote(day.d).v3"
                 class="absolute bottom-1 left-1 w-1.5 h-1.5 rounded-full bg-amber-500"
                 :title="`v3: ${getCellVote(day.d).v3}`"></span>
@@ -206,6 +239,11 @@ function getCellVote(d: number): DayVote {
     <!-- ── Bottom action bar ─────────────────────────────────────────── -->
     <div class="flex-shrink-0 px-4 py-3 bg-gray-900 border-t border-gray-800 flex items-center gap-3">
       <p class="flex-1 text-xs text-gray-500">已填 {{ filledCount }} 天</p>
+      <button @click="loadRequests" :disabled="loadingRequests"
+        class="px-2 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-gray-400 text-sm rounded-lg transition-colors"
+        title="重新整理他人預約">
+        {{ loadingRequests ? '…' : '↺' }}
+      </button>
       <button @click="saveDraft" :disabled="!isOpen"
         class="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-200 text-sm rounded-lg transition-colors">
         儲存草稿

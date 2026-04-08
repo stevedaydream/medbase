@@ -268,6 +268,31 @@ const {
   colorOf, shiftStyleObj, saveShifts, addShift, removeShift, cycleShiftColor,
 } = useShifts(setSetting);
 
+// Sync shifts to GAS Shifts sheet whenever they change
+watch(shifts, () => {
+  if (!cloud.gasUrl) return;
+  fetch(cloud.gasUrl, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify({ action: "saveShifts", codes: shifts.value.map(s => s.code) }),
+    mode: "no-cors",
+  }).catch(() => {});
+}, { deep: true });
+
+const isSyncingShifts = ref(false);
+async function syncShiftsToGas() {
+  if (!cloud.gasUrl) { showToast("請先在設定填入 GAS Web App URL"); return; }
+  isSyncingShifts.value = true;
+  await fetch(cloud.gasUrl, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: JSON.stringify({ action: "saveShifts", codes: shifts.value.map(s => s.code) }),
+    mode: "no-cors",
+  }).catch(() => {});
+  isSyncingShifts.value = false;
+  showToast("班別已同步到雲端");
+}
+
 function countShift(row: ScheduleRow, code: string) {
   return row.days.filter(d => d === code).length;
 }
@@ -1420,7 +1445,13 @@ async function createTemplate() {
 
       <!-- Shift Editor -->
       <div class="border-t border-gray-800 pt-3">
-        <p class="text-xs text-gray-400 font-semibold mb-2">班別設定</p>
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-xs text-gray-400 font-semibold">班別設定</p>
+          <button @click="syncShiftsToGas" :disabled="isSyncingShifts"
+            class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-300 rounded transition-colors">
+            {{ isSyncingShifts ? '同步中…' : '☁ 同步到雲端' }}
+          </button>
+        </div>
         <div class="flex flex-wrap gap-2 mb-2">
           <div v-for="(shift, si) in shifts" :key="si"
             class="flex items-center gap-1.5 px-2 py-1 rounded bg-gray-800 border transition-colors"

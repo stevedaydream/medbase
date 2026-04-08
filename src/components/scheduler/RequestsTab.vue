@@ -42,6 +42,7 @@ const isSavingConfig = ref(false);
 const yyyyMM = computed(() => `${props.year}${String(props.month).padStart(2, "0")}`);
 
 async function loadBookingSettings() {
+  // 1. Read from local SQLite as fallback
   try {
     const db = await getDb();
     const rows = await db.select<{ key: string; value: string }[]>(
@@ -56,6 +57,34 @@ async function loadBookingSettings() {
     if (m.booking_from)  bookingFrom.value  = m.booking_from;
     if (m.booking_until) bookingUntil.value = m.booking_until;
   } catch { /* ignore */ }
+
+  // 2. Pull from GAS as canonical source of truth (same source mobile reads)
+  if (!cloud.gasUrl) return;
+  try {
+    const res = await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "getConfig" }),
+    });
+    if (!res.ok) return;
+    const json = await res.json() as { ok: boolean; data?: Record<string, string> };
+    if (!json.ok || !json.data) return;
+    const d = json.data;
+    bookingOpen.value  = String(d.booking_open)  === "true";
+    if (d.booking_month) bookingMonth.value = String(d.booking_month);
+    if (d.booking_from)  bookingFrom.value  = String(d.booking_from);
+    if (d.booking_until) bookingUntil.value = String(d.booking_until);
+    // Write back to SQLite so local state stays in sync
+    const db = await getDb();
+    const pairs: [string, string][] = [
+      ["scheduler_booking_open",  bookingOpen.value ? "true" : "false"],
+      ["scheduler_booking_month", bookingMonth.value],
+      ["scheduler_booking_from",  bookingFrom.value],
+      ["scheduler_booking_until", bookingUntil.value],
+    ];
+    for (const [k, v] of pairs)
+      await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)", [k, v]);
+  } catch { /* ignore — fall back to SQLite values loaded above */ }
 }
 
 async function saveBookingConfig() {

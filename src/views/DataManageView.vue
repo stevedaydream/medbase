@@ -59,7 +59,18 @@ const showConfirm  = ref(false);
 
 // 表單暫存
 const itemForm   = ref<Partial<Item>>({});
-const physForm   = ref<Partial<Physician>>({});
+const physForm      = ref<Partial<Physician>>({});
+const editingPhysId = ref<number | null>(null);
+const editBuf       = ref<Partial<Physician>>({});
+
+function startEditPhys(p: Physician) {
+  editingPhysId.value = p.id;
+  editBuf.value = { ...p };
+}
+function cancelEditPhys() {
+  editingPhysId.value = null;
+  editBuf.value = {};
+}
 
 // ── Toast ────────────────────────────────────────────────────────
 interface Toast { type: "success" | "error"; msg: string; }
@@ -720,6 +731,20 @@ async function savePhysician() {
   }
   closeModal(); await loadAll();
 }
+async function saveInlinePhys() {
+  const db = await getDb();
+  const f  = editBuf.value;
+  await db.execute(
+    `UPDATE physicians SET name=?,department=?,title=?,ext=?,his_account=?,his_password=?,
+     phs_account=?,phs_password=?,notes=? WHERE id=?`,
+    [f.name, f.department||null, f.title||null, f.ext||null,
+     f.his_account||null, f.his_password||null,
+     f.phs_account||null, f.phs_password||null, f.notes||null, f.id]);
+  editingPhysId.value = null;
+  editBuf.value = {};
+  await loadAll();
+}
+
 async function deletePhysician(row: Physician) {
   const db = await getDb();
   await db.execute("DELETE FROM physicians WHERE id=?", [row.id]);
@@ -869,8 +894,8 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               <th class="text-left px-4 py-3 font-medium">職稱</th>
               <th class="text-left px-4 py-3 font-medium">分機</th>
               <th class="text-left px-4 py-3 font-medium">HIS 帳號</th>
-              <th class="text-left px-4 py-3 font-medium">PHS 帳號</th>
-              <th class="w-20 px-4 py-3"></th>
+              <th class="text-left px-4 py-3 font-medium">HIS 密碼</th>
+              <th class="w-24 px-4 py-3"></th>
             </tr>
           </thead>
           <tbody>
@@ -878,17 +903,62 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               <td colspan="7" class="text-center text-gray-600 py-12">無資料，請新增醫師</td>
             </tr>
             <tr v-for="p in filteredPhysicians" :key="p.id"
-              class="border-b border-gray-800/50 hover:bg-gray-800/30">
-              <td class="px-4 py-2 text-gray-200 font-medium">{{ p.name }}</td>
-              <td class="px-4 py-2 text-gray-400 text-xs">{{ p.department || "—" }}</td>
-              <td class="px-4 py-2 text-gray-400 text-xs">{{ p.title || "—" }}</td>
-              <td class="px-4 py-2 text-blue-400 font-mono text-xs">{{ p.ext || "—" }}</td>
-              <td class="px-4 py-2 text-gray-400 font-mono text-xs">{{ p.his_account || "—" }}</td>
-              <td class="px-4 py-2 text-gray-400 font-mono text-xs">{{ p.phs_account || "—" }}</td>
-              <td class="px-4 py-2">
-                <div class="flex gap-2 justify-end">
-                  <button @click="openEdit(p)" class="text-xs text-blue-400 hover:text-blue-300">編輯</button>
-                  <button @click="confirmDelete(p)" class="text-xs text-red-500 hover:text-red-400">刪除</button>
+              class="border-b border-gray-800/50 transition-colors"
+              :class="editingPhysId === p.id ? 'bg-gray-800/50' : 'hover:bg-gray-800/30'">
+
+              <!-- 姓名 -->
+              <td class="px-3 py-1.5">
+                <input v-if="editingPhysId === p.id" v-model="editBuf.name"
+                  class="w-full min-w-[5rem] px-1.5 py-0.5 bg-gray-900 border border-gray-600 rounded text-sm text-gray-100 outline-none focus:border-blue-500" />
+                <span v-else class="text-gray-200 font-medium text-sm">{{ p.name }}</span>
+              </td>
+
+              <!-- 科別 -->
+              <td class="px-3 py-1.5">
+                <input v-if="editingPhysId === p.id" v-model="editBuf.department"
+                  class="w-full min-w-[4rem] px-1.5 py-0.5 bg-gray-900 border border-gray-600 rounded text-xs text-gray-100 outline-none focus:border-blue-500" />
+                <span v-else class="text-gray-400 text-xs">{{ p.department || "—" }}</span>
+              </td>
+
+              <!-- 職稱 -->
+              <td class="px-3 py-1.5">
+                <input v-if="editingPhysId === p.id" v-model="editBuf.title"
+                  class="w-full min-w-[4rem] px-1.5 py-0.5 bg-gray-900 border border-gray-600 rounded text-xs text-gray-100 outline-none focus:border-blue-500" />
+                <span v-else class="text-gray-400 text-xs">{{ p.title || "—" }}</span>
+              </td>
+
+              <!-- 分機 -->
+              <td class="px-3 py-1.5">
+                <input v-if="editingPhysId === p.id" v-model="editBuf.ext"
+                  class="w-20 px-1.5 py-0.5 bg-gray-900 border border-gray-600 rounded text-xs font-mono text-gray-100 outline-none focus:border-blue-500" />
+                <span v-else class="text-blue-400 font-mono text-xs">{{ p.ext || "—" }}</span>
+              </td>
+
+              <!-- HIS 帳號 -->
+              <td class="px-3 py-1.5">
+                <input v-if="editingPhysId === p.id" v-model="editBuf.his_account"
+                  class="w-24 px-1.5 py-0.5 bg-gray-900 border border-gray-600 rounded text-xs font-mono text-gray-100 outline-none focus:border-blue-500" />
+                <span v-else class="text-gray-400 font-mono text-xs">{{ p.his_account || "—" }}</span>
+              </td>
+
+              <!-- HIS 密碼 -->
+              <td class="px-3 py-1.5">
+                <input v-if="editingPhysId === p.id" v-model="editBuf.his_password"
+                  class="w-24 px-1.5 py-0.5 bg-gray-900 border border-gray-600 rounded text-xs font-mono text-gray-100 outline-none focus:border-blue-500" />
+                <span v-else class="text-gray-400 font-mono text-xs">{{ p.his_password || "—" }}</span>
+              </td>
+
+              <!-- 操作 -->
+              <td class="px-3 py-1.5">
+                <div class="flex gap-2 justify-end whitespace-nowrap">
+                  <template v-if="editingPhysId === p.id">
+                    <button @click="saveInlinePhys" class="text-xs text-emerald-400 hover:text-emerald-300 font-medium">儲存</button>
+                    <button @click="cancelEditPhys" class="text-xs text-gray-500 hover:text-gray-300">取消</button>
+                  </template>
+                  <template v-else>
+                    <button @click="startEditPhys(p)" class="text-xs text-blue-400 hover:text-blue-300">編輯</button>
+                    <button @click="confirmDelete(p)" class="text-xs text-red-500 hover:text-red-400">刪除</button>
+                  </template>
                 </div>
               </td>
             </tr>

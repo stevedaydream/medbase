@@ -59,9 +59,9 @@ watch(activeTab, (tab) => {
     <!-- Booking status banner -->
     <div v-if="activeTab === 'booking'"
       class="text-xs py-1.5 flex-shrink-0 flex items-center justify-center gap-2"
-      :class="config.booking_open === 'true' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-gray-800/60 text-gray-500'">
+      :class="String(config.booking_open) === 'true' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-gray-800/60 text-gray-500'">
       <span>
-        <template v-if="config.booking_open === 'true'">
+        <template v-if="String(config.booking_open) === 'true'">
           預約開放中
           <span v-if="config.booking_from && config.booking_until">
             （{{ config.booking_from?.slice(5) }} — {{ config.booking_until?.slice(5) }}）
@@ -74,8 +74,8 @@ watch(activeTab, (tab) => {
 
     <!-- Content -->
     <main class="flex-1 overflow-y-auto">
-      <ScheduleView v-if="activeTab === 'schedule'" :config="config" @toast="showToast" />
-      <BookingView  v-else :session="session" :config="config" :shifts="shifts" @toast="showToast" />
+      <ScheduleView v-if="activeTab === 'schedule'" key="schedule" :config="config" @toast="showToast" />
+      <BookingView  v-else key="booking" :session="session" :config="config" :shifts="shifts" @toast="showToast" />
     </main>
 
     <!-- Tab bar -->

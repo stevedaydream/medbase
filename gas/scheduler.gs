@@ -68,7 +68,12 @@ function doPost(e) {
         if (!cfg) return json({ ok: true, data: {} });
         const vals = cfg.getDataRange().getValues();
         const result = {};
-        vals.forEach(r => { if (r[0]) result[r[0]] = r[1]; });
+        vals.forEach(r => {
+          if (r[0]) {
+            const v = r[1];
+            result[String(r[0])] = (v instanceof Date) ? v.toISOString() : String(v);
+          }
+        });
         return json({ ok: true, data: result });
       }
 
@@ -157,12 +162,24 @@ function doPost(e) {
         return json({ ok: true });
       }
 
-      // ── 拉取請求列表（桌面端） ─────────────────────────────────
+      // ── 拉取請求列表（桌面端 + 手機端） ──────────────────────────
       case 'getRequests': {
         const shName = `Requests_${p.yyyyMM}`;
         const sh = ss.getSheetByName(shName);
         if (!sh) return json({ ok: true, data: [] });
-        return json({ ok: true, data: sh.getDataRange().getValues() });
+        const vals = sh.getDataRange().getValues();
+        if (vals.length < 2) return json({ ok: true, data: [] });
+        const rows = vals.slice(1).map(row => ({
+          code: String(row[0] || ''),
+          name: String(row[1] || ''),
+          submittedAt: String(row[2] || ''),
+          days: Array.from({ length: 31 }, (_, di) => ({
+            v1: row[3 + di * 3] ? String(row[3 + di * 3]) : null,
+            v2: row[4 + di * 3] ? String(row[4 + di * 3]) : null,
+            v3: row[5 + di * 3] ? String(row[5 + di * 3]) : null,
+          })),
+        })).filter(r => r.code);
+        return json({ ok: true, data: rows });
       }
 
       // ── 儲存醫師通訊錄（桌機端推送） ──────────────────────────────
@@ -175,7 +192,15 @@ function doPost(e) {
         ]);
         sh.clearContents();
         sh.getRange(1, 1, 1, hd.length).setValues([hd]);
-        if (rw.length) sh.getRange(2, 1, rw.length, hd.length).setValues(rw);
+        if (rw.length) {
+          const dataRange = sh.getRange(2, 1, rw.length, hd.length);
+          // 將帳號/密碼欄（第5~8欄）設為純文字格式，防止前導零被吃掉
+          const textCols = [5, 6, 7, 8]; // his_account, his_password, phs_account, phs_password
+          textCols.forEach(col => {
+            sh.getRange(2, col, rw.length, 1).setNumberFormat('@');
+          });
+          dataRange.setValues(rw);
+        }
         return json({ ok: true });
       }
 
@@ -256,6 +281,25 @@ function doPost(e) {
               sort_order: Number(r[5]||0), notes: String(r[6]||'')
             })) : [];
         return json({ ok: true, sets, setItems });
+      }
+
+      // ── 取得班別代號列表（手機端） ───────────────────────────────
+      case 'getShifts': {
+        const sh = ss.getSheetByName('Shifts');
+        if (!sh) return json({ ok: true, data: ['D','N','AM','Off'] });
+        const vals = sh.getDataRange().getValues().slice(1);
+        const codes = vals.map(r => String(r[0])).filter(c => c);
+        return json({ ok: true, data: codes.length ? codes : ['D','N','AM','Off'] });
+      }
+
+      // ── 儲存班別代號列表（桌機端推送） ──────────────────────────
+      case 'saveShifts': {
+        let sh = ss.getSheetByName('Shifts') || ss.insertSheet('Shifts');
+        sh.clearContents();
+        sh.getRange(1, 1).setValue('代號');
+        const codes = (p.codes || []).filter(c => c);
+        if (codes.length) sh.getRange(2, 1, codes.length, 1).setValues(codes.map(c => [c]));
+        return json({ ok: true });
       }
 
       default:

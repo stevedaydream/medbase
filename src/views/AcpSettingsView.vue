@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
+import { useRouter } from "vue-router";
 import { getDb } from "@/db";
+
+const router = useRouter();
 
 interface AcpSet {
   id: number;
@@ -108,7 +111,10 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
 
 <template>
   <div class="p-6 h-full flex flex-col space-y-6">
-    <h2 class="text-2xl font-bold text-gray-100 shrink-0">ACP 套組模板管理</h2>
+    <div class="flex items-center gap-3 shrink-0">
+      <button @click="router.back()" class="text-gray-400 hover:text-gray-100 transition-colors">← 返回</button>
+      <h2 class="text-2xl font-bold text-gray-100">ACP 套組模板管理</h2>
+    </div>
 
     <div class="grid grid-cols-12 gap-6 flex-1 overflow-hidden">
       <!-- 1. Sets Selection (Sidebar) -->

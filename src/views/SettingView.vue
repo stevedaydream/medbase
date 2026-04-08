@@ -2,12 +2,16 @@
 import { ref, watch, onMounted } from "vue";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
+import { useUiSettings, FONT_SIZE_LABELS, type FontSize } from "@/stores/uiSettings";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { getVersion } from "@tauri-apps/api/app";
 
 const cloud = useCloudSettings();
 onMounted(() => cloud.load());
+
+const ui = useUiSettings();
+const FONT_SIZES: FontSize[] = ["sm", "md", "lg", "xl"];
 
 // ── Sheet Prefix（從 DB 載入，獨立存）─────────────────────────────────
 const sheetPrefix = ref("Schedule_");
@@ -232,6 +236,25 @@ async function saveSettings() {
     <div class="flex items-center justify-between">
       <h1 class="text-base font-semibold text-white">設定</h1>
     </div>
+
+    <!-- ── 外觀設定 ───────────────────────────────────────────────── -->
+    <section class="space-y-3">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">外觀設定</h2>
+      <div class="flex items-center gap-4">
+        <p class="text-xs text-gray-400 w-16 flex-shrink-0">字體大小</p>
+        <div class="flex gap-1.5">
+          <button
+            v-for="size in FONT_SIZES" :key="size"
+            @click="ui.fontSize = size"
+            class="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors"
+            :class="ui.fontSize === size
+              ? 'bg-blue-700 border-blue-500 text-white'
+              : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200'"
+          >{{ FONT_SIZE_LABELS[size] }}</button>
+        </div>
+        <p class="text-xs text-gray-600">影響側邊欄、卡片標題等全域文字大小</p>
+      </div>
+    </section>
 
     <!-- ── 班表相關後端設定 ─────────────────────────────────────────── -->
     <section class="space-y-4">
