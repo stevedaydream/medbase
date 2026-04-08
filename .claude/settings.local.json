@@ -36,7 +36,8 @@
       "Bash(netlify deploy:*)",
       "Bash(netlify status:*)",
       "Bash(netlify sites:list:*)",
-      "Bash(grep -n \"acp_categories\" G:/project/medbase/src/db/index.ts G:/project/medbase/src/views/*.vue G:/project/medbase/src/views/AcpSettingsView.vue)"
+      "Bash(grep -n \"acp_categories\" G:/project/medbase/src/db/index.ts G:/project/medbase/src/views/*.vue G:/project/medbase/src/views/AcpSettingsView.vue)",
+      "Bash(netlify --version)"
     ]
   }
 }
