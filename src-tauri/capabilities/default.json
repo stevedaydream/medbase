@@ -18,27 +18,27 @@
     "dialog:allow-save",
     {
       "identifier": "fs:allow-copy-file",
-      "allow": [{ "path": "$HOME/**" }]
+      "allow": [{ "path": "**" }]
     },
     {
       "identifier": "fs:allow-read-text-file",
-      "allow": [{ "path": "$HOME/**" }]
+      "allow": [{ "path": "**" }]
     },
     {
       "identifier": "fs:allow-write-text-file",
-      "allow": [{ "path": "$HOME/**" }]
+      "allow": [{ "path": "**" }]
     },
     {
       "identifier": "fs:allow-read-file",
-      "allow": [{ "path": "$HOME/**" }]
+      "allow": [{ "path": "**" }]
     },
     {
       "identifier": "fs:allow-write-file",
-      "allow": [{ "path": "$HOME/**" }]
+      "allow": [{ "path": "**" }]
     },
     {
       "identifier": "fs:allow-create",
-      "allow": [{ "path": "$HOME/**" }]
+      "allow": [{ "path": "**" }]
     }
   ]
 }

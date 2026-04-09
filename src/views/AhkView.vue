@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
+import { useCloudSettings } from "@/stores/cloudSettings";
 
 interface AhkScript {
   id: number;
@@ -32,6 +33,10 @@ const showSettings = ref(false);
 const search = ref("");
 const toast = ref("");
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+const cloud = useCloudSettings();
+onMounted(() => cloud.load());
+const isSyncing = ref(false);
 
 const scriptForm = ref({ name: "", file_path: "", description: "" });
 const groupForm = ref({ name: "", description: "" });
@@ -69,9 +74,9 @@ async function selectScript(s: AhkScript) {
   scriptForm.value = { name: s.name, file_path: s.file_path, description: s.description ?? "" };
   try {
     scriptContent.value = await readTextFile(s.file_path);
-  } catch {
+  } catch (e) {
     scriptContent.value = "";
-    showToast("無法讀取檔案，請確認路徑是否正確");
+    showToast(`無法讀取：${(e as Error).message ?? s.file_path}`);
   }
 }
 
@@ -380,12 +385,223 @@ async function generatePassAhk() {
   }
 }
 
+// ── 雲端備份 / 還原 ───────────────────────────────────────────────
+
+async function pushToCloud() {
+  if (!cloud.gasUrl) { showToast("請先設定 GAS Web App URL"); return; }
+  isSyncing.value = true;
+  try {
+    const payload: { id: number; name: string; file_path: string; description: string; content: string }[] = [];
+    for (const s of scripts.value) {
+      let content = "";
+      try { content = await readTextFile(s.file_path); } catch { /* 讀不到就帶空字串 */ }
+      payload.push({ id: s.id, name: s.name, file_path: s.file_path, description: s.description ?? "", content });
+    }
+    await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "saveAhkScripts", scripts: payload }),
+      mode: "no-cors",
+    });
+    showToast(`已備份 ${payload.length} 個腳本至雲端`);
+  } catch (e) { showToast(`備份失敗：${(e as Error).message}`); }
+  finally { isSyncing.value = false; }
+}
+
+async function pullFromCloud() {
+  if (!cloud.gasUrl) { showToast("請先設定 GAS Web App URL"); return; }
+  isSyncing.value = true;
+  try {
+    const res = await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "getAhkScripts" }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
+    const cloudScripts: (AhkScript & { content: string })[] = json.scripts || [];
+    if (!cloudScripts.length) { showToast("雲端無腳本資料"); return; }
+
+    const db = await getDb();
+    let written = 0, skipped = 0;
+    for (const cs of cloudScripts) {
+      // 寫入檔案（內容不同才覆寫）
+      if (cs.file_path) {
+        try {
+          let local = "";
+          try { local = await readTextFile(cs.file_path); } catch { /* 不存在視為空 */ }
+          if (local !== cs.content) {
+            await writeTextFile(cs.file_path, cs.content);
+            written++;
+          } else {
+            skipped++;
+          }
+        } catch { skipped++; }
+      }
+      // 更新 DB 紀錄
+      await db.execute(
+        `INSERT OR REPLACE INTO ahk_scripts (id, name, file_path, description, updated_at)
+         VALUES (?, ?, ?, ?, datetime('now'))`,
+        [cs.id, cs.name, cs.file_path, cs.description ?? ""]
+      );
+    }
+    await loadAll();
+    showToast(`已還原：更新 ${written} 個，略過 ${skipped} 個（內容相同）`);
+  } catch (e) { showToast(`還原失敗：${(e as Error).message}`); }
+  finally { isSyncing.value = false; }
+}
+
 async function pickExePath() {
   const path = (await openDialog({
     title: "選擇 AutoHotkey 執行檔",
     filters: [{ name: "Executable", extensions: ["exe"] }],
   })) as string | null;
   if (path) await saveExePath(path);
+}
+
+// ── 積木編輯器 ─────────────────────────────────────────────
+
+interface BuilderBlock {
+  id: number
+  type: 'hotstring' | 'hotkey'
+  comment: string
+  trigger: string
+  hsMode: 'inline' | 'multitext' | 'rawcode'
+  expansion: string
+  optInstant: boolean
+  optInWord: boolean
+  optCase: boolean
+  modCtrl: boolean
+  modShift: boolean
+  modAlt: boolean
+  modWin: boolean
+  key: string
+  hkMode: 'single' | 'multi'
+  hkAction: string
+}
+
+const showBuilder = ref(false)
+const builderBlocks = ref<BuilderBlock[]>([])
+let blkCounter = 0
+const editingBlockIdx = ref<number | null>(null)
+
+function emptyBlock(): BuilderBlock {
+  return {
+    id: 0, type: 'hotstring', comment: '',
+    trigger: '', hsMode: 'inline', expansion: '',
+    optInstant: false, optInWord: false, optCase: false,
+    modCtrl: true, modShift: false, modAlt: false, modWin: false,
+    key: '', hkMode: 'single', hkAction: '',
+  }
+}
+const builderForm = ref<BuilderBlock>(emptyBlock())
+
+function generateBlockCode(b: BuilderBlock): string {
+  const lines: string[] = []
+  if (b.comment) lines.push(`; ${b.comment}`)
+  if (b.type === 'hotstring') {
+    const opts = (b.optInstant ? '*' : '') + (b.optInWord ? '?' : '') + (b.optCase ? 'C' : '')
+    const pfx = opts ? `:${opts}:` : '::'
+    if (b.hsMode === 'inline') {
+      lines.push(`${pfx}${b.trigger}::${b.expansion}`)
+    } else {
+      lines.push(`${pfx}${b.trigger}::`)
+      lines.push('{')
+      if (b.hsMode === 'multitext') {
+        const tls = b.expansion.split('\n')
+        tls.forEach((tl, i) => {
+          const parts = tl.split('\\t')
+          parts.forEach((part, pi) => {
+            if (part) lines.push(`    SendText "${part}"`)
+            if (pi < parts.length - 1) lines.push(`    Send "{Tab}"`)
+          })
+          if (i < tls.length - 1) lines.push(`    Send "{Enter}"`)
+        })
+      } else {
+        b.expansion.split('\n').forEach(l => lines.push(`    ${l}`))
+      }
+      lines.push('}')
+    }
+  } else {
+    const mods = (b.modCtrl ? '^' : '') + (b.modShift ? '+' : '') + (b.modAlt ? '!' : '') + (b.modWin ? '#' : '')
+    const combo = `${mods}${b.key}`
+    if (b.hkMode === 'single') {
+      lines.push(`${combo}::${b.hkAction}`)
+    } else {
+      lines.push(`${combo}::`)
+      lines.push('{')
+      b.hkAction.split('\n').forEach(l => lines.push(`    ${l}`))
+      lines.push('}')
+    }
+  }
+  return lines.join('\n')
+}
+
+const builderPreview = computed(() => {
+  const b = builderForm.value
+  if (b.type === 'hotstring' && !b.trigger) return ''
+  if (b.type === 'hotkey' && !b.key) return ''
+  return generateBlockCode(b)
+})
+
+const hsExpansionPlaceholder = computed(() =>
+  builderForm.value.hsMode === 'multitext'
+    ? '第一欄\t第二欄\t第三欄\n下一行文字'
+    : 'Send "^a"\nSleep 50\nSend "^c"'
+)
+
+const hkActionPlaceholder = computed(() =>
+  'Send "^a"\nSleep 50\nSend "^c"'
+)
+
+function setBuilderType(t: string) {
+  builderForm.value.type = t as 'hotstring' | 'hotkey'
+}
+
+function addOrUpdateBlock() {
+  const b = builderForm.value
+  if (b.type === 'hotstring' && !b.trigger.trim()) { showToast('請填寫觸發文字'); return }
+  if (b.type === 'hotkey' && !b.key.trim()) { showToast('請填寫按鍵'); return }
+  if (editingBlockIdx.value !== null) {
+    builderBlocks.value[editingBlockIdx.value] = { ...b, id: builderBlocks.value[editingBlockIdx.value].id }
+    editingBlockIdx.value = null
+  } else {
+    builderBlocks.value.push({ ...b, id: ++blkCounter })
+  }
+  builderForm.value = emptyBlock()
+}
+
+function editBuilderBlock(idx: number) {
+  editingBlockIdx.value = idx
+  builderForm.value = { ...builderBlocks.value[idx] }
+}
+
+function removeBuilderBlock(idx: number) {
+  builderBlocks.value.splice(idx, 1)
+  if (editingBlockIdx.value === idx) {
+    editingBlockIdx.value = null
+    builderForm.value = emptyBlock()
+  } else if (editingBlockIdx.value !== null && editingBlockIdx.value > idx) {
+    editingBlockIdx.value--
+  }
+}
+
+function cancelEditBlock() {
+  editingBlockIdx.value = null
+  builderForm.value = emptyBlock()
+}
+
+function insertBuilderToScript() {
+  if (!builderBlocks.value.length) return
+  const count = builderBlocks.value.length
+  const code = builderBlocks.value.map(b => generateBlockCode(b)).join('\n\n')
+  const sep = scriptContent.value && !scriptContent.value.endsWith('\n\n') ? '\n\n' : ''
+  scriptContent.value += sep + code + '\n'
+  showBuilder.value = false
+  builderBlocks.value = []
+  editingBlockIdx.value = null
+  builderForm.value = emptyBlock()
+  showToast(`已插入 ${count} 個區塊`)
 }
 </script>
 
@@ -465,7 +681,7 @@ async function pickExePath() {
             匯入
           </button>
         </div>
-        <div class="px-3 pb-3">
+        <div class="px-3 pb-3 space-y-1.5">
           <button
             @click="generatePassAhk"
             class="w-full text-xs py-1.5 bg-amber-900/60 hover:bg-amber-900 text-amber-300 hover:text-amber-200 rounded flex items-center justify-center gap-1.5 transition-colors"
@@ -473,6 +689,16 @@ async function pickExePath() {
           >
             <span>⚡</span> 產生帳密腳本
           </button>
+          <div class="flex gap-1.5">
+            <button @click="pullFromCloud" :disabled="isSyncing"
+              class="flex-1 text-xs py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-200 rounded transition-colors">
+              {{ isSyncing ? '…' : '☁️↓ 還原' }}
+            </button>
+            <button @click="pushToCloud" :disabled="isSyncing"
+              class="flex-1 text-xs py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-200 rounded transition-colors">
+              {{ isSyncing ? '…' : '☁️↑ 備份' }}
+            </button>
+          </div>
         </div>
         <div class="flex-1 overflow-y-auto">
           <button
@@ -537,6 +763,17 @@ async function pickExePath() {
                 選擇路徑
               </button>
             </div>
+          </div>
+
+          <!-- Builder trigger -->
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <button
+              @click="showBuilder = true"
+              class="text-xs px-3 py-1.5 bg-indigo-900/60 hover:bg-indigo-800/80 text-indigo-300 hover:text-indigo-200 rounded transition-colors flex items-center gap-1.5"
+            >
+              🧩 積木編輯器
+            </button>
+            <span class="text-xs text-gray-700">快速組合後插入腳本內容</span>
           </div>
 
           <!-- Code editor -->
@@ -863,6 +1100,275 @@ async function pickExePath() {
       </section>
 
     </div>
+
+    <!-- Builder Modal -->
+    <Teleport to="body">
+      <div v-if="showBuilder" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70" @click.self="showBuilder = false">
+        <div class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-[860px] max-h-[88vh] flex flex-col">
+
+          <!-- Header -->
+          <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-800 flex-shrink-0">
+            <h3 class="text-sm font-semibold text-white">🧩 積木編輯器</h3>
+            <button @click="showBuilder = false" class="text-gray-500 hover:text-gray-300 text-xl leading-none">&times;</button>
+          </div>
+
+          <!-- Body -->
+          <div class="flex flex-1 overflow-hidden">
+
+            <!-- Left: block list -->
+            <div class="w-64 border-r border-gray-800 flex flex-col overflow-hidden flex-shrink-0">
+              <div class="px-3 py-2 text-xs text-gray-600 border-b border-gray-800 flex-shrink-0">
+                已加入 {{ builderBlocks.length }} 個區塊
+              </div>
+              <div class="flex-1 overflow-y-auto">
+                <div v-if="!builderBlocks.length" class="text-center text-gray-700 text-xs py-10 px-4">
+                  尚無區塊<br>在右側填好後點「加入清單」
+                </div>
+                <div
+                  v-for="(b, i) in builderBlocks"
+                  :key="b.id"
+                  class="border-b border-gray-800/60 px-3 py-2.5 flex items-start gap-2 group cursor-pointer transition-colors"
+                  :class="editingBlockIdx === i ? 'bg-gray-800' : 'hover:bg-gray-800/50'"
+                  @click="editBuilderBlock(i)"
+                >
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1.5 mb-0.5">
+                      <span class="text-xs px-1.5 py-0.5 rounded font-medium flex-shrink-0"
+                        :class="b.type === 'hotstring' ? 'bg-green-900/60 text-green-400' : 'bg-blue-900/60 text-blue-400'">
+                        {{ b.type === 'hotstring' ? '熱字串' : '快捷鍵' }}
+                      </span>
+                      <span v-if="b.comment" class="text-xs text-gray-600 truncate">{{ b.comment }}</span>
+                    </div>
+                    <div class="text-xs font-mono text-gray-500 truncate">
+                      <template v-if="b.type === 'hotstring'">
+                        ::{{ b.trigger }}:: {{ b.expansion.slice(0, 22) }}{{ b.expansion.length > 22 ? '…' : '' }}
+                      </template>
+                      <template v-else>
+                        {{ (b.modCtrl?'^':'')+(b.modShift?'+':'')+(b.modAlt?'!':'')+(b.modWin?'#':'') }}{{ b.key }} → {{ b.hkAction.slice(0, 18) }}{{ b.hkAction.length > 18 ? '…' : '' }}
+                      </template>
+                    </div>
+                  </div>
+                  <button
+                    @click.stop="removeBuilderBlock(i)"
+                    class="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 text-sm transition-opacity flex-shrink-0 mt-0.5"
+                  >✕</button>
+                </div>
+              </div>
+              <div class="p-3 border-t border-gray-800 flex-shrink-0">
+                <button
+                  @click="insertBuilderToScript"
+                  :disabled="!builderBlocks.length"
+                  class="w-full py-2 text-sm rounded font-medium transition-colors"
+                  :class="builderBlocks.length ? 'bg-blue-700 hover:bg-blue-600 text-white' : 'bg-gray-800 text-gray-600 cursor-not-allowed'"
+                >
+                  插入到腳本（{{ builderBlocks.length }}）
+                </button>
+              </div>
+            </div>
+
+            <!-- Right: form -->
+            <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
+
+              <!-- Type selector -->
+              <div class="flex gap-2 flex-shrink-0">
+                <button
+                  v-for="[t, label] in [['hotstring','🔤 熱字串（展開文字）'],['hotkey','⌨ 快捷鍵（快速鍵）']]"
+                  :key="t"
+                  @click="setBuilderType(t)"
+                  class="px-4 py-1.5 text-sm rounded transition-colors border"
+                  :class="builderForm.type === t
+                    ? 'bg-gray-700 border-gray-500 text-white'
+                    : 'border-gray-800 text-gray-500 hover:text-gray-300 hover:border-gray-700'"
+                >{{ label }}</button>
+              </div>
+
+              <!-- ── Hotstring form ── -->
+              <template v-if="builderForm.type === 'hotstring'">
+
+                <!-- Trigger + options -->
+                <div class="flex gap-3 items-end flex-shrink-0">
+                  <div class="w-44">
+                    <label class="block text-xs text-gray-500 mb-1">觸發文字 <span class="text-red-500">*</span></label>
+                    <input
+                      v-model="builderForm.trigger"
+                      placeholder="npo / addr / sig1"
+                      class="w-full text-sm px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-gray-200 outline-none focus:border-gray-500 font-mono"
+                    />
+                  </div>
+                  <div class="flex items-center gap-3 pb-0.5">
+                    <label class="flex items-center gap-1.5 cursor-pointer text-xs text-gray-400 select-none">
+                      <input type="checkbox" v-model="builderForm.optInstant" class="w-3.5 h-3.5 accent-indigo-500" />
+                      即時觸發 <code class="text-indigo-400 font-mono text-xs">*</code>
+                    </label>
+                    <label class="flex items-center gap-1.5 cursor-pointer text-xs text-gray-400 select-none">
+                      <input type="checkbox" v-model="builderForm.optInWord" class="w-3.5 h-3.5 accent-indigo-500" />
+                      字中觸發 <code class="text-indigo-400 font-mono text-xs">?</code>
+                    </label>
+                    <label class="flex items-center gap-1.5 cursor-pointer text-xs text-gray-400 select-none">
+                      <input type="checkbox" v-model="builderForm.optCase" class="w-3.5 h-3.5 accent-indigo-500" />
+                      大小寫 <code class="text-indigo-400 font-mono text-xs">C</code>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Mode tabs -->
+                <div class="flex gap-1 flex-shrink-0">
+                  <button
+                    @click="builderForm.hsMode = 'inline'"
+                    class="px-3 py-1.5 text-xs rounded transition-colors border"
+                    :class="builderForm.hsMode === 'inline' ? 'bg-gray-700 border-gray-500 text-white' : 'border-gray-800 text-gray-600 hover:text-gray-400'"
+                    title="直接展開為純文字，觸發後替換"
+                  >單行文字</button>
+                  <button
+                    @click="builderForm.hsMode = 'multitext'"
+                    class="px-3 py-1.5 text-xs rounded transition-colors border"
+                    :class="builderForm.hsMode === 'multitext' ? 'bg-gray-700 border-gray-500 text-white' : 'border-gray-800 text-gray-600 hover:text-gray-400'"
+                    title="多行文字，自動產生 SendText + Enter"
+                  >多行文字</button>
+                  <button
+                    @click="builderForm.hsMode = 'rawcode'"
+                    class="px-3 py-1.5 text-xs rounded transition-colors border"
+                    :class="builderForm.hsMode === 'rawcode' ? 'bg-gray-700 border-gray-500 text-white' : 'border-gray-800 text-gray-600 hover:text-gray-400'"
+                    title="自行輸入原始 AHK 指令，包在 { } 內"
+                  >原始 AHK 指令</button>
+                </div>
+
+                <!-- Content -->
+                <div class="flex-shrink-0">
+                  <label class="block text-xs text-gray-500 mb-1">
+                    <template v-if="builderForm.hsMode === 'inline'">展開文字（單行）</template>
+                    <template v-else-if="builderForm.hsMode === 'multitext'">展開文字（換行 = Enter；<code class="text-indigo-400 font-mono">\t</code> = Tab）</template>
+                    <template v-else>AHK 指令（每行一個，自動包在 { } 內）</template>
+                  </label>
+                  <input
+                    v-if="builderForm.hsMode === 'inline'"
+                    v-model="builderForm.expansion"
+                    placeholder="例如：NPO after midnight"
+                    class="w-full text-sm px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-gray-200 outline-none focus:border-gray-500"
+                  />
+                  <textarea
+                    v-else
+                    v-model="builderForm.expansion"
+                    :placeholder="hsExpansionPlaceholder"
+                    rows="5"
+                    class="w-full text-sm px-3 py-2 bg-gray-800 border border-gray-700 rounded text-gray-200 outline-none focus:border-gray-500 font-mono resize-none"
+                  />
+                </div>
+              </template>
+
+              <!-- ── Hotkey form ── -->
+              <template v-else>
+
+                <!-- Modifiers + key -->
+                <div class="flex items-end gap-3 flex-shrink-0">
+                  <div>
+                    <label class="block text-xs text-gray-500 mb-1">修飾鍵</label>
+                    <div class="flex gap-1.5">
+                      <label class="flex items-center gap-1.5 px-2.5 py-1.5 rounded border cursor-pointer transition-colors text-xs select-none"
+                        :class="builderForm.modCtrl ? 'bg-indigo-900/60 border-indigo-600 text-indigo-300' : 'border-gray-700 text-gray-500 hover:border-gray-600'">
+                        <input type="checkbox" v-model="builderForm.modCtrl" class="hidden" />
+                        <code class="font-mono">^</code> Ctrl
+                      </label>
+                      <label class="flex items-center gap-1.5 px-2.5 py-1.5 rounded border cursor-pointer transition-colors text-xs select-none"
+                        :class="builderForm.modShift ? 'bg-indigo-900/60 border-indigo-600 text-indigo-300' : 'border-gray-700 text-gray-500 hover:border-gray-600'">
+                        <input type="checkbox" v-model="builderForm.modShift" class="hidden" />
+                        <code class="font-mono">+</code> Shift
+                      </label>
+                      <label class="flex items-center gap-1.5 px-2.5 py-1.5 rounded border cursor-pointer transition-colors text-xs select-none"
+                        :class="builderForm.modAlt ? 'bg-indigo-900/60 border-indigo-600 text-indigo-300' : 'border-gray-700 text-gray-500 hover:border-gray-600'">
+                        <input type="checkbox" v-model="builderForm.modAlt" class="hidden" />
+                        <code class="font-mono">!</code> Alt
+                      </label>
+                      <label class="flex items-center gap-1.5 px-2.5 py-1.5 rounded border cursor-pointer transition-colors text-xs select-none"
+                        :class="builderForm.modWin ? 'bg-indigo-900/60 border-indigo-600 text-indigo-300' : 'border-gray-700 text-gray-500 hover:border-gray-600'">
+                        <input type="checkbox" v-model="builderForm.modWin" class="hidden" />
+                        <code class="font-mono">#</code> Win
+                      </label>
+                    </div>
+                  </div>
+                  <div class="w-36">
+                    <label class="block text-xs text-gray-500 mb-1">按鍵 <span class="text-red-500">*</span></label>
+                    <input
+                      v-model="builderForm.key"
+                      placeholder="F1, a, Enter, Space…"
+                      class="w-full text-sm px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-gray-200 outline-none focus:border-gray-500 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <!-- Mode toggle -->
+                <div class="flex gap-1 flex-shrink-0">
+                  <button
+                    @click="builderForm.hkMode = 'single'"
+                    class="px-3 py-1.5 text-xs rounded transition-colors border"
+                    :class="builderForm.hkMode === 'single' ? 'bg-gray-700 border-gray-500 text-white' : 'border-gray-800 text-gray-600 hover:text-gray-400'"
+                  >單行動作</button>
+                  <button
+                    @click="builderForm.hkMode = 'multi'"
+                    class="px-3 py-1.5 text-xs rounded transition-colors border"
+                    :class="builderForm.hkMode === 'multi' ? 'bg-gray-700 border-gray-500 text-white' : 'border-gray-800 text-gray-600 hover:text-gray-400'"
+                  >多行動作</button>
+                </div>
+
+                <!-- Action -->
+                <div class="flex-shrink-0">
+                  <label class="block text-xs text-gray-500 mb-1">
+                    {{ builderForm.hkMode === 'single' ? '動作（單行 AHK 指令）' : '動作（多行，自動包在 { } 內）' }}
+                  </label>
+                  <input
+                    v-if="builderForm.hkMode === 'single'"
+                    v-model="builderForm.hkAction"
+                    placeholder='例如：Run "notepad.exe"'
+                    class="w-full text-sm px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-gray-200 outline-none focus:border-gray-500 font-mono"
+                  />
+                  <textarea
+                    v-else
+                    v-model="builderForm.hkAction"
+                    :placeholder="hkActionPlaceholder"
+                    rows="5"
+                    class="w-full text-sm px-3 py-2 bg-gray-800 border border-gray-700 rounded text-gray-200 outline-none focus:border-gray-500 font-mono resize-none"
+                  />
+                </div>
+              </template>
+
+              <!-- Comment -->
+              <div class="flex-shrink-0">
+                <label class="block text-xs text-gray-500 mb-1">備註（選填，產生為 ; 開頭的 AHK 註解）</label>
+                <input
+                  v-model="builderForm.comment"
+                  placeholder="例如：Ctrl+F1 開啟記事本"
+                  class="w-full text-sm px-3 py-1.5 bg-gray-800 border border-gray-700 rounded text-gray-200 outline-none focus:border-gray-500"
+                />
+              </div>
+
+              <!-- Preview -->
+              <div v-if="builderPreview" class="flex-shrink-0">
+                <label class="block text-xs text-gray-500 mb-1">預覽</label>
+                <pre class="text-xs font-mono bg-gray-950 border border-gray-800 rounded p-3 text-green-400 overflow-x-auto whitespace-pre">{{ builderPreview }}</pre>
+              </div>
+
+              <!-- Add / Update button -->
+              <div class="flex items-center gap-2 flex-shrink-0 pt-1">
+                <button
+                  @click="addOrUpdateBlock"
+                  class="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 text-white text-sm rounded font-medium transition-colors"
+                >
+                  {{ editingBlockIdx !== null ? '更新區塊' : '＋ 加入清單' }}
+                </button>
+                <button
+                  v-if="editingBlockIdx !== null"
+                  @click="cancelEditBlock"
+                  class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm rounded transition-colors"
+                >
+                  取消編輯
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- Toast -->
     <Transition name="toast">

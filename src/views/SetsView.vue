@@ -50,6 +50,31 @@ const suggestions   = computed(() => {
     .slice(0, 8);
 });
 
+// 套組名稱 inline 編輯
+const renamingSet  = ref(false);
+const renameValue  = ref("");
+
+function startRename() {
+  if (!activeSet.value) return;
+  renameValue.value = activeSet.value.name;
+  renamingSet.value = true;
+}
+
+async function saveRename() {
+  if (!activeSet.value || !renamingSet.value) return;
+  renamingSet.value = false;
+  const newName = renameValue.value.trim();
+  if (!newName || newName === activeSet.value.name) return;
+  try {
+    const db = await getDb();
+    await db.execute("UPDATE sets SET name=? WHERE id=?", [newName, activeSet.value.id]);
+    activeSet.value = { ...activeSet.value, name: newName };
+    const idx = sets.value.findIndex(s => s.id === activeSet.value!.id);
+    if (idx >= 0) sets.value[idx] = { ...sets.value[idx], name: newName };
+    toast("套組名稱已更新");
+  } catch (e) { toast(`更新失敗：${(e as Error).message}`); }
+}
+
 // 刪除確認
 const deleteTarget = ref<{ type: "set"|"item"; row: any } | null>(null);
 
@@ -234,18 +259,65 @@ async function pushToCloud() {
   isSyncing.value = true;
   try {
     const db = await getDb();
-    const setsData = await db.select<SetRow[]>(`
+    const localSets = await db.select<SetRow[]>(`
       SELECT s.*, p.name AS phys_name
       FROM sets s LEFT JOIN physicians p ON s.physician_id = p.id
     `);
-    const setItemsData = await db.select<SetItem[]>("SELECT * FROM set_items ORDER BY set_id, sort_order");
+    const localSetItems = await db.select<SetItem[]>("SELECT * FROM set_items ORDER BY set_id, sort_order");
+
+    // 先拉取雲端現有資料，避免覆蓋雲端獨有的套組
+    let cloudSets: SetRow[] = [];
+    let cloudSetItems: SetItem[] = [];
+    try {
+      const res = await fetch(cloud.gasUrl, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ action: "getSets" }),
+      });
+      const json = await res.json();
+      if (json.ok) { cloudSets = json.sets || []; cloudSetItems = json.setItems || []; }
+    } catch (_) { /* 拉取失敗視為雲端空白，直接覆蓋 */ }
+
+    // 合併套組：以 id 比對，local 有變更才更新，雲端獨有的保留
+    const mergedSets: SetRow[] = [...cloudSets];
+    let addCount = 0, updateCount = 0;
+    for (const ls of localSets) {
+      const idx = mergedSets.findIndex(cs => cs.id === ls.id);
+      if (idx >= 0) {
+        const cs = mergedSets[idx];
+        if (cs.name !== ls.name || cs.surgery_type !== ls.surgery_type ||
+            cs.physician_id !== ls.physician_id || cs.notes !== ls.notes) {
+          mergedSets[idx] = ls;
+          updateCount++;
+        }
+      } else {
+        mergedSets.push(ls);
+        addCount++;
+      }
+    }
+
+    // 合併套組品項：以 id 比對，local 有變更才更新，雲端獨有的保留
+    const mergedSetItems: SetItem[] = [...cloudSetItems];
+    for (const li of localSetItems) {
+      const idx = mergedSetItems.findIndex(ci => ci.id === li.id);
+      if (idx >= 0) {
+        const ci = mergedSetItems[idx];
+        if (ci.hospital_code !== li.hospital_code || ci.quantity !== li.quantity ||
+            ci.is_optional !== li.is_optional || ci.sort_order !== li.sort_order || ci.notes !== li.notes) {
+          mergedSetItems[idx] = li;
+        }
+      } else {
+        mergedSetItems.push(li);
+      }
+    }
+
     await fetch(cloud.gasUrl, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "saveSets", sets: setsData, setItems: setItemsData }),
+      body: JSON.stringify({ action: "saveSets", sets: mergedSets, setItems: mergedSetItems }),
       mode: "no-cors",
     });
-    toast(`已上傳 ${setsData.length} 個套組至雲端`);
+    toast(`已上傳至雲端（新增 ${addCount}、更新 ${updateCount} 個套組）`);
   } catch (e) { toast(`上傳失敗：${(e as Error).message}`); }
   finally { isSyncing.value = false; }
 }
@@ -378,7 +450,23 @@ async function doDelete() {
         <!-- 套組 Header -->
         <div class="flex items-start justify-between px-5 py-4 border-b border-gray-800 shrink-0">
           <div>
-            <h2 class="text-gray-100 font-semibold text-base">{{ activeSet.name }}</h2>
+            <div class="flex items-center gap-2">
+              <template v-if="renamingSet">
+                <input
+                  v-model="renameValue"
+                  @keyup.enter="saveRename"
+                  @keyup.esc="renamingSet = false"
+                  @blur="saveRename"
+                  autofocus
+                  class="text-gray-100 font-semibold text-base bg-gray-800 border border-blue-500 rounded px-2 py-0.5 focus:outline-none w-64"
+                />
+              </template>
+              <template v-else>
+                <h2 class="text-gray-100 font-semibold text-base">{{ activeSet.name }}</h2>
+                <button @click="startRename" title="修改名稱"
+                  class="text-gray-600 hover:text-gray-300 text-sm leading-none">✏</button>
+              </template>
+            </div>
             <div class="flex items-center gap-3 mt-1 text-xs text-gray-500">
               <span v-if="activeSet.phys_name">👨‍⚕️ {{ activeSet.phys_name }}</span>
               <span v-if="activeSet.surgery_type">🔪 {{ activeSet.surgery_type }}</span>

@@ -283,6 +283,30 @@ function doPost(e) {
         return json({ ok: true, sets, setItems });
       }
 
+      // ── 備份 AHK 腳本（桌機端推送） ──────────────────────────────
+      case 'saveAhkScripts': {
+        let sh = ss.getSheetByName('AhkScripts') || ss.insertSheet('AhkScripts');
+        const hd = ['id','name','file_path','description','content'];
+        const rw = (p.scripts||[]).map(r => [
+          r.id, r.name||'', r.file_path||'', r.description||'', r.content||''
+        ]);
+        sh.clearContents();
+        sh.getRange(1,1,1,hd.length).setValues([hd]);
+        if (rw.length) sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        return json({ ok: true });
+      }
+
+      // ── 還原 AHK 腳本（桌機端拉取） ──────────────────────────────
+      case 'getAhkScripts': {
+        const sh = ss.getSheetByName('AhkScripts');
+        if (!sh || sh.getLastRow() < 2) return json({ ok: true, scripts: [] });
+        const scripts = sh.getDataRange().getValues().slice(1).filter(r => r[0]).map(r => ({
+          id: Number(r[0]), name: String(r[1]||''), file_path: String(r[2]||''),
+          description: String(r[3]||''), content: String(r[4]||'')
+        }));
+        return json({ ok: true, scripts });
+      }
+
       // ── 取得班別代號列表（手機端） ───────────────────────────────
       case 'getShifts': {
         const sh = ss.getSheetByName('Shifts');

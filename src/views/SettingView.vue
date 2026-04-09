@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from "vue";
+import { ref, watch, onMounted, onUnmounted } from "vue";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { useUiSettings, FONT_SIZE_LABELS, type FontSize } from "@/stores/uiSettings";
@@ -211,6 +211,17 @@ async function fetchChangelog() {
   } finally { changelogLoading.value = false; }
 }
 
+// ── 管理員解鎖（Ctrl+Shift+L，session 等級，重新整理即鎖回）──────────
+const adminUnlocked = ref(false);
+
+function handleAdminKey(e: KeyboardEvent) {
+  if (e.ctrlKey && e.shiftKey && e.key === "L") {
+    adminUnlocked.value = !adminUnlocked.value;
+  }
+}
+onMounted(()  => window.addEventListener("keydown", handleAdminKey));
+onUnmounted(() => window.removeEventListener("keydown", handleAdminKey));
+
 // ── Guide ─────────────────────────────────────────────────────────────
 const showGasHelp = ref(false);
 const showGuide   = ref(false);
@@ -256,9 +267,20 @@ async function saveSettings() {
       </div>
     </section>
 
-    <!-- ── 班表相關後端設定 ─────────────────────────────────────────── -->
-    <section class="space-y-4">
-      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">班表相關後端設定</h2>
+    <!-- ── 班表相關後端設定（管理員解鎖）────────────────────────────── -->
+    <!-- 鎖定提示 -->
+    <div v-if="!adminUnlocked"
+      class="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-800 text-gray-700 text-xs select-none cursor-default w-fit">
+      <span>🔒</span>
+      <span>管理員設定</span>
+    </div>
+
+    <section v-if="adminUnlocked" class="space-y-4">
+      <h2 class="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+        班表相關後端設定
+        <span class="text-[10px] font-normal normal-case px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-500 border border-amber-800">管理員模式</span>
+        <button @click="adminUnlocked = false" class="ml-auto text-[10px] text-gray-600 hover:text-gray-400 normal-case font-normal">🔒 鎖定</button>
+      </h2>
 
       <div class="grid grid-cols-2 gap-3">
         <div>

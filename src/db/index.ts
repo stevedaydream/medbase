@@ -1,5 +1,5 @@
 import Database from "@tauri-apps/plugin-sql";
-import { seedPhysicians, seedContacts } from "./seed";
+import { seedPhysicians, seedContacts, seedAppSettings } from "./seed";
 import { sha256 } from "@/utils/sha256";
 
 let db: Database | null = null;
@@ -76,6 +76,14 @@ async function seedIfEmpty(db: Database) {
         [cat.name, JSON.stringify(cat.reasons)]);
     }
     console.log("[seed] imported default ACP categories");
+  }
+
+  // ⑤ 雲端設定預設值（INSERT OR IGNORE：已存在的 key 不覆蓋）
+  for (const s of seedAppSettings) {
+    await db.execute(
+      "INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)",
+      [s.key, s.value]
+    );
   }
 }
 

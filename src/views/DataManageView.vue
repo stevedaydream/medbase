@@ -72,6 +72,49 @@ function cancelEditPhys() {
   editBuf.value = {};
 }
 
+// ── 批次新增品項 ─────────────────────────────────────────────────
+interface BatchItemRow {
+  hospital_code: string; name_zh: string; purpose: string;
+  deptsStr: string; price: string; supplier: string;
+}
+const showBatchAdd = ref(false);
+const batchRows    = ref<BatchItemRow[]>([]);
+const batchSaving  = ref(false);
+
+function emptyBatchRow(): BatchItemRow {
+  return { hospital_code: "", name_zh: "", purpose: "", deptsStr: "", price: "", supplier: "" };
+}
+function openBatchAdd() {
+  batchRows.value = [emptyBatchRow()];
+  showBatchAdd.value = true;
+}
+function addBatchRow() { batchRows.value.push(emptyBatchRow()); }
+function removeBatchRow(i: number) { batchRows.value.splice(i, 1); }
+async function saveBatchItems() {
+  const valid = batchRows.value.filter(r => r.hospital_code.trim());
+  if (!valid.length) return;
+  batchSaving.value = true;
+  try {
+    const db = await getDb();
+    for (const r of valid) {
+      const code = r.hospital_code.trim();
+      await db.execute(
+        `INSERT OR IGNORE INTO items (hospital_code,name_zh,purpose,unit,price,supplier,notes) VALUES (?,?,?,?,?,?,?)`,
+        [code, r.name_zh||null, r.purpose||null, null,
+         r.price !== "" ? Number(r.price) : null, r.supplier||null, null]
+      );
+      const depts = r.deptsStr.split(";").map(s => s.trim()).filter(Boolean);
+      for (const d of depts) {
+        await db.execute("INSERT OR IGNORE INTO item_depts (hospital_code,dept) VALUES (?,?)", [code, d]);
+      }
+    }
+    showBatchAdd.value = false;
+    await loadAll();
+    showToast("success", `已新增 ${valid.length} 筆品項`);
+  } catch (e) { showToast("error", `儲存失敗：${(e as Error).message}`); }
+  finally { batchSaving.value = false; }
+}
+
 // ── Toast ────────────────────────────────────────────────────────
 interface Toast { type: "success" | "error"; msg: string; }
 const toast = ref<Toast | null>(null);
@@ -195,6 +238,31 @@ async function handleXlsx(e: Event) {
         ok++;
       }
       results.push({ sheet: "套組品項", upserted: ok, skipped: skip });
+    }
+
+    // ⑥ physicians
+    {
+      let ok = 0, skip = 0;
+      for (const r of rows("physicians")) {
+        if (!r.name || typeof r.name !== "string" || r.name.startsWith("★")) { skip++; continue; }
+        if (isNum(r.id)) {
+          await db.execute(
+            `INSERT OR REPLACE INTO physicians
+             (id,name,department,title,ext,his_account,his_password,phs_account,phs_password,notes)
+             VALUES (?,?,?,?,?,?,?,?,?,?)`,
+            [r.id, r.name, n(r.department), n(r.title), n(r.ext),
+             n(r.his_account), n(r.his_password), n(r.phs_account), n(r.phs_password), n(r.notes)]);
+        } else {
+          await db.execute(
+            `INSERT INTO physicians
+             (name,department,title,ext,his_account,his_password,phs_account,phs_password,notes)
+             VALUES (?,?,?,?,?,?,?,?,?)`,
+            [r.name, n(r.department), n(r.title), n(r.ext),
+             n(r.his_account), n(r.his_password), n(r.phs_account), n(r.phs_password), n(r.notes)]);
+        }
+        ok++;
+      }
+      if (ok || skip) results.push({ sheet: "醫師通訊錄", upserted: ok, skipped: skip });
     }
 
     importResults.value = results;
@@ -814,6 +882,12 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
           <input ref="xlsxInput" type="file" accept=".xlsx,.xls" class="hidden"
             :disabled="importing" @change="handleXlsx" />
         </label>
+        <button v-if="activeTab === 'items'"
+          @click="openBatchAdd"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm font-medium transition-colors shrink-0"
+        >
+          批次新增
+        </button>
         <button
           @click="openAdd"
           class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors shrink-0"
@@ -1286,7 +1360,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               <button @click="clearGroups = new Set()" class="text-xs text-gray-500 hover:text-gray-400">全消</button>
             </div>
           </div>
-          <p class="text-xs text-gray-500 mb-3">勾選要清除的項目，操作不可復原，執行前請先備份。</p>
+          <p class="text-xs text-gray-400 mb-3">勾選要清除的項目，操作不可復原，執行前請先備份。</p>
 
           <div class="grid grid-cols-2 gap-1.5 mb-4">
             <label
@@ -1299,7 +1373,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               <input type="checkbox" :checked="clearGroups.has(g.key)"
                 @change="toggleClearGroup(g.key)"
                 class="accent-red-500 shrink-0" />
-              <span class="text-sm">{{ g.icon }} {{ g.label }}</span>
+              <span class="text-sm text-gray-200">{{ g.icon }} {{ g.label }}</span>
             </label>
           </div>
 
@@ -1469,6 +1543,97 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         </div>
       </div>
 
+    </div>
+  </Teleport>
+
+  <!-- ════ 批次新增品項 Modal ════ -->
+  <Teleport to="body">
+    <div v-if="showBatchAdd"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      @click.self="showBatchAdd = false">
+      <div class="w-full max-w-5xl bg-gray-900 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-800 shrink-0">
+          <div>
+            <h3 class="font-semibold text-gray-100">批次新增品項</h3>
+            <p class="text-xs text-gray-500 mt-0.5">填入多筆後一次儲存，院內碼為必填；重複的院內碼將略過</p>
+          </div>
+          <button @click="showBatchAdd = false" class="text-gray-500 hover:text-gray-300 text-xl leading-none">×</button>
+        </div>
+
+        <!-- 表格 -->
+        <div class="flex-1 overflow-auto">
+          <table class="w-full text-sm">
+            <thead class="sticky top-0 bg-gray-850 z-10">
+              <tr class="border-b border-gray-700 text-gray-500 text-xs bg-gray-900">
+                <th class="text-left px-3 py-2.5 font-medium w-32">院內碼 *</th>
+                <th class="text-left px-3 py-2.5 font-medium">中文品名</th>
+                <th class="text-left px-3 py-2.5 font-medium w-32">用途</th>
+                <th class="text-left px-3 py-2.5 font-medium w-36">科別（; 分隔）</th>
+                <th class="text-left px-3 py-2.5 font-medium w-24">自費金額</th>
+                <th class="text-left px-3 py-2.5 font-medium w-28">廠商</th>
+                <th class="w-8 px-2 py-2.5"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(row, i) in batchRows" :key="i"
+                class="border-b border-gray-800/60"
+                :class="row.hospital_code.trim() ? '' : 'bg-gray-800/20'">
+                <td class="px-2 py-1.5">
+                  <input v-model="row.hospital_code" placeholder="M1A01234"
+                    class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-xs font-mono text-gray-100 outline-none focus:border-blue-500"
+                    :class="!row.hospital_code.trim() && i > 0 ? 'border-gray-700' : ''" />
+                </td>
+                <td class="px-2 py-1.5">
+                  <input v-model="row.name_zh" placeholder="中文品名"
+                    class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-xs text-gray-100 outline-none focus:border-blue-500" />
+                </td>
+                <td class="px-2 py-1.5">
+                  <input v-model="row.purpose" placeholder="止血劑…"
+                    class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-xs text-gray-100 outline-none focus:border-teal-500" />
+                </td>
+                <td class="px-2 py-1.5">
+                  <input v-model="row.deptsStr" placeholder="骨科;外科"
+                    class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-xs text-gray-100 outline-none focus:border-cyan-500" />
+                </td>
+                <td class="px-2 py-1.5">
+                  <input v-model="row.price" type="number" placeholder="0"
+                    class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-xs font-mono text-gray-100 outline-none focus:border-blue-500" />
+                </td>
+                <td class="px-2 py-1.5">
+                  <input v-model="row.supplier" placeholder="廠商名稱"
+                    class="w-full px-2 py-1 bg-gray-800 border border-gray-600 rounded text-xs text-gray-100 outline-none focus:border-blue-500" />
+                </td>
+                <td class="px-2 py-1.5 text-center">
+                  <button @click="removeBatchRow(i)" :disabled="batchRows.length === 1"
+                    class="text-gray-600 hover:text-red-400 disabled:opacity-20 text-base leading-none">×</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Footer -->
+        <div class="flex items-center justify-between px-5 py-3 border-t border-gray-800 shrink-0">
+          <button @click="addBatchRow"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm transition-colors">
+            ＋ 新增一列
+          </button>
+          <div class="flex gap-2">
+            <span class="text-xs text-gray-600 self-center mr-2">
+              {{ batchRows.filter(r=>r.hospital_code.trim()).length }} / {{ batchRows.length }} 列有效
+            </span>
+            <button @click="showBatchAdd = false"
+              class="px-4 py-1.5 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800">取消</button>
+            <button @click="saveBatchItems" :disabled="batchSaving || !batchRows.some(r=>r.hospital_code.trim())"
+              class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-sm font-medium">
+              {{ batchSaving ? "儲存中…" : `全部儲存（${batchRows.filter(r=>r.hospital_code.trim()).length} 筆）` }}
+            </button>
+          </div>
+        </div>
+
+      </div>
     </div>
   </Teleport>
 

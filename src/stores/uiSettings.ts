@@ -4,10 +4,10 @@ import { ref, watch } from "vue";
 export type FontSize = "sm" | "md" | "lg" | "xl";
 
 const SIZE_PX: Record<FontSize, string> = {
-  sm: "12px",
-  md: "14px",
-  lg: "16px",
-  xl: "19px",
+  sm: "16px",
+  md: "18px",
+  lg: "20px",
+  xl: "22px",
 };
 
 export const FONT_SIZE_LABELS: Record<FontSize, string> = {

@@ -31,3 +31,12 @@ export const seedContacts: SeedContact[] = [
   // { label: "急診護理站", ext: "1000", category: "急診", notes: null },
   // { label: "手術室控台", ext: "2000", category: "手術室", notes: null },
 ];
+
+// ── 雲端設定預設值 ──────────────────────────────────────────────────
+// 僅在該 key 尚未存在時寫入（INSERT OR IGNORE），不覆蓋管理員已修改的值
+export const seedAppSettings: { key: string; value: string }[] = [
+  { key: "scheduler_gas_url",        value: "https://script.google.com/macros/s/AKfycbxORGI_XtO-2_fnWJZMvSm74Aj8pp0NfqQUhCsp-gVdDltoDFoyv0VYdiTbVEa0YwXNzw/exec" },
+  { key: "scheduler_spreadsheet_id", value: "1w4NEoG3xdP4rj0AbuyW99l15nN2h0tYAb4yoAFkeJq4" },
+  { key: "scheduler_api_key",        value: "AIzaSyCgy7dgSrNtAiRq2UcuzZSA_wCtlIbtPqw" },
+  { key: "ahk_exe_path",             value: "C:\\Program Files\\AutoHotkey\\v2\\AutoHotkey64.exe" },
+];

@@ -60,7 +60,8 @@ function initLogger() {
     const method = (args[1]?.method ?? 'GET').toUpperCase()
     try {
       const res = await origFetch(...args)
-      if (!res.ok) {
+      // opaque response（no-cors mode）：status=0、ok=false 是預期行為，不記錄
+      if (!res.ok && res.type !== 'opaque') {
         addLog('warn', `fetch ${method} → ${res.status} ${res.statusText}`, url)
       }
       return res
