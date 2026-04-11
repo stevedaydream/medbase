@@ -187,7 +187,7 @@ onUnmounted(() => {
     </div>
 
     <!-- 版本號 -->
-    <div class="px-4 py-3 text-xs text-gray-700">v0.1.10</div>
+    <div class="px-4 py-3 text-xs text-gray-700">v0.2.0</div>
 
     <!-- Drag ghost -->
     <Teleport to="body">
