@@ -35,8 +35,7 @@ export const seedContacts: SeedContact[] = [
 // ── 雲端設定預設值 ──────────────────────────────────────────────────
 // 僅在該 key 尚未存在時寫入（INSERT OR IGNORE），不覆蓋管理員已修改的值
 export const seedAppSettings: { key: string; value: string }[] = [
-  { key: "scheduler_gas_url",        value: "https://script.google.com/macros/s/AKfycbxORGI_XtO-2_fnWJZMvSm74Aj8pp0NfqQUhCsp-gVdDltoDFoyv0VYdiTbVEa0YwXNzw/exec" },
-  { key: "scheduler_spreadsheet_id", value: "1w4NEoG3xdP4rj0AbuyW99l15nN2h0tYAb4yoAFkeJq4" },
-  { key: "scheduler_api_key",        value: "AIzaSyCgy7dgSrNtAiRq2UcuzZSA_wCtlIbtPqw" },
-  { key: "ahk_exe_path",             value: "C:\\Program Files\\AutoHotkey\\v2\\AutoHotkey64.exe" },
+  // 敏感雲端設定（GAS URL、Spreadsheet ID、API Key）已移除，
+  // 請在設定頁使用「匯入設定 JSON」匯入，或手動填寫後儲存。
+  { key: "ahk_exe_path", value: "C:\\Program Files\\AutoHotkey\\v2\\AutoHotkey64.exe" },
 ];

@@ -227,6 +227,37 @@ const showGasHelp = ref(false);
 const showGuide   = ref(false);
 const guideStep   = ref<1|2|3>(1);
 
+// ── 匯入設定 JSON ─────────────────────────────────────────────────────
+const importingSettings = ref(false);
+const settingsImportInput = ref<HTMLInputElement | null>(null);
+
+async function handleSettingsImport(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  if (!confirm("確定匯入設定？將覆蓋現有的所有程式設定（不影響臨床資料）。")) {
+    if (settingsImportInput.value) settingsImportInput.value.value = "";
+    return;
+  }
+  importingSettings.value = true;
+  try {
+    const text = await file.text();
+    const rows: { key: string; value: string }[] = JSON.parse(text);
+    if (!Array.isArray(rows)) throw new Error("格式錯誤：預期為陣列");
+    const db = await getDb();
+    for (const r of rows) {
+      if (typeof r.key !== "string" || typeof r.value !== "string") continue;
+      await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", [r.key, r.value]);
+    }
+    await cloud.reload();
+    showToast(`設定匯入完成，共匯入 ${rows.length} 筆。`);
+  } catch (err: any) {
+    showToast(`匯入失敗：${err?.message ?? err}`);
+  } finally {
+    importingSettings.value = false;
+    if (settingsImportInput.value) settingsImportInput.value.value = "";
+  }
+}
+
 // ── Save ──────────────────────────────────────────────────────────────
 async function saveSettings() {
   // cloud settings auto-save via store watch; sheetPrefix auto-saves via local watch
@@ -305,11 +336,21 @@ async function saveSettings() {
         </div>
       </div>
 
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 flex-wrap">
         <button @click="saveSettings"
           class="text-xs px-4 py-1.5 bg-blue-700 hover:bg-blue-600 text-white rounded">
           儲存設定
         </button>
+        <label
+          class="text-xs px-4 py-1.5 rounded border transition-colors cursor-pointer select-none"
+          :class="importingSettings
+            ? 'opacity-40 cursor-wait border-gray-700 text-gray-500'
+            : 'border-gray-600 text-gray-300 hover:border-gray-400 hover:text-gray-100'"
+          :title="'匯入從「資料管理 → 備份程式設定 (JSON)」匯出的設定檔'">
+          {{ importingSettings ? '匯入中…' : '匯入設定 JSON' }}
+          <input ref="settingsImportInput" type="file" accept=".json" class="hidden"
+            :disabled="importingSettings" @change="handleSettingsImport" />
+        </label>
         <button @click="showGasHelp = !showGasHelp" class="text-xs text-gray-500 hover:text-gray-300">
           {{ showGasHelp ? '▲' : '▼' }} GAS 程式碼
         </button>
