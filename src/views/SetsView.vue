@@ -265,20 +265,18 @@ async function pushToCloud() {
     `);
     const localSetItems = await db.select<SetItem[]>("SELECT * FROM set_items ORDER BY set_id, sort_order");
 
-    // 先拉取雲端現有資料，避免覆蓋雲端獨有的套組
-    let cloudSets: SetRow[] = [];
-    let cloudSetItems: SetItem[] = [];
-    try {
-      const res = await fetch(cloud.gasUrl, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({ action: "getSets" }),
-      });
-      const json = await res.json();
-      if (json.ok) { cloudSets = json.sets || []; cloudSetItems = json.setItems || []; }
-    } catch (_) { /* 拉取失敗視為雲端空白，直接覆蓋 */ }
+    // 先拉取雲端現有資料（失敗則中止，不允許靜默覆蓋雲端）
+    const getRes = await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "getSets" }),
+    });
+    const getJson = await getRes.json();
+    if (!getJson.ok) throw new Error(getJson.error ?? "拉取雲端資料失敗");
+    const cloudSets: SetRow[] = getJson.sets || [];
+    const cloudSetItems: SetItem[] = getJson.setItems || [];
 
-    // 合併套組：以 id 比對，local 有變更才更新，雲端獨有的保留
+    // 合併套組：雲端獨有的保留，本地有的（新增或修改）更新至雲端
     const mergedSets: SetRow[] = [...cloudSets];
     let addCount = 0, updateCount = 0;
     for (const ls of localSets) {
@@ -296,7 +294,7 @@ async function pushToCloud() {
       }
     }
 
-    // 合併套組品項：以 id 比對，local 有變更才更新，雲端獨有的保留
+    // 合併品項：雲端獨有的保留，本地有的更新至雲端
     const mergedSetItems: SetItem[] = [...cloudSetItems];
     for (const li of localSetItems) {
       const idx = mergedSetItems.findIndex(ci => ci.id === li.id);
@@ -333,26 +331,46 @@ async function pullFromCloud() {
     });
     const json = await res.json();
     if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
-    const { sets: cloudSets, setItems: cloudSetItems } = json;
-    if (!cloudSets?.length) { toast("雲端無套組資料"); return; }
+    const cloudSets: SetRow[] = json.sets || [];
+    const cloudSetItems: SetItem[] = json.setItems || [];
+    if (!cloudSets.length) { toast("雲端無套組資料"); return; }
+
     const db = await getDb();
-    // 清空後重建（保留自增 id 一致性）
-    await db.execute("DELETE FROM set_items");
-    await db.execute("DELETE FROM sets");
-    for (const s of cloudSets) {
-      await db.execute(
-        "INSERT INTO sets (id, name, surgery_type, physician_id, department_id, notes) VALUES (?,?,?,?,?,?)",
-        [s.id, s.name, s.surgery_type||null, s.physician_id||null, null, s.notes||null]
-      );
+    const localRows = await db.select<{ id: number }[]>("SELECT id FROM sets");
+    const localSetIds = new Set(localRows.map(r => r.id));
+
+    // 以雲端為主：更新本地已有套組的資料，新增本地沒有的雲端套組
+    let addCount = 0, updateCount = 0;
+    for (const cs of cloudSets) {
+      if (localSetIds.has(cs.id)) {
+        await db.execute(
+          "UPDATE sets SET name=?, surgery_type=?, physician_id=?, notes=? WHERE id=?",
+          [cs.name, cs.surgery_type || null, cs.physician_id || null, cs.notes || null, cs.id]
+        );
+        updateCount++;
+      } else {
+        await db.execute(
+          "INSERT INTO sets (id, name, surgery_type, physician_id, notes) VALUES (?,?,?,?,?)",
+          [cs.id, cs.name, cs.surgery_type || null, cs.physician_id || null, cs.notes || null]
+        );
+        addCount++;
+      }
+    }
+
+    // 品項同步：對雲端有品項紀錄的套組，以雲端版本替換本地；本地獨有套組的品項不動
+    const cloudManagedSetIds = [...new Set(cloudSetItems.map(ci => ci.set_id))];
+    for (const sid of cloudManagedSetIds) {
+      await db.execute("DELETE FROM set_items WHERE set_id=?", [sid]);
     }
     for (const si of cloudSetItems) {
       await db.execute(
         "INSERT INTO set_items (id, set_id, hospital_code, quantity, is_optional, sort_order, notes) VALUES (?,?,?,?,?,?,?)",
-        [si.id, si.set_id, si.hospital_code||null, si.quantity, si.is_optional, si.sort_order, si.notes||null]
+        [si.id, si.set_id, si.hospital_code || null, si.quantity, si.is_optional, si.sort_order, si.notes || null]
       );
     }
+
     await loadAll();
-    toast(`已從雲端同步 ${cloudSets.length} 個套組`);
+    toast(`雲端同步完成（新增 ${addCount} 個套組、更新 ${updateCount} 個套組）`);
   } catch (e) { toast(`下載失敗：${(e as Error).message}`); }
   finally { isSyncing.value = false; }
 }

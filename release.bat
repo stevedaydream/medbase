@@ -116,7 +116,7 @@ if errorlevel 1 ( echo ERROR: build failed & cd /d "%~dp0" & pause & goto MENU )
 
 echo.
 echo [2/2] Deploying to Netlify (production)...
-netlify deploy --prod --dir=dist --site=c0cf9c01-b6bc-4168-af03-d76fc853fbff
+call netlify deploy --prod --dir=dist --site=c0cf9c01-b6bc-4168-af03-d76fc853fbff
 if errorlevel 1 ( echo ERROR: netlify deploy failed & cd /d "%~dp0" & pause & goto MENU )
 
 cd /d "%~dp0"
@@ -132,12 +132,19 @@ goto MENU
 :GAS
 echo.
 echo ========================================
-echo   Deploy GAS (clasp push)
+echo   Deploy GAS (clasp push + deploy)
 echo ========================================
 echo.
 cd /d "%~dp0gas"
-clasp push
+
+echo [1/2] Pushing code...
+call clasp push
 if errorlevel 1 ( echo ERROR: clasp push failed & cd /d "%~dp0" & pause & goto MENU )
+
+echo.
+echo [2/2] Updating Web App deployment...
+call clasp deploy --deploymentId AKfycbxORGI_XtO-2_fnWJZMvSm74Aj8pp0NfqQUhCsp-gVdDltoDFoyv0VYdiTbVEa0YwXNzw --description "update"
+if errorlevel 1 ( echo ERROR: clasp deploy failed & cd /d "%~dp0" & pause & goto MENU )
 
 cd /d "%~dp0"
 echo.
