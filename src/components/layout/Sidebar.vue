@@ -200,7 +200,7 @@ onUnmounted(() => {
         <span class="text-sm">⇥</span>
         <span>精簡模式</span>
       </button>
-      <span class="ml-auto text-xs text-gray-700">v0.2.1</span>
+      <span class="ml-auto text-xs text-gray-700">v0.2.2</span>
     </div>
 
     <!-- Drag ghost -->
