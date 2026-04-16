@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, watch } from "vue";
 import { getDb } from "@/db";
 
 const props = defineProps<{ panelVisible: boolean }>();
@@ -278,7 +278,7 @@ refreshList();
         <!-- Set items -->
         <template v-else>
           <div class="sticky top-0 bg-gray-900 px-3 py-2 border-b border-gray-800 flex items-center gap-2">
-            <button @click="activeSet = null; activeSetItems.value = []"
+            <button @click="activeSet = null; activeSetItems = []"
               class="text-gray-500 hover:text-gray-200 text-sm">←</button>
             <span class="text-sm text-white font-medium flex-1 truncate">{{ activeSet.name }}</span>
             <button @click="copyAllCodes"
