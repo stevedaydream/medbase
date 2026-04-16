@@ -650,15 +650,16 @@ function parseValues(values: string[][]): ScheduleRow[] {
 
 // ── Pull from Google Sheets ───────────────────────────────────────────
 async function pullFromCloud() {
-  if (!cloud.spreadsheetId || !cloud.apiKey) {
+  const targetId = cloud.scheduleSpreadsheetId || cloud.spreadsheetId;
+  if (!targetId || !cloud.apiKey) {
     activeTab.value = "settings";
-    showToast("請先設定 Spreadsheet ID 與 API Key");
+    showToast("請先設定班表 Spreadsheet ID 與 API Key");
     return;
   }
   isLoading.value = true;
   try {
     const url =
-      `https://sheets.googleapis.com/v4/spreadsheets/${cloud.spreadsheetId}` +
+      `https://sheets.googleapis.com/v4/spreadsheets/${targetId}` +
       `/values/${encodeURIComponent(sheetName.value)}?key=${cloud.apiKey}`;
     const res = await fetch(url);
     if (!res.ok) {
@@ -706,6 +707,7 @@ async function createNewMonthSheet() {
         yyyyMM: yyyyMM.value,
         sheetName: sheetName.value,
         data: scheduleData.value.map(r => ({ name: r.name, days: r.days })),
+        ...(cloud.scheduleSpreadsheetId ? { spreadsheetId: cloud.scheduleSpreadsheetId } : {}),
       }),
       mode: "no-cors",
     });

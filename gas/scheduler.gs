@@ -31,6 +31,13 @@ function doGet() {
 // ─────────────────────────────────────────────────────────────────────
 // doPost：API 端點
 // ─────────────────────────────────────────────────────────────────────
+/** 根據 payload 中選擇性的 spreadsheetId 決定目標試算表 */
+function getTargetSS(p) {
+  return p.spreadsheetId
+    ? SpreadsheetApp.openById(p.spreadsheetId)
+    : SpreadsheetApp.getActiveSpreadsheet();
+}
+
 function doPost(e) {
   const p  = JSON.parse(e.postData.contents);
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -56,7 +63,8 @@ function doPost(e) {
 
       // ── 取得已發布班表（手機端查看） ──────────────────────────────
       case 'getSchedule': {
-        const sh = ss.getSheetByName(p.sheetName);
+        const tss = getTargetSS(p);
+        const sh = tss.getSheetByName(p.sheetName);
         if (!sh) return json({ ok: false, error: '班表分頁不存在' });
         const values = sh.getDataRange().getValues();
         return json({ ok: true, data: values });
@@ -102,9 +110,11 @@ function doPost(e) {
       }
 
       // ── 儲存班表（batchSaveShifts / saveSchedule） ───────────────
+      // 支援 spreadsheetId 參數，可寫入獨立班表試算表
       case 'batchSaveShifts':
       case 'saveSchedule': {
-        let sh = ss.getSheetByName(p.sheetName) || ss.insertSheet(p.sheetName);
+        const tss = getTargetSS(p);
+        let sh = tss.getSheetByName(p.sheetName) || tss.insertSheet(p.sheetName);
         const hd = ['姓名', ...Array.from({ length: 31 }, (_, i) => `${i + 1}日`)];
         const rw = p.data.map(r => [r.name, ...r.days.map(d => d || '')]);
         sh.clearContents();
@@ -281,6 +291,35 @@ function doPost(e) {
               sort_order: Number(r[5]||0), notes: String(r[6]||'')
             })) : [];
         return json({ ok: true, sets, setItems });
+      }
+
+      // ── 備份藥物字典（桌機端推送） ────────────────────────────────
+      case 'saveMedications': {
+        let sh = ss.getSheetByName('Medications') || ss.insertSheet('Medications');
+        const hd = ['id','name','generic_name','synonyms','category','route','dose','iv_rate','warnings','notes'];
+        const rw = (p.data || []).map(r => [
+          r.id, r.name||'', r.generic_name||'', r.synonyms||'',
+          r.category||'', r.route||'', r.dose||'', r.iv_rate||'',
+          r.warnings||'', r.notes||''
+        ]);
+        sh.clearContents();
+        sh.getRange(1,1,1,hd.length).setValues([hd]);
+        if (rw.length) sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        return json({ ok: true, count: rw.length });
+      }
+
+      // ── 還原藥物字典（桌機端拉取） ────────────────────────────────
+      case 'getMedications': {
+        const sh = ss.getSheetByName('Medications');
+        if (!sh || sh.getLastRow() < 2) return json({ ok: true, data: [] });
+        const rows = sh.getDataRange().getValues().slice(1);
+        const data = rows.filter(r => r[1]).map(r => ({
+          id: Number(r[0]||0), name: String(r[1]||''), generic_name: String(r[2]||''),
+          synonyms: String(r[3]||''), category: String(r[4]||''), route: String(r[5]||''),
+          dose: String(r[6]||''), iv_rate: String(r[7]||''),
+          warnings: String(r[8]||''), notes: String(r[9]||'')
+        }));
+        return json({ ok: true, data });
       }
 
       // ── 備份 AHK 腳本（桌機端推送） ──────────────────────────────

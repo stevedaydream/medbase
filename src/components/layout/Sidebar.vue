@@ -2,6 +2,8 @@
 import { ref, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
+const emit = defineEmits<{ "enter-compact": [] }>();
+
 const route  = useRoute();
 const router = useRouter();
 
@@ -19,7 +21,9 @@ const DEFAULT_NAV: NavItem[] = [
   { path: "/physicians",  icon: "👤", label: "醫師通訊錄" },
   { path: "/contacts",    icon: "📞", label: "常用分機" },
   { path: "/schedule",    icon: "📅", label: "排班表" },
+  { path: "/shift-memos", icon: "📝", label: "規則備忘錄" },
   { path: "/tools",       icon: "🧮", label: "臨床工具" },
+  { path: "/icd",         icon: "🏷️", label: "ICD 查詢" },
 ];
 
 const navItems = ref<NavItem[]>([...DEFAULT_NAV]);
@@ -186,8 +190,18 @@ onUnmounted(() => {
       </RouterLink>
     </div>
 
-    <!-- 版本號 -->
-    <div class="px-4 py-3 text-xs text-gray-700">v0.2.1</div>
+    <!-- 收合按鈕 + 版本號 -->
+    <div class="px-3 pb-3 flex items-center gap-2">
+      <button
+        @click="emit('enter-compact')"
+        title="精簡模式（吸附右側）"
+        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-gray-800 hover:text-gray-300 transition-colors"
+      >
+        <span class="text-sm">⇥</span>
+        <span>精簡模式</span>
+      </button>
+      <span class="ml-auto text-xs text-gray-700">v0.2.1</span>
+    </div>
 
     <!-- Drag ghost -->
     <Teleport to="body">

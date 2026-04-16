@@ -5,14 +5,117 @@ import Sidebar from "@/components/layout/Sidebar.vue";
 import TopBar from "@/components/layout/TopBar.vue";
 import OmniSearch from "@/components/OmniSearch.vue";
 import DebugPanel from "@/components/DebugPanel.vue";
+import CompactPanel from "@/components/CompactPanel.vue";
 import { useUiSettings } from "@/stores/uiSettings";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { LogicalSize, LogicalPosition } from "@tauri-apps/api/dpi";
 
-const searchOpen = ref(false);
-const debugOpen = ref(false);
-const uiSettings = useUiSettings();
+const searchOpen  = ref(false);
+const debugOpen   = ref(false);
+const compactMode = ref(false);
+const uiSettings  = useUiSettings();
 onMounted(() => uiSettings.load());
+
+// ── 精簡模式 ─────────────────────────────────────────────────────────
+const COMPACT_W = 360;   // 總視窗寬（含把手）
+const HANDLE_W  = 28;    // 把手條寬（隱藏時唯一可見部分）
+const prevSize  = ref({ w: 1280, h: 800 });
+const prevPos   = ref({ x: 100,  y: 100 });
+const panelVisible = ref(false);   // 是否已滑出（展開）
+
+let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+let blurHideTimer:   ReturnType<typeof setTimeout> | null = null;
+let unlistenFocus:   (() => void) | null = null;
+let isAnimating = false;
+
+function clearCompactTimers() {
+  if (inactivityTimer) { clearTimeout(inactivityTimer); inactivityTimer = null; }
+  if (blurHideTimer)   { clearTimeout(blurHideTimer);   blurHideTimer   = null; }
+}
+
+function resetInactivity() {
+  if (inactivityTimer) clearTimeout(inactivityTimer);
+  inactivityTimer = setTimeout(() => slideIn(), 120_000);
+}
+
+async function animateTo(targetX: number) {
+  if (isAnimating) return;
+  isAnimating = true;
+  try {
+    const win    = getCurrentWindow();
+    const sf     = await win.scaleFactor();
+    const pos    = await win.outerPosition();
+    const startX = Math.round(pos.x / sf);
+    const STEPS  = 16;
+    for (let i = 1; i <= STEPS; i++) {
+      await win.setPosition(new LogicalPosition(
+        Math.round(startX + (targetX - startX) * i / STEPS), 0
+      ));
+      if (i < STEPS) await new Promise(r => setTimeout(r, 10));
+    }
+  } finally { isAnimating = false; }
+}
+
+async function slideOut() {
+  if (!compactMode.value || panelVisible.value || isAnimating) return;
+  await animateTo(window.screen.width - COMPACT_W);
+  panelVisible.value = true;
+  resetInactivity();
+}
+
+async function slideIn() {
+  if (!compactMode.value || !panelVisible.value || isAnimating) return;
+  clearCompactTimers();
+  await animateTo(window.screen.width - HANDLE_W);
+  panelVisible.value = false;
+}
+
+function onCompactActivity() {
+  if (!panelVisible.value) return;
+  if (blurHideTimer) { clearTimeout(blurHideTimer); blurHideTimer = null; }
+  resetInactivity();
+}
+
+async function enterCompact() {
+  try {
+    const win = getCurrentWindow();
+    const [size, pos] = await Promise.all([win.outerSize(), win.outerPosition()]);
+    const sf = await win.scaleFactor();
+    prevSize.value = { w: Math.round(size.width / sf),  h: Math.round(size.height / sf) };
+    prevPos.value  = { x: Math.round(pos.x / sf),       y: Math.round(pos.y / sf) };
+    const sh = window.screen.height;
+    await win.setMinSize(new LogicalSize(COMPACT_W, 200));
+    await win.setSize(new LogicalSize(COMPACT_W, sh));
+    await win.setPosition(new LogicalPosition(window.screen.width - HANDLE_W, 0));
+    await win.setAlwaysOnTop(true);
+    compactMode.value  = true;
+    panelVisible.value = false;
+    // 失焦 3 秒後自動收起
+    unlistenFocus = await win.onFocusChanged(({ payload: focused }) => {
+      if (!focused && panelVisible.value) {
+        blurHideTimer = setTimeout(() => slideIn(), 3000);
+      } else if (focused) {
+        if (blurHideTimer) { clearTimeout(blurHideTimer); blurHideTimer = null; }
+      }
+    });
+  } catch (e) { console.error("[compact] enterCompact failed", e); }
+}
+
+async function exitCompact() {
+  try {
+    if (unlistenFocus) { unlistenFocus(); unlistenFocus = null; }
+    clearCompactTimers();
+    const win = getCurrentWindow();
+    await win.setAlwaysOnTop(false);
+    await win.setMinSize(new LogicalSize(900, 600));
+    await win.setSize(new LogicalSize(prevSize.value.w, prevSize.value.h));
+    await win.setPosition(new LogicalPosition(prevPos.value.x, prevPos.value.y));
+    compactMode.value  = false;
+    panelVisible.value = false;
+  } catch (e) { console.error("[compact] exitCompact failed", e); }
+}
 
 useEventListener("keydown", (e: KeyboardEvent) => {
   if ((e.ctrlKey || e.metaKey) && e.key === "k") {
@@ -22,6 +125,12 @@ useEventListener("keydown", (e: KeyboardEvent) => {
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "D") {
     e.preventDefault();
     debugOpen.value = !debugOpen.value;
+  }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "M") {
+    e.preventDefault();
+    if (!compactMode.value) enterCompact();
+    else if (panelVisible.value) slideIn();
+    else slideOut();
   }
   if (e.key === "Escape") {
     searchOpen.value = false;
@@ -78,8 +187,19 @@ function dismissUpdate() {
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden bg-gray-950">
-    <Sidebar />
+  <!-- 精簡模式 -->
+  <CompactPanel
+    v-if="compactMode"
+    :panel-visible="panelVisible"
+    @exit="exitCompact"
+    @slide-out="slideOut"
+    @slide-in="slideIn"
+    @activity="onCompactActivity"
+  />
+
+  <!-- 正常模式 -->
+  <div v-else class="flex h-screen overflow-hidden bg-gray-950">
+    <Sidebar @enter-compact="enterCompact" />
 
     <div class="flex flex-col flex-1 overflow-hidden">
       <TopBar @open-search="searchOpen = true" />
@@ -142,6 +262,7 @@ function dismissUpdate() {
     </Transition>
   </div>
 </template>
+
 
 <style scoped>
 .toast-enter-active, .toast-leave-active { transition: opacity .25s, transform .25s; }

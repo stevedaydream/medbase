@@ -37,7 +37,12 @@
       "Bash(netlify status:*)",
       "Bash(netlify sites:list:*)",
       "Bash(grep -n \"acp_categories\" G:/project/medbase/src/db/index.ts G:/project/medbase/src/views/*.vue G:/project/medbase/src/views/AcpSettingsView.vue)",
-      "Bash(netlify --version)"
+      "Bash(netlify --version)",
+      "WebFetch(domain:data.gov.tw)",
+      "WebSearch",
+      "WebFetch(domain:data.fda.gov.tw)",
+      "WebFetch(domain:www.fda.gov.tw)",
+      "WebFetch(domain:info.nhi.gov.tw)"
     ]
   }
 }

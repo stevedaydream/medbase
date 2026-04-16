@@ -363,4 +363,29 @@ async function initSchema(db: Database) {
       notes TEXT
     );
   `);
+
+  // ── ICD 診斷碼查詢（ICD-9 / ICD-10）────────────────────────
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS icd_codes (
+      code           TEXT PRIMARY KEY,
+      version        TEXT NOT NULL DEFAULT 'ICD10',  -- 'ICD9' | 'ICD10'
+      description_zh TEXT NOT NULL DEFAULT '',
+      description_en TEXT NOT NULL DEFAULT '',
+      category       TEXT NOT NULL DEFAULT ''
+    );
+  `);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_icd_version ON icd_codes(version);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_icd_desczh  ON icd_codes(description_zh);`);
+
+  // ── 上班規則備忘錄 ─────────────────────────────────────────
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS shift_memos (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      category   TEXT    NOT NULL DEFAULT '一般',
+      title      TEXT    NOT NULL,
+      content    TEXT    NOT NULL DEFAULT '',
+      sort_order INTEGER DEFAULT 0,
+      updated_at TEXT    DEFAULT (datetime('now', 'localtime'))
+    );
+  `);
 }

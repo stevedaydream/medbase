@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import MedicationModal, { type MedicationForm } from "@/components/medications/MedicationModal.vue";
 import NhiImportModal from "@/components/medications/NhiImportModal.vue";
 import TfdaSearchModal from "@/components/medications/TfdaSearchModal.vue";
+import { useCloudSettings } from "@/stores/cloudSettings";
 
 interface Medication {
   id: number;
@@ -44,15 +45,17 @@ async function loadMedications() {
   loading.value = false;
 }
 
-const filtered = () =>
-  medications.value.filter(
+const filtered = () => {
+  const q = search.value.toLowerCase();
+  return medications.value.filter(
     (m) =>
-      !search.value ||
-      m.name.includes(search.value) ||
-      (m.generic_name ?? "").includes(search.value) ||
-      (m.synonyms ?? "").includes(search.value) ||
-      (m.category ?? "").includes(search.value)
+      !q ||
+      m.name.toLowerCase().includes(q) ||
+      (m.generic_name ?? "").toLowerCase().includes(q) ||
+      (m.synonyms ?? "").toLowerCase().includes(q) ||
+      (m.category ?? "").toLowerCase().includes(q)
   );
+};
 
 function parseJson(s: string | null): string[] {
   try { return JSON.parse(s ?? "[]") ?? []; } catch { return []; }
@@ -114,59 +117,142 @@ async function deleteMedication() {
   await loadMedications();
 }
 
+// --- 雲端備份 ---
+const cloud      = useCloudSettings();
+const isSyncing  = ref(false);
+onMounted(() => cloud.load());
+
+async function pushMedicationsToCloud() {
+  if (!cloud.gasUrl) { alert("請先在「設定」頁面填入 GAS Web App URL"); return; }
+  isSyncing.value = true;
+  try {
+    const db   = await getDb();
+    const data = await db.select<Medication[]>("SELECT * FROM medications ORDER BY name");
+    await fetch(cloud.gasUrl, {
+      method:  "POST",
+      headers: { "Content-Type": "text/plain" },
+      body:    JSON.stringify({ action: "saveMedications", data }),
+      mode:    "no-cors",
+    });
+    alert(`✓ 已備份 ${data.length} 筆藥物至雲端`);
+  } catch (e) { alert(`備份失敗：${(e as Error).message}`); }
+  finally { isSyncing.value = false; }
+}
+
+async function pullMedicationsFromCloud() {
+  if (!cloud.gasUrl) { alert("請先在「設定」頁面填入 GAS Web App URL"); return; }
+  isSyncing.value = true;
+  try {
+    const res  = await fetch(cloud.gasUrl, {
+      method:  "POST",
+      headers: { "Content-Type": "text/plain" },
+      body:    JSON.stringify({ action: "getMedications" }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
+    const rows: Medication[] = json.data || [];
+    if (!rows.length) { alert("雲端無藥物資料"); return; }
+    const db = await getDb();
+    await db.execute("BEGIN TRANSACTION");
+    let inserted = 0, skipped = 0;
+    for (const r of rows) {
+      const res2 = await db.execute(
+        `INSERT OR IGNORE INTO medications (name, generic_name, synonyms, category, route, dose, iv_rate, warnings, notes)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        [r.name, r.generic_name||"", r.synonyms||"", r.category||"", r.route||"", r.dose||"", r.iv_rate||"", r.warnings||"", r.notes||""]
+      );
+      if (res2.rowsAffected > 0) inserted++; else skipped++;
+    }
+    await db.execute("COMMIT");
+    await loadMedications();
+    const msg = skipped > 0
+      ? `✓ 新增 ${inserted} 筆，跳過 ${skipped} 筆（已存在）`
+      : `✓ 已還原 ${inserted} 筆藥物`;
+    alert(msg);
+  } catch (e) {
+    try { const db = await getDb(); await db.execute("ROLLBACK"); } catch {}
+    alert(`還原失敗：${(e as Error).message}`);
+  }
+  finally { isSyncing.value = false; }
+}
+
+// --- Copy first word of generic_name ---
+const copiedId  = ref<number | null>(null);
+const copiedWord = ref("");
+let copyTimer: ReturnType<typeof setTimeout> | null = null;
+
+function firstGenericWord(m: Medication): string {
+  const src = (m.generic_name?.trim() || m.name?.trim() || "");
+  return src.split(/\s+/)[0] ?? "";
+}
+
+async function copyFirstWord(m: Medication) {
+  const word = firstGenericWord(m);
+  if (!word) return;
+  await navigator.clipboard.writeText(word);
+  copiedId.value  = m.id;
+  copiedWord.value = word;
+  if (copyTimer) clearTimeout(copyTimer);
+  copyTimer = setTimeout(() => { copiedId.value = null; }, 1200);
+}
+
 // --- NHI XLSX import ---
-async function onNhiImported(rows: Record<string, string>[]) {
+function cellStr(row: Record<string, unknown>, col: string): string {
+  const v = row[col];
+  return v == null ? "" : String(v).trim();
+}
+
+const importProgress = ref({ active: false, current: 0, total: 0, inserted: 0, skipped: 0 });
+
+async function onNhiImported(rows: Record<string, unknown>[]) {
   if (!nhiImportRef.value) return;
   const m = nhiImportRef.value.mapping;
+  showNhiImport.value = false;
+  importProgress.value = { active: true, current: 0, total: rows.length, inserted: 0, skipped: 0 };
   try {
     const db = await getDb();
-    let count = 0;
-    for (const row of rows) {
-      const name = m.name ? row[m.name]?.trim() : "";
+    await db.execute("BEGIN TRANSACTION");
+    let inserted = 0;
+    let skipped  = 0;
+    for (let i = 0; i < rows.length; i++) {
+      const row  = rows[i];
+      const name = m.name ? cellStr(row, m.name) : "";
+      importProgress.value.current = i + 1;
       if (!name) continue;
-      const synonyms = JSON.stringify([m.synonyms ? row[m.synonyms]?.trim() : ""].filter(Boolean));
-      const warnings = JSON.stringify([m.warnings ? row[m.warnings]?.trim() : ""].filter(Boolean));
-      await db.execute(
+      const synonyms = JSON.stringify([m.synonyms ? cellStr(row, m.synonyms) : ""].filter(Boolean));
+      const warnings = JSON.stringify([m.warnings ? cellStr(row, m.warnings) : ""].filter(Boolean));
+      const res = await db.execute(
         `INSERT OR IGNORE INTO medications (name, generic_name, synonyms, category, route, dose, iv_rate, warnings, notes) VALUES (?,?,?,?,?,?,?,?,?)`,
         [
           name,
-          m.generic_name ? row[m.generic_name]?.trim() ?? "" : "",
+          m.generic_name ? cellStr(row, m.generic_name) : "",
           synonyms,
-          m.category ? row[m.category]?.trim() ?? "" : "",
-          m.route ? row[m.route]?.trim() ?? "" : "",
-          m.dose ? row[m.dose]?.trim() ?? "" : "",
+          m.category    ? cellStr(row, m.category)     : "",
+          m.route       ? cellStr(row, m.route)        : "",
+          m.dose        ? cellStr(row, m.dose)         : "",
           "",
           warnings,
-          m.notes ? row[m.notes]?.trim() ?? "" : "",
+          m.notes       ? cellStr(row, m.notes)        : "",
         ]
       );
-      count++;
+      if (res.rowsAffected > 0) inserted++; else skipped++;
+      importProgress.value.inserted = inserted;
+      importProgress.value.skipped  = skipped;
     }
-    showNhiImport.value = false;
+    await db.execute("COMMIT");
+    importProgress.value.active = false;
     await loadMedications();
-    alert(`✓ 已匯入 ${count} 筆藥品`);
+    const msg = skipped > 0
+      ? `✓ 新增 ${inserted} 筆，跳過 ${skipped} 筆（已存在）`
+      : `✓ 已匯入 ${inserted} 筆藥品`;
+    alert(msg);
   } catch (err) {
+    try { const db = await getDb(); await db.execute("ROLLBACK"); } catch {}
+    importProgress.value.active = false;
     alert(`匯入失敗：${(err as Error).message}`);
   }
 }
 
-// --- TFDA online select → pre-fill add form ---
-function onTfdaSelect(drug: Record<string, string | undefined>) {
-  showTfda.value = false;
-  crudMode.value = "add";
-  editingForm.value = {
-    name: drug["中文品名"] ?? "",
-    generic_name: drug["英文品名"] ?? drug["有效成分"] ?? "",
-    synonyms: "",
-    category: drug["劑型"] ?? "",
-    route: "",
-    dose: "",
-    iv_rate: "",
-    warnings: "",
-    notes: [drug["許可證字號"], drug["申請商名稱"]].filter(Boolean).join(" / "),
-  };
-  showCrudModal.value = true;
-}
 </script>
 
 <template>
@@ -181,7 +267,7 @@ function onTfdaSelect(drug: Record<string, string | undefined>) {
       />
 
       <!-- Action buttons -->
-      <div class="flex gap-1.5 mb-3">
+      <div class="flex gap-1.5 mb-1.5">
         <button @click="openAdd" class="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-500 transition-colors cursor-pointer">
           ＋ 新增
         </button>
@@ -190,6 +276,19 @@ function onTfdaSelect(drug: Record<string, string | undefined>) {
         </button>
         <button @click="showTfda = true" class="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg bg-indigo-800 text-indigo-100 text-xs hover:bg-indigo-700 transition-colors cursor-pointer" title="食藥署線上查詢">
           🔍 食藥署
+        </button>
+      </div>
+      <!-- Cloud sync buttons -->
+      <div class="flex gap-1.5 mb-3">
+        <button @click="pushMedicationsToCloud" :disabled="isSyncing"
+          class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-gray-700 text-gray-200 text-xs hover:bg-gray-600 disabled:opacity-40 transition-colors cursor-pointer"
+          title="備份藥物字典至 Google Sheets">
+          {{ isSyncing ? '…' : '☁ 上傳備份' }}
+        </button>
+        <button @click="pullMedicationsFromCloud" :disabled="isSyncing"
+          class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-gray-700 text-gray-200 text-xs hover:bg-gray-600 disabled:opacity-40 transition-colors cursor-pointer"
+          title="從 Google Sheets 還原藥物字典">
+          {{ isSyncing ? '…' : '☁ 下載還原' }}
         </button>
       </div>
 
@@ -209,7 +308,14 @@ function onTfdaSelect(drug: Record<string, string | undefined>) {
           class="w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors"
           :class="selected?.id === m.id ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-800'"
         >
-          <div class="font-medium truncate">{{ m.name }}</div>
+          <div
+            class="font-medium truncate hover:underline cursor-copy"
+            :class="copiedId === m.id ? 'text-green-400' : ''"
+            :title="`複製：${firstGenericWord(m)}`"
+            @click="copyFirstWord(m)"
+          >
+            {{ copiedId === m.id ? `✓ ${copiedWord}` : m.name }}
+          </div>
           <div class="text-xs opacity-60 mt-0.5">{{ m.route }} · {{ m.category || '未分類' }}</div>
         </button>
       </div>
@@ -305,7 +411,25 @@ function onTfdaSelect(drug: Record<string, string | undefined>) {
   <!-- TFDA Search Modal -->
   <TfdaSearchModal
     v-if="showTfda"
-    @select="onTfdaSelect"
     @close="showTfda = false"
   />
+
+  <!-- Import progress overlay -->
+  <Teleport to="body">
+    <div v-if="importProgress.active"
+      class="fixed inset-0 z-[9000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div class="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-80 p-6 space-y-4">
+        <p class="text-white font-semibold text-sm">匯入中…</p>
+        <!-- progress bar -->
+        <div class="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+          <div class="h-full bg-blue-500 rounded-full transition-all duration-100"
+            :style="{ width: importProgress.total ? `${Math.round(importProgress.current / importProgress.total * 100)}%` : '0%' }" />
+        </div>
+        <div class="flex justify-between text-xs text-gray-400">
+          <span>{{ importProgress.current }} / {{ importProgress.total }} 筆</span>
+          <span class="text-green-400">+{{ importProgress.inserted }} 新增</span>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>

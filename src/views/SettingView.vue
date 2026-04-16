@@ -334,6 +334,12 @@ async function saveSettings() {
           <input v-model="sheetPrefix" placeholder="Schedule_"
             class="w-full text-xs px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-gray-200 font-mono outline-none focus:border-gray-500" />
         </div>
+        <div class="col-span-2">
+          <label class="block text-xs text-gray-500 mb-1">班表專用 Spreadsheet ID（選填，留空則用上方主表）</label>
+          <input v-model="cloud.scheduleSpreadsheetId" placeholder="班表 Schedule_YYYYMM 將寫入此試算表"
+            class="w-full text-xs px-2 py-1.5 bg-gray-800 border border-gray-700 rounded text-gray-200 font-mono outline-none focus:border-gray-500" />
+          <p class="text-[10px] text-gray-600 mt-0.5">GAS 會用 openById() 開啟此表，請確認該 GAS 帳號有編輯權限</p>
+        </div>
       </div>
 
       <div class="flex items-center gap-3 flex-wrap">

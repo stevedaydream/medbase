@@ -118,7 +118,7 @@ defineExpose({ mapping });
       <div class="flex items-center justify-between px-5 py-4 border-b border-gray-800 shrink-0">
         <div>
           <h2 class="text-white font-semibold">匯入健保藥典 / 食藥署資料</h2>
-          <p class="text-gray-500 text-xs mt-0.5">支援健保署藥品給付 Excel、食藥署開放資料 Excel</p>
+          <p class="text-gray-500 text-xs mt-0.5">支援健保署藥品給付 Excel / CSV、食藥署開放資料 Excel / CSV</p>
         </div>
         <button @click="emit('close')" class="text-gray-500 hover:text-gray-300 cursor-pointer text-xl leading-none">×</button>
       </div>
@@ -128,14 +128,14 @@ defineExpose({ mapping });
         <!-- Step 1: Upload -->
         <div v-if="step === 'upload'" class="flex flex-col items-center justify-center py-12">
           <div class="text-4xl mb-4">📥</div>
-          <p class="text-gray-300 font-medium mb-2">選擇 Excel 檔案</p>
+          <p class="text-gray-300 font-medium mb-2">選擇檔案</p>
           <p class="text-gray-500 text-sm mb-6 text-center max-w-sm">
-            支援健保署「健保用藥品項」或食藥署匯出 Excel。<br/>
+            支援 Excel（.xlsx / .xls）或 CSV（.csv）。<br/>
             系統會自動偵測欄位對應。
           </p>
           <label class="px-5 py-2.5 rounded-lg bg-blue-600 text-white text-sm cursor-pointer hover:bg-blue-500 transition-colors">
-            選擇 .xlsx / .xls 檔案
-            <input type="file" accept=".xlsx,.xls" class="hidden" @change="onFile" />
+            選擇 .xlsx / .xls / .csv 檔案
+            <input type="file" accept=".xlsx,.xls,.csv" class="hidden" @change="onFile" />
           </label>
         </div>
 

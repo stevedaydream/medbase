@@ -12,6 +12,17 @@
     "sql:allow-select",
     "sql:allow-load",
     "sql:allow-close",
+    "core:window:allow-set-size",
+    "core:window:allow-set-position",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-set-min-size",
+    "core:window:allow-outer-size",
+    "core:window:allow-outer-position",
+    "http:default",
+    {
+      "identifier": "http:allow-fetch",
+      "allow": [{ "url": "https://data.gov.tw/**" }]
+    },
     "fs:default",
     "dialog:default",
     "dialog:allow-open",
