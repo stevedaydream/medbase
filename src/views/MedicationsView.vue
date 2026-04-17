@@ -5,6 +5,7 @@ import MedicationModal, { type MedicationForm } from "@/components/medications/M
 import NhiImportModal from "@/components/medications/NhiImportModal.vue";
 import TfdaSearchModal from "@/components/medications/TfdaSearchModal.vue";
 import { useCloudSettings } from "@/stores/cloudSettings";
+import { setGlobalSyncing } from "@/composables/useCloudSync";
 import { useLogger } from "@/composables/useLogger";
 
 interface Medication {
@@ -149,7 +150,7 @@ async function deleteMedication() {
 
 async function pushMedicationsToCloud() {
   if (!cloud.gasUrl) { alert("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true;
+  isSyncing.value = true; setGlobalSyncing("medications", true);
   try {
     const db   = await getDb();
     const data = await db.select<Medication[]>("SELECT * FROM medications ORDER BY name");
@@ -161,12 +162,12 @@ async function pushMedicationsToCloud() {
     });
     alert(`✓ 已備份 ${data.length} 筆藥物至雲端`);
   } catch (e) { alert(`備份失敗：${(e as Error).message}`); }
-  finally { isSyncing.value = false; }
+  finally { isSyncing.value = false; setGlobalSyncing("medications", false); }
 }
 
 async function pullMedicationsFromCloud() {
   if (!cloud.gasUrl) { alert("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true;
+  isSyncing.value = true; setGlobalSyncing("medications", true);
   try {
     const res  = await fetch(cloud.gasUrl, {
       method:  "POST",
@@ -198,7 +199,7 @@ async function pullMedicationsFromCloud() {
     try { const db = await getDb(); await db.execute("ROLLBACK"); } catch {}
     alert(`還原失敗：${(e as Error).message}`);
   }
-  finally { isSyncing.value = false; }
+  finally { isSyncing.value = false; setGlobalSyncing("medications", false); }
 }
 
 // --- Copy first word of generic_name ---

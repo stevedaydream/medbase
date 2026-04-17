@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import { useEventListener } from "@vueuse/core";
 import { useRoute } from "vue-router";
+import { icdSyncing, icdProgress, icdTotal } from "@/composables/useIcdSync";
+import { useActiveSyncBanners } from "@/composables/useCloudSync";
 import Sidebar from "@/components/layout/Sidebar.vue";
 import TopBar from "@/components/layout/TopBar.vue";
 import OmniSearch from "@/components/OmniSearch.vue";
@@ -19,14 +21,18 @@ const debugOpen   = ref(false);
 const compactMode = ref(false);
 const uiSettings  = useUiSettings();
 const route       = useRoute();
+const showIcdBanner = computed(() => icdSyncing.value && route.path !== "/icd");
+const activeSyncLabels = useActiveSyncBanners(computed(() => route.path));
 onMounted(() => {
   uiSettings.load();
   useLogger().initClickTracking(() => route.path);
 });
 
 // ── 精簡模式 ─────────────────────────────────────────────────────────
-const COMPACT_W = 360;   // 總視窗寬（含把手）
-const HANDLE_W  = 28;    // 把手條寬（隱藏時唯一可見部分）
+const COMPACT_W    = 360;   // 總視窗寬（含把手）
+const HANDLE_W     = 28;    // 把手條寬（隱藏時唯一可見部分）
+const INSET_TOP    = 40;    // 避開頂部系統列 / 關閉按鈕
+const INSET_BOTTOM = 56;    // 避開底部工具列（Windows 工作列約 48 px）
 const prevSize  = ref({ w: 1280, h: 800 });
 const prevPos   = ref({ x: 100,  y: 100 });
 const panelVisible = ref(false);   // 是否已滑出（展開）
@@ -57,7 +63,7 @@ async function animateTo(targetX: number) {
     const STEPS  = 16;
     for (let i = 1; i <= STEPS; i++) {
       await win.setPosition(new LogicalPosition(
-        Math.round(startX + (targetX - startX) * i / STEPS), 0
+        Math.round(startX + (targetX - startX) * i / STEPS), INSET_TOP
       ));
       if (i < STEPS) await new Promise(r => setTimeout(r, 10));
     }
@@ -91,17 +97,18 @@ async function enterCompact() {
     const sf = await win.scaleFactor();
     prevSize.value = { w: Math.round(size.width / sf),  h: Math.round(size.height / sf) };
     prevPos.value  = { x: Math.round(pos.x / sf),       y: Math.round(pos.y / sf) };
-    const sh = window.screen.height;
+    const sh         = window.screen.height;
+    const compactH   = sh - INSET_TOP - INSET_BOTTOM;
     await win.setMinSize(new LogicalSize(COMPACT_W, 200));
-    await win.setSize(new LogicalSize(COMPACT_W, sh));
-    await win.setPosition(new LogicalPosition(window.screen.width - HANDLE_W, 0));
+    await win.setSize(new LogicalSize(COMPACT_W, compactH));
+    await win.setPosition(new LogicalPosition(window.screen.width - HANDLE_W, INSET_TOP));
     await win.setAlwaysOnTop(true);
     compactMode.value  = true;
     panelVisible.value = false;
     // 失焦 3 秒後自動收起
     unlistenFocus = await win.onFocusChanged(({ payload: focused }) => {
       if (!focused && panelVisible.value) {
-        blurHideTimer = setTimeout(() => slideIn(), 3000);
+        blurHideTimer = setTimeout(() => slideIn(), 1200);
       } else if (focused) {
         if (blurHideTimer) { clearTimeout(blurHideTimer); blurHideTimer = null; }
       }
@@ -209,6 +216,30 @@ function dismissUpdate() {
 
     <div class="flex flex-col flex-1 overflow-hidden">
       <TopBar @open-search="searchOpen = true" />
+
+      <!-- ICD 背景同步 banner -->
+      <Transition name="toast">
+        <div v-if="showIcdBanner"
+          class="flex items-center gap-3 px-4 py-2 bg-blue-950/80 border-b border-blue-800/60 text-blue-200 text-xs flex-shrink-0">
+          <span class="animate-pulse">⟳</span>
+          <span>ICD 雲端同步背景執行中…</span>
+          <span class="font-mono text-blue-300">{{ icdProgress.toLocaleString() }} / {{ icdTotal.toLocaleString() }}</span>
+          <div class="flex-1 bg-blue-900/50 rounded-full h-1 overflow-hidden ml-1">
+            <div class="bg-blue-400 h-1 rounded-full transition-all duration-150"
+              :style="{ width: icdTotal > 0 ? `${Math.round(icdProgress / icdTotal * 100)}%` : '2%' }" />
+          </div>
+          <span class="text-blue-400 font-mono">{{ icdTotal > 0 ? Math.round(icdProgress / icdTotal * 100) : 0 }}%</span>
+        </div>
+      </Transition>
+
+      <!-- 其他雲端同步背景 banner -->
+      <Transition name="toast">
+        <div v-if="activeSyncLabels.length > 0"
+          class="flex items-center gap-3 px-4 py-2 bg-violet-950/80 border-b border-violet-800/60 text-violet-200 text-xs flex-shrink-0">
+          <span class="animate-pulse">⟳</span>
+          <span>{{ activeSyncLabels.join('、') }} 雲端同步背景執行中…</span>
+        </div>
+      </Transition>
 
       <main
         class="flex-1 min-h-0"

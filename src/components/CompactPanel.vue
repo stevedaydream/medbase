@@ -40,7 +40,7 @@ type TabId = "medications" | "items" | "sets" | "physicians";
 
 interface Medication  { id: number; name: string; dose: string; route: string; }
 interface Item        { hospital_code: string; name_zh: string; name_en: string; }
-interface Physician   { id: number; name: string; department: string; ext: string; his_account: string; }
+interface Physician   { id: number; name: string; department: string; title: string; ext: string; his_account: string; }
 interface SetRow      { id: number; name: string; phys_name: string | null; }
 interface SetItem     { id: number; set_id: number; hospital_code: string; quantity: number; name_zh: string | null; }
 
@@ -48,7 +48,7 @@ const TABS: { id: TabId; icon: string; label: string }[] = [
   { id: "medications", icon: "💊", label: "藥物字典" },
   { id: "items",       icon: "📦", label: "自費品項" },
   { id: "sets",        icon: "🗂️", label: "套組" },
-  { id: "physicians",  icon: "👤", label: "醫師通訊錄" },
+  { id: "physicians",  icon: "👤", label: "通訊錄" },
 ];
 
 const activeTab = ref<TabId>("medications");
@@ -130,14 +130,28 @@ async function copyAllCodes() {
   markCopied("all-codes");
 }
 
-// ── 醫師通訊錄 ───────────────────────────────────────────────
-const physList = ref<Physician[]>([]);
+// ── 通訊錄 ───────────────────────────────────────────────────
+const physList       = ref<Physician[]>([]);
+const physTitles     = ref<string[]>([]);
+const physTitleFilter = ref("");
+
 async function loadPhysicians() {
   const db = await getDb();
   const q = `%${searchQ.value.trim()}%`;
+
+  // 載入所有職稱（僅首次或切換 tab 時需要，但每次都跑也無妨）
+  const rows = await db.select<{ title: string }[]>(
+    "SELECT DISTINCT title FROM physicians WHERE title IS NOT NULL AND title != '' ORDER BY title"
+  );
+  physTitles.value = rows.map(r => r.title);
+
+  const titleCond = physTitleFilter.value ? " AND title = ?" : "";
+  const params: unknown[] = [q, q];
+  if (physTitleFilter.value) params.push(physTitleFilter.value);
+
   physList.value = await db.select<Physician[]>(
-    "SELECT id, name, department, ext, his_account FROM physicians WHERE name LIKE ? OR department LIKE ? ORDER BY department, name LIMIT 50",
-    [q, q]
+    `SELECT id, name, department, title, ext, his_account FROM physicians WHERE (name LIKE ? OR department LIKE ?)${titleCond} ORDER BY department, name LIMIT 50`,
+    params
   );
 }
 
@@ -145,6 +159,7 @@ async function loadPhysicians() {
 function switchTab(id: TabId) {
   activeTab.value = id;
   searchQ.value = "";
+  physTitleFilter.value = "";
   activeSet.value = null;
   refreshList();
 }
@@ -165,6 +180,11 @@ watch(searchQ, () => {
 watch(physicianFilter, () => {
   if (debounce) clearTimeout(debounce);
   debounce = setTimeout(loadSets, 300);
+});
+
+watch(physTitleFilter, () => {
+  if (debounce) clearTimeout(debounce);
+  debounce = setTimeout(loadPhysicians, 150);
 });
 
 // Initial load
@@ -304,8 +324,24 @@ refreshList();
 
       <!-- 👤 Physicians -->
       <template v-else-if="activeTab === 'physicians'">
+        <!-- Title filter tags -->
+        <div v-if="physTitles.length" class="flex flex-wrap gap-1 px-2.5 py-1.5 border-b border-gray-800/60">
+          <button
+            @click="physTitleFilter = ''"
+            class="px-2 py-0.5 rounded-full text-[10px] transition-colors"
+            :class="physTitleFilter === '' ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'">
+            全部
+          </button>
+          <button
+            v-for="t in physTitles" :key="t"
+            @click="physTitleFilter = physTitleFilter === t ? '' : t"
+            class="px-2 py-0.5 rounded-full text-[10px] transition-colors"
+            :class="physTitleFilter === t ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'">
+            {{ t }}
+          </button>
+        </div>
         <div v-if="!physList.length" class="text-gray-600 text-xs text-center py-8">
-          {{ searchQ ? '無結果' : '輸入姓名或科別搜尋' }}
+          {{ searchQ || physTitleFilter ? '無結果' : '輸入姓名或科別搜尋' }}
         </div>
         <div v-for="p in physList" :key="p.id"
           class="px-3 py-2 border-b border-gray-800/50">

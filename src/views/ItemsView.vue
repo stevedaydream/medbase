@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from "vue";
 import { refDebounced } from "@vueuse/core";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
+import { setGlobalSyncing } from "@/composables/useCloudSync";
 
 interface Item {
   hospital_code: string;
@@ -334,7 +335,7 @@ function showSyncToast(msg: string) {
 
 async function pushToCloud() {
   if (!cloud.gasUrl) { showSyncToast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true;
+  isSyncing.value = true; setGlobalSyncing("items", true);
   try {
     const db = await getDb();
     const raw = await db.select<Omit<Item, "depts">[]>("SELECT * FROM items ORDER BY name_zh");
@@ -354,12 +355,12 @@ async function pushToCloud() {
     showSyncToast(`已上傳 ${data.length} 筆品項至雲端`);
   } catch (e) {
     showSyncToast(`上傳失敗：${(e as Error).message}`);
-  } finally { isSyncing.value = false; }
+  } finally { isSyncing.value = false; setGlobalSyncing("items", false); }
 }
 
 async function pullFromCloud() {
   if (!cloud.gasUrl) { showSyncToast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true;
+  isSyncing.value = true; setGlobalSyncing("items", true);
   try {
     const res = await fetch(cloud.gasUrl, {
       method: "POST",
@@ -387,7 +388,7 @@ async function pullFromCloud() {
     showSyncToast(`已從雲端同步 ${data.length} 筆品項`);
   } catch (e) {
     showSyncToast(`下載失敗：${(e as Error).message}`);
-  } finally { isSyncing.value = false; }
+  } finally { isSyncing.value = false; setGlobalSyncing("items", false); }
 }
 
 // ── 手術術式 CRUD ─────────────────────────────────────────────────

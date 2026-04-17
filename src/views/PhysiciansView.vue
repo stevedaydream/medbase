@@ -2,13 +2,15 @@
 import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
+import { autoUpdatePassAhk } from "@/composables/usePassAhk";
+import { setGlobalSyncing } from "@/composables/useCloudSync";
 
 interface Physician { id: number; name: string; department: string; title: string; ext: string; his_account: string; his_password: string; phs_account: string; phs_password: string; notes: string; }
 
 const physicians = ref<Physician[]>([]);
 const search = ref("");
-const deptFilter = ref("");
-const vsOnly = ref(false);
+const deptFilter  = ref("");
+const titleFilter = ref("");
 const selected = ref<Physician | null>(null);
 const toast = ref("");
 const syncing = ref(false);
@@ -17,12 +19,17 @@ const showAddModal = ref(false);
 const editTarget = ref<Physician | null>(null);
 const form = ref<Partial<Physician>>({});
 const cloud = useCloudSettings();
-const pullTitleFilter = ref("主治醫師"); // 預設只拉主治醫師
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
 const departments = computed(() => {
   const seen = new Set<string>();
-  physicians.value.forEach(p => { if (p.department && p.title === "主治醫師") seen.add(p.department); });
+  physicians.value.forEach(p => { if (p.department) seen.add(p.department); });
+  return Array.from(seen).sort();
+});
+
+const titles = computed(() => {
+  const seen = new Set<string>();
+  physicians.value.forEach(p => { if (p.title) seen.add(p.title); });
   return Array.from(seen).sort();
 });
 
@@ -38,8 +45,8 @@ async function load() {
 
 const filtered = () => physicians.value.filter((p) => {
   const dept = p.department ?? "";
-  if (deptFilter.value && dept !== deptFilter.value) return false;
-  if (vsOnly.value && (p.title ?? "") !== "主治醫師") return false;
+  if (deptFilter.value  && dept          !== deptFilter.value)  return false;
+  if (titleFilter.value && (p.title ?? "") !== titleFilter.value) return false;
   if (!search.value) return true;
   return p.name.includes(search.value) || dept.includes(search.value);
 });
@@ -51,7 +58,7 @@ function copy(text: string) {
 
 async function pushToCloud() {
   if (!cloud.gasUrl) { showToast("請先在排班設定填入 GAS Web App URL"); return; }
-  syncing.value = true;
+  syncing.value = true; setGlobalSyncing("physicians", true);
   try {
     const res = await fetch(cloud.gasUrl, {
       method: "POST",
@@ -64,13 +71,13 @@ async function pushToCloud() {
   } catch (err) {
     showToast(`推送失敗：${(err as Error).message}`);
   } finally {
-    syncing.value = false;
+    syncing.value = false; setGlobalSyncing("physicians", false);
   }
 }
 
 async function pullFromCloud() {
   if (!cloud.gasUrl) { showToast("請先在排班設定填入 GAS Web App URL"); return; }
-  syncing.value = true;
+  syncing.value = true; setGlobalSyncing("physicians", true);
   try {
     const res = await fetch(cloud.gasUrl, {
       method: "POST",
@@ -81,12 +88,6 @@ async function pullFromCloud() {
     if (!json.ok) throw new Error(json.error);
     let rows: Omit<Physician, "id">[] = json.data;
     if (!rows.length) { showToast("雲端無資料"); return; }
-
-    // 依職稱篩選
-    if (pullTitleFilter.value) {
-      rows = rows.filter(r => r.title === pullTitleFilter.value);
-      if (!rows.length) { showToast(`雲端無「${pullTitleFilter.value}」資料`); return; }
-    }
 
     const db = await getDb();
     let inserted = 0, updated = 0;
@@ -109,12 +110,11 @@ async function pullFromCloud() {
       }
     }
     await load();
-    const filterLabel = pullTitleFilter.value ? `（${pullTitleFilter.value}）` : "";
-    showToast(`拉取完成${filterLabel}：新增 ${inserted} 筆，更新 ${updated} 筆`);
+    showToast(`拉取完成：新增 ${inserted} 筆，更新 ${updated} 筆`);
   } catch (err) {
     showToast(`拉取失敗：${(err as Error).message}`);
   } finally {
-    syncing.value = false;
+    syncing.value = false; setGlobalSyncing("physicians", false);
   }
 }
 
@@ -134,6 +134,8 @@ async function doDelete() {
   deleteTarget.value = null;
   await load();
   showToast("已刪除");
+  const syncMsg = await autoUpdatePassAhk();
+  if (syncMsg) showToast(syncMsg);
 }
 
 function openAdd() {
@@ -166,9 +168,12 @@ async function saveForm() {
        form.value.phs_password||null, form.value.notes||null]
     );
   }
+  const isEdit = !!editTarget.value;
   showAddModal.value = false;
   await load();
-  showToast(editTarget.value ? "已更新" : "已新增");
+  showToast(isEdit ? "已更新" : "已新增");
+  const syncMsg = await autoUpdatePassAhk();
+  if (syncMsg) showToast(syncMsg);
 }
 
 </script>
@@ -186,24 +191,33 @@ async function saveForm() {
       <input v-model="search" placeholder="搜尋姓名 / 科別…" class="mb-2 px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-100 text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500" />
 
       <!-- Department filter tags -->
-      <div v-if="departments.length" class="flex flex-wrap gap-1 mb-2">
+      <div v-if="departments.length" class="flex flex-wrap gap-1 mb-1">
         <button
           @click="deptFilter = ''"
           class="px-2 py-0.5 rounded-full text-xs transition-colors cursor-pointer"
           :class="deptFilter === '' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'"
         >全部</button>
         <button
-          v-for="dept in departments"
-          :key="dept"
+          v-for="dept in departments" :key="dept"
           @click="deptFilter = deptFilter === dept ? '' : dept"
           class="px-2 py-0.5 rounded-full text-xs transition-colors cursor-pointer"
           :class="deptFilter === dept ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'"
         >{{ dept }}</button>
+      </div>
+
+      <!-- Title filter tags -->
+      <div v-if="titles.length" class="flex flex-wrap gap-1 mb-2">
         <button
-          @click="vsOnly = !vsOnly"
+          @click="titleFilter = ''"
           class="px-2 py-0.5 rounded-full text-xs transition-colors cursor-pointer"
-          :class="vsOnly ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'"
-        >主治醫師</button>
+          :class="titleFilter === '' ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'"
+        >所有職稱</button>
+        <button
+          v-for="title in titles" :key="title"
+          @click="titleFilter = titleFilter === title ? '' : title"
+          class="px-2 py-0.5 rounded-full text-xs transition-colors cursor-pointer"
+          :class="titleFilter === title ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'"
+        >{{ title }}</button>
       </div>
 
       <!-- Cloud sync buttons -->
@@ -217,19 +231,7 @@ async function saveForm() {
           {{ syncing ? '…' : '☁️↓' }} 拉取
         </button>
       </div>
-      <!-- 拉取職稱篩選 -->
-      <div class="mb-3 flex items-center gap-1.5">
-        <span class="text-[10px] text-gray-600 shrink-0">拉取篩選</span>
-        <select v-model="pullTitleFilter"
-          class="flex-1 px-2 py-1 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 text-xs focus:outline-none focus:border-indigo-500">
-          <option value="">全部職稱</option>
-          <option value="主治醫師">主治醫師</option>
-          <option value="住院醫師">住院醫師</option>
-          <option value="護理師">護理師</option>
-        </select>
-      </div>
-
-      <div class="mb-2 flex items-center justify-between">
+<div class="mb-2 flex items-center justify-between">
         <p class="text-gray-600 text-xs">共 {{ filtered().length }} 人</p>
         <button @click="openAdd"
           class="px-2.5 py-1 rounded-lg bg-blue-700/60 text-blue-200 text-xs hover:bg-blue-700 transition-colors">
