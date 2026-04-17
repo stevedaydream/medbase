@@ -186,7 +186,7 @@ const deptTagList = computed(() => {
   for (const it of base)
     for (const d of it.depts) counts.set(d, (counts.get(d) ?? 0) + 1);
   return [
-    { key: "__all__", label: "全部", count: base.length },
+    { key: "__all__", label: "全部", count: base.length, sub: "" },
     ...DEPT_LIST.filter(d => counts.has(d)).map(d => ({ key: d, label: d, count: counts.get(d)!, sub: "" })),
     ...[...counts.entries()].filter(([k]) => !DEPT_LIST.includes(k))
       .sort((a, b) => b[1] - a[1]).map(([key, count]) => ({ key, label: key, count, sub: "" })),
@@ -201,7 +201,7 @@ const purposeTagList = computed(() => {
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return [
-    { key: "__all__", label: "全部", count: base.length },
+    { key: "__all__", label: "全部", count: base.length, sub: "" },
     ...PURPOSE_LIST.filter(p => counts.has(p)).map(p => ({ key: p, label: p, count: counts.get(p) ?? 0, sub: "" })),
     ...[...counts.entries()].filter(([k]) => !PURPOSE_LIST.includes(k))
       .sort((a, b) => b[1] - a[1]).map(([key, count]) => ({ key, label: key, count, sub: "" })),
