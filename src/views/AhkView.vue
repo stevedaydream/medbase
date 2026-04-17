@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useCloudSettings } from "@/stores/cloudSettings";
 
 interface AhkScript {
@@ -56,6 +57,10 @@ function showToast(msg: string) {
 }
 
 onMounted(async () => { await loadAll(); });
+
+function openAhkSite() {
+  openUrl("https://www.autohotkey.com/download/");
+}
 
 async function loadAll() {
   const db = await getDb();
@@ -612,7 +617,13 @@ function insertBuilderToScript() {
     <div class="flex items-center justify-between px-6 py-4 border-b border-gray-800 flex-shrink-0">
       <div>
         <h1 class="text-lg font-semibold">AHK 腳本管理</h1>
-        <p class="text-xs text-gray-500 mt-0.5">AutoHotkey 設定檔 CRUD · 套組管理 · 自動 Reload</p>
+        <p class="text-xs text-gray-500 mt-0.5">
+          AutoHotkey 設定檔 CRUD · 套組管理 · 自動 Reload ·
+          <button
+            @click="openAhkSite"
+            class="text-blue-400 hover:text-blue-300 hover:underline transition-colors"
+          >↗ 下載 AutoHotkey</button>
+        </p>
       </div>
       <button
         @click="showSettings = !showSettings"

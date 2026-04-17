@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, watch, onMounted } from "vue";
 import { getDb } from "@/db";
 import MedicationModal, { type MedicationForm } from "@/components/medications/MedicationModal.vue";
 import NhiImportModal from "@/components/medications/NhiImportModal.vue";
 import TfdaSearchModal from "@/components/medications/TfdaSearchModal.vue";
 import { useCloudSettings } from "@/stores/cloudSettings";
+import { useLogger } from "@/composables/useLogger";
 
 interface Medication {
   id: number;
@@ -19,10 +20,15 @@ interface Medication {
   notes: string;
 }
 
-const medications = ref<Medication[]>([]);
-const search = ref("");
-const selected = ref<Medication | null>(null);
-const loading = ref(true);
+const results    = ref<Medication[]>([]);
+const totalCount = ref(0);
+const isSearching = ref(false);
+const search     = ref("");
+const selected   = ref<Medication | null>(null);
+
+// --- 雲端備份 ---
+const cloud      = useCloudSettings();
+const isSyncing  = ref(false);
 
 // Modal states
 const showCrudModal = ref(false);
@@ -35,27 +41,52 @@ const showTfda = ref(false);
 const nhiImportRef = ref<InstanceType<typeof NhiImportModal> | null>(null);
 
 onMounted(async () => {
-  await loadMedications();
+  cloud.load();
+  await loadCount();
+  await doSearch();
 });
 
-async function loadMedications() {
-  loading.value = true;
+async function loadCount() {
   const db = await getDb();
-  medications.value = await db.select<Medication[]>("SELECT * FROM medications ORDER BY name");
-  loading.value = false;
+  const r = await db.select<{ c: number }[]>("SELECT COUNT(*) as c FROM medications");
+  totalCount.value = r[0]?.c ?? 0;
 }
 
-const filtered = () => {
-  const q = search.value.toLowerCase();
-  return medications.value.filter(
-    (m) =>
-      !q ||
-      m.name.toLowerCase().includes(q) ||
-      (m.generic_name ?? "").toLowerCase().includes(q) ||
-      (m.synonyms ?? "").toLowerCase().includes(q) ||
-      (m.category ?? "").toLowerCase().includes(q)
-  );
-};
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
+watch(search, () => {
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(doSearch, 300);
+});
+
+async function doSearch() {
+  isSearching.value = true;
+  try {
+    const db = await getDb();
+    const q = search.value.trim();
+    if (!q) {
+      results.value = await db.select<Medication[]>("SELECT * FROM medications ORDER BY name LIMIT 500");
+      return;
+    }
+    const tokens = q.split(/\s+/).filter(Boolean);
+    let tokenSql = "";
+    const params: string[] = [];
+    for (const token of tokens) {
+      tokenSql += " AND (name LIKE ? OR generic_name LIKE ? OR synonyms LIKE ? OR category LIKE ?)";
+      params.push(`%${token}%`, `%${token}%`, `%${token}%`, `%${token}%`);
+    }
+    results.value = await db.select<Medication[]>(
+      `SELECT * FROM medications WHERE 1=1${tokenSql} ORDER BY name LIMIT 100`,
+      params
+    );
+  } finally {
+    isSearching.value = false;
+  }
+}
+
+async function loadMedications() {
+  await loadCount();
+  await doSearch();
+}
 
 function parseJson(s: string | null): string[] {
   try { return JSON.parse(s ?? "[]") ?? []; } catch { return []; }
@@ -104,8 +135,7 @@ async function saveMedication(form: MedicationForm) {
   }
   showCrudModal.value = false;
   await loadMedications();
-  // Re-select updated item
-  selected.value = medications.value.find((m) => m.name === form.name) ?? null;
+  selected.value = results.value.find((m) => m.name === form.name) ?? null;
 }
 
 async function deleteMedication() {
@@ -116,11 +146,6 @@ async function deleteMedication() {
   selected.value = null;
   await loadMedications();
 }
-
-// --- 雲端備份 ---
-const cloud      = useCloudSettings();
-const isSyncing  = ref(false);
-onMounted(() => cloud.load());
 
 async function pushMedicationsToCloud() {
   if (!cloud.gasUrl) { alert("請先在「設定」頁面填入 GAS Web App URL"); return; }
@@ -205,7 +230,11 @@ function cellStr(row: Record<string, unknown>, col: string): string {
 const importProgress = ref({ active: false, current: 0, total: 0, inserted: 0, skipped: 0 });
 
 async function onNhiImported(rows: Record<string, unknown>[]) {
-  if (!nhiImportRef.value) return;
+  const { addLog } = useLogger();
+  if (!nhiImportRef.value) {
+    addLog('error', 'NHI 匯入失敗：modal ref 為 null');
+    return;
+  }
   const m = nhiImportRef.value.mapping;
   showNhiImport.value = false;
   importProgress.value = { active: true, current: 0, total: rows.length, inserted: 0, skipped: 0 };
@@ -245,11 +274,14 @@ async function onNhiImported(rows: Record<string, unknown>[]) {
     const msg = skipped > 0
       ? `✓ 新增 ${inserted} 筆，跳過 ${skipped} 筆（已存在）`
       : `✓ 已匯入 ${inserted} 筆藥品`;
+    addLog('info', msg);
     alert(msg);
   } catch (err) {
     try { const db = await getDb(); await db.execute("ROLLBACK"); } catch {}
     importProgress.value.active = false;
-    alert(`匯入失敗：${(err as Error).message}`);
+    const errMsg = `匯入失敗：${(err as Error).message}`;
+    addLog('error', errMsg, (err as Error).stack);
+    alert(errMsg);
   }
 }
 
@@ -293,16 +325,16 @@ async function onNhiImported(rows: Record<string, unknown>[]) {
       </div>
 
       <!-- Count -->
-      <p class="text-gray-600 text-xs mb-2">共 {{ filtered().length }} 筆</p>
+      <p class="text-gray-600 text-xs mb-2">共 {{ totalCount }} 筆<span v-if="search && results.length < totalCount">，顯示 {{ results.length }} 筆</span></p>
 
       <!-- List -->
       <div class="flex-1 overflow-y-auto space-y-0.5">
-        <div v-if="loading" class="text-gray-500 text-sm text-center py-8">載入中…</div>
-        <div v-else-if="filtered().length === 0" class="text-gray-500 text-sm text-center py-8">
-          {{ medications.length === 0 ? '尚無資料，請新增或匯入' : '無符合結果' }}
+        <div v-if="isSearching" class="text-gray-500 text-sm text-center py-8">搜尋中…</div>
+        <div v-else-if="results.length === 0" class="text-gray-500 text-sm text-center py-8">
+          {{ totalCount === 0 ? '尚無資料，請新增或匯入' : '無符合結果' }}
         </div>
         <button
-          v-for="m in filtered()"
+          v-for="m in results"
           :key="m.id"
           @click="selected = m"
           class="w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors"

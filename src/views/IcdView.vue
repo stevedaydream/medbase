@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, watch, onMounted } from "vue";
 import { getDb } from "@/db";
+import { useCloudSettings } from "@/stores/cloudSettings";
 import * as XLSX from "xlsx";
 
 interface IcdCode {
@@ -9,12 +10,17 @@ interface IcdCode {
   description_zh: string;
   description_en: string;
   category: string;
+  is_starred: number;
 }
 
-const codes      = ref<IcdCode[]>([]);
-const activeVer  = ref<"ICD9" | "ICD10">("ICD10");
-const searchQ    = ref("");
-const toastMsg   = ref("");
+const results      = ref<IcdCode[]>([]);
+const totalCount   = ref(0);
+const starredCount = ref(0);
+const isSearching  = ref(false);
+const starFilter   = ref(false);
+const activeVer    = ref<"ICD9" | "ICD10">("ICD10");
+const searchQ     = ref("");
+const toastMsg    = ref("");
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 function toast(msg: string) {
   toastMsg.value = msg;
@@ -22,27 +28,89 @@ function toast(msg: string) {
   toastTimer = setTimeout(() => { toastMsg.value = ""; }, 2000);
 }
 
-// ── 載入 ─────────────────────────────────────────────────────
-onMounted(load);
-async function load() {
+const cloud     = useCloudSettings();
+const isSyncing = ref(false);
+
+// ── 初始化：只載入筆數 ────────────────────────────────────────
+onMounted(() => { cloud.load(); loadCount(); });
+
+async function loadCount() {
   const db = await getDb();
-  codes.value = await db.select<IcdCode[]>(
-    "SELECT * FROM icd_codes ORDER BY code"
-  );
+  const [total, starred] = await Promise.all([
+    db.select<{ c: number }[]>("SELECT COUNT(*) as c FROM icd_codes WHERE version = ?", [activeVer.value]),
+    db.select<{ c: number }[]>("SELECT COUNT(*) as c FROM icd_codes WHERE version = ? AND is_starred = 1", [activeVer.value]),
+  ]);
+  totalCount.value   = total[0]?.c   ?? 0;
+  starredCount.value = starred[0]?.c ?? 0;
 }
 
-// ── 搜尋過濾 ─────────────────────────────────────────────────
-const filtered = computed(() => {
-  const q = searchQ.value.trim().toLowerCase();
-  return codes.value
-    .filter(c => c.version === activeVer.value)
-    .filter(c => !q ||
-      c.code.toLowerCase().includes(q) ||
-      c.description_zh.toLowerCase().includes(q) ||
-      c.description_en.toLowerCase().includes(q) ||
-      c.category.toLowerCase().includes(q)
-    );
+async function refresh() {
+  await loadCount();
+  if (searchQ.value.trim()) await doSearch();
+  else results.value = [];
+}
+
+// ── DB 搜尋（debounce 300ms）─────────────────────────────────
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
+
+watch(searchQ, () => {
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(doSearch, 300);
 });
+
+watch(activeVer, () => {
+  results.value = [];
+  loadCount();
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(doSearch, 100);
+});
+
+watch(starFilter, () => {
+  if (searchTimer) clearTimeout(searchTimer);
+  doSearch();
+});
+
+async function doSearch() {
+  const q       = searchQ.value.trim();
+  const starred = starFilter.value;
+  if (!q && !starred) { results.value = []; return; }
+  isSearching.value = true;
+  try {
+    const db = await getDb();
+
+    // 多詞 AND：每個 token 都必須出現在 code / zh / en 其中一欄
+    const tokens = q ? q.split(/\s+/).filter(Boolean) : [];
+    let tokenSql = "";
+    const tokenParams: string[] = [];
+    for (const token of tokens) {
+      // 單詞時 code 用前綴比對（利用索引），多詞全用 %token%
+      const codeLike = tokens.length === 1 ? token + "%" : "%" + token + "%";
+      tokenSql += ` AND (code LIKE ? OR description_zh LIKE ? OR description_en LIKE ?)`;
+      tokenParams.push(codeLike, "%" + token + "%", "%" + token + "%");
+    }
+
+    const starSql = starred ? " AND is_starred = 1" : "";
+    results.value = await db.select<IcdCode[]>(
+      `SELECT * FROM icd_codes WHERE version = ?${starSql}${tokenSql} ORDER BY code LIMIT 200`,
+      [activeVer.value, ...tokenParams]
+    );
+  } finally {
+    isSearching.value = false;
+  }
+}
+
+async function toggleStar(code: string, current: number) {
+  const newVal = current ? 0 : 1;
+  const db = await getDb();
+  await db.execute("UPDATE icd_codes SET is_starred = ? WHERE code = ?", [newVal, code]);
+  const item = results.value.find(r => r.code === code);
+  if (item) item.is_starred = newVal;
+  // 若目前在 star filter 且取消星號，從列表移除
+  if (starFilter.value && !newVal) {
+    results.value = results.value.filter(r => r.code !== code);
+  }
+  starredCount.value += newVal ? 1 : -1;
+}
 
 // ── 複製 ─────────────────────────────────────────────────────
 const copiedCode = ref("");
@@ -88,7 +156,7 @@ async function saveForm() {
     toast("已更新");
   }
   showModal.value = false;
-  await load();
+  await refresh();
 }
 async function doDelete() {
   if (!deleteTarget.value) return;
@@ -96,7 +164,56 @@ async function doDelete() {
   await db.execute("DELETE FROM icd_codes WHERE code=?", [deleteTarget.value.code]);
   deleteTarget.value = null;
   toast("已刪除");
-  await load();
+  await refresh();
+}
+
+// ── 雲端同步 ─────────────────────────────────────────────────
+async function pushToCloud() {
+  if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
+  isSyncing.value = true;
+  try {
+    const db = await getDb();
+    const allCodes = await db.select<IcdCode[]>("SELECT * FROM icd_codes");
+    await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "saveIcdCodes", data: allCodes }),
+      mode: "no-cors",
+    });
+    toast(`已上傳 ${allCodes.length} 筆至雲端`);
+  } catch (e) {
+    toast(`上傳失敗：${(e as Error).message}`);
+  } finally { isSyncing.value = false; }
+}
+
+async function pullFromCloud() {
+  if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
+  isSyncing.value = true;
+  try {
+    const res = await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "getIcdCodes" }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
+    const data: IcdCode[] = json.data;
+    if (!data.length) { toast("雲端無 ICD 資料"); return; }
+    const db = await getDb();
+    await db.execute("DELETE FROM icd_codes");
+    for (const r of data) {
+      await db.execute(
+        "INSERT INTO icd_codes (code, version, description_zh, description_en, category) VALUES (?,?,?,?,?)",
+        [r.code, r.version || "ICD10", r.description_zh, r.description_en, r.category]
+      );
+    }
+    results.value = [];
+    searchQ.value = "";
+    await loadCount();
+    toast(`已從雲端同步 ${data.length} 筆 ICD 代碼`);
+  } catch (e) {
+    toast(`下載失敗：${(e as Error).message}`);
+  } finally { isSyncing.value = false; }
 }
 
 // ── Excel 匯入 ────────────────────────────────────────────────
@@ -104,7 +221,7 @@ const showImport   = ref(false);
 const importRows   = ref<IcdCode[]>([]);
 const importLoading = ref(false);
 
-const COL_MAP: Record<keyof Omit<IcdCode, "version">, string[]> = {
+const COL_MAP: Record<keyof Omit<IcdCode, "version" | "is_starred">, string[]> = {
   code:           ["疾病碼", "icd碼", "代碼", "code", "icd", "碼"],
   description_zh: ["中文名稱", "中文", "診斷", "中文診斷", "名稱"],
   description_en: ["英文名稱", "英文", "english", "en"],
@@ -146,6 +263,7 @@ function handleFileImport(e: Event) {
           description_zh: zhIdx  >= 0 ? String(r[headers[zhIdx]]  ?? "").trim() : "",
           description_en: enIdx  >= 0 ? String(r[headers[enIdx]]  ?? "").trim() : "",
           category:       catIdx >= 0 ? String(r[headers[catIdx]] ?? "").trim() : "",
+          is_starred:     0,
         }))
         .filter(r => r.code);
 
@@ -169,7 +287,7 @@ async function confirmImport() {
   }
   showImport.value = false;
   importRows.value = [];
-  await load();
+  await refresh();
   toast(`已匯入 ${count} 筆 ${activeVer.value} 代碼`);
 }
 </script>
@@ -180,9 +298,17 @@ async function confirmImport() {
     <div class="flex items-center justify-between mb-4">
       <div>
         <h1 class="text-xl font-bold text-white">ICD 查詢</h1>
-        <p class="text-xs text-gray-500 mt-0.5">共 {{ codes.filter(c => c.version === activeVer).length }} 筆 {{ activeVer }}</p>
+        <p class="text-xs text-gray-500 mt-0.5">共 {{ totalCount.toLocaleString() }} 筆 {{ activeVer }}</p>
       </div>
       <div class="flex gap-2">
+        <button @click="pullFromCloud" :disabled="isSyncing"
+          class="px-3 py-1.5 rounded-lg bg-blue-800/60 text-blue-200 text-xs hover:bg-blue-700/60 disabled:opacity-40 transition-colors whitespace-nowrap">
+          {{ isSyncing ? "…" : "↓ 雲端同步" }}
+        </button>
+        <button @click="pushToCloud" :disabled="isSyncing"
+          class="px-3 py-1.5 rounded-lg bg-gray-700 text-gray-200 text-xs hover:bg-gray-600 disabled:opacity-40 transition-colors whitespace-nowrap">
+          {{ isSyncing ? "…" : "↑ 上傳" }}
+        </button>
         <label class="px-3 py-1.5 rounded-lg bg-green-800/60 text-green-200 text-xs cursor-pointer hover:bg-green-700/60 transition-colors">
           📥 Excel 匯入
           <input type="file" accept=".xlsx,.xls" class="hidden" @change="handleFileImport" />
@@ -193,28 +319,56 @@ async function confirmImport() {
       </div>
     </div>
 
-    <!-- Version tabs -->
-    <div class="flex gap-1 mb-3">
+    <!-- Version tabs + star filter -->
+    <div class="flex items-center gap-1 mb-3">
       <button v-for="v in (['ICD10', 'ICD9'] as const)" :key="v"
-        @click="activeVer = v; searchQ = ''"
+        @click="activeVer = v"
         class="px-4 py-1.5 rounded-lg text-sm transition-colors"
         :class="activeVer === v ? 'bg-blue-700 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'">
         {{ v }}
       </button>
+      <div class="flex-1" />
+      <button @click="starFilter = !starFilter"
+        class="px-3 py-1.5 rounded-lg text-xs transition-colors"
+        :class="starFilter ? 'bg-yellow-600/30 text-yellow-300 border border-yellow-600/50' : 'bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-gray-300'">
+        ★ 常用<span v-if="starredCount"> ({{ starredCount }})</span>
+      </button>
     </div>
 
     <!-- Search -->
-    <input v-model="searchQ" placeholder="搜尋代碼或診斷名稱…"
-      class="w-full px-3 py-2 mb-3 rounded-lg bg-gray-800 border border-gray-700 text-gray-100 text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500" />
+    <div class="relative mb-3">
+      <input v-model="searchQ" placeholder="輸入代碼（J18）或中英文病名…"
+        class="w-full px-3 py-2 pr-8 rounded-lg bg-gray-800 border border-gray-700 text-gray-100 text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500" />
+      <span v-if="isSearching" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs animate-pulse">搜尋中…</span>
+      <button v-else-if="searchQ" @click="searchQ = ''"
+        class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-400 text-lg leading-none">×</button>
+    </div>
 
     <!-- List -->
     <div class="space-y-1">
-      <div v-if="!filtered.length" class="text-gray-600 text-sm text-center py-10">
-        {{ searchQ ? '無符合結果' : '尚無資料，請匯入 Excel 或手動新增' }}
+      <!-- 提示：未輸入且無 filter -->
+      <div v-if="!searchQ && !starFilter" class="text-center py-16 space-y-2">
+        <p class="text-gray-600 text-sm">輸入代碼或病名開始搜尋</p>
+        <p class="text-gray-700 text-xs">例：J18、肺炎、pneumonia</p>
       </div>
-      <div v-for="c in filtered" :key="c.code"
+      <!-- 搜尋中 -->
+      <div v-else-if="isSearching" class="text-gray-600 text-sm text-center py-10">搜尋中…</div>
+      <!-- 無結果 -->
+      <div v-else-if="!results.length" class="text-gray-600 text-sm text-center py-10">
+        {{ starFilter && !searchQ ? '尚無常用標記，點擊代碼旁的 ☆ 加入' : '無符合結果' }}
+      </div>
+      <!-- 結果列表 -->
+      <template v-else>
+        <p v-if="results.length === 200" class="text-xs text-yellow-700 text-center pb-1">顯示前 200 筆，請縮小搜尋範圍</p>
+        <div v-for="c in results" :key="c.code"
         class="group flex items-center gap-3 px-3 py-2.5 rounded-lg border border-transparent hover:border-gray-700 hover:bg-gray-800/50 transition-colors cursor-pointer"
         @click="copyCode(c.code)">
+        <!-- Star -->
+        <button @click.stop="toggleStar(c.code, c.is_starred)"
+          class="shrink-0 text-base leading-none transition-colors"
+          :class="c.is_starred ? 'text-yellow-400' : 'text-gray-700 hover:text-gray-400'">
+          {{ c.is_starred ? '★' : '☆' }}
+        </button>
         <!-- Code badge -->
         <span class="shrink-0 font-mono text-sm px-2 py-0.5 rounded"
           :class="copiedCode === c.code ? 'bg-green-700 text-green-100' : 'bg-gray-700 text-blue-300'">
@@ -232,7 +386,8 @@ async function confirmImport() {
           <button @click.stop="openEdit(c)" class="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-300 hover:bg-gray-600">編輯</button>
           <button @click.stop="deleteTarget = c" class="text-xs px-2 py-0.5 rounded bg-red-900/60 text-red-300 hover:bg-red-800/60">刪除</button>
         </div>
-      </div>
+        </div>
+      </template>
     </div>
   </div>
 

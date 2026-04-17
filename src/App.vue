@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useEventListener } from "@vueuse/core";
+import { useRoute } from "vue-router";
 import Sidebar from "@/components/layout/Sidebar.vue";
 import TopBar from "@/components/layout/TopBar.vue";
 import OmniSearch from "@/components/OmniSearch.vue";
 import DebugPanel from "@/components/DebugPanel.vue";
 import CompactPanel from "@/components/CompactPanel.vue";
 import { useUiSettings } from "@/stores/uiSettings";
+import { useLogger } from "@/composables/useLogger";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -16,7 +18,11 @@ const searchOpen  = ref(false);
 const debugOpen   = ref(false);
 const compactMode = ref(false);
 const uiSettings  = useUiSettings();
-onMounted(() => uiSettings.load());
+const route       = useRoute();
+onMounted(() => {
+  uiSettings.load();
+  useLogger().initClickTracking(() => route.path);
+});
 
 // ── 精簡模式 ─────────────────────────────────────────────────────────
 const COMPACT_W = 360;   // 總視窗寬（含把手）

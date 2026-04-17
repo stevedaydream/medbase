@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
+import { useCloudSettings } from "@/stores/cloudSettings";
 
 interface Contact {
   id: number;
@@ -15,6 +16,10 @@ const search    = ref("");
 const catFilter = ref("全部");
 const toast     = ref("");
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+const cloud     = useCloudSettings();
+const isSyncing = ref(false);
+onMounted(() => cloud.load());
 
 // Modal
 const showModal  = ref(false);
@@ -156,6 +161,52 @@ async function save() {
   showToast(modalMode.value === "add" ? "已新增" : "已儲存");
 }
 
+// ── 雲端同步 ─────────────────────────────────────────────────────
+async function pushToCloud() {
+  if (!cloud.gasUrl) { showToast("請先在「設定」頁面填入 GAS Web App URL"); return; }
+  isSyncing.value = true;
+  try {
+    await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "saveContacts", data: contacts.value }),
+      mode: "no-cors",
+    });
+    showToast(`已上傳 ${contacts.value.length} 筆至雲端`);
+  } catch (e) {
+    showToast(`上傳失敗：${(e as Error).message}`);
+  } finally { isSyncing.value = false; }
+}
+
+async function pullFromCloud() {
+  if (!cloud.gasUrl) { showToast("請先在「設定」頁面填入 GAS Web App URL"); return; }
+  isSyncing.value = true;
+  try {
+    const res = await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "getContacts" }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
+    const data: Omit<Contact, "id">[] = json.data;
+    if (!data.length) { showToast("雲端無分機資料"); return; }
+    const db = await getDb();
+    // 以雲端為主全量取代（清空重建）
+    await db.execute("DELETE FROM contacts");
+    for (const c of data) {
+      await db.execute(
+        "INSERT INTO contacts (label, ext, category, notes) VALUES (?,?,?,?)",
+        [c.label, c.ext, c.category || "常用分機", c.notes || null]
+      );
+    }
+    await load();
+    showToast(`已從雲端同步 ${data.length} 筆分機資料`);
+  } catch (e) {
+    showToast(`下載失敗：${(e as Error).message}`);
+  } finally { isSyncing.value = false; }
+}
+
 async function doDelete() {
   if (!deleteTarget.value) return;
   const db = await getDb();
@@ -171,12 +222,20 @@ async function doDelete() {
   <div class="flex flex-col h-full overflow-hidden">
 
     <!-- Header -->
-    <div class="flex items-center gap-3 px-5 py-3 border-b border-gray-800 shrink-0">
+    <div class="flex items-center gap-2 px-5 py-3 border-b border-gray-800 shrink-0">
       <input
         v-model="search"
         placeholder="搜尋分機名稱、號碼…"
         class="flex-1 px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-100 text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500"
       />
+      <button @click="pullFromCloud" :disabled="isSyncing"
+        class="text-xs px-3 py-1.5 rounded-lg bg-blue-800/60 hover:bg-blue-700 disabled:opacity-40 text-blue-200 transition-colors whitespace-nowrap shrink-0">
+        {{ isSyncing ? "…" : "↓ 雲端同步" }}
+      </button>
+      <button @click="pushToCloud" :disabled="isSyncing"
+        class="text-xs px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-200 transition-colors whitespace-nowrap shrink-0">
+        {{ isSyncing ? "…" : "↑ 上傳" }}
+      </button>
       <button
         @click="openAdd"
         class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium transition-colors shrink-0"

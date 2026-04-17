@@ -192,6 +192,29 @@ function doPost(e) {
         return json({ ok: true, data: rows });
       }
 
+      // ── 儲存常用分機（桌機端推送）────────────────────────────────
+      case 'saveContacts': {
+        let sh = ss.getSheetByName('Contacts') || ss.insertSheet('Contacts');
+        const hd = ['label','ext','category','notes'];
+        const rw = (p.data || []).map(r => [r.label||'', r.ext||'', r.category||'', r.notes||'']);
+        sh.clearContents();
+        sh.getRange(1,1,1,hd.length).setValues([hd]);
+        if (rw.length) sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        return json({ ok: true });
+      }
+
+      // ── 拉取常用分機（桌機端拉取）────────────────────────────────
+      case 'getContacts': {
+        const sh = ss.getSheetByName('Contacts');
+        if (!sh || sh.getLastRow() < 2) return json({ ok: true, data: [] });
+        const rows = sh.getDataRange().getValues().slice(1);
+        const data = rows.map(r => ({
+          label:    String(r[0]||''), ext:      String(r[1]||''),
+          category: String(r[2]||'常用分機'), notes: String(r[3]||'')
+        })).filter(r => r.label && r.ext);
+        return json({ ok: true, data });
+      }
+
       // ── 儲存醫師通訊錄（桌機端推送） ──────────────────────────────
       case 'savePhysicians': {
         let sh = ss.getSheetByName('Physicians') || ss.insertSheet('Physicians');
@@ -272,6 +295,15 @@ function doPost(e) {
         sh2.clearContents();
         sh2.getRange(1,1,1,hd2.length).setValues([hd2]);
         if (rw2.length) sh2.getRange(2,1,rw2.length,hd2.length).setValues(rw2);
+        // SetPhysicians sheet — referenced physicians with full info
+        if (p.physicians && p.physicians.length) {
+          let shP = ss.getSheetByName('SetPhysicians') || ss.insertSheet('SetPhysicians');
+          const hdP = ['id','name','department','title'];
+          const rwP = p.physicians.map(r => [r.id, r.name||'', r.department||'', r.title||'']);
+          shP.clearContents();
+          shP.getRange(1,1,1,hdP.length).setValues([hdP]);
+          shP.getRange(2,1,rwP.length,hdP.length).setValues(rwP);
+        }
         return json({ ok: true });
       }
 
@@ -279,6 +311,7 @@ function doPost(e) {
       case 'getSets': {
         const sh1 = ss.getSheetByName('Sets');
         const sh2 = ss.getSheetByName('SetItems');
+        const shP = ss.getSheetByName('SetPhysicians');
         const sets = sh1 && sh1.getLastRow() >= 2
           ? sh1.getDataRange().getValues().slice(1).filter(r=>r[0]).map(r=>({
               id: Number(r[0]), name: String(r[1]||''), surgery_type: String(r[2]||''),
@@ -290,7 +323,11 @@ function doPost(e) {
               quantity: Number(r[3]||1), is_optional: Number(r[4]||0),
               sort_order: Number(r[5]||0), notes: String(r[6]||'')
             })) : [];
-        return json({ ok: true, sets, setItems });
+        const physicians = shP && shP.getLastRow() >= 2
+          ? shP.getDataRange().getValues().slice(1).filter(r=>r[0]).map(r=>({
+              id: Number(r[0]), name: String(r[1]||''), department: String(r[2]||''), title: String(r[3]||'')
+            })) : [];
+        return json({ ok: true, sets, setItems, physicians });
       }
 
       // ── 備份藥物字典（桌機端推送） ────────────────────────────────
@@ -363,6 +400,148 @@ function doPost(e) {
         const codes = (p.codes || []).filter(c => c);
         if (codes.length) sh.getRange(2, 1, codes.length, 1).setValues(codes.map(c => [c]));
         return json({ ok: true });
+      }
+
+      // ── 儲存處方配製參考（桌機端推送）───────────────────────────
+      case 'savePrescriptions': {
+        let sh = ss.getSheetByName('Prescriptions') || ss.insertSheet('Prescriptions');
+        const hd = ['id','name','category','indication','orders','notes'];
+        const rw = (p.data || []).map(r => [r.id, r.name||'', r.category||'', r.indication||'', r.orders||'[]', r.notes||'']);
+        sh.clearContents();
+        sh.getRange(1,1,1,hd.length).setValues([hd]);
+        if (rw.length) sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        return json({ ok: true, count: rw.length });
+      }
+
+      // ── 拉取處方配製參考（桌機端拉取）───────────────────────────
+      case 'getPrescriptions': {
+        const sh = ss.getSheetByName('Prescriptions');
+        if (!sh || sh.getLastRow() < 2) return json({ ok: true, data: [] });
+        const rows = sh.getDataRange().getValues().slice(1);
+        const data = rows.filter(r => r[0]).map(r => ({
+          id: Number(r[0]), name: String(r[1]||''), category: String(r[2]||''),
+          indication: String(r[3]||''), orders: String(r[4]||'[]'), notes: String(r[5]||'')
+        }));
+        return json({ ok: true, data });
+      }
+
+      // ── 儲存手術術前後常規（桌機端推送）─────────────────────────
+      case 'saveSurgery': {
+        let sh = ss.getSheetByName('Surgery') || ss.insertSheet('Surgery');
+        const hd = ['id','name','category','indication','pre_op_orders','post_op_orders','notes'];
+        const rw = (p.data || []).map(r => [r.id, r.name||'', r.category||'', r.indication||'', r.pre_op_orders||'[]', r.post_op_orders||'[]', r.notes||'']);
+        sh.clearContents();
+        sh.getRange(1,1,1,hd.length).setValues([hd]);
+        if (rw.length) sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        return json({ ok: true, count: rw.length });
+      }
+
+      // ── 拉取手術術前後常規（桌機端拉取）─────────────────────────
+      case 'getSurgery': {
+        const sh = ss.getSheetByName('Surgery');
+        if (!sh || sh.getLastRow() < 2) return json({ ok: true, data: [] });
+        const rows = sh.getDataRange().getValues().slice(1);
+        const data = rows.filter(r => r[0]).map(r => ({
+          id: Number(r[0]), name: String(r[1]||''), category: String(r[2]||''),
+          indication: String(r[3]||''), pre_op_orders: String(r[4]||'[]'),
+          post_op_orders: String(r[5]||'[]'), notes: String(r[6]||'')
+        }));
+        return json({ ok: true, data });
+      }
+
+      // ── 儲存檢查處置備忘（桌機端推送）───────────────────────────
+      case 'saveExamination': {
+        let sh = ss.getSheetByName('Examination') || ss.insertSheet('Examination');
+        const hd = ['id','name','his_code','category','indication','orders','notes'];
+        const rw = (p.data || []).map(r => [r.id, r.name||'', r.his_code||'', r.category||'', r.indication||'', r.orders||'[]', r.notes||'']);
+        sh.clearContents();
+        sh.getRange(1,1,1,hd.length).setValues([hd]);
+        if (rw.length) sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        return json({ ok: true, count: rw.length });
+      }
+
+      // ── 拉取檢查處置備忘（桌機端拉取）───────────────────────────
+      case 'getExamination': {
+        const sh = ss.getSheetByName('Examination');
+        if (!sh || sh.getLastRow() < 2) return json({ ok: true, data: [] });
+        const rows = sh.getDataRange().getValues().slice(1);
+        const data = rows.filter(r => r[0]).map(r => ({
+          id: Number(r[0]), name: String(r[1]||''), his_code: String(r[2]||''),
+          category: String(r[3]||''), indication: String(r[4]||''),
+          orders: String(r[5]||'[]'), notes: String(r[6]||'')
+        }));
+        return json({ ok: true, data });
+      }
+
+      // ── 儲存疾病常規（桌機端推送）────────────────────────────────
+      case 'saveDisease': {
+        let sh = ss.getSheetByName('Disease') || ss.insertSheet('Disease');
+        const hd = ['id','name','icd10','category','workup','treatment_orders','consult_flow','notes'];
+        const rw = (p.data || []).map(r => [r.id, r.name||'', r.icd10||'', r.category||'', r.workup||'[]', r.treatment_orders||'[]', r.consult_flow||'', r.notes||'']);
+        sh.clearContents();
+        sh.getRange(1,1,1,hd.length).setValues([hd]);
+        if (rw.length) sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        return json({ ok: true, count: rw.length });
+      }
+
+      // ── 拉取疾病常規（桌機端拉取）────────────────────────────────
+      case 'getDisease': {
+        const sh = ss.getSheetByName('Disease');
+        if (!sh || sh.getLastRow() < 2) return json({ ok: true, data: [] });
+        const rows = sh.getDataRange().getValues().slice(1);
+        const data = rows.filter(r => r[0]).map(r => ({
+          id: Number(r[0]), name: String(r[1]||''), icd10: String(r[2]||''),
+          category: String(r[3]||''), workup: String(r[4]||'[]'),
+          treatment_orders: String(r[5]||'[]'), consult_flow: String(r[6]||''), notes: String(r[7]||'')
+        }));
+        return json({ ok: true, data });
+      }
+
+      // ── 儲存 ICD 代碼（桌機端推送）──────────────────────────────
+      case 'saveIcdCodes': {
+        let sh = ss.getSheetByName('IcdCodes') || ss.insertSheet('IcdCodes');
+        const hd = ['code','version','description_zh','description_en','category'];
+        const rw = (p.data || []).map(r => [r.code||'', r.version||'ICD10', r.description_zh||'', r.description_en||'', r.category||'']);
+        sh.clearContents();
+        sh.getRange(1,1,1,hd.length).setValues([hd]);
+        if (rw.length) sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        return json({ ok: true, count: rw.length });
+      }
+
+      // ── 拉取 ICD 代碼（桌機端拉取）──────────────────────────────
+      case 'getIcdCodes': {
+        const sh = ss.getSheetByName('IcdCodes');
+        if (!sh || sh.getLastRow() < 2) return json({ ok: true, data: [] });
+        const rows = sh.getDataRange().getValues().slice(1);
+        const data = rows.filter(r => r[0]).map(r => ({
+          code: String(r[0]||''), version: String(r[1]||'ICD10'),
+          description_zh: String(r[2]||''), description_en: String(r[3]||''),
+          category: String(r[4]||'')
+        }));
+        return json({ ok: true, data });
+      }
+
+      // ── 儲存規則備忘錄（桌機端推送）─────────────────────────────
+      case 'saveShiftMemos': {
+        let sh = ss.getSheetByName('ShiftMemos') || ss.insertSheet('ShiftMemos');
+        const hd = ['id','category','title','content','sort_order','updated_at'];
+        const rw = (p.data || []).map(r => [r.id, r.category||'', r.title||'', r.content||'', r.sort_order||0, r.updated_at||'']);
+        sh.clearContents();
+        sh.getRange(1,1,1,hd.length).setValues([hd]);
+        if (rw.length) sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        return json({ ok: true, count: rw.length });
+      }
+
+      // ── 拉取規則備忘錄（桌機端拉取）─────────────────────────────
+      case 'getShiftMemos': {
+        const sh = ss.getSheetByName('ShiftMemos');
+        if (!sh || sh.getLastRow() < 2) return json({ ok: true, data: [] });
+        const rows = sh.getDataRange().getValues().slice(1);
+        const data = rows.filter(r => r[0]).map(r => ({
+          id: Number(r[0]), category: String(r[1]||''), title: String(r[2]||''),
+          content: String(r[3]||''), sort_order: Number(r[4]||0), updated_at: String(r[5]||'')
+        }));
+        return json({ ok: true, data });
       }
 
       default:

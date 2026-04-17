@@ -42,7 +42,14 @@
       "WebSearch",
       "WebFetch(domain:data.fda.gov.tw)",
       "WebFetch(domain:www.fda.gov.tw)",
-      "WebFetch(domain:info.nhi.gov.tw)"
+      "WebFetch(domain:info.nhi.gov.tw)",
+      "Bash(cargo build:*)",
+      "Bash(xargs grep:*)",
+      "Bash(npm list:*)",
+      "Bash(PYTHONIOENCODING=utf-8 python3 scripts/import_items_and_sync.py)",
+      "Bash(npx tsc:*)",
+      "WebFetch(domain:www.nhi.gov.tw)",
+      "Bash(pip install:*)"
     ]
   }
 }

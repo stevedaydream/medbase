@@ -281,7 +281,7 @@ interface BackupGroup { key: string; label: string; icon: string; tables: string
 
 const BACKUP_GROUPS: BackupGroup[] = [
   { key: "clinical",   label: "臨床資料",   icon: "🩺", tables: ["medications","prescriptions","surgery","disease","examination"], desc: "藥物、處方、術式、疾病、檢查" },
-  { key: "items",      label: "自費耗材",   icon: "📦", tables: ["items","item_depts"],            desc: "品項主表與科別對應" },
+  { key: "items",      label: "自費耗材",   icon: "📦", tables: ["items","item_depts","surgery_types","surgery_type_items"], desc: "品項主表、科別對應與手術術式" },
   { key: "sets",       label: "手術套組",   icon: "🗂",  tables: ["sets","set_items"],              desc: "套組與套組品項明細" },
   { key: "physicians", label: "醫師通訊錄", icon: "👤", tables: ["physicians"],                     desc: "醫師帳號、分機、密碼" },
   { key: "scheduler",  label: "排班系統",   icon: "📅", tables: ["scheduler_users","app_settings"],desc: "排班使用者與班表設定" },
@@ -294,7 +294,7 @@ const BACKUP_GROUPS: BackupGroup[] = [
 // FK 相依順序（匯入時依此順序執行）
 const FK_ORDER = [
   "physicians","medications","prescriptions","surgery","disease","examination",
-  "items","item_depts","sets","set_items",
+  "items","item_depts","surgery_types","surgery_type_items","sets","set_items",
   "scheduler_users","emergency_protocols","contacts",
   "acp_sets","acp_items","acp_records",
   "ahk_scripts","ahk_groups","ahk_group_scripts",
@@ -303,7 +303,7 @@ const FK_ORDER = [
 
 const TABLE_LABELS: Record<string, string> = {
   medications:"藥物", prescriptions:"處方", surgery:"術式", disease:"疾病", examination:"檢查",
-  items:"自費品項", item_depts:"品項科別",
+  items:"自費品項", item_depts:"品項科別", surgery_types:"手術術式", surgery_type_items:"術式品項",
   sets:"套組", set_items:"套組品項",
   physicians:"醫師通訊錄",
   scheduler_users:"排班使用者", app_settings:"程式設定",
@@ -349,7 +349,7 @@ const FK_DELETE_ORDER = [
   "ahk_group_scripts","ahk_scripts","ahk_groups",
   "acp_records","acp_items","acp_sets",
   "contacts","emergency_protocols",
-  "set_items","sets","item_depts","items",
+  "surgery_type_items","surgery_types","set_items","sets","item_depts","items",
   "physicians","scheduler_users",
   "medications","prescriptions","surgery","disease","examination",
   "app_settings",
@@ -363,17 +363,37 @@ async function clearLocalDb() {
   if (selectedTables.size === 0) return;
 
   clearing.value = true;
+  const errors: string[] = [];
   try {
     const db = await getDb();
-    for (const t of FK_DELETE_ORDER) {
-      if (!selectedTables.has(t)) continue;
-      try { await db.execute(`DELETE FROM ${t}`); } catch { /* 略過 */ }
+    // 關閉 FK 約束，避免 FK 阻擋刪除
+    await db.execute("PRAGMA foreign_keys = OFF");
+    try {
+      // 清除醫師前，先將 sets.physician_id 懸空引用歸零
+      if (selectedTables.has("physicians") && !selectedTables.has("sets")) {
+        await db.execute("UPDATE sets SET physician_id = NULL");
+      }
+      for (const t of FK_DELETE_ORDER) {
+        if (!selectedTables.has(t)) continue;
+        try {
+          await db.execute(`DELETE FROM ${t}`);
+        } catch (e: any) {
+          errors.push(`${t}: ${e?.message ?? e}`);
+        }
+      }
+    } finally {
+      await db.execute("PRAGMA foreign_keys = OFF"); // 保持關閉（本 app 不啟用 FK）
     }
+    const groupCount = selectedTables.size;
     await loadAll();
     showClearConfirm.value = false;
     clearInput.value = "";
     clearGroups.value = new Set();
-    showToast("success", `已清空 ${clearGroups.value.size || selectedTables.size} 個群組的資料`);
+    if (errors.length) {
+      showToast("error", `部分清空失敗：${errors.join("; ")}`);
+    } else {
+      showToast("success", `已清空 ${groupCount} 個群組的資料`);
+    }
   } catch (err: any) {
     showToast("error", `清空失敗：${err?.message ?? err}`);
   } finally {

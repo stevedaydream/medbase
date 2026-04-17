@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
+import { useCloudSettings } from "@/stores/cloudSettings";
 
 interface Disease {
   id: number; name: string; icd10: string; category: string;
@@ -19,8 +20,17 @@ const showModal = ref(false);
 const modalMode = ref<"add" | "edit">("add");
 const form = ref<Form>({ name: "", icd10: "", category: "", workup: "", treatment_orders: "", consult_flow: "", notes: "" });
 const showDeleteConfirm = ref(false);
+const cloud     = useCloudSettings();
+const isSyncing = ref(false);
+const toastMsg  = ref("");
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+function toast(msg: string) {
+  toastMsg.value = msg;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toastMsg.value = ""; }, 2000);
+}
 
-onMounted(async () => { await reload(); });
+onMounted(async () => { cloud.load(); await reload(); });
 
 async function reload() {
   const db = await getDb();
@@ -106,6 +116,48 @@ async function deleteSelected() {
   showDeleteConfirm.value = false;
   await reload();
 }
+
+async function pushToCloud() {
+  if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
+  isSyncing.value = true;
+  try {
+    await fetch(cloud.gasUrl, {
+      method: "POST", headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "saveDisease", data: items.value }),
+      mode: "no-cors",
+    });
+    toast(`已上傳 ${items.value.length} 筆至雲端`);
+  } catch (e) { toast(`上傳失敗：${(e as Error).message}`); }
+  finally { isSyncing.value = false; }
+}
+
+async function pullFromCloud() {
+  if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
+  isSyncing.value = true;
+  try {
+    const res = await fetch(cloud.gasUrl, {
+      method: "POST", headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "getDisease" }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
+    const data: Disease[] = json.data;
+    if (!data.length) { toast("雲端無資料"); return; }
+    const db = await getDb();
+    await db.execute("DELETE FROM disease");
+    for (const r of data) {
+      await db.execute(
+        "INSERT INTO disease (id, name, icd10, category, workup, treatment_orders, consult_flow, notes) VALUES (?,?,?,?,?,?,?,?)",
+        [r.id, r.name, r.icd10 ?? "", r.category ?? "", r.workup ?? "[]", r.treatment_orders ?? "[]", r.consult_flow ?? "", r.notes ?? ""]
+      );
+    }
+    const prevId = selected.value?.id;
+    await reload();
+    selected.value = items.value.find(m => m.id === prevId) ?? null;
+    toast(`已從雲端同步 ${data.length} 筆`);
+  } catch (e) { toast(`下載失敗：${(e as Error).message}`); }
+  finally { isSyncing.value = false; }
+}
 </script>
 
 <template>
@@ -121,6 +173,16 @@ async function deleteSelected() {
           title="新增疾病入院流程">＋</button>
       </div>
       <p class="text-gray-600 text-xs mb-2 px-1">{{ filtered.length }} 筆</p>
+      <div class="flex gap-1.5 mb-2">
+        <button @click="pullFromCloud" :disabled="isSyncing"
+          class="flex-1 py-1 rounded-lg bg-blue-800/60 text-blue-200 text-xs hover:bg-blue-700/60 disabled:opacity-40 transition-colors">
+          {{ isSyncing ? "…" : "↓ 同步" }}
+        </button>
+        <button @click="pushToCloud" :disabled="isSyncing"
+          class="flex-1 py-1 rounded-lg bg-gray-700 text-gray-300 text-xs hover:bg-gray-600 disabled:opacity-40 transition-colors">
+          {{ isSyncing ? "…" : "↑ 上傳" }}
+        </button>
+      </div>
       <div class="flex-1 overflow-y-auto space-y-1">
         <div v-if="filtered.length === 0" class="text-gray-500 text-sm text-center py-8">無資料</div>
         <button v-for="m in filtered" :key="m.id"
@@ -325,5 +387,19 @@ async function deleteSelected() {
       </div>
     </Teleport>
 
+    <!-- Toast -->
+    <Teleport to="body">
+      <Transition name="toast">
+        <div v-if="toastMsg" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 bg-gray-700 text-white text-sm rounded-lg shadow-xl z-[9999] pointer-events-none">
+          {{ toastMsg }}
+        </div>
+      </Transition>
+    </Teleport>
+
   </div>
 </template>
+
+<style scoped>
+.toast-enter-active, .toast-leave-active { transition: opacity .25s, transform .25s; }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateX(-50%) translateY(8px); }
+</style>

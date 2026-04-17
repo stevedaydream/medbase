@@ -376,6 +376,10 @@ async function initSchema(db: Database) {
   `);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_icd_version ON icd_codes(version);`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_icd_desczh  ON icd_codes(description_zh);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_icd_ver_code ON icd_codes(version, code);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_icd_ver_zh   ON icd_codes(version, description_zh);`);
+  try { await db.execute(`ALTER TABLE icd_codes ADD COLUMN is_starred INTEGER NOT NULL DEFAULT 0`); } catch { /* 已存在 */ }
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_icd_starred ON icd_codes(version, is_starred);`);
 
   // ── 上班規則備忘錄 ─────────────────────────────────────────
   await db.execute(`
@@ -388,4 +392,38 @@ async function initSchema(db: Database) {
       updated_at TEXT    DEFAULT (datetime('now', 'localtime'))
     );
   `);
+
+  // ── Debug 操作記錄（保留 7 天，供測試期分析用）──────────────
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS debug_logs (
+      id      INTEGER PRIMARY KEY AUTOINCREMENT,
+      session TEXT    NOT NULL,
+      ts      TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+      level   TEXT    NOT NULL DEFAULT 'info',
+      route   TEXT,
+      message TEXT    NOT NULL,
+      detail  TEXT
+    );
+  `);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_debug_logs_ts ON debug_logs(ts);`);
+  // 自動清除 7 天前的紀錄
+  await db.execute(`DELETE FROM debug_logs WHERE ts < datetime('now','-7 days','localtime');`);
+
+  // ── 手術術式（供自費品項快速篩選用）──────────────────────────
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS surgery_types (
+      id    INTEGER PRIMARY KEY AUTOINCREMENT,
+      name  TEXT    NOT NULL,
+      dept  TEXT,
+      notes TEXT
+    );
+  `);
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS surgery_type_items (
+      surgery_type_id INTEGER NOT NULL REFERENCES surgery_types(id) ON DELETE CASCADE,
+      hospital_code   TEXT    NOT NULL,
+      PRIMARY KEY (surgery_type_id, hospital_code)
+    );
+  `);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_sti_surgery ON surgery_type_items(surgery_type_id);`);
 }

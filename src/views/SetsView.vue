@@ -54,11 +54,6 @@ const suggestions   = computed(() => {
 const renamingSet  = ref(false);
 const renameValue  = ref("");
 
-function startRename() {
-  if (!activeSet.value) return;
-  renameValue.value = activeSet.value.name;
-  renamingSet.value = true;
-}
 
 async function saveRename() {
   if (!activeSet.value || !renamingSet.value) return;
@@ -80,7 +75,7 @@ const deleteTarget = ref<{ type: "set"|"item"; row: any } | null>(null);
 
 // Toast
 const toastMsg = ref("");
-function toast(msg: string) { toastMsg.value = msg; setTimeout(() => toastMsg.value = "", 2000); }
+function toast(msg: string, ms = 2000) { toastMsg.value = msg; setTimeout(() => toastMsg.value = "", ms); }
 
 // ── 載入 ─────────────────────────────────────────────────────────
 onMounted(loadAll);
@@ -108,6 +103,7 @@ async function loadSetItems(setId: number) {
     const db = await getDb();
     setItems.value = await db.select<SetItem[]>(`
       SELECT si.*,
+             COALESCE(si.price, i.price) AS price,
              i.name_zh, i.name_en
       FROM set_items si
       LEFT JOIN items i ON si.hospital_code = i.hospital_code
@@ -185,8 +181,15 @@ async function saveSet() {
       );
     }
     showSetModal.value = false;
+    const wasEdit = setModalMode.value === "edit";
+    const editedId = f.id;
     await loadAll();
-    toast(setModalMode.value === "add" ? "套組已新增" : "套組已更新");
+    // 編輯後重新指向更新後的套組物件（讓右側 header 立即顯示新資料）
+    if (wasEdit && editedId) {
+      const updated = sets.value.find(s => s.id === editedId);
+      if (updated) activeSet.value = updated;
+    }
+    toast(wasEdit ? "套組已更新" : "套組已新增");
   } catch (e) { toast(`儲存失敗：${(e as Error).message}`); }
 }
 
@@ -309,10 +312,16 @@ async function pushToCloud() {
       }
     }
 
+    // 收集 mergedSets 中被參照的醫師資料（在本地有完整記錄）
+    const physIdSet = new Set(mergedSets.map(s => s.physician_id).filter(Boolean) as number[]);
+    const referencedPhysicians = physicians.value
+      .filter(p => physIdSet.has(p.id))
+      .map(p => ({ id: p.id, name: p.name, department: p.department || "", title: (p as any).title || "" }));
+
     await fetch(cloud.gasUrl, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "saveSets", sets: mergedSets, setItems: mergedSetItems }),
+      body: JSON.stringify({ action: "saveSets", sets: mergedSets, setItems: mergedSetItems, physicians: referencedPhysicians }),
       mode: "no-cors",
     });
     toast(`已上傳至雲端（新增 ${addCount}、更新 ${updateCount} 個套組）`);
@@ -320,10 +329,74 @@ async function pushToCloud() {
   finally { isSyncing.value = false; }
 }
 
+// ── 單套組強制覆蓋雲端 ────────────────────────────────────────────
+const showOverwriteConfirm = ref(false);
+
+async function overwriteSetToCloud() {
+  if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
+  if (!activeSet.value) return;
+  isSyncing.value = true;
+  try {
+    // 1. 拉取雲端現有資料
+    const getRes = await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "getSets" }),
+    });
+    const getJson = await getRes.json();
+    if (!getJson.ok) throw new Error(getJson.error ?? "拉取雲端資料失敗");
+    const cloudSets: SetRow[] = getJson.sets || [];
+    const cloudSetItems: SetItem[] = getJson.setItems || [];
+
+    // 2. 以本地版本替換（或新增）該套組
+    const localSet = sets.value.find(s => s.id === activeSet.value!.id)!;
+    const newSets = cloudSets.filter(cs => cs.id !== localSet.id);
+    newSets.push(localSet);
+
+    // 3. 以本地品項替換該套組的所有品項
+    const newSetItems = cloudSetItems.filter(ci => ci.set_id !== localSet.id);
+    const db = await getDb();
+    const localItems = await db.select<SetItem[]>(
+      "SELECT * FROM set_items WHERE set_id=? ORDER BY sort_order, id",
+      [localSet.id]
+    );
+    newSetItems.push(...localItems);
+
+    // 4. 更新醫師清單
+    const physIdSet = new Set(newSets.map(s => s.physician_id).filter(Boolean) as number[]);
+    const referencedPhysicians = physicians.value
+      .filter(p => physIdSet.has(p.id))
+      .map(p => ({ id: p.id, name: p.name, department: p.department || "", title: (p as any).title || "" }));
+
+    await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "saveSets", sets: newSets, setItems: newSetItems, physicians: referencedPhysicians }),
+      mode: "no-cors",
+    });
+    showOverwriteConfirm.value = false;
+    toast(`「${localSet.name}」已覆蓋上傳至雲端`);
+  } catch (e) { toast(`覆蓋失敗：${(e as Error).message}`); }
+  finally { isSyncing.value = false; }
+}
+
 async function pullFromCloud() {
   if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
   isSyncing.value = true;
   try {
+    // 同步前預檢：醫師資料是否已在本地
+    const db0 = await getDb();
+    const physCount = (await db0.select<{ c: number }[]>("SELECT COUNT(*) AS c FROM physicians"))[0].c;
+    const itemCount = (await db0.select<{ c: number }[]>("SELECT COUNT(*) AS c FROM items"))[0].c;
+    const prereqWarnings: string[] = [];
+    if (physCount === 0) prereqWarnings.push("醫師通訊錄");
+    if (itemCount === 0) prereqWarnings.push("自費品項");
+    if (prereqWarnings.length) {
+      toast(`⚠ 本地尚無「${prereqWarnings.join("、")}」，同步後醫師名稱可能顯示為佔位文字，建議先在原電腦重新上傳套組`, 5000);
+      // 延遲 1.5 秒讓 toast 顯示後繼續執行（不中斷同步）
+      await new Promise(r => setTimeout(r, 1500));
+    }
+
     const res = await fetch(cloud.gasUrl, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
@@ -336,22 +409,95 @@ async function pullFromCloud() {
     if (!cloudSets.length) { toast("雲端無套組資料"); return; }
 
     const db = await getDb();
-    const localRows = await db.select<{ id: number }[]>("SELECT id FROM sets");
-    const localSetIds = new Set(localRows.map(r => r.id));
+    const localRows    = await db.select<{ id: number }[]>("SELECT id FROM sets");
+    const localSetIds  = new Set(localRows.map(r => r.id));
 
-    // 以雲端為主：更新本地已有套組的資料，新增本地沒有的雲端套組
+    // 載入本地醫師：id 集合 + 姓名→id 對照表（供名稱比對用）
+    const localPhysRows = await db.select<{ id: number; name: string }[]>(
+      "SELECT id, name FROM physicians"
+    );
+    const localPhysIds    = new Set(localPhysRows.map(r => r.id));
+    const localPhysByName = new Map(localPhysRows.map(r => [r.name.trim(), r.id]));
+
+    // physIdRemap：雲端 physician_id → 實際要寫入的本地 physician_id
+    // （ID 不同但姓名相同時，指向本地既有記錄，不新建）
+    const physIdRemap = new Map<number, number>();
+    let physCreated = 0;
+    let physMatched = 0;
+
+    // 優先以雲端隨附的醫師清單建立/修正本地醫師記錄
+    const cloudPhysicians: { id: number; name: string; department: string; title: string }[] =
+      json.physicians || [];
+    for (const cp of cloudPhysicians) {
+      if (!cp.id || !cp.name) continue;
+      const cpName = cp.name.trim();
+      if (localPhysIds.has(cp.id)) {
+        // ID 完全吻合：若是佔位名稱才覆蓋
+        await db.execute(
+          "UPDATE physicians SET name=? WHERE id=? AND name LIKE '醫師 #%'",
+          [cpName, cp.id]
+        );
+        physIdRemap.set(cp.id, cp.id);
+      } else if (localPhysByName.has(cpName)) {
+        // ID 不同但姓名相同 → 直接對應到本地既有醫師，不新建
+        const localId = localPhysByName.get(cpName)!;
+        physIdRemap.set(cp.id, localId);
+        physMatched++;
+      } else {
+        // 全新醫師 → 依雲端 ID 建立
+        await db.execute(
+          "INSERT INTO physicians (id, name, department) VALUES (?, ?, ?)",
+          [cp.id, cpName, cp.department || null]
+        );
+        localPhysIds.add(cp.id);
+        localPhysByName.set(cpName, cp.id);
+        physIdRemap.set(cp.id, cp.id);
+        physCreated++;
+      }
+    }
+
+    // 以雲端為主：更新本地已有套組，新增本地沒有的雲端套組
     let addCount = 0, updateCount = 0;
     for (const cs of cloudSets) {
+      let physId: number | null = cs.physician_id || null;
+      if (physId !== null) {
+        if (physIdRemap.has(physId)) {
+          // 已在上面處理過（含名稱比對 remap）
+          physId = physIdRemap.get(physId)!;
+        } else if (!localPhysIds.has(physId)) {
+          // 不在雲端 physicians 清單也不在本地：嘗試用 phys_name 姓名比對
+          const fallbackName = cs.phys_name?.trim();
+          if (fallbackName && localPhysByName.has(fallbackName)) {
+            const localId = localPhysByName.get(fallbackName)!;
+            physIdRemap.set(physId, localId);
+            physId = localId;
+            physMatched++;
+          } else {
+            // 最後手段：建立最小化佔位記錄
+            const placeholderName = fallbackName || `醫師 #${physId}`;
+            await db.execute(
+              "INSERT OR IGNORE INTO physicians (id, name) VALUES (?, ?)",
+              [physId, placeholderName]
+            );
+            localPhysIds.add(physId);
+            localPhysByName.set(placeholderName, physId);
+            physIdRemap.set(physId, physId);
+            physCreated++;
+          }
+        } else {
+          physIdRemap.set(physId, physId);
+        }
+      }
       if (localSetIds.has(cs.id)) {
         await db.execute(
           "UPDATE sets SET name=?, surgery_type=?, physician_id=?, notes=? WHERE id=?",
-          [cs.name, cs.surgery_type || null, cs.physician_id || null, cs.notes || null, cs.id]
+          [cs.name, cs.surgery_type || null, physId, cs.notes || null, cs.id]
         );
         updateCount++;
       } else {
         await db.execute(
           "INSERT INTO sets (id, name, surgery_type, physician_id, notes) VALUES (?,?,?,?,?)",
-          [cs.id, cs.name, cs.surgery_type || null, cs.physician_id || null, cs.notes || null]
+          [cs.id, cs.name, cs.surgery_type || null, physId, cs.notes || null]
         );
         addCount++;
       }
@@ -370,7 +516,12 @@ async function pullFromCloud() {
     }
 
     await loadAll();
-    toast(`雲端同步完成（新增 ${addCount} 個套組、更新 ${updateCount} 個套組）`);
+    const physParts = [
+      physMatched ? `比對 ${physMatched} 位` : "",
+      physCreated ? `新增 ${physCreated} 位` : "",
+    ].filter(Boolean).join("、");
+    const physNote = physParts ? `、醫師${physParts}` : "";
+    toast(`雲端同步完成（新增 ${addCount} 個套組、更新 ${updateCount} 個套組${physNote}）`);
   } catch (e) { toast(`下載失敗：${(e as Error).message}`); }
   finally { isSyncing.value = false; }
 }
@@ -427,28 +578,22 @@ async function doDelete() {
             <span class="text-[10px] text-gray-600 bg-gray-800 rounded-full px-1.5 py-0.5">{{ group.items.length }}</span>
           </div>
           <!-- 套組項目 -->
-          <button
+          <div
             v-for="s in group.items" :key="s.id"
             @click="selectSet(s)"
-            class="w-full flex items-center justify-between pl-6 pr-3 py-2 text-left text-xs transition-colors"
+            class="group w-full flex items-center justify-between pl-6 pr-2 py-2 text-left text-xs transition-colors cursor-pointer"
             :class="activeSet?.id === s.id
               ? 'bg-blue-600 text-white'
               : 'text-gray-300 hover:bg-gray-800'"
           >
-            <span class="truncate">{{ s.surgery_type || s.name }}</span>
-            <span class="flex gap-1 shrink-0 ml-1">
-              <button
-                @click.stop="openEditSet(s)"
-                class="opacity-0 group-hover:opacity-100 hover:text-blue-300 px-1"
-                :class="activeSet?.id === s.id ? 'text-blue-200' : 'text-gray-500'"
-              >✏</button>
-              <button
-                @click.stop="deleteTarget = { type: 'set', row: s }"
-                class="hover:text-red-400 px-1"
-                :class="activeSet?.id === s.id ? 'text-blue-200' : 'text-gray-600'"
-              >×</button>
-            </span>
-          </button>
+            <span class="truncate flex-1 min-w-0">{{ s.surgery_type || s.name }}</span>
+            <button
+              @click.stop="deleteTarget = { type: 'set', row: s }"
+              class="opacity-0 group-hover:opacity-100 hover:text-red-400 px-1 transition-opacity shrink-0"
+              :class="activeSet?.id === s.id ? 'text-blue-200' : 'text-gray-600'"
+              title="刪除套組"
+            >×</button>
+          </div>
         </div>
         <div v-if="grouped.length === 0" class="text-center text-gray-600 text-xs py-8">
           {{ searchSet ? "找不到套組" : "尚無套組" }}
@@ -481,8 +626,6 @@ async function doDelete() {
               </template>
               <template v-else>
                 <h2 class="text-gray-100 font-semibold text-base">{{ activeSet.name }}</h2>
-                <button @click="startRename" title="修改名稱"
-                  class="text-gray-600 hover:text-gray-300 text-sm leading-none">✏</button>
               </template>
             </div>
             <div class="flex items-center gap-3 mt-1 text-xs text-gray-500">
@@ -496,6 +639,14 @@ async function doDelete() {
               {{ setItems.filter(i => !i.is_optional).length }} 必用 ＋
               {{ setItems.filter(i => i.is_optional).length }} PRN
             </span>
+            <button @click="showOverwriteConfirm = true"
+              class="px-3 py-1.5 rounded-lg bg-amber-800/60 hover:bg-amber-700/80 text-amber-200 text-xs font-medium">
+              ↑ 覆蓋上傳
+            </button>
+            <button @click="openEditSet(activeSet)"
+              class="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs font-medium">
+              編輯套組
+            </button>
             <button @click="openAddItem"
               class="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium">
               ＋ 加入品項
@@ -695,6 +846,31 @@ async function doDelete() {
             :disabled="!itemForm.hospital_code"
             class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium disabled:opacity-40">
             加入
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <!-- ════ 覆蓋上傳確認 ════ -->
+  <Teleport to="body">
+    <div v-if="showOverwriteConfirm"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+      @click.self="showOverwriteConfirm = false">
+      <div class="w-full max-w-sm bg-gray-900 rounded-2xl border border-amber-800 shadow-2xl p-6 space-y-4">
+        <h3 class="text-amber-300 font-semibold">覆蓋上傳確認</h3>
+        <p class="text-sm text-gray-300">
+          將以本地的
+          <span class="text-white font-medium">「{{ activeSet?.name }}」</span>
+          覆蓋雲端上的同名套組及其所有品項。<br/>
+          <span class="text-gray-500 text-xs mt-1 block">其他套組不受影響。</span>
+        </p>
+        <div class="flex gap-3 justify-end">
+          <button @click="showOverwriteConfirm = false"
+            class="px-4 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600">取消</button>
+          <button @click="overwriteSetToCloud" :disabled="isSyncing"
+            class="px-4 py-2 text-sm bg-amber-700 text-white rounded-lg hover:bg-amber-600 disabled:opacity-40">
+            {{ isSyncing ? '上傳中…' : '確認覆蓋' }}
           </button>
         </div>
       </div>

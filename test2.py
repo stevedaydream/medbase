@@ -1,0 +1,9 @@
+import sqlite3                              
+db = sqlite3.connect(r'c:/Users/User/AppData/Roaming/com.medbase.app/medbase.db')                                                                                                                                                                                                     
+                                                                                                                                                                                                                                                                                    
+r = db.execute("SELECT hex(description_zh) FROM icd_codes WHERE code='N20.1'").fetchone()                                                                                                                                                                                             
+print("DB  hex:", r[0][:40])          # 只取前 40 字元                                                                                                                                                                                                                              
+                                                                                                                                                                                                                                                                                        
+s = '輸尿管結石'                                                                                                                                                                                                                                                                      
+print("UTF8 hex:", s.encode('utf-8').hex().upper())
+db.close()

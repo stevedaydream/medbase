@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from "vue";
 import { useEditor, EditorContent } from "@tiptap/vue-3";
 import StarterKit from "@tiptap/starter-kit";
 import { getDb } from "@/db";
+import { useCloudSettings } from "@/stores/cloudSettings";
 
 interface ShiftMemo {
   id: number;
@@ -23,6 +24,9 @@ function toast(msg: string) {
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { toastMsg.value = ""; }, 2000);
 }
+
+const cloud     = useCloudSettings();
+const isSyncing = ref(false);
 
 // ── Tiptap editor ────────────────────────────────────────────
 let saveDebounce: ReturnType<typeof setTimeout> | null = null;
@@ -54,7 +58,7 @@ async function autoSave() {
 }
 
 // ── 載入 ─────────────────────────────────────────────────────
-onMounted(load);
+onMounted(() => { cloud.load(); load(); });
 async function load() {
   const db = await getDb();
   memos.value = await db.select<ShiftMemo[]>(
@@ -120,6 +124,55 @@ async function doDelete() {
   toast("已刪除");
 }
 
+// ── 雲端同步 ─────────────────────────────────────────────────
+async function pushToCloud() {
+  if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
+  // 先儲存目前編輯中的內容
+  if (saveDebounce) { clearTimeout(saveDebounce); await autoSave(); }
+  isSyncing.value = true;
+  try {
+    await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "saveShiftMemos", data: memos.value }),
+      mode: "no-cors",
+    });
+    toast(`已上傳 ${memos.value.length} 筆至雲端`);
+  } catch (e) {
+    toast(`上傳失敗：${(e as Error).message}`);
+  } finally { isSyncing.value = false; }
+}
+
+async function pullFromCloud() {
+  if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
+  isSyncing.value = true;
+  try {
+    const res = await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "getShiftMemos" }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
+    const data: ShiftMemo[] = json.data;
+    if (!data.length) { toast("雲端無備忘資料"); return; }
+    const db = await getDb();
+    await db.execute("DELETE FROM shift_memos");
+    for (const r of data) {
+      await db.execute(
+        "INSERT INTO shift_memos (id, category, title, content, sort_order, updated_at) VALUES (?,?,?,?,?,?)",
+        [r.id, r.category, r.title, r.content, r.sort_order ?? 0, r.updated_at ?? ""]
+      );
+    }
+    activeMemo.value = null;
+    editor.value?.commands.setContent("");
+    await load();
+    toast(`已從雲端同步 ${data.length} 筆備忘`);
+  } catch (e) {
+    toast(`下載失敗：${(e as Error).message}`);
+  } finally { isSyncing.value = false; }
+}
+
 // ── 編輯標題 ─────────────────────────────────────────────────
 const editingTitle = ref(false);
 const titleDraft   = ref("");
@@ -166,8 +219,18 @@ async function saveTitle() {
         </div>
       </div>
 
-      <!-- Add button -->
-      <div class="px-3 py-3 border-t border-gray-800 shrink-0">
+      <!-- Sync + Add buttons -->
+      <div class="px-3 py-3 border-t border-gray-800 shrink-0 space-y-1.5">
+        <div class="flex gap-1.5">
+          <button @click="pullFromCloud" :disabled="isSyncing"
+            class="flex-1 py-1 rounded-lg bg-blue-800/60 text-blue-200 text-xs hover:bg-blue-700/60 disabled:opacity-40 transition-colors">
+            {{ isSyncing ? "…" : "↓ 同步" }}
+          </button>
+          <button @click="pushToCloud" :disabled="isSyncing"
+            class="flex-1 py-1 rounded-lg bg-gray-700 text-gray-300 text-xs hover:bg-gray-600 disabled:opacity-40 transition-colors">
+            {{ isSyncing ? "…" : "↑ 上傳" }}
+          </button>
+        </div>
         <button @click="openAdd"
           class="w-full py-1.5 rounded-lg bg-blue-700/60 text-blue-200 text-sm hover:bg-blue-700 transition-colors">
           ＋ 新增備忘
