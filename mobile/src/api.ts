@@ -18,6 +18,7 @@ export interface Config {
   booking_month?: string
   booking_from?: string
   booking_until?: string
+  schedule_spreadsheet_id?: string
 }
 
 // POST without Content-Type header → text/plain → no CORS preflight

@@ -48,7 +48,10 @@ async function loadSchedule(forceRefresh = false) {
   }
 
   loading.value = true
-  const r = await gasApi<(string|number)[][]>('getSchedule', { sheetName: `Schedule_${mm}` })
+  const extra = props.config.schedule_spreadsheet_id
+    ? { spreadsheetId: props.config.schedule_spreadsheet_id }
+    : {}
+  const r = await gasApi<(string|number)[][]>('getSchedule', { sheetName: `Schedule_${mm}`, ...extra })
   loading.value = false
 
   if (!r.ok || !r.data || r.data.length < 2) {

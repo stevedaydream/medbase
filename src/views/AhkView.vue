@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
-import { readTextFile, writeTextFile, remove as removeFile } from "@tauri-apps/plugin-fs";
+import { readTextFile, writeTextFile, remove as removeFile, exists, mkdir } from "@tauri-apps/plugin-fs";
+import { documentDir, join } from "@tauri-apps/api/path";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -396,30 +397,57 @@ async function pullFromCloud() {
     if (!cloudScripts.length) { showToast("雲端無腳本資料"); return; }
 
     const db = await getDb();
-    let written = 0, skipped = 0;
+    let written = 0, skipped = 0, remapped = 0;
+
+    // 預設資料夾：文件/MedBase/ahk/
+    const docDir = await documentDir();
+    const ahkDir = await join(docDir, "MedBase", "ahk");
+
     for (const cs of cloudScripts) {
-      // 寫入檔案（內容不同才覆寫）
-      if (cs.file_path) {
+      let targetPath = cs.file_path;
+
+      // 若原始路徑在本機不存在，改放到預設資料夾
+      const pathOk = cs.file_path ? await exists(cs.file_path).catch(() => false) : false;
+      if (!pathOk) {
         try {
-          let local = "";
-          try { local = await readTextFile(cs.file_path); } catch { /* 不存在視為空 */ }
-          if (local !== cs.content) {
-            await writeTextFile(cs.file_path, cs.content);
-            written++;
-          } else {
-            skipped++;
-          }
-        } catch { skipped++; }
+          await mkdir(ahkDir, { recursive: true });
+        } catch (e) {
+          console.error("[AHK restore] mkdir failed:", ahkDir, e);
+          throw new Error(`無法建立資料夾 ${ahkDir}：${e instanceof Error ? e.message : String(e)}`);
+        }
+        const filename = (cs.file_path?.split(/[\\/]/).pop()) || `script_${cs.id}.ahk`;
+        const candidate = await join(ahkDir, filename);
+        const conflict  = await exists(candidate).catch(() => false);
+        targetPath = conflict ? await join(ahkDir, `${cs.id}_${filename}`) : candidate;
+        remapped++;
+        console.log("[AHK restore] remapped:", cs.file_path, "→", targetPath);
       }
-      // 更新 DB 紀錄
+
+      // 寫入檔案（內容不同才覆寫）
+      try {
+        let local = "";
+        try { local = await readTextFile(targetPath); } catch { /* 不存在視為空 */ }
+        if (local !== cs.content) {
+          await writeTextFile(targetPath, cs.content);
+          written++;
+        } else {
+          skipped++;
+        }
+      } catch (e) {
+        console.error("[AHK restore] write failed:", targetPath, e);
+        skipped++;
+      }
+
+      // 更新 DB 紀錄（file_path 用本機實際路徑）
       await db.execute(
         `INSERT OR REPLACE INTO ahk_scripts (id, name, file_path, description, updated_at)
          VALUES (?, ?, ?, ?, datetime('now'))`,
-        [cs.id, cs.name, cs.file_path, cs.description ?? ""]
+        [cs.id, cs.name, targetPath, cs.description ?? ""]
       );
     }
     await loadAll();
-    showToast(`已還原：更新 ${written} 個，略過 ${skipped} 個（內容相同）`);
+    const remapNote = remapped > 0 ? `，${remapped} 個已對應至 文件/MedBase/ahk/` : "";
+    showToast(`已還原：更新 ${written} 個，略過 ${skipped} 個${remapNote}`);
   } catch (e) { showError(`還原失敗：${(e as Error).message}`, e); }
   finally { isSyncing.value = false; setGlobalSyncing("ahk", false); }
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from "vue";
-import { getDb } from "@/db";
+import { getDb, dbWrite } from "@/db";
 import MedicationModal, { type MedicationForm } from "@/components/medications/MedicationModal.vue";
 import NhiImportModal from "@/components/medications/NhiImportModal.vue";
 import TfdaSearchModal from "@/components/medications/TfdaSearchModal.vue";
@@ -119,17 +119,16 @@ function openEdit() {
 }
 
 async function saveMedication(form: MedicationForm) {
-  const db = await getDb();
   const synonyms = JSON.stringify(form.synonyms.split(",").map((s) => s.trim()).filter(Boolean));
   const warnings = JSON.stringify(form.warnings.split("\n").map((s) => s.trim()).filter(Boolean));
 
   if (crudMode.value === "add") {
-    await db.execute(
+    await dbWrite(
       `INSERT INTO medications (name, generic_name, synonyms, category, route, dose, iv_rate, warnings, notes) VALUES (?,?,?,?,?,?,?,?,?)`,
       [form.name, form.generic_name, synonyms, form.category, form.route, form.dose, form.iv_rate, warnings, form.notes]
     );
   } else {
-    await db.execute(
+    await dbWrite(
       `UPDATE medications SET name=?, generic_name=?, synonyms=?, category=?, route=?, dose=?, iv_rate=?, warnings=?, notes=? WHERE id=?`,
       [form.name, form.generic_name, synonyms, form.category, form.route, form.dose, form.iv_rate, warnings, form.notes, form.id]
     );
@@ -142,8 +141,7 @@ async function saveMedication(form: MedicationForm) {
 async function deleteMedication() {
   if (!selected.value) return;
   if (!confirm(`確定刪除「${selected.value.name}」？`)) return;
-  const db = await getDb();
-  await db.execute("DELETE FROM medications WHERE id = ?", [selected.value.id]);
+  await dbWrite("DELETE FROM medications WHERE id = ?", [selected.value.id]);
   selected.value = null;
   await loadMedications();
 }
@@ -178,26 +176,23 @@ async function pullMedicationsFromCloud() {
     if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
     const rows: Medication[] = json.data || [];
     if (!rows.length) { alert("雲端無藥物資料"); return; }
-    const db = await getDb();
-    await db.execute("BEGIN TRANSACTION");
     let inserted = 0, skipped = 0;
     for (const r of rows) {
-      const res2 = await db.execute(
+      const res2 = await dbWrite(
         `INSERT OR IGNORE INTO medications (name, generic_name, synonyms, category, route, dose, iv_rate, warnings, notes)
          VALUES (?,?,?,?,?,?,?,?,?)`,
         [r.name, r.generic_name||"", r.synonyms||"", r.category||"", r.route||"", r.dose||"", r.iv_rate||"", r.warnings||"", r.notes||""]
       );
       if (res2.rowsAffected > 0) inserted++; else skipped++;
     }
-    await db.execute("COMMIT");
     await loadMedications();
     const msg = skipped > 0
       ? `✓ 新增 ${inserted} 筆，跳過 ${skipped} 筆（已存在）`
       : `✓ 已還原 ${inserted} 筆藥物`;
     alert(msg);
   } catch (e) {
-    try { const db = await getDb(); await db.execute("ROLLBACK"); } catch {}
-    alert(`還原失敗：${(e as Error).message}`);
+    console.error("[medications pull]", e);
+    alert(`還原失敗：${e instanceof Error ? e.message : String(e)}`);
   }
   finally { isSyncing.value = false; setGlobalSyncing("medications", false); }
 }
@@ -240,8 +235,6 @@ async function onNhiImported(rows: Record<string, unknown>[]) {
   showNhiImport.value = false;
   importProgress.value = { active: true, current: 0, total: rows.length, inserted: 0, skipped: 0 };
   try {
-    const db = await getDb();
-    await db.execute("BEGIN TRANSACTION");
     let inserted = 0;
     let skipped  = 0;
     for (let i = 0; i < rows.length; i++) {
@@ -251,7 +244,7 @@ async function onNhiImported(rows: Record<string, unknown>[]) {
       if (!name) continue;
       const synonyms = JSON.stringify([m.synonyms ? cellStr(row, m.synonyms) : ""].filter(Boolean));
       const warnings = JSON.stringify([m.warnings ? cellStr(row, m.warnings) : ""].filter(Boolean));
-      const res = await db.execute(
+      const res = await dbWrite(
         `INSERT OR IGNORE INTO medications (name, generic_name, synonyms, category, route, dose, iv_rate, warnings, notes) VALUES (?,?,?,?,?,?,?,?,?)`,
         [
           name,
@@ -269,7 +262,6 @@ async function onNhiImported(rows: Record<string, unknown>[]) {
       importProgress.value.inserted = inserted;
       importProgress.value.skipped  = skipped;
     }
-    await db.execute("COMMIT");
     importProgress.value.active = false;
     await loadMedications();
     const msg = skipped > 0
@@ -278,9 +270,8 @@ async function onNhiImported(rows: Record<string, unknown>[]) {
     addLog('info', msg);
     alert(msg);
   } catch (err) {
-    try { const db = await getDb(); await db.execute("ROLLBACK"); } catch {}
     importProgress.value.active = false;
-    const errMsg = `匯入失敗：${(err as Error).message}`;
+    const errMsg = `匯入失敗：${err instanceof Error ? err.message : String(err)}`;
     addLog('error', errMsg, (err as Error).stack);
     alert(errMsg);
   }

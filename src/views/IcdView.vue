@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from "vue";
-import { getDb } from "@/db";
+import { getDb, dbWrite } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { icdSyncing, icdProgress, icdTotal, icdMessage, pullIcdFromCloud } from "@/composables/useIcdSync";
 import * as XLSX from "xlsx";
@@ -101,8 +101,7 @@ async function doSearch() {
 
 async function toggleStar(code: string, current: number) {
   const newVal = current ? 0 : 1;
-  const db = await getDb();
-  await db.execute("UPDATE icd_codes SET is_starred = ? WHERE code = ?", [newVal, code]);
+  await dbWrite("UPDATE icd_codes SET is_starred = ? WHERE code = ?", [newVal, code]);
   const item = results.value.find(r => r.code === code);
   if (item) item.is_starred = newVal;
   // 若目前在 star filter 且取消星號，從列表移除
@@ -139,17 +138,16 @@ function openEdit(c: IcdCode) {
 async function saveForm() {
   const f = form.value;
   if (!f.code?.trim() || !f.version) return;
-  const db = await getDb();
   if (modalMode.value === "add") {
     try {
-      await db.execute(
+      await dbWrite(
         "INSERT INTO icd_codes (code, version, description_zh, description_en, category) VALUES (?,?,?,?,?)",
         [f.code.trim().toUpperCase(), f.version, f.description_zh ?? "", f.description_en ?? "", f.category ?? ""]
       );
       toast("已新增");
     } catch { toast("代碼已存在"); return; }
   } else {
-    await db.execute(
+    await dbWrite(
       "UPDATE icd_codes SET version=?, description_zh=?, description_en=?, category=? WHERE code=?",
       [f.version, f.description_zh ?? "", f.description_en ?? "", f.category ?? "", f.code]
     );
@@ -160,8 +158,7 @@ async function saveForm() {
 }
 async function doDelete() {
   if (!deleteTarget.value) return;
-  const db = await getDb();
-  await db.execute("DELETE FROM icd_codes WHERE code=?", [deleteTarget.value.code]);
+  await dbWrite("DELETE FROM icd_codes WHERE code=?", [deleteTarget.value.code]);
   deleteTarget.value = null;
   toast("已刪除");
   await refresh();
@@ -195,21 +192,24 @@ async function startPullFromCloud() {
 }
 
 // ── Excel 匯入 ────────────────────────────────────────────────
-const showImport   = ref(false);
-const importRows   = ref<IcdCode[]>([]);
-const importLoading = ref(false);
+const showImport            = ref(false);
+const importRows            = ref<IcdCode[]>([]);
+const importVersion         = ref<"ICD9" | "ICD10">("ICD10");
+const importLoading         = ref(false);
+const importConfirming      = ref(false);
+const importConfirmProgress = ref(0);
 
 const COL_MAP: Record<keyof Omit<IcdCode, "version" | "is_starred">, string[]> = {
-  code:           ["疾病碼", "icd碼", "代碼", "code", "icd", "碼"],
-  description_zh: ["中文名稱", "中文", "診斷", "中文診斷", "名稱"],
-  description_en: ["英文名稱", "英文", "english", "en"],
+  code:           ["icd-9-cm代碼", "icd-10-cm代碼", "疾病碼", "icd碼", "診斷碼", "代碼", "code", "icd", "碼"],
+  description_zh: ["icd-9-cm中文名稱", "icd-10-cm中文名稱", "中文名稱", "中文", "診斷", "中文診斷"],
+  description_en: ["icd-9-cm英文名稱", "icd-10-cm英文名稱", "英文名稱", "英文", "english", "en"],
   category:       ["類別", "大類", "category"],
 };
 
 function detectCol(headers: string[], keys: string[]): number {
-  for (const h of headers) {
-    const idx = headers.indexOf(h);
-    if (keys.some(k => h.toLowerCase().includes(k.toLowerCase()))) return idx;
+  for (const key of keys) {
+    const idx = headers.findIndex(h => h.toLowerCase().includes(key.toLowerCase()));
+    if (idx >= 0) return idx;
   }
   return -1;
 }
@@ -234,10 +234,11 @@ function handleFileImport(e: Event) {
 
       if (codeIdx < 0) { toast("找不到代碼欄位（疾病碼/ICD碼/代碼）"); importLoading.value = false; return; }
 
+      importVersion.value = activeVer.value;
       importRows.value = raw
         .map(r => ({
           code:           (String(r[headers[codeIdx]] ?? "")).trim().toUpperCase(),
-          version:        activeVer.value,
+          version:        importVersion.value,
           description_zh: zhIdx  >= 0 ? String(r[headers[zhIdx]]  ?? "").trim() : "",
           description_en: enIdx  >= 0 ? String(r[headers[enIdx]]  ?? "").trim() : "",
           category:       catIdx >= 0 ? String(r[headers[catIdx]] ?? "").trim() : "",
@@ -254,19 +255,34 @@ function handleFileImport(e: Event) {
 }
 
 async function confirmImport() {
-  const db = await getDb();
-  let count = 0;
-  for (const r of importRows.value) {
-    await db.execute(
-      "INSERT OR REPLACE INTO icd_codes (code, version, description_zh, description_en, category) VALUES (?,?,?,?,?)",
-      [r.code, r.version, r.description_zh, r.description_en, r.category]
-    );
-    count++;
+  if (importConfirming.value) return;
+  importConfirming.value = true;
+  importConfirmProgress.value = 0;
+  const rows = importRows.value;
+  const total = rows.length;
+  const BATCH = 100;
+  try {
+    for (let i = 0; i < total; i += BATCH) {
+      const slice = rows.slice(i, i + BATCH);
+      const ph   = slice.map(() => "(?,?,?,?,?)").join(",");
+      const vals = slice.flatMap(r => [r.code, importVersion.value, r.description_zh, r.description_en, r.category]);
+      await dbWrite(
+        `INSERT OR REPLACE INTO icd_codes (code,version,description_zh,description_en,category) VALUES ${ph}`,
+        vals
+      );
+      importConfirmProgress.value = Math.round(Math.min(i + BATCH, total) / total * 100);
+      await new Promise(res => setTimeout(res, 0));
+    }
+    showImport.value = false;
+    importRows.value = [];
+    await refresh();
+    toast(`已匯入 ${total} 筆 ${importVersion.value} 代碼`);
+  } catch (e) {
+    console.error("[ICD import]", e);
+    toast(`匯入失敗：${e instanceof Error ? e.message : String(e)}`);
+  } finally {
+    importConfirming.value = false;
   }
-  showImport.value = false;
-  importRows.value = [];
-  await refresh();
-  toast(`已匯入 ${count} 筆 ${activeVer.value} 代碼`);
 }
 </script>
 
@@ -432,8 +448,18 @@ async function confirmImport() {
     <!-- Import preview modal -->
     <div v-if="showImport" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60" @click.self="showImport = false">
       <div class="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-[560px] max-w-[90vw] p-6 space-y-4 flex flex-col max-h-[80vh]">
-        <h2 class="text-white font-semibold shrink-0">匯入預覽</h2>
-        <p class="text-sm text-gray-400 shrink-0">共 <span class="text-white font-semibold">{{ importRows.length }}</span> 筆 {{ activeVer }} 代碼，確認後寫入（重複代碼以新資料覆蓋）</p>
+        <div class="flex items-center justify-between shrink-0">
+          <h2 class="text-white font-semibold">匯入預覽</h2>
+          <div class="flex gap-1">
+            <button v-for="v in (['ICD10', 'ICD9'] as const)" :key="v"
+              @click="importVersion = v"
+              class="px-3 py-1 rounded-lg text-xs font-medium transition-colors"
+              :class="importVersion === v ? 'bg-blue-700 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'">
+              {{ v }}
+            </button>
+          </div>
+        </div>
+        <p class="text-sm text-gray-400 shrink-0">共 <span class="text-white font-semibold">{{ importRows.length }}</span> 筆 <span class="text-blue-300 font-semibold">{{ importVersion }}</span> 代碼，確認後寫入（重複代碼以新資料覆蓋）</p>
         <div class="flex-1 overflow-y-auto space-y-1 min-h-0">
           <div v-for="r in importRows.slice(0, 50)" :key="r.code" class="flex items-center gap-3 px-3 py-1.5 rounded-lg bg-gray-800/60 text-sm">
             <span class="font-mono text-blue-300 w-20 shrink-0">{{ r.code }}</span>
@@ -442,9 +468,20 @@ async function confirmImport() {
           </div>
           <p v-if="importRows.length > 50" class="text-xs text-gray-600 text-center py-2">…還有 {{ importRows.length - 50 }} 筆</p>
         </div>
+        <div v-if="importConfirming" class="shrink-0 space-y-1">
+          <div class="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+            <div class="h-2 bg-green-500 rounded-full transition-all duration-150"
+              :style="{ width: importConfirmProgress + '%' }"></div>
+          </div>
+          <p class="text-xs text-gray-500 text-right">{{ importConfirmProgress }}%</p>
+        </div>
         <div class="flex gap-3 justify-end shrink-0 pt-1">
-          <button @click="showImport = false" class="px-4 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600">取消</button>
-          <button @click="confirmImport" class="px-5 py-2 text-sm bg-green-700 text-white rounded-lg hover:bg-green-600">確認匯入</button>
+          <button @click="showImport = false" :disabled="importConfirming"
+            class="px-4 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 disabled:opacity-40">取消</button>
+          <button @click="confirmImport" :disabled="importConfirming"
+            class="px-5 py-2 text-sm bg-green-700 text-white rounded-lg hover:bg-green-600 disabled:opacity-60">
+            {{ importConfirming ? `匯入中… ${importConfirmProgress}%` : '確認匯入' }}
+          </button>
         </div>
       </div>
     </div>

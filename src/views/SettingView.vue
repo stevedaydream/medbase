@@ -70,7 +70,8 @@ const GAS_CODE = `function doPost(e) {
       }
       case 'batchSaveShifts':
       case 'saveSchedule': {
-        let sh = ss.getSheetByName(p.sheetName) || ss.insertSheet(p.sheetName);
+        const target = p.spreadsheetId ? SpreadsheetApp.openById(p.spreadsheetId) : ss;
+        let sh = target.getSheetByName(p.sheetName) || target.insertSheet(p.sheetName);
         const hd = ['姓名',...Array.from({length:31},(_,i)=>\`\${i+1}日\`)];
         const rw = p.data.map(r => [r.name,...r.days.map(d=>d||'')]);
         sh.clearContents();
@@ -251,7 +252,8 @@ async function handleSettingsImport(e: Event) {
     await cloud.reload();
     showToast(`設定匯入完成，共匯入 ${rows.length} 筆。`);
   } catch (err: any) {
-    showToast(`匯入失敗：${err?.message ?? err}`);
+    console.error("[settings import]", err);
+    showToast(`匯入失敗：${err instanceof Error ? err.message : String(err)}`);
   } finally {
     importingSettings.value = false;
     if (settingsImportInput.value) settingsImportInput.value.value = "";
@@ -260,14 +262,61 @@ async function handleSettingsImport(e: Event) {
 
 // ── Save ──────────────────────────────────────────────────────────────
 async function saveSettings() {
-  // cloud settings auto-save via store watch; sheetPrefix auto-saves via local watch
-  // Force immediate persist for cloud settings
   const db = await getDb();
   await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", ["scheduler_spreadsheet_id", cloud.spreadsheetId]);
   await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", ["scheduler_api_key",         cloud.apiKey]);
   await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", ["scheduler_gas_url",          cloud.gasUrl]);
   await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", ["scheduler_sheet_prefix",     sheetPrefix.value]);
+
+  // 同步設定到 GAS Config（包含換電腦時需要的所有 key）
+  if (cloud.gasUrl) {
+    const configPairs: [string, string][] = [
+      ["gas_url",              cloud.gasUrl],
+      ["spreadsheet_id",       cloud.spreadsheetId],
+      ["api_key",              cloud.apiKey],
+      ["schedule_sheet_prefix", sheetPrefix.value],
+    ];
+    if (cloud.scheduleSpreadsheetId)
+      configPairs.push(["schedule_spreadsheet_id", cloud.scheduleSpreadsheetId]);
+    for (const [key, value] of configPairs) {
+      fetch(cloud.gasUrl, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ action: "saveConfig", key, value }),
+        mode: "no-cors",
+      }).catch(() => {});
+    }
+  }
+
   showToast("設定已儲存");
+}
+
+// ── 從雲端還原設定（換電腦時：只需先填 GAS URL） ─────────────────────
+const isPullingSettings = ref(false);
+async function pullSettingsFromCloud() {
+  if (!cloud.gasUrl) { showToast("請先填入 GAS Web App URL"); return; }
+  isPullingSettings.value = true;
+  try {
+    const res = await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "getConfig" }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json() as { ok: boolean; data?: Record<string, string>; error?: string };
+    if (!json.ok || !json.data) throw new Error(json.error ?? "GAS 回傳錯誤");
+    const d = json.data;
+    if (d.spreadsheet_id)        cloud.spreadsheetId         = d.spreadsheet_id;
+    if (d.api_key)               cloud.apiKey                = d.api_key;
+    if (d.schedule_spreadsheet_id) cloud.scheduleSpreadsheetId = d.schedule_spreadsheet_id;
+    if (d.schedule_sheet_prefix) sheetPrefix.value           = d.schedule_sheet_prefix;
+    await saveSettings();
+    showToast("設定已從雲端還原");
+  } catch (e) {
+    showToast(`還原失敗：${e instanceof Error ? e.message : String(e)}`);
+  } finally {
+    isPullingSettings.value = false;
+  }
 }
 </script>
 
@@ -346,6 +395,11 @@ async function saveSettings() {
         <button @click="saveSettings"
           class="text-xs px-4 py-1.5 bg-blue-700 hover:bg-blue-600 text-white rounded">
           儲存設定
+        </button>
+        <button @click="pullSettingsFromCloud" :disabled="isPullingSettings || !cloud.gasUrl"
+          class="text-xs px-4 py-1.5 rounded border border-blue-800 text-blue-400 hover:border-blue-600 hover:text-blue-300 disabled:opacity-40 transition-colors"
+          title="填入 GAS URL 後，從雲端還原其他所有設定（換電腦用）">
+          {{ isPullingSettings ? '還原中…' : '↓ 從雲端還原設定' }}
         </button>
         <label
           class="text-xs px-4 py-1.5 rounded border transition-colors cursor-pointer select-none"

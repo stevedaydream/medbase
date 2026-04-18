@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
-import { getDb, closeDb } from "@/db";
+import { getDb, closeDb, dbWrite } from "@/db";
 import * as XLSX from "xlsx";
 import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialog";
-import { writeFile, copyFile } from "@tauri-apps/plugin-fs";
+import { writeFile, copyFile, readTextFile } from "@tauri-apps/plugin-fs";
 import { appDataDir, join } from "@tauri-apps/api/path";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { useCloudSettings } from "@/stores/cloudSettings";
@@ -95,17 +95,16 @@ async function saveBatchItems() {
   if (!valid.length) return;
   batchSaving.value = true;
   try {
-    const db = await getDb();
     for (const r of valid) {
       const code = r.hospital_code.trim();
-      await db.execute(
+      await dbWrite(
         `INSERT OR IGNORE INTO items (hospital_code,name_zh,purpose,unit,price,supplier,notes) VALUES (?,?,?,?,?,?,?)`,
         [code, r.name_zh||null, r.purpose||null, null,
          r.price !== "" ? Number(r.price) : null, r.supplier||null, null]
       );
       const depts = r.deptsStr.split(";").map(s => s.trim()).filter(Boolean);
       for (const d of depts) {
-        await db.execute("INSERT OR IGNORE INTO item_depts (hospital_code,dept) VALUES (?,?)", [code, d]);
+        await dbWrite("INSERT OR IGNORE INTO item_depts (hospital_code,dept) VALUES (?,?)", [code, d]);
       }
     }
     showBatchAdd.value = false;
@@ -125,9 +124,10 @@ function showToast(type: Toast["type"], msg: string) {
 
 // ── 匯入 XLSX ────────────────────────────────────────────────────
 interface ImportResult { sheet: string; upserted: number; skipped: number; }
-const importing     = ref(false);
-const importResults = ref<ImportResult[] | null>(null);
-const xlsxInput     = ref<HTMLInputElement | null>(null);
+const importing        = ref(false);
+const importProgress   = ref(0);
+const importResults    = ref<ImportResult[] | null>(null);
+const xlsxInput        = ref<HTMLInputElement | null>(null);
 
 function n(v: any): any { return (v === undefined || v === "" || v === null) ? null : v; }
 function isNum(v: any): v is number { return typeof v === "number" && isFinite(v); }
@@ -136,12 +136,12 @@ async function handleXlsx(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file) return;
   importing.value = true;
+  importProgress.value = 0;
   importResults.value = null;
 
   try {
     const buf = await file.arrayBuffer();
     const wb  = XLSX.read(buf, { type: "array" });
-    const db  = await getDb();
     const results: ImportResult[] = [];
 
     function rows(sheet: string): Record<string, any>[] {
@@ -149,17 +149,25 @@ async function handleXlsx(e: Event) {
       return ws ? XLSX.utils.sheet_to_json<Record<string, any>>(ws) : [];
     }
 
+    const sheetNames = ["departments", "doctors", "items", "sets", "set_items", "physicians"];
+    const totalRows = sheetNames.reduce((sum, s) => sum + rows(s).length, 0);
+    let doneRows = 0;
+    function tick(n = 1) {
+      doneRows += n;
+      importProgress.value = totalRows > 0 ? Math.round((doneRows / totalRows) * 100) : 100;
+    }
+
     // ① departments
     {
       let ok = 0, skip = 0;
       for (const r of rows("departments")) {
-        if (!r.name || typeof r.name !== "string" || r.name.startsWith("★")) { skip++; continue; }
+        if (!r.name || typeof r.name !== "string" || r.name.startsWith("★")) { skip++; tick(); continue; }
         if (isNum(r.id)) {
-          await db.execute("INSERT OR REPLACE INTO departments (id, name) VALUES (?,?)", [r.id, r.name]);
+          await dbWrite("INSERT OR REPLACE INTO departments (id, name) VALUES (?,?)", [r.id, r.name]);
         } else {
-          await db.execute("INSERT OR IGNORE INTO departments (name) VALUES (?)", [r.name]);
+          await dbWrite("INSERT OR IGNORE INTO departments (name) VALUES (?)", [r.name]);
         }
-        ok++;
+        ok++; tick();
       }
       results.push({ sheet: "科別", upserted: ok, skipped: skip });
     }
@@ -168,17 +176,17 @@ async function handleXlsx(e: Event) {
     {
       let ok = 0, skip = 0;
       for (const r of rows("doctors")) {
-        if (!r.name || typeof r.name !== "string" || r.name.startsWith("★")) { skip++; continue; }
+        if (!r.name || typeof r.name !== "string" || r.name.startsWith("★")) { skip++; tick(); continue; }
         if (isNum(r.id)) {
-          await db.execute(
+          await dbWrite(
             "INSERT OR REPLACE INTO doctors (id, name, department_id) VALUES (?,?,?)",
             [r.id, r.name, n(r.department_id)]);
         } else {
-          await db.execute(
+          await dbWrite(
             "INSERT OR IGNORE INTO doctors (name, department_id) VALUES (?,?)",
             [r.name, n(r.department_id)]);
         }
-        ok++;
+        ok++; tick();
       }
       results.push({ sheet: "醫師(VS)", upserted: ok, skipped: skip });
     }
@@ -188,23 +196,22 @@ async function handleXlsx(e: Event) {
       let ok = 0, skip = 0;
       for (const r of rows("items")) {
         const code = r.hospital_code;
-        if (!code || typeof code !== "string" || code.startsWith("★")) { skip++; continue; }
-        await db.execute(
+        if (!code || typeof code !== "string" || code.startsWith("★")) { skip++; tick(); continue; }
+        await dbWrite(
           `INSERT OR REPLACE INTO items
            (hospital_code,name_en,name_zh,purpose,unit,price,supplier,notes)
            VALUES (?,?,?,?,?,?,?,?)`,
           [code, n(r.name_en), n(r.name_zh), n(r.purpose ?? r.category),
            n(r.unit), n(r.price), n(r.supplier), n(r.notes)]);
-        // item_depts：depts 欄位用分號分隔，如「骨科;一般外科」
         if (r.depts && typeof r.depts === "string") {
-          await db.execute("DELETE FROM item_depts WHERE hospital_code=?", [code]);
+          await dbWrite("DELETE FROM item_depts WHERE hospital_code=?", [code]);
           for (const dept of r.depts.split(";").map((d:string)=>d.trim()).filter(Boolean)) {
-            await db.execute(
+            await dbWrite(
               "INSERT OR IGNORE INTO item_depts (hospital_code, dept) VALUES (?,?)",
               [code, dept]);
           }
         }
-        ok++;
+        ok++; tick();
       }
       results.push({ sheet: "自費品項", upserted: ok, skipped: skip });
     }
@@ -213,12 +220,12 @@ async function handleXlsx(e: Event) {
     {
       let ok = 0, skip = 0;
       for (const r of rows("sets")) {
-        if (!isNum(r.id) || !r.name) { skip++; continue; }
-        await db.execute(
+        if (!isNum(r.id) || !r.name) { skip++; tick(); continue; }
+        await dbWrite(
           `INSERT OR REPLACE INTO sets (id,name,surgery_type,physician_id,department_id,notes)
            VALUES (?,?,?,?,?,?)`,
           [r.id, r.name, n(r.surgery_type), n(r.physician_id ?? r.doctor_id), n(r.department_id), n(r.notes)]);
-        ok++;
+        ok++; tick();
       }
       results.push({ sheet: "套組", upserted: ok, skipped: skip });
     }
@@ -227,15 +234,15 @@ async function handleXlsx(e: Event) {
     {
       let ok = 0, skip = 0;
       for (const r of rows("set_items")) {
-        if (!isNum(r.id) || !isNum(r.set_id)) { skip++; continue; }
-        await db.execute(
+        if (!isNum(r.id) || !isNum(r.set_id)) { skip++; tick(); continue; }
+        await dbWrite(
           `INSERT OR REPLACE INTO set_items
            (id,set_id,hospital_code,quantity,is_optional,sort_order,price,notes)
            VALUES (?,?,?,?,?,?,?,?)`,
           [r.id, r.set_id, n(r.hospital_code),
            n(r.quantity) ?? 1, n(r.is_optional) ?? 0, n(r.sort_order) ?? r.id ?? 0,
            n(r.price), n(r.notes)]);
-        ok++;
+        ok++; tick();
       }
       results.push({ sheet: "套組品項", upserted: ok, skipped: skip });
     }
@@ -244,23 +251,23 @@ async function handleXlsx(e: Event) {
     {
       let ok = 0, skip = 0;
       for (const r of rows("physicians")) {
-        if (!r.name || typeof r.name !== "string" || r.name.startsWith("★")) { skip++; continue; }
+        if (!r.name || typeof r.name !== "string" || r.name.startsWith("★")) { skip++; tick(); continue; }
         if (isNum(r.id)) {
-          await db.execute(
+          await dbWrite(
             `INSERT OR REPLACE INTO physicians
              (id,name,department,title,ext,his_account,his_password,phs_account,phs_password,notes)
              VALUES (?,?,?,?,?,?,?,?,?,?)`,
             [r.id, r.name, n(r.department), n(r.title), n(r.ext),
              n(r.his_account), n(r.his_password), n(r.phs_account), n(r.phs_password), n(r.notes)]);
         } else {
-          await db.execute(
+          await dbWrite(
             `INSERT INTO physicians
              (name,department,title,ext,his_account,his_password,phs_account,phs_password,notes)
              VALUES (?,?,?,?,?,?,?,?,?)`,
             [r.name, n(r.department), n(r.title), n(r.ext),
              n(r.his_account), n(r.his_password), n(r.phs_account), n(r.phs_password), n(r.notes)]);
         }
-        ok++;
+        ok++; tick();
       }
       if (ok || skip) results.push({ sheet: "通訊錄", upserted: ok, skipped: skip });
     }
@@ -391,24 +398,23 @@ async function clearLocalDb() {
   clearing.value = true;
   const errors: string[] = [];
   try {
-    const db = await getDb();
     // 關閉 FK 約束，避免 FK 阻擋刪除
-    await db.execute("PRAGMA foreign_keys = OFF");
+    await dbWrite("PRAGMA foreign_keys = OFF");
     try {
       // 清除醫師前，先將 sets.physician_id 懸空引用歸零
       if (selectedTables.has("physicians") && !selectedTables.has("sets")) {
-        await db.execute("UPDATE sets SET physician_id = NULL");
+        await dbWrite("UPDATE sets SET physician_id = NULL");
       }
       for (const t of FK_DELETE_ORDER) {
         if (!selectedTables.has(t)) continue;
         try {
-          await db.execute(`DELETE FROM ${t}`);
+          await dbWrite(`DELETE FROM ${t}`);
         } catch (e: any) {
           errors.push(`${t}: ${e?.message ?? e}`);
         }
       }
     } finally {
-      await db.execute("PRAGMA foreign_keys = OFF"); // 保持關閉（本 app 不啟用 FK）
+      await dbWrite("PRAGMA foreign_keys = OFF"); // 保持關閉（本 app 不啟用 FK）
     }
     const groupCount = selectedTables.size;
     await loadAll();
@@ -500,7 +506,6 @@ async function downloadTemplate() {
 // ── 備份 / 還原 app_settings ─────────────────────────────────────
 const exportingSettings = ref(false);
 const importingSettings = ref(false);
-const settingsImportInput = ref<HTMLInputElement | null>(null);
 
 async function exportSettings() {
   exportingSettings.value = true;
@@ -508,14 +513,13 @@ async function exportSettings() {
     const db   = await getDb();
     const rows = await db.select<{ key: string; value: string }[]>("SELECT key, value FROM app_settings");
     const json = JSON.stringify(rows, null, 2);
-    const blob = new Blob([json], { type: "application/json" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
     const date = new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
-    a.href = url;
-    a.download = `medbase_settings_${date}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const path = await saveDialog({
+      defaultPath: `medbase_settings_${date}.json`,
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (!path) return;
+    await writeFile(path, new TextEncoder().encode(json));
     showToast("success", "設定備份完成！");
   } catch (err: any) {
     showToast("error", `備份失敗：${err?.message ?? err}`);
@@ -524,22 +528,22 @@ async function exportSettings() {
   }
 }
 
-async function handleSettingsImport(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0];
-  if (!file) return;
-  if (!confirm("確定還原設定？將覆蓋現有的所有程式設定（不影響臨床資料）。")) {
-    if (settingsImportInput.value) settingsImportInput.value.value = "";
-    return;
-  }
+async function handleSettingsImport() {
+  const path = await openDialog({
+    title: "選擇設定備份檔案",
+    filters: [{ name: "JSON", extensions: ["json"] }],
+    multiple: false,
+  });
+  if (!path) return;
+  if (!confirm("確定還原設定？將覆蓋現有的所有程式設定（不影響臨床資料）。")) return;
   importingSettings.value = true;
   try {
-    const text = await file.text();
+    const text = await readTextFile(path as string);
     const rows: { key: string; value: string }[] = JSON.parse(text);
     if (!Array.isArray(rows)) throw new Error("格式錯誤：預期為陣列");
-    const db = await getDb();
     for (const r of rows) {
       if (typeof r.key !== "string" || typeof r.value !== "string") continue;
-      await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", [r.key, r.value]);
+      await dbWrite("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", [r.key, r.value]);
     }
     await useCloudSettings().reload();
     showToast("success", `設定還原完成，共匯入 ${rows.length} 筆。`);
@@ -547,13 +551,13 @@ async function handleSettingsImport(e: Event) {
     showToast("error", `還原失敗：${err?.message ?? err}`);
   } finally {
     importingSettings.value = false;
-    if (settingsImportInput.value) settingsImportInput.value.value = "";
   }
 }
 
 // ── 匯入完整資料庫（含預覽確認） ──────────────────────────────────
-const importingFull = ref(false);
-const fullImportInput = ref<HTMLInputElement | null>(null);
+const importingFull     = ref(false);
+const fullImportProgress = ref(0);
+const fullImportInput   = ref<HTMLInputElement | null>(null);
 
 interface ImportPreviewRow { table: string; label: string; rows: number }
 const importPreview = ref<ImportPreviewRow[] | null>(null);
@@ -603,9 +607,10 @@ async function handleFullImport(e: Event) {
 async function confirmFullImport() {
   if (!pendingImportData.value) return;
   importingFull.value = true;
+  fullImportProgress.value = 0;
   try {
-    const db = await getDb();
     let total = 0;
+    const grandTotal = pendingImportData.value.reduce((s, { data }) => s + data.length, 0);
     for (const { table, data } of pendingImportData.value) {
       const columns = Object.keys(data[0]);
       const ph = columns.map(() => "?").join(",");
@@ -615,8 +620,9 @@ async function confirmFullImport() {
           const v = row[c];
           return (v === "" || v === undefined) ? null : v;
         });
-        await db.execute(`INSERT OR REPLACE INTO ${table} (${cols}) VALUES (${ph})`, vals);
+        await dbWrite(`INSERT OR REPLACE INTO ${table} (${cols}) VALUES (${ph})`, vals);
         total++;
+        fullImportProgress.value = grandTotal > 0 ? Math.round((total / grandTotal) * 100) : 100;
       }
     }
     await loadAll();
@@ -746,7 +752,6 @@ function newProtocol() {
 async function saveProtocol() {
   const f = protocolForm.value;
   if (!f.name?.trim()) return;
-  const db  = await getDb();
   const vals = [
     f.name,
     JSON.stringify(f.triggers),
@@ -757,11 +762,11 @@ async function saveProtocol() {
     f.notes || "",
   ];
   if (f.id) {
-    await db.execute(
+    await dbWrite(
       `UPDATE emergency_protocols SET name=?,triggers=?,immediate_actions=?,critical_meds=?,timers=?,contacts=?,notes=? WHERE id=?`,
       [...vals, f.id]);
   } else {
-    const res = await db.execute(
+    const res = await dbWrite(
       `INSERT INTO emergency_protocols (name,triggers,immediate_actions,critical_meds,timers,contacts,notes) VALUES (?,?,?,?,?,?,?)`, vals);
     protocolForm.value.id = res.lastInsertId as number;
     selectedProtocolId.value = protocolForm.value.id;
@@ -775,8 +780,7 @@ async function deleteProtocol() {
   showConfirm.value = true;
 }
 async function doDeleteProtocol() {
-  const db = await getDb();
-  await db.execute("DELETE FROM emergency_protocols WHERE id=?", [protocolForm.value.id]);
+  await dbWrite("DELETE FROM emergency_protocols WHERE id=?", [protocolForm.value.id]);
   selectedProtocolId.value = null;
   protocolEditorOpen.value = false;
   protocolForm.value = { name: "", triggers: [], immediate_actions: [], critical_meds: [], timers: [], contacts: [], notes: "" };
@@ -803,17 +807,16 @@ function closeModal() { showModal.value = false; }
 
 // ── CRUD：items ──────────────────────────────────────────────────
 async function saveItem() {
-  const db = await getDb();
   const f  = itemForm.value;
   if (!f.hospital_code?.trim()) return;
   if (modalMode.value === "add") {
-    await db.execute(
+    await dbWrite(
       `INSERT OR IGNORE INTO items (hospital_code,name_en,name_zh,purpose,unit,price,supplier,notes)
        VALUES (?,?,?,?,?,?,?,?)`,
       [f.hospital_code, f.name_en||null, f.name_zh||null, f.purpose||null,
        f.unit||null, f.price??null, f.supplier||null, f.notes||null]);
   } else {
-    await db.execute(
+    await dbWrite(
       `UPDATE items SET name_en=?,name_zh=?,purpose=?,unit=?,price=?,supplier=?,notes=?
        WHERE hospital_code=?`,
       [f.name_en||null, f.name_zh||null, f.purpose||null,
@@ -821,32 +824,30 @@ async function saveItem() {
   }
   // 同步 item_depts
   const depts: string[] = (f as any).depts ?? [];
-  await db.execute("DELETE FROM item_depts WHERE hospital_code=?", [f.hospital_code]);
+  await dbWrite("DELETE FROM item_depts WHERE hospital_code=?", [f.hospital_code]);
   for (const dept of depts) {
-    await db.execute("INSERT OR IGNORE INTO item_depts (hospital_code,dept) VALUES (?,?)", [f.hospital_code, dept]);
+    await dbWrite("INSERT OR IGNORE INTO item_depts (hospital_code,dept) VALUES (?,?)", [f.hospital_code, dept]);
   }
   closeModal(); await loadAll();
 }
 async function deleteItem(row: Item) {
-  const db = await getDb();
-  await db.execute("DELETE FROM items WHERE hospital_code=?", [row.hospital_code]);
+  await dbWrite("DELETE FROM items WHERE hospital_code=?", [row.hospital_code]);
   await loadAll();
 }
 
 // ── CRUD：physicians ─────────────────────────────────────────────
 async function savePhysician() {
-  const db = await getDb();
   const f  = physForm.value;
   if (!f.name?.trim()) return;
   if (modalMode.value === "add") {
-    await db.execute(
+    await dbWrite(
       `INSERT INTO physicians (name,department,title,ext,his_account,his_password,phs_account,phs_password,notes)
        VALUES (?,?,?,?,?,?,?,?,?)`,
       [f.name, f.department||null, f.title||null, f.ext||null,
        f.his_account||null, f.his_password||null,
        f.phs_account||null, f.phs_password||null, f.notes||null]);
   } else {
-    await db.execute(
+    await dbWrite(
       `UPDATE physicians SET name=?,department=?,title=?,ext=?,his_account=?,his_password=?,
        phs_account=?,phs_password=?,notes=? WHERE id=?`,
       [f.name, f.department||null, f.title||null, f.ext||null,
@@ -856,9 +857,8 @@ async function savePhysician() {
   closeModal(); await loadAll();
 }
 async function saveInlinePhys() {
-  const db = await getDb();
   const f  = editBuf.value;
-  await db.execute(
+  await dbWrite(
     `UPDATE physicians SET name=?,department=?,title=?,ext=?,his_account=?,his_password=?,
      phs_account=?,phs_password=?,notes=? WHERE id=?`,
     [f.name, f.department||null, f.title||null, f.ext||null,
@@ -870,8 +870,7 @@ async function saveInlinePhys() {
 }
 
 async function deletePhysician(row: Physician) {
-  const db = await getDb();
-  await db.execute("DELETE FROM physicians WHERE id=?", [row.id]);
+  await dbWrite("DELETE FROM physicians WHERE id=?", [row.id]);
   await loadAll();
 }
 
@@ -928,13 +927,17 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         />
         <!-- 匯入 XLSX -->
         <label v-if="activeTab !== 'emergency'"
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 cursor-pointer"
+          class="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 cursor-pointer overflow-hidden"
           :class="importing
             ? 'bg-gray-700 text-gray-400 cursor-wait'
             : 'bg-gray-700 hover:bg-gray-600 text-gray-200'"
         >
-          <span class="text-base leading-none">{{ importing ? "⏳" : "📥" }}</span>
-          {{ importing ? "匯入中…" : "匯入 XLSX" }}
+          <div v-if="importing"
+            class="absolute inset-0 bg-blue-600/30 transition-all duration-200"
+            :style="{ width: importProgress + '%' }"
+          ></div>
+          <span class="relative text-base leading-none">{{ importing ? "⏳" : "📥" }}</span>
+          <span class="relative">{{ importing ? `匯入中… ${importProgress}%` : "匯入 XLSX" }}</span>
           <input ref="xlsxInput" type="file" accept=".xlsx,.xls" class="hidden"
             :disabled="importing" @change="handleXlsx" />
         </label>
@@ -1365,12 +1368,10 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
                 class="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm transition-colors disabled:opacity-40">
                 {{ exportingSettings ? '備份中…' : '備份程式設定 (JSON)' }}
               </button>
-              <label class="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm transition-colors cursor-pointer"
-                :class="{ 'opacity-40 cursor-wait': importingSettings }">
+              <button @click="handleSettingsImport" :disabled="importingSettings"
+                class="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-200 text-sm transition-colors disabled:opacity-40">
                 {{ importingSettings ? '還原中…' : '還原程式設定 (JSON)' }}
-                <input ref="settingsImportInput" type="file" accept=".json" class="hidden"
-                  :disabled="importingSettings" @change="handleSettingsImport" />
-              </label>
+              </button>
             </div>
           </div>
 
@@ -1385,12 +1386,17 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               </div>
             </div>
             <p class="text-xs text-gray-500">匯入將以 INSERT OR REPLACE 執行，以 ID / 主鍵對應覆蓋現有資料。</p>
-            <div class="flex gap-3">
+            <!-- 進度條（匯入中才顯示） -->
+            <div v-if="importingFull" class="w-full rounded-full bg-gray-700 h-2 overflow-hidden">
+              <div class="h-2 bg-emerald-500 transition-all duration-150 rounded-full"
+                :style="{ width: fullImportProgress + '%' }"></div>
+            </div>
+            <div class="flex items-center gap-3">
               <button
                 @click="confirmFullImport"
                 :disabled="importingFull"
                 class="px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-medium transition-colors disabled:opacity-40"
-              >{{ importingFull ? '匯入中…' : '確認匯入' }}</button>
+              >{{ importingFull ? `匯入中… ${fullImportProgress}%` : '確認匯入' }}</button>
               <button
                 @click="cancelImport"
                 :disabled="importingFull"

@@ -63,7 +63,19 @@ function doPost(e) {
 
       // ── 取得已發布班表（手機端查看） ──────────────────────────────
       case 'getSchedule': {
-        const tss = getTargetSS(p);
+        // 優先用 p.spreadsheetId；若無則查 Config 的 schedule_spreadsheet_id
+        let tss;
+        if (p.spreadsheetId) {
+          tss = SpreadsheetApp.openById(p.spreadsheetId);
+        } else {
+          const cfg = ss.getSheetByName('Config');
+          let sid = '';
+          if (cfg) {
+            const row = cfg.getDataRange().getValues().find(r => r[0] === 'schedule_spreadsheet_id');
+            if (row) sid = String(row[1] || '');
+          }
+          tss = sid ? SpreadsheetApp.openById(sid) : ss;
+        }
         const sh = tss.getSheetByName(p.sheetName);
         if (!sh) return json({ ok: false, error: '班表分頁不存在' });
         const values = sh.getDataRange().getValues();
@@ -579,7 +591,13 @@ function handleApi(p) {
         return { ok: true, data: { code: String(user[0]), name: String(user[1]), role: String(user[2]) } };
       }
       case 'getSchedule': {
-        const sh = ss.getSheetByName(p.sheetName);
+        let tss = ss;
+        const cfg = ss.getSheetByName('Config');
+        if (cfg) {
+          const row = cfg.getDataRange().getValues().find(r => r[0] === 'schedule_spreadsheet_id');
+          if (row && row[1]) tss = SpreadsheetApp.openById(String(row[1]));
+        }
+        const sh = tss.getSheetByName(p.sheetName);
         if (!sh) return { ok: false, error: '班表分頁不存在' };
         return { ok: true, data: sh.getDataRange().getValues() };
       }

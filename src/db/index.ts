@@ -3,6 +3,7 @@ import { seedPhysicians, seedContacts, seedAppSettings } from "./seed";
 import { sha256 } from "@/utils/sha256";
 
 let db: Database | null = null;
+let _writeChain: Promise<void> = Promise.resolve();
 
 export async function closeDb(): Promise<void> {
   if (db) {
@@ -11,9 +12,25 @@ export async function closeDb(): Promise<void> {
   }
 }
 
+export async function dbWrite(sql: string, params?: unknown[]): Promise<import("@tauri-apps/plugin-sql").QueryResult> {
+  const database = await getDb();
+  let resolve!: () => void;
+  const prev = _writeChain;
+  _writeChain = new Promise(r => { resolve = r; });
+  try {
+    await prev;
+    return await database.execute(sql, params ?? []);
+  } finally {
+    resolve();
+  }
+}
+
 export async function getDb(): Promise<Database> {
   if (!db) {
+    // _busy_timeout 寫進 URL，讓連線池的每條連線都自動套用
     db = await Database.load("sqlite:medbase.db");
+    await db.execute("PRAGMA journal_mode=WAL");
+    await db.execute("PRAGMA busy_timeout=5000");
     await initSchema(db);
     await seedIfEmpty(db);
   }

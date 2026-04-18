@@ -41,6 +41,23 @@ const isSavingConfig = ref(false);
 
 const yyyyMM = computed(() => `${props.year}${String(props.month).padStart(2, "0")}`);
 
+function computeDefaultDates() {
+  const year = props.year;
+  const month = props.month; // 1-based
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear  = month === 1 ? year - 1 : year;
+  return {
+    from:  `${prevYear}-${String(prevMonth).padStart(2, "0")}-16`,
+    until: `${year}-${String(month).padStart(2, "0")}-15`,
+  };
+}
+
+function resetDefaultDates() {
+  const d = computeDefaultDates();
+  bookingFrom.value  = d.from;
+  bookingUntil.value = d.until;
+}
+
 async function loadBookingSettings() {
   // 1. Read from local SQLite as fallback
   try {
@@ -59,21 +76,26 @@ async function loadBookingSettings() {
   } catch { /* ignore */ }
 
   // 2. Pull from GAS as canonical source of truth (same source mobile reads)
-  if (!cloud.gasUrl) return;
+  if (!cloud.gasUrl) {
+    applyDefaultDatesIfEmpty();
+    return;
+  }
   try {
     const res = await fetch(cloud.gasUrl, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "getConfig" }),
     });
-    if (!res.ok) return;
+    if (!res.ok) { applyDefaultDatesIfEmpty(); return; }
     const json = await res.json() as { ok: boolean; data?: Record<string, string> };
-    if (!json.ok || !json.data) return;
+    if (!json.ok || !json.data) { applyDefaultDatesIfEmpty(); return; }
     const d = json.data;
     bookingOpen.value  = String(d.booking_open)  === "true";
     if (d.booking_month) bookingMonth.value = String(d.booking_month);
     if (d.booking_from)  bookingFrom.value  = String(d.booking_from);
     if (d.booking_until) bookingUntil.value = String(d.booking_until);
+    if (d.mobile_url)    mobileAppUrl.value = String(d.mobile_url);
+    applyDefaultDatesIfEmpty();
     // Write back to SQLite so local state stays in sync
     const db = await getDb();
     const pairs: [string, string][] = [
@@ -84,7 +106,13 @@ async function loadBookingSettings() {
     ];
     for (const [k, v] of pairs)
       await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)", [k, v]);
-  } catch { /* ignore — fall back to SQLite values loaded above */ }
+  } catch { applyDefaultDatesIfEmpty(); /* ignore — fall back to SQLite values loaded above */ }
+}
+
+function applyDefaultDatesIfEmpty() {
+  const d = computeDefaultDates();
+  if (!bookingFrom.value)  bookingFrom.value  = d.from;
+  if (!bookingUntil.value) bookingUntil.value = d.until;
 }
 
 async function saveBookingConfig() {
@@ -137,10 +165,19 @@ async function saveMobileAppUrl() {
   isSavingUrl.value = true;
   try {
     const db = await getDb();
+    const url = mobileAppUrl.value.trim();
     await db.execute(
       "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
-      ["scheduler_mobile_app_url", mobileAppUrl.value.trim()]
+      ["scheduler_mobile_app_url", url]
     );
+    if (cloud.gasUrl) {
+      fetch(cloud.gasUrl, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ action: "saveConfig", key: "mobile_url", value: url }),
+        mode: "no-cors",
+      }).catch(() => {});
+    }
     toast("手機端連結已儲存");
   } finally { isSavingUrl.value = false; }
 }
@@ -309,6 +346,10 @@ onMounted(async () => {
           <span class="text-xs text-gray-700">至</span>
           <input v-model="bookingUntil" :disabled="!canEdit" type="date"
             class="text-xs px-2 py-0.5 bg-gray-800 border border-gray-700 rounded text-gray-300 outline-none focus:border-gray-500 disabled:opacity-50" />
+          <button v-if="canEdit" @click="resetDefaultDates" title="重設為預設（上月16日～本月15日）"
+            class="text-xs px-1.5 py-0.5 rounded border border-gray-700 text-gray-500 hover:border-gray-500 hover:text-gray-300 transition-colors">
+            預設
+          </button>
         </div>
         <button v-if="canEdit" @click="saveBookingConfig" :disabled="isSavingConfig"
           class="text-xs px-3 py-1 bg-blue-700 hover:bg-blue-600 disabled:opacity-40 text-white rounded">

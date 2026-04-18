@@ -268,29 +268,54 @@ const {
   colorOf, shiftStyleObj, saveShifts, addShift, removeShift, cycleShiftColor,
 } = useShifts(setSetting);
 
-// Sync shifts to GAS Shifts sheet whenever they change
-watch(shifts, () => {
-  if (!cloud.gasUrl) return;
-  fetch(cloud.gasUrl, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain" },
-    body: JSON.stringify({ action: "saveShifts", codes: shifts.value.map(s => s.code) }),
-    mode: "no-cors",
-  }).catch(() => {});
-}, { deep: true });
-
 const isSyncingShifts = ref(false);
-async function syncShiftsToGas() {
+
+async function pullShiftsFromCloud() {
   if (!cloud.gasUrl) { showToast("請先在設定填入 GAS Web App URL"); return; }
   isSyncingShifts.value = true;
-  await fetch(cloud.gasUrl, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain" },
-    body: JSON.stringify({ action: "saveShifts", codes: shifts.value.map(s => s.code) }),
-    mode: "no-cors",
-  }).catch(() => {});
-  isSyncingShifts.value = false;
-  showToast("班別已同步到雲端");
+  try {
+    const res = await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "getConfig" }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json() as { ok: boolean; data?: Record<string, string> };
+    if (!json.ok || !json.data?.shifts_json) { showToast("雲端無班別設定"); return; }
+    shifts.value = JSON.parse(json.data.shifts_json);
+    await saveShifts();
+    showToast("班別已從雲端還原");
+  } catch (e) {
+    showToast(`還原失敗：${(e as Error).message}`);
+  } finally {
+    isSyncingShifts.value = false;
+  }
+}
+
+async function pushShiftsToCloud() {
+  if (!cloud.gasUrl) { showToast("請先在設定填入 GAS Web App URL"); return; }
+  isSyncingShifts.value = true;
+  try {
+    await Promise.all([
+      fetch(cloud.gasUrl, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ action: "saveConfig", key: "shifts_json", value: JSON.stringify(shifts.value) }),
+        mode: "no-cors",
+      }),
+      fetch(cloud.gasUrl, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ action: "saveShifts", codes: shifts.value.map(s => s.code) }),
+        mode: "no-cors",
+      }),
+    ]);
+    showToast("班別已覆蓋雲端");
+  } catch (e) {
+    showToast(`同步失敗：${(e as Error).message}`);
+  } finally {
+    isSyncingShifts.value = false;
+  }
 }
 
 function countShift(row: ScheduleRow, code: string) {
@@ -975,6 +1000,7 @@ async function pushToCloud() {
         yyyyMM:    yyyyMM.value,
         sheetName: sheetName.value,
         data:      scheduleData.value.map(r => ({ name: r.name, days: r.days })),
+        ...(cloud.scheduleSpreadsheetId ? { spreadsheetId: cloud.scheduleSpreadsheetId } : {}),
       }),
       mode: "no-cors",
     });
@@ -1022,6 +1048,7 @@ async function publishSchedule() {
           yyyyMM: yyyyMM.value,
           sheetName: sheetName.value,
           data: scheduleData.value.map(r => ({ name: r.name, days: r.days })),
+          ...(cloud.scheduleSpreadsheetId ? { spreadsheetId: cloud.scheduleSpreadsheetId } : {}),
         }),
         mode: "no-cors",
       });
@@ -1449,10 +1476,18 @@ async function createTemplate() {
       <div class="border-t border-gray-800 pt-3">
         <div class="flex items-center justify-between mb-2">
           <p class="text-xs text-gray-400 font-semibold">班別設定</p>
-          <button @click="syncShiftsToGas" :disabled="isSyncingShifts"
-            class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-300 rounded transition-colors">
-            {{ isSyncingShifts ? '同步中…' : '☁ 同步到雲端' }}
-          </button>
+          <div class="flex gap-1">
+            <button @click="pullShiftsFromCloud" :disabled="isSyncingShifts"
+              class="text-xs px-2 py-1 bg-blue-900/60 hover:bg-blue-800/60 disabled:opacity-40 text-blue-300 rounded transition-colors"
+              title="從雲端讀取，覆蓋本機班別設定">
+              {{ isSyncingShifts ? '…' : '↓ 從雲端還原' }}
+            </button>
+            <button @click="pushShiftsToCloud" :disabled="isSyncingShifts"
+              class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-300 rounded transition-colors"
+              title="將本機班別設定覆蓋上傳至雲端">
+              {{ isSyncingShifts ? '…' : '↑ 覆蓋雲端' }}
+            </button>
+          </div>
         </div>
         <div class="flex flex-wrap gap-2 mb-2">
           <div v-for="(shift, si) in shifts" :key="si"
