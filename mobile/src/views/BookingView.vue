@@ -13,13 +13,38 @@ const emit = defineEmits<{ toast: [msg: string] }>()
 const DOW = ['日','一','二','三','四','五','六']
 
 // ── Month / computed ──────────────────────────────────────────────────
-const yyyyMM = computed(() => String(props.config.booking_month ?? formatNow()))
 function formatNow() {
   const d = new Date()
   return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}`
 }
-const year        = computed(() => parseInt(yyyyMM.value.slice(0,4)))
-const month       = computed(() => parseInt(yyyyMM.value.slice(4,6)))
+function parseYM(yyyyMM: string) {
+  return { y: parseInt(yyyyMM.slice(0,4)), m: parseInt(yyyyMM.slice(4,6)) }
+}
+
+const baseYM = computed(() => String(props.config.booking_month ?? formatNow()))
+const { y: initY, m: initM } = parseYM(baseYM.value)
+const viewYear  = ref(initY)
+const viewMonth = ref(initM)
+
+// When admin changes booking_month, reset navigation to that month
+watch(baseYM, (val) => {
+  const { y, m } = parseYM(val)
+  viewYear.value  = y
+  viewMonth.value = m
+})
+
+function prevMonth() {
+  if (viewMonth.value === 1) { viewMonth.value = 12; viewYear.value-- }
+  else viewMonth.value--
+}
+function nextMonth() {
+  if (viewMonth.value === 12) { viewMonth.value = 1; viewYear.value++ }
+  else viewMonth.value++
+}
+
+const year        = computed(() => viewYear.value)
+const month       = computed(() => viewMonth.value)
+const yyyyMM      = computed(() => `${year.value}${String(month.value).padStart(2,'0')}`)
 const daysInMonth = computed(() => new Date(year.value, month.value, 0).getDate())
 const isOpen      = computed(() => String(props.config.booking_open) === 'true')
 
@@ -134,9 +159,13 @@ function getCellVote(d: number): DayVote {
     <!-- ── Header info ──────────────────────────────────────────────── -->
     <div class="flex-shrink-0 px-4 pt-3 pb-2">
       <div class="flex items-center justify-between mb-2">
-        <p class="text-sm font-semibold text-gray-200">
-          {{ year }}年{{ month }}月 預約
-        </p>
+        <div class="flex items-center gap-1">
+          <button @click="prevMonth"
+            class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-800 text-gray-400 hover:text-gray-100 text-base leading-none">‹</button>
+          <p class="text-sm font-semibold text-gray-200 px-1">{{ year }}年{{ month }}月 預約</p>
+          <button @click="nextMonth"
+            class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-800 text-gray-400 hover:text-gray-100 text-base leading-none">›</button>
+        </div>
         <span class="text-xs px-2 py-0.5 rounded-full border font-medium"
           :class="isOpen
             ? 'bg-emerald-900/50 border-emerald-700 text-emerald-300'

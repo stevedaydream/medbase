@@ -10,6 +10,11 @@ import RequestsTab  from "@/components/scheduler/RequestsTab.vue";
 import BookingTab   from "@/components/scheduler/BookingTab.vue";
 import { runProjection, DEFAULT_POOLS, type RotationPool } from "@/utils/rotationEngine";
 import { useShifts, isDerived, type Shift, type ShiftTargets } from "@/composables/useShifts";
+import {
+  computeMonthlyTotals, buildPreview, getFieldOrder,
+  QUOTA_FIELDS,
+  type QuotaTotals, type QuotaEntry, type BalanceMap, type QuotaField,
+} from "@/utils/quotaEngine";
 import { useStaff } from "@/composables/useStaff";
 import { useCloudSettings } from "@/stores/cloudSettings";
 
@@ -269,6 +274,47 @@ const {
 } = useShifts(setSetting);
 
 const isSyncingShifts = ref(false);
+const isSyncingPools  = ref(false);
+
+async function pullPoolsFromCloud() {
+  if (!cloud.gasUrl) { showToast("請先在設定填入 GAS Web App URL"); return; }
+  isSyncingPools.value = true;
+  try {
+    const res = await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "getConfig" }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json() as { ok: boolean; data?: Record<string, string> };
+    if (!json.ok || !json.data?.pools_json) { showToast("雲端無輪序池設定"); return; }
+    rotationPools.value = JSON.parse(json.data.pools_json);
+    await saveRotationPools();
+    showToast("輪序池已從雲端還原");
+  } catch (e) {
+    showToast(`還原失敗：${(e as Error).message}`);
+  } finally {
+    isSyncingPools.value = false;
+  }
+}
+
+async function pushPoolsToCloud() {
+  if (!cloud.gasUrl) { showToast("請先在設定填入 GAS Web App URL"); return; }
+  isSyncingPools.value = true;
+  try {
+    await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "saveConfig", key: "pools_json", value: JSON.stringify(rotationPools.value) }),
+      mode: "no-cors",
+    });
+    showToast("輪序池已覆蓋雲端");
+  } catch (e) {
+    showToast(`同步失敗：${(e as Error).message}`);
+  } finally {
+    isSyncingPools.value = false;
+  }
+}
 
 async function pullShiftsFromCloud() {
   if (!cloud.gasUrl) { showToast("請先在設定填入 GAS Web App URL"); return; }
@@ -321,15 +367,163 @@ async function pushShiftsToCloud() {
 function countShift(row: ScheduleRow, code: string) {
   return row.days.filter(d => d === code).length;
 }
+// monthlyQuotaMap: code → { D, N, Off } — populated after 帶入
+const monthlyQuotaMap = ref<Record<string, Record<string, number>>>({});
+
 function quotaStatus(row: ScheduleRow, shift: Shift): "over" | "under" | "met" | "none" {
-  if (!shift.target) return "none";
+  const code   = codeByName.value.get(row.name);
+  const mq     = code ? monthlyQuotaMap.value[code]?.[shift.code] : undefined;
+  const target = mq ?? shift.target;
+  if (target === undefined || target === null) return "none";
   const actual = countShift(row, shift.code);
-  if (actual > shift.target) return "over";
-  if (actual < shift.target) return "under";
+  if (actual > target) return "over";
+  if (actual < target) return "under";
   return "met";
 }
 function totalShiftStaff(di: number, code: string) {
   return scheduleData.value.filter(r => r.days[di] === code).length;
+}
+
+// ── Monthly Quota System ──────────────────────────────────────────────
+const qLoading     = ref(false);
+const qCommitting  = ref(false);
+const qPreview     = ref<QuotaEntry[]>([]);
+const qLocked      = ref(false);
+const qError       = ref("");
+const qShowPanel   = ref(true);
+const balanceMap   = ref<BalanceMap>({});
+
+const qActiveStaff = computed(() =>
+  staff.value.filter(s => s.is_active !== 0 && s.code)
+);
+
+const qTotals = computed<QuotaTotals>(() =>
+  computeMonthlyTotals(
+    currentYear.value, currentMonth.value,
+    qActiveStaff.value.length,
+    shifts.value,
+    holidaySet.value
+  )
+);
+
+async function qLoadState() {
+  try {
+    const db   = await getDb();
+    const rows = await db.select<{ key: string; value: string }[]>(
+      "SELECT key, value FROM app_settings WHERE key IN (?, ?, ?)",
+      [
+        "scheduler_shift_balance",
+        `scheduler_off_quota_${yyyyMM.value}`,
+        `scheduler_rotation_record_${yyyyMM.value}`,
+      ]
+    );
+    const kv = Object.fromEntries(rows.map(r => [r.key.replace("scheduler_", ""), r.value]));
+
+    balanceMap.value      = kv["shift_balance"] ? JSON.parse(kv["shift_balance"]) : {};
+    monthlyQuotaMap.value = kv[`off_quota_${yyyyMM.value}`]
+      ? JSON.parse(kv[`off_quota_${yyyyMM.value}`]) : {};
+    qLocked.value = !!kv[`rotation_record_${yyyyMM.value}`];
+
+    if (qLocked.value) {
+      const rec = JSON.parse(kv[`rotation_record_${yyyyMM.value}`]);
+      const orders: Partial<Record<QuotaField, string[]>> = {};
+      for (const f of QUOTA_FIELDS) {
+        if (rec[f]?.order) orders[f] = rec[f].order;
+      }
+      if (qActiveStaff.value.length) {
+        qPreview.value = buildPreview(
+          qActiveStaff.value.map(s => s.code),
+          qTotals.value, balanceMap.value, orders
+        );
+      }
+    } else {
+      qPreview.value = [];
+    }
+  } catch { /* ignore */ }
+}
+
+function qCalc() {
+  qError.value = "";
+  const codes = qActiveStaff.value.map(s => s.code);
+  if (!codes.length) { qError.value = "無可排班人員"; return; }
+  qPreview.value = buildPreview(codes, qTotals.value, balanceMap.value);
+}
+
+async function qApply() {
+  if (!qPreview.value.length) { qError.value = "請先試算"; return; }
+  qLoading.value = true;
+  qError.value = "";
+  try {
+    const quotaResult: Record<string, Record<string, number>> = {};
+    for (const entry of qPreview.value) {
+      quotaResult[entry.code] = { D: entry.D.quota, N: entry.N.quota, Off: entry.Off.quota };
+    }
+    await setSetting(`off_quota_${yyyyMM.value}`, JSON.stringify(quotaResult));
+    monthlyQuotaMap.value = quotaResult;
+    showToast("配額已帶入班表統計欄");
+  } catch (e) {
+    qError.value = (e as Error).message;
+  } finally { qLoading.value = false; }
+}
+
+async function qCommit() {
+  if (!qPreview.value.length) { qError.value = "請先試算"; return; }
+  qCommitting.value = true;
+  qError.value = "";
+  try {
+    const n       = qActiveStaff.value.length;
+    const totals  = qTotals.value;
+    const newBal  = JSON.parse(JSON.stringify(balanceMap.value)) as BalanceMap;
+
+    for (const entry of qPreview.value) {
+      if (!newBal[entry.code]) newBal[entry.code] = { D: 0, N: 0, Off: 0, W6Off: 0 };
+      for (const f of QUOTA_FIELDS) {
+        const expected = totals[f] / n;
+        newBal[entry.code][f] = parseFloat(
+          (newBal[entry.code][f] + entry[f].quota - expected).toFixed(4)
+        );
+      }
+    }
+    balanceMap.value = newBal;
+
+    // Build rotation record
+    const record: Record<string, unknown> = { yyyyMM: yyyyMM.value };
+    for (const f of QUOTA_FIELDS) {
+      const order  = getFieldOrder(qPreview.value, f);
+      const extras = qPreview.value[0]?.[f]?.extras ?? 0;
+      record[f] = { order, extras, nextStartCode: order[extras % order.length] ?? order[0] };
+    }
+
+    // Save off_quota if not already applied
+    const quotaResult: Record<string, Record<string, number>> = {};
+    for (const entry of qPreview.value) {
+      quotaResult[entry.code] = { D: entry.D.quota, N: entry.N.quota, Off: entry.Off.quota };
+    }
+
+    const db = await getDb();
+    await db.execute(
+      "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
+      ["scheduler_shift_balance", JSON.stringify(newBal)]
+    );
+    await setSetting(`rotation_record_${yyyyMM.value}`, JSON.stringify(record));
+    await setSetting(`off_quota_${yyyyMM.value}`, JSON.stringify(quotaResult));
+    monthlyQuotaMap.value = quotaResult;
+    qLocked.value = true;
+    showToast("配額結算完成");
+  } catch (e) {
+    qError.value = (e as Error).message;
+  } finally { qCommitting.value = false; }
+}
+
+async function qUnlock() {
+  const db = await getDb();
+  await db.execute(
+    "DELETE FROM app_settings WHERE key = ?",
+    [`scheduler_rotation_record_${yyyyMM.value}`]
+  );
+  qLocked.value = false;
+  qPreview.value = [];
+  showToast("已解鎖，可重新試算");
 }
 
 // ── Daily Quota System ────────────────────────────────────────────────
@@ -536,9 +730,10 @@ async function loadSettings() {
   await loadProjectionBase();
   await loadScheduleFromDb();
   await loadHolidays();
+  await qLoadState();
 }
 
-watch(yyyyMM, () => { loadMonthStatus(); loadProjectionBase(); loadScheduleFromDb(); });
+watch(yyyyMM, () => { loadMonthStatus(); loadProjectionBase(); loadScheduleFromDb(); qLoadState(); });
 watch(() => currentYear.value, loadHolidays);
 
 // 設定變動自動儲存（debounce 800ms，避免每次按鍵都寫 DB）
@@ -1294,17 +1489,122 @@ async function createTemplate() {
     </div>
 
     <!-- ── Tab: 輪序 ─────────────────────────────────────────────────── -->
-    <RotationTab
-      v-if="activeTab === 'rotation'"
-      :pools="rotationPools"
-      :staff="staff"
-      :shifts="shifts"
-      :session="session!"
-      :year="currentYear"
-      :month="currentMonth"
-      @update:pools="onPoolsUpdate"
-      class="flex-1 overflow-hidden"
-    />
+    <div v-if="activeTab === 'rotation'" class="flex-1 overflow-hidden flex flex-col">
+
+      <!-- ── 配額分配面板 ────────────────────────────────────────────── -->
+      <div class="bg-gray-900 border-b border-gray-800 flex-shrink-0">
+        <!-- Panel header -->
+        <div class="flex items-center justify-between px-4 py-2 border-b border-gray-800">
+          <div class="flex items-center gap-3">
+            <button @click="qShowPanel = !qShowPanel"
+              class="text-xs font-semibold text-gray-400 flex items-center gap-1.5 hover:text-gray-200 transition-colors">
+              <span>{{ qShowPanel ? '▾' : '▸' }}</span>
+              <span>配額分配</span>
+            </button>
+            <div v-if="qShowPanel" class="flex items-center gap-1 text-xs">
+              <div :class="['px-2 py-0.5 rounded-full border transition-colors',
+                qPreview.length && !qLocked ? 'bg-green-900/30 border-green-700 text-green-400'
+                : 'bg-blue-900/30 border-blue-700 text-blue-400 font-semibold']">① 試算</div>
+              <span class="text-gray-700">›</span>
+              <div :class="['px-2 py-0.5 rounded-full border transition-colors',
+                Object.keys(monthlyQuotaMap).length ? 'bg-green-900/30 border-green-700 text-green-400'
+                : qPreview.length ? 'bg-blue-900/30 border-blue-700 text-blue-400 font-semibold'
+                : 'border-gray-700 text-gray-600']">② 帶入</div>
+              <span class="text-gray-700">›</span>
+              <div :class="['px-2 py-0.5 rounded-full border transition-colors',
+                qLocked ? 'bg-green-900/30 border-green-700 text-green-400'
+                : qPreview.length ? 'bg-blue-900/30 border-blue-700 text-blue-400 font-semibold'
+                : 'border-gray-700 text-gray-600']">③ 結算</div>
+            </div>
+          </div>
+          <div v-if="qShowPanel" class="flex items-center gap-1.5">
+            <span v-if="qError" class="text-xs text-red-400">{{ qError }}</span>
+            <button v-if="qLocked" @click="qUnlock"
+              class="text-xs px-2 py-0.5 border border-gray-600 text-gray-400 hover:border-gray-400 hover:text-gray-200 rounded transition-colors">
+              解鎖重算
+            </button>
+            <template v-else>
+              <button @click="qCalc"
+                class="text-xs px-2.5 py-1 bg-blue-700 hover:bg-blue-600 text-white rounded transition-colors">
+                試算
+              </button>
+              <button v-if="qPreview.length" @click="qApply" :disabled="qLoading"
+                class="text-xs px-2.5 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors disabled:opacity-50">
+                帶入
+              </button>
+              <button v-if="qPreview.length" @click="qCommit" :disabled="qCommitting"
+                class="text-xs px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded transition-colors disabled:opacity-50">
+                {{ qCommitting ? '結算中...' : '結算' }}
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Panel body -->
+        <div v-if="qShowPanel" class="px-4 py-3">
+          <!-- Monthly totals -->
+          <div class="flex flex-wrap items-center gap-x-5 gap-y-1 mb-3 text-xs">
+            <span class="text-gray-600 font-semibold uppercase tracking-wide">本月預計</span>
+            <span v-for="f in QUOTA_FIELDS" :key="f">
+              <span class="font-mono text-gray-500 mr-0.5">{{ f }}</span>
+              <span class="text-white font-semibold">{{ qTotals[f] }}</span>
+              <span class="text-gray-700 ml-1 text-[10px]">均 {{ qActiveStaff.length ? (qTotals[f] / qActiveStaff.length).toFixed(1) : '—' }}</span>
+            </span>
+          </div>
+
+          <!-- Preview table -->
+          <div v-if="qPreview.length" class="overflow-x-auto">
+            <table class="text-xs border-collapse w-full">
+              <thead>
+                <tr class="text-gray-600 border-b border-gray-800">
+                  <th class="text-left px-2 py-1 font-medium w-28">人員</th>
+                  <th v-for="f in QUOTA_FIELDS" :key="f" class="px-4 py-1 text-center font-mono">{{ f }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="entry in qPreview" :key="entry.code"
+                  class="border-b border-gray-800/50 hover:bg-gray-800/30">
+                  <td class="px-2 py-1.5">
+                    <span class="font-mono text-gray-600 mr-1">{{ entry.code }}</span>
+                    <span class="text-gray-300">{{ staff.find(s => s.code === entry.code)?.name ?? entry.code }}</span>
+                  </td>
+                  <td v-for="f in QUOTA_FIELDS" :key="f" class="px-4 py-1.5 text-center">
+                    <span :class="['font-mono font-semibold', entry[f].quota > entry[f].base ? 'text-amber-400' : 'text-gray-200']">
+                      {{ entry[f].quota }}
+                    </span>
+                    <span class="text-gray-700 text-[10px] ml-1"
+                      :title="`累積：${entry[f].balanceBefore >= 0 ? '+' : ''}${entry[f].balanceBefore} → ${entry[f].balanceAfter >= 0 ? '+' : ''}${entry[f].balanceAfter}`">
+                      {{ entry[f].balanceBefore >= 0 ? '+' : '' }}{{ entry[f].balanceBefore.toFixed(1) }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr class="border-t border-gray-700 text-gray-500">
+                  <td class="px-2 py-1 font-semibold">合計</td>
+                  <td v-for="f in QUOTA_FIELDS" :key="f" class="px-4 py-1 text-center font-mono font-semibold">
+                    {{ qPreview.reduce((s, e) => s + e[f].quota, 0) }}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <div v-else class="text-xs text-gray-700 py-1">點「試算」計算本月各人配額。</div>
+        </div>
+      </div>
+
+      <!-- Rotation pools (existing) -->
+      <RotationTab
+        :pools="rotationPools"
+        :staff="staff"
+        :shifts="shifts"
+        :session="session!"
+        :year="currentYear"
+        :month="currentMonth"
+        @update:pools="onPoolsUpdate"
+        class="flex-1 overflow-hidden"
+      />
+    </div>
 
     <!-- ── Tab: 請求 ─────────────────────────────────────────────────── -->
     <RequestsTab
@@ -1584,6 +1884,26 @@ async function createTemplate() {
           </div>
           <p class="text-xs text-gray-700">固定：直接輸入數字；公式：自動計算（總人數減去指定班別人數）</p>
         </div>
+      </div>
+
+      <!-- Rotation Pool Cloud Sync -->
+      <div class="border-t border-gray-800 pt-3">
+        <div class="flex items-center justify-between mb-1">
+          <p class="text-xs text-gray-400 font-semibold">輪序池設定</p>
+          <div class="flex gap-1">
+            <button @click="pullPoolsFromCloud" :disabled="isSyncingPools"
+              class="text-xs px-2 py-1 bg-blue-900/60 hover:bg-blue-800/60 disabled:opacity-40 text-blue-300 rounded transition-colors"
+              title="從雲端讀取，覆蓋本機輪序池">
+              {{ isSyncingPools ? '…' : '↓ 從雲端還原' }}
+            </button>
+            <button @click="pushPoolsToCloud" :disabled="isSyncingPools"
+              class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-300 rounded transition-colors"
+              title="將本機輪序池覆蓋上傳至雲端">
+              {{ isSyncingPools ? '…' : '↑ 覆蓋雲端' }}
+            </button>
+          </div>
+        </div>
+        <p class="text-xs text-gray-700">輪序池的成員與順序可備份至 GAS Config，供跨設備還原</p>
       </div>
 
       <!-- Holiday Management -->

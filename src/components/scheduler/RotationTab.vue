@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch, onUnmounted } from "vue";
 import { runProjection, type RotationPool } from "@/utils/rotationEngine";
 
 interface StaffMember { code: string; name: string; role?: string }
@@ -83,8 +83,6 @@ const showNewPool = ref(false);
 const newPoolName  = ref("");
 const newPoolLabel = ref("");
 const newPoolShift = ref("D");
-const DEFAULT_POOL_NAMES = ["satD","satN","sunD","sunN","holD","holN","wdOff"];
-
 function addPool() {
   const pn = newPoolName.value.trim();
   const lb = newPoolLabel.value.trim();
@@ -108,26 +106,53 @@ function removePool(idx: number) {
   selectedIdx.value = Math.min(selectedIdx.value, newPools.length - 1);
 }
 
-// ── Drag reorder members ──────────────────────────────────────────────
+// ── Drag reorder members (Pointer Events – Tauri DnD workaround, see BF-001) ──
 const dragFromIdx = ref<number | null>(null);
 const dragOverIdx = ref<number | null>(null);
+const isDragging  = ref(false);
+const ghostLabel  = ref('');
+const ghostX      = ref(0);
+const ghostY      = ref(0);
 
-function onDragStart(idx: number) { dragFromIdx.value = idx; }
-function onDragOver(e: DragEvent, idx: number) {
-  e.preventDefault();
-  dragOverIdx.value = idx;
-}
-function onDrop(_e: DragEvent, targetIdx: number) {
-  if (dragFromIdx.value === null || dragFromIdx.value === targetIdx) {
-    dragFromIdx.value = null; dragOverIdx.value = null; return;
+function onMemberPointerDown(e: PointerEvent, idx: number) {
+  if (!canEdit.value || !selected.value) return;
+  (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  dragFromIdx.value = idx;
+  ghostLabel.value  = `${selected.value.order[idx]} ${getName(selected.value.order[idx])}`;
+  ghostX.value = e.clientX + 14;
+  ghostY.value = e.clientY + 14;
+  isDragging.value  = false;
+
+  function onMove(ev: PointerEvent) {
+    isDragging.value = true;
+    ghostX.value = ev.clientX + 14;
+    ghostY.value = ev.clientY + 14;
+    const els = document.querySelectorAll<HTMLElement>('[data-rot-idx]');
+    let hit: number | null = null;
+    for (const el of els) {
+      const r = el.getBoundingClientRect();
+      if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) {
+        hit = parseInt(el.dataset.rotIdx!); break;
+      }
+    }
+    dragOverIdx.value = hit;
   }
-  const order = [...selected.value!.order];
-  const [moved] = order.splice(dragFromIdx.value, 1);
-  order.splice(targetIdx, 0, moved);
-  dragFromIdx.value = null; dragOverIdx.value = null;
-  updatePool(selectedIdx.value, { order });
+  function onUp() {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    if (isDragging.value && dragFromIdx.value !== null && dragOverIdx.value !== null && dragFromIdx.value !== dragOverIdx.value) {
+      const order = [...selected.value!.order];
+      const [moved] = order.splice(dragFromIdx.value, 1);
+      order.splice(dragOverIdx.value, 0, moved);
+      updatePool(selectedIdx.value, { order });
+    }
+    dragFromIdx.value = null;
+    dragOverIdx.value = null;
+    isDragging.value  = false;
+  }
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
 }
-function onDragEnd() { dragFromIdx.value = null; dragOverIdx.value = null; }
 
 // ── Projection preview ────────────────────────────────────────────────
 const prevYear  = ref(props.year);
@@ -174,6 +199,83 @@ const projectionRows = computed(() => {
 });
 
 const shiftCodes = computed(() => props.shifts.map(s => s.code));
+
+// ── Caterpillar track ──────────────────────────────────────────────────
+const isLocked   = ref(false)
+const ITEM_W     = 88
+const animOffset = ref(0)
+const trackEl    = ref<HTMLElement | null>(null)
+let   animRaf: number | null = null
+
+const trackDisplayItems = computed(() => {
+  if (!selected.value?.order.length) return []
+  const { order } = selected.value
+  const N = order.length
+  return Array.from({ length: N * 3 }, (_, i) => ({
+    code: order[i % N],
+    name: getName(order[i % N]),
+    key: `${Math.floor(i / N)}-${i % N}`,
+  }))
+})
+
+function computeBase(lastIdx: number, N: number): number {
+  const npi = (lastIdx + 1) % N
+  return -(N * ITEM_W) + npi * ITEM_W
+}
+
+function animateTo(target: number, duration = 360) {
+  if (animRaf) cancelAnimationFrame(animRaf)
+  const from = animOffset.value
+  const t0   = performance.now()
+  function tick(now: number) {
+    const t = Math.min((now - t0) / duration, 1)
+    const e = 1 - Math.pow(1 - t, 3)
+    animOffset.value = from + (target - from) * e
+    if (t < 1) animRaf = requestAnimationFrame(tick)
+    else animOffset.value = target
+  }
+  animRaf = requestAnimationFrame(tick)
+}
+
+function onTrackPointerDown(e: PointerEvent) {
+  if (!selected.value?.order.length) return
+  ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  if (animRaf) { cancelAnimationFrame(animRaf); animRaf = null }
+  const startX      = e.clientX
+  const startOffset = animOffset.value
+  function onMove(ev: PointerEvent) {
+    animOffset.value = startOffset + (ev.clientX - startX)
+  }
+  function onUp(ev: PointerEvent) {
+      document.removeEventListener('pointermove', onMove)
+    document.removeEventListener('pointerup', onUp)
+    const steps   = -Math.round((ev.clientX - startX) / ITEM_W)
+    const N       = selected.value!.order.length
+    const newLast = ((selected.value!.lastIndex + steps) % N + N) % N
+    updatePool(selectedIdx.value, { lastIndex: newLast })
+    animateTo(computeBase(newLast, N))
+  }
+  document.addEventListener('pointermove', onMove)
+  document.addEventListener('pointerup', onUp)
+}
+
+function stepTrack(delta: number) {
+  if (!selected.value?.order.length) return
+  const N       = selected.value.order.length
+  const newLast = ((selected.value.lastIndex + delta) % N + N) % N
+  updatePool(selectedIdx.value, { lastIndex: newLast })
+  animateTo(computeBase(newLast, N))
+}
+
+function initTrack() {
+  if (!selected.value?.order.length) return
+  animOffset.value = computeBase(selected.value.lastIndex, selected.value.order.length)
+}
+
+watch(selectedIdx, initTrack)
+watch(() => selected.value?.order.length, initTrack)
+watch(isLocked, locked => { if (locked) initTrack() })
+onUnmounted(() => { if (animRaf) cancelAnimationFrame(animRaf) })
 </script>
 
 <template>
@@ -258,10 +360,19 @@ const shiftCodes = computed(() => props.shifts.map(s => s.code));
             </div>
           </div>
 
-          <!-- Delete pool (custom only) -->
-          <button v-if="canEdit && !DEFAULT_POOL_NAMES.includes(selected.poolName)"
+          <!-- Track mode toggle -->
+          <button v-if="canEdit && selected.order.length"
+            @click="isLocked = !isLocked"
+            class="ml-auto text-xs px-2 py-0.5 rounded border transition-colors"
+            :class="isLocked
+              ? 'border-blue-500 text-blue-400 bg-blue-900/20'
+              : 'border-gray-700 text-gray-500 hover:border-gray-500 hover:text-gray-300'"
+          >{{ isLocked ? '✦ 履帶模式' : '⊞ 切換履帶' }}</button>
+
+          <!-- Delete pool -->
+          <button v-if="canEdit"
             @click="removePool(selectedIdx)"
-            class="ml-auto text-xs text-red-700 hover:text-red-500 transition-colors">
+            class="text-xs text-red-700 hover:text-red-500 transition-colors">
             刪除此池
           </button>
         </div>
@@ -270,18 +381,16 @@ const shiftCodes = computed(() => props.shifts.map(s => s.code));
         <div>
           <p class="text-xs text-gray-500 mb-2">
             成員順序
-            <span class="text-gray-700 ml-1">（拖拽調整；▶ = 下次輪到）</span>
+            <span class="text-gray-700 ml-1">{{ isLocked ? '（履帶：左滑前進，右滑回退）' : '（拖拽調整；▶ = 下次輪到）' }}</span>
           </p>
 
-          <div class="flex flex-wrap gap-2 min-h-[2.5rem]">
+          <!-- 編輯模式：chips -->
+          <div v-if="!isLocked" class="flex flex-wrap gap-2 min-h-[2.5rem]">
             <div
               v-for="(code, mi) in selected.order" :key="code"
-              draggable="true"
-              @dragstart="onDragStart(mi)"
-              @dragover="onDragOver($event, mi)"
-              @drop="onDrop($event, mi)"
-              @dragend="onDragEnd"
-              class="group flex items-center gap-1 px-2 py-1 rounded-lg border text-xs cursor-grab transition-colors select-none"
+              :data-rot-idx="mi"
+              @pointerdown="onMemberPointerDown($event, mi)"
+              class="group flex items-center gap-1 px-2 py-1 rounded-lg border text-xs cursor-grab transition-colors select-none touch-none"
               :class="[
                 dragOverIdx === mi && dragFromIdx !== mi
                   ? 'border-blue-500 bg-blue-900/40'
@@ -329,6 +438,46 @@ const shiftCodes = computed(() => props.shifts.map(s => s.code));
                 </button>
               </div>
             </div>
+          </div>
+
+          <!-- 履帶模式 -->
+          <div v-else class="relative flex items-center gap-1 select-none">
+            <button @click="stepTrack(-1)"
+              class="shrink-0 px-2 py-4 text-gray-500 hover:text-white hover:bg-gray-800 rounded transition-colors text-lg">‹</button>
+
+            <!-- track container -->
+            <div ref="trackEl"
+              class="relative flex-1 overflow-hidden h-[5.5rem] cursor-grab active:cursor-grabbing rounded"
+              @pointerdown="onTrackPointerDown">
+
+              <!-- 固定疊加：高亮區 + 起終點標籤 -->
+              <div class="absolute inset-0 pointer-events-none z-10">
+                <div class="absolute top-0 bottom-5 bg-blue-900/30 border-x border-blue-700/50"
+                  :style="{ left: '0px', width: (selected.quota * ITEM_W) + 'px' }" />
+                <div class="absolute bottom-0 left-0 text-[10px] text-blue-400 px-1">▶ 起點</div>
+                <div v-if="selected.quota > 1"
+                  class="absolute bottom-0 text-[10px] text-amber-400 px-1"
+                  :style="{ left: ((selected.quota - 1) * ITEM_W) + 'px' }">★ 終點</div>
+              </div>
+
+              <!-- 滑動軌道 -->
+              <div class="absolute flex top-0"
+                :style="{ transform: `translateX(${animOffset}px)` }">
+                <div v-for="item in trackDisplayItems" :key="item.key"
+                  class="flex flex-col items-center justify-center gap-0.5 border-r border-gray-700/50 bg-gray-800 text-center shrink-0"
+                  :style="{ width: ITEM_W + 'px', height: '4rem' }">
+                  <span class="font-mono text-xs text-gray-400">{{ item.code }}</span>
+                  <span class="text-xs text-gray-200 truncate w-full text-center px-1">{{ item.name }}</span>
+                </div>
+              </div>
+
+              <!-- 漸層遮罩 -->
+              <div class="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-gray-900 pointer-events-none z-20" />
+              <div class="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-gray-900 pointer-events-none z-20" />
+            </div>
+
+            <button @click="stepTrack(1)"
+              class="shrink-0 px-2 py-4 text-gray-500 hover:text-white hover:bg-gray-800 rounded transition-colors text-lg">›</button>
           </div>
         </div>
       </div>
@@ -397,4 +546,13 @@ const shiftCodes = computed(() => props.shifts.map(s => s.code));
 
     </div><!-- end right area -->
   </div>
+
+  <!-- Drag ghost -->
+  <Teleport to="body">
+    <div v-if="isDragging"
+      class="fixed pointer-events-none z-[9999] bg-gray-700 border border-blue-500 text-xs text-white px-2 py-1 rounded shadow-xl opacity-90 whitespace-nowrap"
+      :style="{ left: ghostX + 'px', top: ghostY + 'px' }">
+      {{ ghostLabel }}
+    </div>
+  </Teleport>
 </template>
