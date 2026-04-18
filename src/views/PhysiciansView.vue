@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { autoUpdatePassAhk } from "@/composables/usePassAhk";
 import { setGlobalSyncing } from "@/composables/useCloudSync";
+import { exportToXlsx, autoCloudSync, xlsxPath } from "@/composables/useXlsxSync";
 
 interface Physician { id: number; name: string; department: string; title: string; ext: string; his_account: string; his_password: string; phs_account: string; phs_password: string; notes: string; }
 
@@ -136,6 +137,7 @@ async function doDelete() {
   showToast("已刪除");
   const syncMsg = await autoUpdatePassAhk();
   if (syncMsg) showToast(syncMsg);
+  if (xlsxPath.value) { exportToXlsx(); autoCloudSync(); }
 }
 
 function openAdd() {
@@ -155,14 +157,14 @@ async function saveForm() {
   const db = await getDb();
   if (editTarget.value) {
     await db.execute(
-      "UPDATE physicians SET name=?,department=?,title=?,ext=?,his_account=?,his_password=?,phs_account=?,phs_password=?,notes=? WHERE id=?",
+      "UPDATE physicians SET name=?,department=?,title=?,ext=?,his_account=?,his_password=?,phs_account=?,phs_password=?,notes=?,updated_at=datetime('now','localtime') WHERE id=?",
       [form.value.name, form.value.department||null, form.value.title||null, form.value.ext||null,
        form.value.his_account||null, form.value.his_password||null, form.value.phs_account||null,
        form.value.phs_password||null, form.value.notes||null, editTarget.value.id]
     );
   } else {
     await db.execute(
-      "INSERT INTO physicians (name,department,title,ext,his_account,his_password,phs_account,phs_password,notes) VALUES (?,?,?,?,?,?,?,?,?)",
+      "INSERT INTO physicians (name,department,title,ext,his_account,his_password,phs_account,phs_password,notes,updated_at) VALUES (?,?,?,?,?,?,?,?,?,datetime('now','localtime'))",
       [form.value.name, form.value.department||null, form.value.title||null, form.value.ext||null,
        form.value.his_account||null, form.value.his_password||null, form.value.phs_account||null,
        form.value.phs_password||null, form.value.notes||null]
@@ -174,6 +176,7 @@ async function saveForm() {
   showToast(isEdit ? "已更新" : "已新增");
   const syncMsg = await autoUpdatePassAhk();
   if (syncMsg) showToast(syncMsg);
+  if (xlsxPath.value) { exportToXlsx(); autoCloudSync(); }
 }
 
 </script>
