@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { readTextFile, writeTextFile, remove as removeFile } from "@tauri-apps/plugin-fs";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useCloudSettings } from "@/stores/cloudSettings";
+import { setGlobalSyncing } from "@/composables/useCloudSync";
+import { buildPassAhkContent, getPassAhkPath, setPassAhkPath } from "@/composables/usePassAhk";
 
 interface AhkScript {
   id: number;
@@ -30,6 +32,7 @@ const selectedGroup = ref<AhkGroup | null>(null);
 const scriptContent = ref("");
 const groupScriptIds = ref<number[]>([]);
 const ahkExePath = ref("");
+const passAhkPath = ref<string | null>(null);
 const showSettings = ref(false);
 const search = ref("");
 const toast = ref("");
@@ -40,6 +43,7 @@ onMounted(() => cloud.load());
 const isSyncing = ref(false);
 
 const scriptForm = ref({ name: "", file_path: "", description: "" });
+const showDeleteConfirm = ref(false);
 const groupForm = ref({ name: "", description: "" });
 
 const filteredScripts = computed(() => {
@@ -56,6 +60,11 @@ function showToast(msg: string) {
   toastTimer = setTimeout(() => { toast.value = ""; }, 2500);
 }
 
+function showError(msg: string, err?: unknown) {
+  showToast(msg);
+  console.error(`[AhkView] ${msg}`, err ?? "");
+}
+
 onMounted(async () => { await loadAll(); });
 
 function openAhkSite() {
@@ -70,12 +79,14 @@ async function loadAll() {
     "SELECT value FROM app_settings WHERE key = 'ahk_exe_path'"
   );
   ahkExePath.value = row[0]?.value ?? "";
+  passAhkPath.value = await getPassAhkPath();
 }
 
 // ── 腳本管理 ─────────────────────────────────────────────
 
 async function selectScript(s: AhkScript) {
   selectedScript.value = s;
+  showDeleteConfirm.value = false;
   scriptForm.value = { name: s.name, file_path: s.file_path, description: s.description ?? "" };
   try {
     scriptContent.value = await readTextFile(s.file_path);
@@ -107,7 +118,7 @@ async function newScript() {
       scriptContent.value = "; New AutoHotkey Script\n#Requires AutoHotkey v2\n\n";
     }
   } catch (e) {
-    showToast(`建立失敗：${(e as Error).message}`);
+    showError(`建立失敗：${(e as Error).message}`, e);
   }
 }
 
@@ -131,8 +142,15 @@ async function importFile() {
     if (script) await selectScript(script);
     showToast("已匯入");
   } catch (e) {
-    showToast(`匯入失敗：${(e as Error).message}`);
+    showError(`匯入失敗：${(e as Error).message}`, e);
   }
+}
+
+async function designateAsPassAhk() {
+  if (!selectedScript.value) return;
+  await setPassAhkPath(selectedScript.value.file_path);
+  passAhkPath.value = selectedScript.value.file_path;
+  showToast("已設為帳密腳本連動目標");
 }
 
 async function pickFilePath() {
@@ -163,7 +181,7 @@ async function saveScript(andReload: boolean) {
       showToast("已儲存");
     }
   } catch (e) {
-    showToast(`儲存失敗：${(e as Error).message}`);
+    showError(`儲存失敗：${(e as Error).message}`, e);
   }
 }
 
@@ -177,20 +195,30 @@ async function triggerReload(filePath: string) {
     await invoke("reload_ahk", { exePath: ahkExePath.value, scriptPath: filePath });
     showToast("已儲存並 Reload ✓");
   } catch (e) {
-    showToast(`Reload 失敗：${(e as Error).message}`);
+    showError(`Reload 失敗：${(e as Error).message}`, e);
   }
 }
 
-async function deleteScript() {
+async function deleteScript(alsoDeleteFile = false) {
   if (!selectedScript.value) return;
-  if (!confirm(`確定移除「${selectedScript.value.name}」的紀錄？\n磁碟上的 .ahk 檔案不會被刪除。`)) return;
+  if (alsoDeleteFile) {
+    try {
+      await removeFile(selectedScript.value.file_path);
+    } catch (e) {
+      const msg = (e as Error).message ?? "";
+      const notFound = /not found|unfound|os error 2|no such file/i.test(msg);
+      if (!notFound) { showError(`檔案刪除失敗：${msg}`, e); return; }
+      // 檔案已不存在，繼續移除 DB 紀錄
+    }
+  }
   const db = await getDb();
   await db.execute("DELETE FROM ahk_scripts WHERE id = ?", [selectedScript.value.id]);
   selectedScript.value = null;
   scriptContent.value = "";
   scriptForm.value = { name: "", file_path: "", description: "" };
+  showDeleteConfirm.value = false;
   await loadAll();
-  showToast("已移除");
+  showToast(alsoDeleteFile ? "已移除紀錄與檔案" : "已移除紀錄");
 }
 
 // ── 套組管理 ─────────────────────────────────────────────
@@ -284,76 +312,13 @@ async function saveExePath(path: string) {
   showToast("已儲存");
 }
 
-// ── 從醫師通訊錄產生 pass.ahk ────────────────────────────
+// ── 從通訊錄產生 pass.ahk ────────────────────────────
 
 async function generatePassAhk() {
-  const db = await getDb();
-  const physicians = await db.select<{
-    name: string;
-    his_account: string | null;
-    his_password: string | null;
-    phs_account: string | null;
-    phs_password: string | null;
-  }[]>(
-    `SELECT name, his_account, his_password, phs_account, phs_password
-     FROM physicians
-     WHERE (his_account IS NOT NULL AND his_account != '')
-        OR (phs_account IS NOT NULL AND phs_account != '')
-     ORDER BY name`
-  );
+  const result = await buildPassAhkContent();
+  if (!result) { showToast("通訊錄中無帳號資料"); return; }
 
-  if (physicians.length === 0) {
-    showToast("醫師通訊錄中無帳號資料");
-    return;
-  }
-
-  const now = new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei" });
-  const his = physicians.filter((p) => p.his_account);
-  const phs = physicians.filter((p) => p.phs_account);
-
-  let lines: string[] = [
-    "#Requires AutoHotkey v2",
-    "#SingleInstance Force",
-    "",
-    "; ═══════════════════════════════════════════════════════",
-    ";  pass.ahk — MedBase 自動產生的帳密熱字串",
-    `;  產生時間：${now}`,
-    ";  觸發格式：輸入 .<帳號> 自動展開為 帳號 {Tab} 密碼",
-    ";  PHS 帳號前加 p，例如 .p帳號",
-    "; ═══════════════════════════════════════════════════════",
-    "",
-  ];
-
-  if (his.length > 0) {
-    lines.push("; ── HIS 帳密 " + "─".repeat(42));
-    for (const p of his) {
-      lines.push(`; ${p.name}`);
-      lines.push(`:*:.${p.his_account}::`);
-      lines.push(`{`);
-      lines.push(`    SendText "${p.his_account}"`);
-      lines.push(`    Send "{Tab}"`);
-      if (p.his_password) lines.push(`    SendText "${p.his_password}"`);
-      lines.push(`}`);
-      lines.push("");
-    }
-  }
-
-  if (phs.length > 0) {
-    lines.push("; ── PHS 帳密（前綴 p）" + "─".repeat(36));
-    for (const p of phs) {
-      if (!p.phs_account) continue;
-      lines.push(`; ${p.name}`);
-      lines.push(`:*:.p${p.phs_account}::`);
-      lines.push(`{`);
-      lines.push(`    SendText "${p.phs_account}"`);
-      lines.push(`    Send "{Tab}"`);
-      if (p.phs_password) lines.push(`    SendText "${p.phs_password}"`);
-      lines.push(`}`);
-      lines.push("");
-    }
-  }
-
-  const content = lines.join("\n");
+  const { content, hisCount, phsCount } = result;
 
   const path = (await saveDialog({
     title: "儲存 pass.ahk",
@@ -365,6 +330,7 @@ async function generatePassAhk() {
   try {
     await writeTextFile(path, content);
 
+    const db = await getDb();
     // 登記進 ahk_scripts（已存在則更新路徑與描述）
     await db.execute(
       `INSERT INTO ahk_scripts (name, file_path, description)
@@ -376,17 +342,19 @@ async function generatePassAhk() {
       [
         "pass.ahk（自動產生）",
         path,
-        `MedBase 醫師通訊錄 · HIS ${his.length} 筆 · PHS ${phs.length} 筆`,
+        `MedBase 通訊錄 · HIS ${hisCount} 筆 · PHS ${phsCount} 筆`,
       ]
     );
+    await setPassAhkPath(path);
     await loadAll();
 
     const created = scripts.value.find((s) => s.file_path === path);
     if (created) await selectScript(created);
 
-    showToast(`已產生 ${his.length + phs.length} 筆帳密熱字串`);
+    if (ahkExePath.value) await triggerReload(path);
+    else showToast(`已產生 ${hisCount + phsCount} 筆帳密熱字串`);
   } catch (e) {
-    showToast(`產生失敗：${(e as Error).message}`);
+    showError(`產生失敗：${(e as Error).message}`, e);
   }
 }
 
@@ -394,7 +362,7 @@ async function generatePassAhk() {
 
 async function pushToCloud() {
   if (!cloud.gasUrl) { showToast("請先設定 GAS Web App URL"); return; }
-  isSyncing.value = true;
+  isSyncing.value = true; setGlobalSyncing("ahk", true);
   try {
     const payload: { id: number; name: string; file_path: string; description: string; content: string }[] = [];
     for (const s of scripts.value) {
@@ -409,13 +377,13 @@ async function pushToCloud() {
       mode: "no-cors",
     });
     showToast(`已備份 ${payload.length} 個腳本至雲端`);
-  } catch (e) { showToast(`備份失敗：${(e as Error).message}`); }
-  finally { isSyncing.value = false; }
+  } catch (e) { showError(`備份失敗：${(e as Error).message}`, e); }
+  finally { isSyncing.value = false; setGlobalSyncing("ahk", false); }
 }
 
 async function pullFromCloud() {
   if (!cloud.gasUrl) { showToast("請先設定 GAS Web App URL"); return; }
-  isSyncing.value = true;
+  isSyncing.value = true; setGlobalSyncing("ahk", true);
   try {
     const res = await fetch(cloud.gasUrl, {
       method: "POST",
@@ -452,8 +420,8 @@ async function pullFromCloud() {
     }
     await loadAll();
     showToast(`已還原：更新 ${written} 個，略過 ${skipped} 個（內容相同）`);
-  } catch (e) { showToast(`還原失敗：${(e as Error).message}`); }
-  finally { isSyncing.value = false; }
+  } catch (e) { showError(`還原失敗：${(e as Error).message}`, e); }
+  finally { isSyncing.value = false; setGlobalSyncing("ahk", false); }
 }
 
 async function pickExePath() {
@@ -696,7 +664,7 @@ function insertBuilderToScript() {
           <button
             @click="generatePassAhk"
             class="w-full text-xs py-1.5 bg-amber-900/60 hover:bg-amber-900 text-amber-300 hover:text-amber-200 rounded flex items-center justify-center gap-1.5 transition-colors"
-            title="從醫師通訊錄的帳密自動產生 AHK 熱字串腳本"
+            title="從通訊錄的帳密自動產生 AHK 熱字串腳本"
           >
             <span>⚡</span> 產生帳密腳本
           </button>
@@ -721,7 +689,11 @@ function insertBuilderToScript() {
               ? 'bg-gray-800 text-white'
               : 'text-gray-400 hover:bg-gray-900 hover:text-gray-200'"
           >
-            <div class="text-sm font-medium truncate">{{ s.name }}</div>
+            <div class="flex items-center gap-1.5">
+              <span class="text-sm font-medium truncate">{{ s.name }}</span>
+              <span v-if="s.file_path === passAhkPath"
+                class="text-[10px] px-1 py-0.5 rounded bg-amber-900/60 text-amber-400 flex-shrink-0">帳密</span>
+            </div>
             <div class="text-xs text-gray-600 font-mono truncate mt-0.5">
               {{ s.file_path.split(/[\\/]/).pop() }}
             </div>
@@ -776,7 +748,7 @@ function insertBuilderToScript() {
             </div>
           </div>
 
-          <!-- Builder trigger -->
+          <!-- Builder trigger + pass.ahk designation -->
           <div class="flex items-center gap-2 flex-shrink-0">
             <button
               @click="showBuilder = true"
@@ -784,7 +756,17 @@ function insertBuilderToScript() {
             >
               🧩 積木編輯器
             </button>
-            <span class="text-xs text-gray-700">快速組合後插入腳本內容</span>
+            <button
+              v-if="selectedScript?.file_path !== passAhkPath"
+              @click="designateAsPassAhk"
+              class="text-xs px-3 py-1.5 bg-amber-900/40 hover:bg-amber-900/70 text-amber-400 hover:text-amber-300 rounded transition-colors"
+              title="設為通訊錄變更時自動同步的目標腳本"
+            >
+              ⚡ 設為帳密腳本
+            </button>
+            <span v-else class="text-xs text-amber-500/70 flex items-center gap-1">
+              ⚡ 帳密腳本連動中
+            </span>
           </div>
 
           <!-- Code editor -->
@@ -811,12 +793,30 @@ function insertBuilderToScript() {
             >
               僅儲存
             </button>
-            <button
-              @click="deleteScript"
-              class="ml-auto px-4 py-2 bg-red-950/60 hover:bg-red-900/70 text-red-400 hover:text-red-300 text-sm rounded"
-            >
-              移除紀錄
-            </button>
+            <!-- Delete: two-step inline confirm -->
+            <div class="ml-auto flex items-center gap-2">
+              <template v-if="!showDeleteConfirm">
+                <button @click="showDeleteConfirm = true"
+                  class="px-4 py-2 bg-red-950/60 hover:bg-red-900/70 text-red-400 hover:text-red-300 text-sm rounded">
+                  移除…
+                </button>
+              </template>
+              <template v-else>
+                <span class="text-xs text-gray-500">確定要：</span>
+                <button @click="deleteScript(false)"
+                  class="text-xs px-3 py-1.5 bg-red-950/70 hover:bg-red-900 text-red-400 hover:text-red-300 rounded transition-colors">
+                  僅移除紀錄
+                </button>
+                <button @click="deleteScript(true)"
+                  class="text-xs px-3 py-1.5 bg-red-800/80 hover:bg-red-700 text-red-200 rounded transition-colors">
+                  移除＋刪除檔案
+                </button>
+                <button @click="showDeleteConfirm = false"
+                  class="text-xs px-2 py-1.5 text-gray-600 hover:text-gray-400 rounded transition-colors">
+                  取消
+                </button>
+              </template>
+            </div>
           </div>
         </template>
       </div>
@@ -1044,7 +1044,7 @@ function insertBuilderToScript() {
       <section class="rounded-lg border border-amber-900/50 bg-amber-950/20 p-4">
         <h2 class="text-base font-semibold text-amber-300 mb-2">⚡ 帳密自動輸入腳本（pass.ahk）</h2>
         <p class="text-gray-400 text-xs mb-3">
-          點擊左側「產生帳密腳本」，MedBase 會從醫師通訊錄自動產生一份 <code class="text-amber-300 bg-gray-900 px-1 rounded">pass.ahk</code>，
+          點擊左側「產生帳密腳本」，MedBase 會從通訊錄自動產生一份 <code class="text-amber-300 bg-gray-900 px-1 rounded">pass.ahk</code>，
           每位醫師的帳號對應一個熱字串，在任何輸入框中輸入觸發詞即可自動展開帳號 + Tab + 密碼。
         </p>
         <div class="bg-gray-900 rounded border border-gray-800 overflow-hidden mb-3">
@@ -1074,7 +1074,7 @@ function insertBuilderToScript() {
         <ul class="space-y-1.5 text-xs text-gray-400">
           <li class="flex gap-2"><span class="text-amber-400 shrink-0">•</span>前綴 <code class="text-amber-300 bg-gray-900 px-1 rounded">.</code> 避免日常打字誤觸；帳號本身不含 <code class="text-amber-300 bg-gray-900 px-1 rounded">.</code></li>
           <li class="flex gap-2"><span class="text-amber-400 shrink-0">•</span>使用 <code class="text-amber-300 bg-gray-900 px-1 rounded">:*:</code> 選項，輸入完帳號後立即展開，無須按空白鍵</li>
-          <li class="flex gap-2"><span class="text-amber-400 shrink-0">•</span>醫師通訊錄有異動時，重新點「產生帳密腳本」並 Reload 即可更新</li>
+          <li class="flex gap-2"><span class="text-amber-400 shrink-0">•</span>通訊錄有異動時，重新點「產生帳密腳本」並 Reload 即可更新</li>
           <li class="flex gap-2"><span class="text-yellow-500 shrink-0">•</span>pass.ahk 含明文密碼，請確保電腦存取安全，勿將檔案外傳</li>
         </ul>
       </section>

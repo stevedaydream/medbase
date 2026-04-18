@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
+import { setGlobalSyncing } from "@/composables/useCloudSync";
 
 // ── 型別 ────────────────────────────────────────────────────────
 interface Physician { id: number; name: string; department: string | null; is_vs: number; }
@@ -259,7 +260,7 @@ const isSyncing = ref(false);
 
 async function pushToCloud() {
   if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true;
+  isSyncing.value = true; setGlobalSyncing("sets", true);
   try {
     const db = await getDb();
     const localSets = await db.select<SetRow[]>(`
@@ -326,7 +327,7 @@ async function pushToCloud() {
     });
     toast(`已上傳至雲端（新增 ${addCount}、更新 ${updateCount} 個套組）`);
   } catch (e) { toast(`上傳失敗：${(e as Error).message}`); }
-  finally { isSyncing.value = false; }
+  finally { isSyncing.value = false; setGlobalSyncing("sets", false); }
 }
 
 // ── 單套組強制覆蓋雲端 ────────────────────────────────────────────
@@ -335,7 +336,7 @@ const showOverwriteConfirm = ref(false);
 async function overwriteSetToCloud() {
   if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
   if (!activeSet.value) return;
-  isSyncing.value = true;
+  isSyncing.value = true; setGlobalSyncing("sets", true);
   try {
     // 1. 拉取雲端現有資料
     const getRes = await fetch(cloud.gasUrl, {
@@ -377,19 +378,19 @@ async function overwriteSetToCloud() {
     showOverwriteConfirm.value = false;
     toast(`「${localSet.name}」已覆蓋上傳至雲端`);
   } catch (e) { toast(`覆蓋失敗：${(e as Error).message}`); }
-  finally { isSyncing.value = false; }
+  finally { isSyncing.value = false; setGlobalSyncing("sets", false); }
 }
 
 async function pullFromCloud() {
   if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true;
+  isSyncing.value = true; setGlobalSyncing("sets", true);
   try {
     // 同步前預檢：醫師資料是否已在本地
     const db0 = await getDb();
     const physCount = (await db0.select<{ c: number }[]>("SELECT COUNT(*) AS c FROM physicians"))[0].c;
     const itemCount = (await db0.select<{ c: number }[]>("SELECT COUNT(*) AS c FROM items"))[0].c;
     const prereqWarnings: string[] = [];
-    if (physCount === 0) prereqWarnings.push("醫師通訊錄");
+    if (physCount === 0) prereqWarnings.push("通訊錄");
     if (itemCount === 0) prereqWarnings.push("自費品項");
     if (prereqWarnings.length) {
       toast(`⚠ 本地尚無「${prereqWarnings.join("、")}」，同步後醫師名稱可能顯示為佔位文字，建議先在原電腦重新上傳套組`, 5000);
@@ -523,7 +524,7 @@ async function pullFromCloud() {
     const physNote = physParts ? `、醫師${physParts}` : "";
     toast(`雲端同步完成（新增 ${addCount} 個套組、更新 ${updateCount} 個套組${physNote}）`);
   } catch (e) { toast(`下載失敗：${(e as Error).message}`); }
-  finally { isSyncing.value = false; }
+  finally { isSyncing.value = false; setGlobalSyncing("sets", false); }
 }
 
 async function doDelete() {

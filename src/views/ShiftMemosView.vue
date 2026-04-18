@@ -4,6 +4,7 @@ import { useEditor, EditorContent } from "@tiptap/vue-3";
 import StarterKit from "@tiptap/starter-kit";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
+import { setGlobalSyncing } from "@/composables/useCloudSync";
 
 interface ShiftMemo {
   id: number;
@@ -129,7 +130,7 @@ async function pushToCloud() {
   if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
   // 先儲存目前編輯中的內容
   if (saveDebounce) { clearTimeout(saveDebounce); await autoSave(); }
-  isSyncing.value = true;
+  isSyncing.value = true; setGlobalSyncing("shiftMemos", true);
   try {
     await fetch(cloud.gasUrl, {
       method: "POST",
@@ -140,12 +141,12 @@ async function pushToCloud() {
     toast(`已上傳 ${memos.value.length} 筆至雲端`);
   } catch (e) {
     toast(`上傳失敗：${(e as Error).message}`);
-  } finally { isSyncing.value = false; }
+  } finally { isSyncing.value = false; setGlobalSyncing("shiftMemos", false); }
 }
 
 async function pullFromCloud() {
   if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true;
+  isSyncing.value = true; setGlobalSyncing("shiftMemos", true);
   try {
     const res = await fetch(cloud.gasUrl, {
       method: "POST",
@@ -170,7 +171,7 @@ async function pullFromCloud() {
     toast(`已從雲端同步 ${data.length} 筆備忘`);
   } catch (e) {
     toast(`下載失敗：${(e as Error).message}`);
-  } finally { isSyncing.value = false; }
+  } finally { isSyncing.value = false; setGlobalSyncing("shiftMemos", false); }
 }
 
 // ── 編輯標題 ─────────────────────────────────────────────────

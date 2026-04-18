@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
+import { setGlobalSyncing } from "@/composables/useCloudSync";
 
 interface Contact {
   id: number;
@@ -164,7 +165,7 @@ async function save() {
 // ── 雲端同步 ─────────────────────────────────────────────────────
 async function pushToCloud() {
   if (!cloud.gasUrl) { showToast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true;
+  isSyncing.value = true; setGlobalSyncing("contacts", true);
   try {
     await fetch(cloud.gasUrl, {
       method: "POST",
@@ -175,12 +176,12 @@ async function pushToCloud() {
     showToast(`已上傳 ${contacts.value.length} 筆至雲端`);
   } catch (e) {
     showToast(`上傳失敗：${(e as Error).message}`);
-  } finally { isSyncing.value = false; }
+  } finally { isSyncing.value = false; setGlobalSyncing("contacts", false); }
 }
 
 async function pullFromCloud() {
   if (!cloud.gasUrl) { showToast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true;
+  isSyncing.value = true; setGlobalSyncing("contacts", true);
   try {
     const res = await fetch(cloud.gasUrl, {
       method: "POST",
@@ -204,7 +205,7 @@ async function pullFromCloud() {
     showToast(`已從雲端同步 ${data.length} 筆分機資料`);
   } catch (e) {
     showToast(`下載失敗：${(e as Error).message}`);
-  } finally { isSyncing.value = false; }
+  } finally { isSyncing.value = false; setGlobalSyncing("contacts", false); }
 }
 
 async function doDelete() {

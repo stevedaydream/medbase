@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
+import { setGlobalSyncing } from "@/composables/useCloudSync";
 
 interface Prescription {
   id: number; name: string; category: string;
@@ -109,7 +110,7 @@ async function deleteSelected() {
 
 async function pushToCloud() {
   if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true;
+  isSyncing.value = true; setGlobalSyncing("prescriptions", true);
   try {
     await fetch(cloud.gasUrl, {
       method: "POST", headers: { "Content-Type": "text/plain" },
@@ -118,12 +119,12 @@ async function pushToCloud() {
     });
     toast(`已上傳 ${items.value.length} 筆至雲端`);
   } catch (e) { toast(`上傳失敗：${(e as Error).message}`); }
-  finally { isSyncing.value = false; }
+  finally { isSyncing.value = false; setGlobalSyncing("prescriptions", false); }
 }
 
 async function pullFromCloud() {
   if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true;
+  isSyncing.value = true; setGlobalSyncing("prescriptions", true);
   try {
     const res = await fetch(cloud.gasUrl, {
       method: "POST", headers: { "Content-Type": "text/plain" },
@@ -146,7 +147,7 @@ async function pullFromCloud() {
     selected.value = items.value.find(m => m.id === prevId) ?? null;
     toast(`已從雲端同步 ${data.length} 筆`);
   } catch (e) { toast(`下載失敗：${(e as Error).message}`); }
-  finally { isSyncing.value = false; }
+  finally { isSyncing.value = false; setGlobalSyncing("prescriptions", false); }
 }
 
 const stepCount = computed(() =>

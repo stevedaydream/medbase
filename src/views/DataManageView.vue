@@ -262,7 +262,7 @@ async function handleXlsx(e: Event) {
         }
         ok++;
       }
-      if (ok || skip) results.push({ sheet: "醫師通訊錄", upserted: ok, skipped: skip });
+      if (ok || skip) results.push({ sheet: "通訊錄", upserted: ok, skipped: skip });
     }
 
     importResults.value = results;
@@ -283,7 +283,7 @@ const BACKUP_GROUPS: BackupGroup[] = [
   { key: "clinical",   label: "臨床資料",   icon: "🩺", tables: ["medications","prescriptions","surgery","disease","examination"], desc: "藥物、處方、術式、疾病、檢查" },
   { key: "items",      label: "自費耗材",   icon: "📦", tables: ["items","item_depts","surgery_types","surgery_type_items"], desc: "品項主表、科別對應與手術術式" },
   { key: "sets",       label: "手術套組",   icon: "🗂",  tables: ["sets","set_items"],              desc: "套組與套組品項明細" },
-  { key: "physicians", label: "醫師通訊錄", icon: "👤", tables: ["physicians"],                     desc: "醫師帳號、分機、密碼" },
+  { key: "physicians", label: "通訊錄", icon: "👤", tables: ["physicians"],                     desc: "醫師帳號、分機、密碼" },
   { key: "scheduler",  label: "排班系統",   icon: "📅", tables: ["scheduler_users","app_settings"],desc: "排班使用者與班表設定" },
   { key: "emergency",  label: "危急情境",   icon: "🚨", tables: ["emergency_protocols"],            desc: "ACLS / 急救流程卡" },
   { key: "contacts",   label: "常用分機",   icon: "📞", tables: ["contacts"],                       desc: "常用電話分機" },
@@ -305,13 +305,39 @@ const TABLE_LABELS: Record<string, string> = {
   medications:"藥物", prescriptions:"處方", surgery:"術式", disease:"疾病", examination:"檢查",
   items:"自費品項", item_depts:"品項科別", surgery_types:"手術術式", surgery_type_items:"術式品項",
   sets:"套組", set_items:"套組品項",
-  physicians:"醫師通訊錄",
+  physicians:"通訊錄",
   scheduler_users:"排班使用者", app_settings:"程式設定",
   emergency_protocols:"危急情境",
   contacts:"常用分機",
   acp_sets:"ACP評估集", acp_items:"ACP項目", acp_records:"ACP記錄",
   ahk_scripts:"AHK腳本", ahk_groups:"AHK套組", ahk_group_scripts:"AHK套組腳本",
 };
+
+// ── 備份 sidebar：從 DB 取得各表欄位與筆數 ───────────────────────
+interface DbTableMeta { columns: string[]; count: number }
+const tableMetaMap = ref<Record<string, DbTableMeta>>({});
+
+async function loadTableMeta() {
+  const db = await getDb();
+  const tables = await db.select<{ name: string }[]>(
+    `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`
+  );
+  const result: Record<string, DbTableMeta> = {};
+  await Promise.all(tables.map(async ({ name }) => {
+    try {
+      const [cols, cnt] = await Promise.all([
+        db.select<{ name: string }[]>(`PRAGMA table_info("${name}")`),
+        db.select<{ c: number }[]>(`SELECT COUNT(*) AS c FROM "${name}"`),
+      ]);
+      result[name] = { columns: cols.map(c => c.name), count: cnt[0]?.c ?? 0 };
+    } catch { result[name] = { columns: [], count: 0 }; }
+  }));
+  tableMetaMap.value = result;
+}
+
+function groupCount(g: BackupGroup): number {
+  return g.tables.reduce((sum, t) => sum + (tableMetaMap.value[t]?.count ?? 0), 0);
+}
 
 const selectedGroups = ref<Set<string>>(new Set(BACKUP_GROUPS.map(g => g.key)));
 function toggleGroup(key: string) {
@@ -412,11 +438,16 @@ async function exportSelected() {
     let exported = 0;
     for (const table of tables) {
       try {
-        const data = await db.select<any[]>(`SELECT * FROM ${table}`);
-        if (data && data.length > 0) {
-          XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), table);
-          exported++;
-        }
+        const meta = tableMetaMap.value[table];
+        const cols = meta?.columns.length
+          ? meta.columns
+          : (await db.select<{ name: string }[]>(`PRAGMA table_info("${table}")`)).map(c => c.name);
+        const data = await db.select<any[]>(`SELECT * FROM "${table}"`);
+        if (!data.length) continue;
+        const rows = data.map(row => cols.map(c => row[c] ?? null));
+        const ws = XLSX.utils.aoa_to_sheet([cols, ...rows]);
+        XLSX.utils.book_append_sheet(wb, ws, table);
+        exported++;
       } catch (e) { console.warn(`Export ${table} failed:`, e); }
     }
     if (exported === 0) { showToast("error", "選取的項目均無資料，未產生檔案"); return; }
@@ -663,8 +694,13 @@ async function loadAll() {
 }
 onMounted(loadAll);
 
-// 切 tab 時重置搜尋
-watch(activeTab, () => { search.value = ""; selectedProtocolId.value = null; protocolEditorOpen.value = false; });
+// 切 tab 時重置搜尋；切到 backup 時載入表格元資料
+watch(activeTab, (tab) => {
+  search.value = "";
+  selectedProtocolId.value = null;
+  protocolEditorOpen.value = false;
+  if (tab === "backup") loadTableMeta();
+});
 
 // ── 搜尋過濾 ─────────────────────────────────────────────────────
 const filteredItems = computed(() => {
@@ -852,7 +888,7 @@ async function doDelete() {
 
 const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
   { key: "items",      icon: "📦", label: "自費品項",   count: () => items.value.length },
-  { key: "physicians", icon: "👤", label: "醫師通訊錄", count: () => physicians.value.length },
+  { key: "physicians", icon: "👤", label: "通訊錄", count: () => physicians.value.length },
   { key: "emergency",  icon: "🚨", label: "危急情境",   count: () => protocols.value.length },
   { key: "backup",     icon: "💾", label: "備份 / 還原", count: () => 0 },
 ];
@@ -978,7 +1014,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         </table>
       </div>
 
-      <!-- ── 醫師通訊錄 表格 ───────────────────────── -->
+      <!-- ── 通訊錄 表格 ───────────────────────── -->
       <div v-if="activeTab === 'physicians'" class="flex-1 overflow-auto">
         <table class="w-full text-sm">
           <thead class="sticky top-0 bg-gray-900 z-10">
@@ -1275,6 +1311,10 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               <div class="min-w-0">
                 <div class="flex items-center gap-1.5 text-sm text-gray-200 font-medium">
                   <span>{{ g.icon }}</span> {{ g.label }}
+                  <span v-if="groupCount(g) > 0" class="ml-auto text-xs font-mono text-emerald-400 shrink-0">
+                    {{ groupCount(g).toLocaleString() }}
+                  </span>
+                  <span v-else-if="Object.keys(tableMetaMap).length > 0" class="ml-auto text-xs text-gray-700 shrink-0">空</span>
                 </div>
                 <div class="text-[11px] text-gray-500 mt-0.5 truncate">{{ g.desc }}</div>
               </div>
@@ -1490,7 +1530,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         </div>
       </div>
 
-      <!-- ── 醫師通訊錄 Modal ───────────────────── -->
+      <!-- ── 通訊錄 Modal ───────────────────── -->
       <div v-if="activeTab === 'physicians'"
         class="w-full max-w-lg bg-gray-900 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden">
         <div class="flex items-center justify-between px-5 py-4 border-b border-gray-800">

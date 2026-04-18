@@ -2,6 +2,7 @@
 import { ref, watch, onMounted } from "vue";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
+import { icdSyncing, icdProgress, icdTotal, icdMessage, pullIcdFromCloud } from "@/composables/useIcdSync";
 import * as XLSX from "xlsx";
 
 interface IcdCode {
@@ -28,8 +29,7 @@ function toast(msg: string) {
   toastTimer = setTimeout(() => { toastMsg.value = ""; }, 2000);
 }
 
-const cloud     = useCloudSettings();
-const isSyncing = ref(false);
+const cloud = useCloudSettings();
 
 // ── 初始化：只載入筆數 ────────────────────────────────────────
 onMounted(() => { cloud.load(); loadCount(); });
@@ -170,7 +170,6 @@ async function doDelete() {
 // ── 雲端同步 ─────────────────────────────────────────────────
 async function pushToCloud() {
   if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true;
   try {
     const db = await getDb();
     const allCodes = await db.select<IcdCode[]>("SELECT * FROM icd_codes");
@@ -183,37 +182,16 @@ async function pushToCloud() {
     toast(`已上傳 ${allCodes.length} 筆至雲端`);
   } catch (e) {
     toast(`上傳失敗：${(e as Error).message}`);
-  } finally { isSyncing.value = false; }
+  }
 }
 
-async function pullFromCloud() {
-  if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true;
-  try {
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "getIcdCodes" }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
-    const data: IcdCode[] = json.data;
-    if (!data.length) { toast("雲端無 ICD 資料"); return; }
-    const db = await getDb();
-    await db.execute("DELETE FROM icd_codes");
-    for (const r of data) {
-      await db.execute(
-        "INSERT INTO icd_codes (code, version, description_zh, description_en, category) VALUES (?,?,?,?,?)",
-        [r.code, r.version || "ICD10", r.description_zh, r.description_en, r.category]
-      );
-    }
-    results.value = [];
-    searchQ.value = "";
-    await loadCount();
-    toast(`已從雲端同步 ${data.length} 筆 ICD 代碼`);
-  } catch (e) {
-    toast(`下載失敗：${(e as Error).message}`);
-  } finally { isSyncing.value = false; }
+async function startPullFromCloud() {
+  await pullIcdFromCloud();
+  // 同步完成後刷新本頁狀態
+  results.value = [];
+  searchQ.value = "";
+  await loadCount();
+  if (icdMessage.value) toast(icdMessage.value);
 }
 
 // ── Excel 匯入 ────────────────────────────────────────────────
@@ -301,13 +279,13 @@ async function confirmImport() {
         <p class="text-xs text-gray-500 mt-0.5">共 {{ totalCount.toLocaleString() }} 筆 {{ activeVer }}</p>
       </div>
       <div class="flex gap-2">
-        <button @click="pullFromCloud" :disabled="isSyncing"
+        <button @click="startPullFromCloud" :disabled="icdSyncing"
           class="px-3 py-1.5 rounded-lg bg-blue-800/60 text-blue-200 text-xs hover:bg-blue-700/60 disabled:opacity-40 transition-colors whitespace-nowrap">
-          {{ isSyncing ? "…" : "↓ 雲端同步" }}
+          {{ icdSyncing ? `↓ ${icdProgress.toLocaleString()} / ${icdTotal.toLocaleString()}` : "↓ 雲端同步" }}
         </button>
-        <button @click="pushToCloud" :disabled="isSyncing"
+        <button @click="pushToCloud" :disabled="icdSyncing"
           class="px-3 py-1.5 rounded-lg bg-gray-700 text-gray-200 text-xs hover:bg-gray-600 disabled:opacity-40 transition-colors whitespace-nowrap">
-          {{ isSyncing ? "…" : "↑ 上傳" }}
+          ↑ 上傳
         </button>
         <label class="px-3 py-1.5 rounded-lg bg-green-800/60 text-green-200 text-xs cursor-pointer hover:bg-green-700/60 transition-colors">
           📥 Excel 匯入
@@ -333,6 +311,21 @@ async function confirmImport() {
         :class="starFilter ? 'bg-yellow-600/30 text-yellow-300 border border-yellow-600/50' : 'bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-gray-300'">
         ★ 常用<span v-if="starredCount"> ({{ starredCount }})</span>
       </button>
+    </div>
+
+    <!-- 同步進度條 -->
+    <div v-if="icdSyncing" class="mb-3 rounded-lg bg-gray-800 border border-gray-700 p-3 space-y-1.5">
+      <div class="flex items-center justify-between text-xs text-gray-400">
+        <span>ICD 雲端同步中…</span>
+        <span class="font-mono text-blue-300">{{ icdProgress.toLocaleString() }} / {{ icdTotal.toLocaleString() }}</span>
+      </div>
+      <div class="w-full bg-gray-700 rounded-full h-1.5 overflow-hidden">
+        <div class="bg-blue-500 h-1.5 rounded-full transition-all duration-150"
+          :style="{ width: icdTotal > 0 ? `${Math.round(icdProgress / icdTotal * 100)}%` : '0%' }" />
+      </div>
+      <div class="text-[11px] text-gray-600 text-right">
+        {{ icdTotal > 0 ? Math.round(icdProgress / icdTotal * 100) : 0 }}%
+      </div>
     </div>
 
     <!-- Search -->
