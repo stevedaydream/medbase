@@ -7,6 +7,16 @@ import { writeFile, copyFile, readTextFile } from "@tauri-apps/plugin-fs";
 import { appDataDir, join } from "@tauri-apps/api/path";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { useCloudSettings } from "@/stores/cloudSettings";
+import {
+  xlsxPath as xlsxSyncPathRef,
+  isSyncing as xlsxSyncingRef,
+  syncStatus as xlsxSyncStatusRef,
+  formatInfo as xlsxFormatInfoRef,
+  configureAndBind,
+  exportToXlsx,
+  importFromXlsx,
+  unbind as xlsxUnbind,
+} from "@/composables/useXlsxSync";
 
 // ── 型別定義 ────────────────────────────────────────────────────
 interface Item {
@@ -37,6 +47,36 @@ type Tab = "items" | "physicians" | "emergency" | "backup";
 // ── 狀態 ────────────────────────────────────────────────────────
 const activeTab   = ref<Tab>("items");
 const search      = ref("");
+
+// ── 雙軌同步 UI（橋接 useXlsxSync 單例狀態）────────────────────────
+const xlsxSyncPath   = xlsxSyncPathRef;
+const xlsxSyncing    = xlsxSyncingRef;
+const xlsxSyncStatus = xlsxSyncStatusRef;
+
+const xlsxFormatSummary = computed(() => {
+  const fmt = xlsxFormatInfoRef.value;
+  if (!fmt) return "";
+  const parts: string[] = [];
+  if (fmt.vsSheet)      parts.push(`醫師 sheet: "${fmt.vsSheet}"${fmt.isDualColumn ? "（兩欄並排）" : ""}`);
+  if (fmt.contactSheet) parts.push(`分機 sheet: "${fmt.contactSheet}"`);
+  if (fmt.contactCols.length) parts.push(`分機欄位: ${fmt.contactCols.join(", ")}`);
+  return parts.join("　·　");
+});
+
+async function bindXlsxFile() {
+  const path = await openDialog({
+    title: "選擇通訊錄 xlsx 檔案",
+    filters: [{ name: "Excel", extensions: ["xlsx"] }],
+    multiple: false,
+    directory: false,
+  }) as string | null;
+  if (!path) return;
+  await configureAndBind(path);
+}
+
+async function doXlsxExport() { await exportToXlsx(); }
+async function doXlsxImport() { await importFromXlsx(); }
+async function doXlsxUnbind() { await xlsxUnbind(); }
 
 // 資料
 const items       = ref<Item[]>([]);
@@ -1412,6 +1452,63 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
           <p>・還原時依 FK 相依順序匯入，自動處理外鍵衝突</p>
           <p>・<span class="text-amber-500">班表設定</span>儲存於「排班系統」群組的 app_settings 中，備份排班時請勾選此項</p>
           <p>・AHK 腳本<span class="text-amber-500">檔案內容</span>需另外手動備份，此處僅備份元資料</p>
+        </div>
+
+        <!-- ③ 通訊錄雙軌同步 -->
+        <div class="bg-gray-900 rounded-xl border border-gray-800 p-5">
+          <h3 class="font-semibold text-gray-100 flex items-center gap-2 mb-1">
+            <span>🔄</span> 通訊錄雙軌即時同步
+          </h3>
+          <p class="text-xs text-gray-500 mb-4">
+            綁定現有 .xlsx 通訊錄，變更程式通訊錄自動寫入 xlsx，xlsx 被外部修改自動同步到程式，並推送 GAS 雲端。
+          </p>
+
+          <!-- 未綁定 -->
+          <div v-if="!xlsxSyncPath">
+            <button
+              @click="bindXlsxFile"
+              class="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-600 text-white text-sm font-medium transition-colors"
+            >
+              📂 選擇現有 .xlsx 檔案
+            </button>
+          </div>
+
+          <!-- 已綁定 -->
+          <div v-else class="space-y-3">
+            <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 text-xs">
+              <span class="text-green-400">●</span>
+              <span class="text-gray-400 shrink-0">監看檔案：</span>
+              <span class="text-gray-200 font-mono break-all">{{ xlsxSyncPath }}</span>
+            </div>
+            <div v-if="xlsxFormatSummary" class="px-3 py-2 rounded-lg bg-gray-800 text-xs text-gray-400">
+              {{ xlsxFormatSummary }}
+            </div>
+            <div v-if="xlsxSyncStatus" class="px-3 py-2 rounded-lg bg-gray-800/60 text-xs text-gray-400">
+              {{ xlsxSyncStatus }}
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button
+                @click="doXlsxExport"
+                :disabled="xlsxSyncing"
+                class="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-800 hover:bg-emerald-700 text-emerald-100 text-xs disabled:opacity-50 transition-colors"
+              >
+                {{ xlsxSyncing ? '處理中…' : '⬆ DB → xlsx' }}
+              </button>
+              <button
+                @click="doXlsxImport"
+                :disabled="xlsxSyncing"
+                class="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-800 hover:bg-blue-700 text-blue-100 text-xs disabled:opacity-50 transition-colors"
+              >
+                {{ xlsxSyncing ? '處理中…' : '⬇ xlsx → DB' }}
+              </button>
+              <button
+                @click="doXlsxUnbind"
+                class="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs transition-colors"
+              >
+                解除綁定
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- ④ 危險操作 -->

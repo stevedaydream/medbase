@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { setGlobalSyncing } from "@/composables/useCloudSync";
+import { exportToXlsx, autoCloudSync, xlsxPath } from "@/composables/useXlsxSync";
 
 interface Contact {
   id: number;
@@ -148,18 +149,19 @@ async function save() {
   const db = await getDb();
   if (modalMode.value === "add") {
     await db.execute(
-      "INSERT INTO contacts (label, ext, category, notes) VALUES (?,?,?,?)",
+      "INSERT INTO contacts (label, ext, category, notes, updated_at) VALUES (?,?,?,?,datetime('now','localtime'))",
       [f.label.trim(), f.ext.trim(), f.category?.trim() || "常用分機", f.notes || null]
     );
   } else {
     await db.execute(
-      "UPDATE contacts SET label=?, ext=?, category=?, notes=? WHERE id=?",
+      "UPDATE contacts SET label=?, ext=?, category=?, notes=?, updated_at=datetime('now','localtime') WHERE id=?",
       [f.label.trim(), f.ext.trim(), f.category?.trim() || "常用分機", f.notes || null, f.id]
     );
   }
   showModal.value = false;
   await load();
   showToast(modalMode.value === "add" ? "已新增" : "已儲存");
+  if (xlsxPath.value) { exportToXlsx(); autoCloudSync(); }
 }
 
 // ── 雲端同步 ─────────────────────────────────────────────────────
@@ -216,6 +218,7 @@ async function doDelete() {
   deleteTarget.value = null;
   await load();
   showToast("已刪除");
+  if (xlsxPath.value) { exportToXlsx(); autoCloudSync(); }
 }
 </script>
 

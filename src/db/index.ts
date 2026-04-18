@@ -443,4 +443,10 @@ async function initSchema(db: Database) {
     );
   `);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_sti_surgery ON surgery_type_items(surgery_type_id);`);
+
+  // ── 雙軌同步：補 updated_at 欄位（舊資料庫兼容）────────────
+  try { await db.execute(`ALTER TABLE physicians ADD COLUMN updated_at TEXT`); } catch { /* 已存在 */ }
+  try { await db.execute(`ALTER TABLE contacts   ADD COLUMN updated_at TEXT`); } catch { /* 已存在 */ }
+  await db.execute(`UPDATE physicians SET updated_at = datetime('now','localtime') WHERE updated_at IS NULL`);
+  await db.execute(`UPDATE contacts   SET updated_at = datetime('now','localtime') WHERE updated_at IS NULL`);
 }

@@ -13,6 +13,7 @@ import { useUiSettings } from "@/stores/uiSettings";
 import { useLogger } from "@/composables/useLogger";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { startXlsxWatchFromSettings } from "@/composables/useXlsxSync";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize, LogicalPosition } from "@tauri-apps/api/dpi";
 
@@ -26,6 +27,7 @@ const activeSyncLabels = useActiveSyncBanners(computed(() => route.path));
 onMounted(() => {
   uiSettings.load();
   useLogger().initClickTracking(() => route.path);
+  startXlsxWatchFromSettings().catch(() => {/* 找不到路徑，靜默跳過 */});
 });
 
 // ── 精簡模式 ─────────────────────────────────────────────────────────
