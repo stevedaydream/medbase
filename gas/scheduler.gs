@@ -556,6 +556,40 @@ function doPost(e) {
         return json({ ok: true, data });
       }
 
+      // ── 儲存手術術式（桌機端推送）─────────────────────────────────
+      case 'saveSurgeryTypes': {
+        // SurgeryTypes sheet
+        let sh1 = ss.getSheetByName('SurgeryTypes') || ss.insertSheet('SurgeryTypes');
+        const hd1 = ['id','name','dept','notes'];
+        const rw1 = (p.surgeryTypes||[]).map(r => [r.id, r.name||'', r.dept||'', r.notes||'']);
+        sh1.clearContents();
+        sh1.getRange(1,1,1,hd1.length).setValues([hd1]);
+        if (rw1.length) sh1.getRange(2,1,rw1.length,hd1.length).setValues(rw1);
+        // SurgeryTypeItems sheet
+        let sh2 = ss.getSheetByName('SurgeryTypeItems') || ss.insertSheet('SurgeryTypeItems');
+        const hd2 = ['surgery_type_id','hospital_code'];
+        const rw2 = (p.surgeryTypeItems||[]).map(r => [r.surgery_type_id, r.hospital_code||'']);
+        sh2.clearContents();
+        sh2.getRange(1,1,1,hd2.length).setValues([hd2]);
+        if (rw2.length) sh2.getRange(2,1,rw2.length,hd2.length).setValues(rw2);
+        return json({ ok: true, count: rw1.length });
+      }
+
+      // ── 拉取手術術式（桌機端拉取）─────────────────────────────────
+      case 'getSurgeryTypes': {
+        const sh1 = ss.getSheetByName('SurgeryTypes');
+        const sh2 = ss.getSheetByName('SurgeryTypeItems');
+        const surgeryTypes = sh1 && sh1.getLastRow() >= 2
+          ? sh1.getDataRange().getValues().slice(1).filter(r=>r[0]).map(r=>({
+              id: Number(r[0]), name: String(r[1]||''), dept: String(r[2]||''), notes: String(r[3]||'')
+            })) : [];
+        const surgeryTypeItems = sh2 && sh2.getLastRow() >= 2
+          ? sh2.getDataRange().getValues().slice(1).filter(r=>r[0]).map(r=>({
+              surgery_type_id: Number(r[0]), hospital_code: String(r[1]||'')
+            })) : [];
+        return json({ ok: true, surgeryTypes, surgeryTypeItems });
+      }
+
       default:
         return json({ ok: false, error: `Unknown action: ${p.action}` });
     }

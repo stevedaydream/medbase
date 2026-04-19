@@ -480,6 +480,77 @@ async function mgmtToggleItem(code: string) {
   newMap.set(mgmtSelId.value, next);
   surgeryTypeItemMap.value = newMap;
 }
+
+// ── 手術術式 雲端同步 ─────────────────────────────────────────────
+const isSurgSyncing  = ref(false);
+const surgSyncToast  = ref("");
+let surgSyncTimer: ReturnType<typeof setTimeout> | null = null;
+function showSurgToast(msg: string) {
+  surgSyncToast.value = msg;
+  if (surgSyncTimer) clearTimeout(surgSyncTimer);
+  surgSyncTimer = setTimeout(() => { surgSyncToast.value = ""; }, 3000);
+}
+
+async function pushSurgeryTypesToCloud() {
+  if (!cloud.gasUrl) { showSurgToast("請先在「設定」頁面填入 GAS Web App URL"); return; }
+  isSurgSyncing.value = true;
+  try {
+    const db = await getDb();
+    const surgTypes = await db.select<{ id: number; name: string; dept: string | null; notes: string | null }[]>(
+      "SELECT id, name, dept, notes FROM surgery_types ORDER BY id"
+    );
+    const surgTypeItems = await db.select<{ surgery_type_id: number; hospital_code: string }[]>(
+      "SELECT surgery_type_id, hospital_code FROM surgery_type_items"
+    );
+    await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "saveSurgeryTypes", surgeryTypes: surgTypes, surgeryTypeItems: surgTypeItems }),
+      mode: "no-cors",
+    });
+    showSurgToast(`已上傳 ${surgTypes.length} 個手術術式至雲端`);
+  } catch (e) {
+    showSurgToast(`上傳失敗：${(e as Error).message}`);
+  } finally { isSurgSyncing.value = false; }
+}
+
+async function pullSurgeryTypesFromCloud() {
+  if (!cloud.gasUrl) { showSurgToast("請先在「設定」頁面填入 GAS Web App URL"); return; }
+  isSurgSyncing.value = true;
+  try {
+    const res = await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "getSurgeryTypes" }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
+    const cloudTypes: { id: number; name: string; dept: string; notes: string }[] = json.surgeryTypes ?? [];
+    const cloudItems: { surgery_type_id: number; hospital_code: string }[] = json.surgeryTypeItems ?? [];
+    if (!cloudTypes.length) { showSurgToast("雲端無手術術式資料"); return; }
+
+    const db = await getDb();
+    // 以雲端為主：先清空再重建
+    await db.execute("DELETE FROM surgery_type_items");
+    await db.execute("DELETE FROM surgery_types");
+    for (const t of cloudTypes) {
+      await db.execute(
+        "INSERT INTO surgery_types (id, name, dept, notes) VALUES (?,?,?,?)",
+        [t.id, t.name, t.dept || null, t.notes || null]
+      );
+    }
+    for (const si of cloudItems) {
+      await db.execute(
+        "INSERT OR IGNORE INTO surgery_type_items (surgery_type_id, hospital_code) VALUES (?,?)",
+        [si.surgery_type_id, si.hospital_code]
+      );
+    }
+    await loadSurgeryTypes();
+    showSurgToast(`已從雲端同步 ${cloudTypes.length} 個手術術式`);
+  } catch (e) {
+    showSurgToast(`同步失敗：${(e as Error).message}`);
+  } finally { isSurgSyncing.value = false; }
+}
 </script>
 
 <template>
@@ -697,9 +768,20 @@ async function mgmtToggleItem(code: string) {
       <div class="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-[780px] max-w-[95vw] h-[600px] max-h-[90vh] flex flex-col">
 
         <!-- Modal Header -->
-        <div class="flex items-center justify-between px-5 py-3 border-b border-gray-700 shrink-0">
-          <h3 class="text-white font-semibold text-sm">管理手術術式</h3>
-          <button @click="showSurgeryMgmt = false" class="text-gray-500 hover:text-white text-xl leading-none transition-colors">×</button>
+        <div class="flex items-center gap-3 px-5 py-3 border-b border-gray-700 shrink-0">
+          <h3 class="text-white font-semibold text-sm shrink-0">管理手術術式</h3>
+          <div class="flex items-center gap-1.5 flex-1">
+            <button @click="pullSurgeryTypesFromCloud" :disabled="isSurgSyncing"
+              class="text-xs px-2.5 py-1 rounded bg-blue-800/60 hover:bg-blue-700 disabled:opacity-40 text-blue-200 transition-colors whitespace-nowrap">
+              {{ isSurgSyncing ? '…' : '↓ 雲端同步' }}
+            </button>
+            <button @click="pushSurgeryTypesToCloud" :disabled="isSurgSyncing"
+              class="text-xs px-2.5 py-1 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-200 transition-colors whitespace-nowrap">
+              {{ isSurgSyncing ? '…' : '↑ 上傳雲端' }}
+            </button>
+            <span v-if="surgSyncToast" class="text-xs text-gray-400 ml-1">{{ surgSyncToast }}</span>
+          </div>
+          <button @click="showSurgeryMgmt = false" class="text-gray-500 hover:text-white text-xl leading-none transition-colors shrink-0">×</button>
         </div>
 
         <!-- Modal Body -->
