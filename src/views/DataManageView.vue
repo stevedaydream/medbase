@@ -13,10 +13,13 @@ import {
   syncStatus as xlsxSyncStatusRef,
   formatInfo as xlsxFormatInfoRef,
   configureAndBind,
+  createAndBind,
   exportToXlsx,
   importFromXlsx,
   unbind as xlsxUnbind,
+  autoCloudSync,
 } from "@/composables/useXlsxSync";
+import { autoUpdatePassAhk } from "@/composables/usePassAhk";
 
 // ── 型別定義 ────────────────────────────────────────────────────
 interface Item {
@@ -72,6 +75,16 @@ async function bindXlsxFile() {
   }) as string | null;
   if (!path) return;
   await configureAndBind(path);
+}
+
+async function createXlsxFile() {
+  const path = await saveDialog({
+    title: "建立新通訊錄 xlsx",
+    filters: [{ name: "Excel", extensions: ["xlsx"] }],
+    defaultPath: "通訊錄.xlsx",
+  }) as string | null;
+  if (!path) return;
+  await createAndBind(path);
 }
 
 async function doXlsxExport() { await exportToXlsx(); }
@@ -889,24 +902,31 @@ async function savePhysician() {
   } else {
     await dbWrite(
       `UPDATE physicians SET name=?,department=?,title=?,ext=?,his_account=?,his_password=?,
-       phs_account=?,phs_password=?,notes=? WHERE id=?`,
+       phs_account=?,phs_password=?,notes=?,updated_at=datetime('now','localtime') WHERE id=?`,
       [f.name, f.department||null, f.title||null, f.ext||null,
        f.his_account||null, f.his_password||null,
        f.phs_account||null, f.phs_password||null, f.notes||null, f.id]);
   }
-  closeModal(); await loadAll();
+  closeModal();
+  await loadAll();
+  const syncMsg = await autoUpdatePassAhk();
+  if (syncMsg) showToast("success", syncMsg);
+  if (xlsxSyncPathRef.value) { exportToXlsx(); autoCloudSync(); }
 }
 async function saveInlinePhys() {
   const f  = editBuf.value;
   await dbWrite(
     `UPDATE physicians SET name=?,department=?,title=?,ext=?,his_account=?,his_password=?,
-     phs_account=?,phs_password=?,notes=? WHERE id=?`,
+     phs_account=?,phs_password=?,notes=?,updated_at=datetime('now','localtime') WHERE id=?`,
     [f.name, f.department||null, f.title||null, f.ext||null,
      f.his_account||null, f.his_password||null,
      f.phs_account||null, f.phs_password||null, f.notes||null, f.id]);
   editingPhysId.value = null;
   editBuf.value = {};
   await loadAll();
+  const syncMsg = await autoUpdatePassAhk();
+  if (syncMsg) showToast("success", syncMsg);
+  if (xlsxSyncPathRef.value) { exportToXlsx(); autoCloudSync(); }
 }
 
 async function deletePhysician(row: Physician) {
@@ -1464,12 +1484,18 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
           </p>
 
           <!-- 未綁定 -->
-          <div v-if="!xlsxSyncPath">
+          <div v-if="!xlsxSyncPath" class="flex flex-wrap gap-2">
             <button
               @click="bindXlsxFile"
               class="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-600 text-white text-sm font-medium transition-colors"
             >
               📂 選擇現有 .xlsx 檔案
+            </button>
+            <button
+              @click="createXlsxFile"
+              class="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-medium transition-colors"
+            >
+              ✨ 建立新通訊錄 xlsx
             </button>
           </div>
 

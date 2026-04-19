@@ -57,7 +57,56 @@ function copy(text: string) {
   showToast(`已複製：${text}`);
 }
 
+// 合併推送：先拉雲端，本地有雲端無的才上傳（以雲端為主，key = his_account 或 name）
 async function pushToCloud() {
+  if (!cloud.gasUrl) { showToast("請先在排班設定填入 GAS Web App URL"); return; }
+  syncing.value = true; setGlobalSyncing("physicians", true);
+  try {
+    // 1. 拉雲端現有資料
+    const pullRes = await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "getPhysicians" }),
+    });
+    const pullJson = await pullRes.json();
+    if (!pullJson.ok) throw new Error(pullJson.error ?? "拉取雲端失敗");
+    const cloudData: Omit<Physician, "id">[] = pullJson.data ?? [];
+
+    // 2. 建立雲端 key set（his_account 非空 → 用帳號比對；否則用姓名）
+    const cloudAccounts = new Set(cloudData.map(r => r.his_account).filter(Boolean));
+    const cloudNames    = new Set(cloudData.map(r => r.name).filter(Boolean));
+
+    // 3. 找出「本地有、雲端無」的新筆數
+    const newLocal = physicians.value.filter(p => {
+      if (p.his_account && cloudAccounts.has(p.his_account)) return false;
+      if (cloudNames.has(p.name)) return false;
+      return true;
+    });
+
+    if (newLocal.length === 0) {
+      showToast("無新資料需上傳（雲端已有所有本地筆數）");
+      return;
+    }
+
+    // 4. 合併：雲端資料 + 本地新增，送回雲端（savePhysicians 會全量覆寫）
+    const merged = [...cloudData, ...newLocal];
+    const pushRes = await fetch(cloud.gasUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action: "savePhysicians", data: merged }),
+    });
+    const pushJson = await pushRes.json();
+    if (!pushJson.ok) throw new Error(pushJson.error);
+    showToast(`已上傳 ${newLocal.length} 筆新資料（跳過 ${physicians.value.length - newLocal.length} 筆重複）`);
+  } catch (err) {
+    showToast(`推送失敗：${(err as Error).message}`);
+  } finally {
+    syncing.value = false; setGlobalSyncing("physicians", false);
+  }
+}
+
+// 強制覆蓋雲端：以本地為主，完整替換雲端
+async function overwriteCloud() {
   if (!cloud.gasUrl) { showToast("請先在排班設定填入 GAS Web App URL"); return; }
   syncing.value = true; setGlobalSyncing("physicians", true);
   try {
@@ -68,9 +117,9 @@ async function pushToCloud() {
     });
     const json = await res.json();
     if (!json.ok) throw new Error(json.error);
-    showToast(`已推送 ${physicians.value.length} 筆到雲端`);
+    showToast(`已覆蓋雲端（共 ${physicians.value.length} 筆）`);
   } catch (err) {
-    showToast(`推送失敗：${(err as Error).message}`);
+    showToast(`覆蓋失敗：${(err as Error).message}`);
   } finally {
     syncing.value = false; setGlobalSyncing("physicians", false);
   }
@@ -171,8 +220,10 @@ async function saveForm() {
     );
   }
   const isEdit = !!editTarget.value;
+  const editedId = editTarget.value?.id;
   showAddModal.value = false;
   await load();
+  if (editedId) selected.value = physicians.value.find(p => p.id === editedId) ?? selected.value;
   showToast(isEdit ? "已更新" : "已新增");
   const syncMsg = await autoUpdatePassAhk();
   if (syncMsg) showToast(syncMsg);
@@ -226,12 +277,20 @@ async function saveForm() {
       <!-- Cloud sync buttons -->
       <div class="mb-1 flex gap-1">
         <button @click="pushToCloud" :disabled="syncing"
-          class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-blue-800 text-blue-100 text-xs hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer">
+          class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-blue-800 text-blue-100 text-xs hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer"
+          title="本地有、雲端無的才上傳（雲端已有的保留不動）">
           {{ syncing ? '…' : '☁️↑' }} 推送
         </button>
         <button @click="pullFromCloud" :disabled="syncing"
           class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-indigo-800 text-indigo-100 text-xs hover:bg-indigo-700 disabled:opacity-50 transition-colors cursor-pointer">
           {{ syncing ? '…' : '☁️↓' }} 拉取
+        </button>
+      </div>
+      <div class="mb-1">
+        <button @click="overwriteCloud" :disabled="syncing"
+          class="w-full flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-amber-900/60 text-amber-200 text-xs hover:bg-amber-800/70 disabled:opacity-50 transition-colors cursor-pointer"
+          title="以本地資料完整覆蓋雲端（不保留雲端原有資料）">
+          {{ syncing ? '…' : '⚠️' }} 覆蓋雲端
         </button>
       </div>
 <div class="mb-2 flex items-center justify-between">

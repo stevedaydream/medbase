@@ -44,8 +44,14 @@ async function load() {
 }
 
 // 一次性遷移：把醫師通訊錄的院內分機搬到 contacts（排除主治醫師）
+// 加 migration flag，確保只執行一次，不再每次開頁面都清空醫師 ext
 async function migratePhysicianExts() {
   const db = await getDb();
+
+  const flagRow = await db.select<{ value: string }[]>(
+    "SELECT value FROM app_settings WHERE key='physician_ext_migrated'"
+  );
+  if (flagRow[0]?.value === "1") return;
 
   // 清除先前版本可能已遷移的主治醫師條目
   await db.execute(`
@@ -72,17 +78,48 @@ async function migratePhysicianExts() {
     migrated++;
   }
 
-  // 清空已遷移者的 ext（不動主治醫師，他們的 ext 保留供參考）
+  // 清空已遷移者的 ext（只執行這一次）
   await db.execute(`
     UPDATE physicians SET ext = NULL
     WHERE ext IS NOT NULL AND (title IS NULL OR title != '主治醫師')
   `);
 
+  await db.execute(
+    "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('physician_ext_migrated', '1')"
+  );
+
   if (migrated > 0) showToast(`已從醫師通訊錄匯入 ${migrated} 筆分機資料`);
+}
+
+// 一次性還原：把常用分機裡與 physicians.name 相符的條目移回通訊錄
+// 讓常用分機只保留「非人員」的分機號（如護理站、檢查室等）
+async function restorePhysicianExts() {
+  const db = await getDb();
+  const flag = await db.select<{ value: string }[]>(
+    "SELECT value FROM app_settings WHERE key='physician_ext_restored'"
+  );
+  if (flag[0]?.value === "1") return;
+
+  // 找出 contacts 中 label 與某位醫師名字相符、且該醫師 ext 目前為空的條目
+  const rows = await db.select<{ id: number; label: string; ext: string }[]>(`
+    SELECT c.id, c.label, c.ext
+    FROM contacts c
+    INNER JOIN physicians p ON p.name = c.label
+    WHERE (p.ext IS NULL OR p.ext = '')
+  `);
+
+  for (const r of rows) {
+    await db.execute("UPDATE physicians SET ext=? WHERE name=? AND (ext IS NULL OR ext='')", [r.ext, r.label]);
+    await db.execute("DELETE FROM contacts WHERE id=?", [r.id]);
+  }
+
+  await db.execute("INSERT OR REPLACE INTO app_settings (key,value) VALUES ('physician_ext_restored','1')");
+  if (rows.length > 0) showToast(`已將 ${rows.length} 筆人員分機還原至通訊錄`);
 }
 
 onMounted(async () => {
   await migratePhysicianExts();
+  await restorePhysicianExts();
   await load();
 });
 
@@ -169,12 +206,13 @@ async function pushToCloud() {
   if (!cloud.gasUrl) { showToast("請先在「設定」頁面填入 GAS Web App URL"); return; }
   isSyncing.value = true; setGlobalSyncing("contacts", true);
   try {
-    await fetch(cloud.gasUrl, {
+    const res = await fetch(cloud.gasUrl, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "saveContacts", data: contacts.value }),
-      mode: "no-cors",
     });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
     showToast(`已上傳 ${contacts.value.length} 筆至雲端`);
   } catch (e) {
     showToast(`上傳失敗：${(e as Error).message}`);
