@@ -648,7 +648,7 @@ async function pullSurgeryTypesFromCloud() {
       </div>
 
       <!-- L2：目前維度的標籤 ──────────────────────────────── -->
-      <div class="flex flex-wrap gap-1.5">
+      <div class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
         <button
           v-for="tag in currentTags" :key="tag.key"
           @click="toggleFilter(tag.key)"

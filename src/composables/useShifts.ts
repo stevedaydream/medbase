@@ -12,7 +12,7 @@ export function isDerived(t: DayTarget | undefined): t is DerivedTarget {
   return typeof t === "object" && t !== null && "subtract" in t;
 }
 
-export interface Shift { code: string; color: string; target?: number; targets?: ShiftTargets }
+export interface Shift { code: string; color: string; target?: number; targets?: ShiftTargets; offVariant?: boolean }
 
 export const COLOR_PALETTE = [
   { key: "blue",    bg: "#1e3a5f", text: "#93c5fd" },

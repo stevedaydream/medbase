@@ -35,7 +35,7 @@ export const syncStatus  = ref<string>("");
 export const formatInfo  = ref<XlsxFormatInfo | null>(null);
 
 let _internalWrite = false;
-let _unwatch: (() => Promise<void>) | null = null;
+let _unwatch: (() => void | Promise<void>) | null = null;
 
 // ── 工具 ──────────────────────────────────────────────────────────────
 

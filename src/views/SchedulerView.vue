@@ -9,7 +9,7 @@ import RotationTab  from "@/components/scheduler/RotationTab.vue";
 import RequestsTab  from "@/components/scheduler/RequestsTab.vue";
 import BookingTab   from "@/components/scheduler/BookingTab.vue";
 import { runProjection, DEFAULT_POOLS, type RotationPool } from "@/utils/rotationEngine";
-import { useShifts, isDerived, type Shift, type ShiftTargets } from "@/composables/useShifts";
+import { useShifts, isDerived, type Shift, type ShiftTargets, type DayTarget } from "@/composables/useShifts";
 import {
   computeMonthlyTotals, buildPreview, getFieldOrder,
   QUOTA_FIELDS,
@@ -84,11 +84,33 @@ const newNameInput = ref("");
 const showAddRow   = ref(false);
 
 // ── Holiday List ──────────────────────────────────────────────────────
-interface HolidayEntry { date: string; description?: string; type?: "holiday" | "a0" | "b0" }
+// a0=休息日(Sat), b0=例假日(Sun), c0=春節, holiday=國定假日
+interface HolidayEntry { date: string; description?: string; type?: "holiday" | "a0" | "b0" | "c0" }
 const holidayList = ref<HolidayEntry[]>([]);
-// Only real government holidays (not regular Sat/Sun weekends) drive the orange colour
+
+/**
+ * Determine the effective type of a holiday entry at runtime.
+ * Handles legacy data where all entries were stored as type="holiday".
+ * Rules (in priority order):
+ *   1. Already classified as a0/b0/c0 → keep
+ *   2. Saturday + no special description (or "休息日") → a0
+ *   3. Sunday  + no special description (or "例假日") → b0
+ *   4. Spring Festival keywords in description → c0
+ *   5. Otherwise → holiday
+ */
+function effectiveType(h: HolidayEntry): NonNullable<HolidayEntry["type"]> {
+  if (h.type === "a0" || h.type === "b0" || h.type === "c0") return h.type;
+  const dow  = new Date(h.date).getDay();
+  const desc = h.description ?? "";
+  if (dow === 6 && (!desc || desc === "休息日")) return "a0";
+  if (dow === 0 && (!desc || desc === "例假日")) return "b0";
+  if (/春節|除夕|農曆初[一二三四五六七八九十]/.test(desc)) return "c0";
+  return "holiday";
+}
+
+// Only real government holidays drive quota engine + orange colour
 const holidaySet  = computed(() => new Set(
-  holidayList.value.filter(h => !h.type || h.type === "holiday").map(h => h.date)
+  holidayList.value.filter(h => effectiveType(h) === "holiday").map(h => h.date)
 ));
 const isHolidayLoading = ref(false);
 const newHolidayInput  = ref("");
@@ -364,18 +386,49 @@ async function pushShiftsToCloud() {
   }
 }
 
-function countShift(row: ScheduleRow, code: string) {
-  return row.days.filter(d => d === code).length;
-}
 // monthlyQuotaMap: code → { D, N, Off } — populated after 帶入
 const monthlyQuotaMap = ref<Record<string, Record<string, number>>>({});
 
+function countForShift(row: ScheduleRow, shift: Shift): number {
+  // offVariant: count Off days matching the day types configured in shift.targets
+  if (shift.offVariant) {
+    const keys = Object.keys(shift.targets ?? {});
+    if (keys.length === 0) {
+      // no targets configured — default to Saturday
+      return dayLabels.value.filter(day => day.isSat && row.days[day.d - 1] === 'Off').length;
+    }
+    return dayLabels.value.filter(day => {
+      if (row.days[day.d - 1] !== 'Off') return false;
+      if (keys.includes('saturday') && day.isSat) return true;
+      if (keys.includes('sunday')   && day.isSun) return true;
+      if (keys.includes('holiday')  && day.isHoliday) return true;
+      if (keys.includes('weekday')  && !day.isSat && !day.isSun && !day.isHoliday) return true;
+      return false;
+    }).length;
+  }
+  // Residual shift: all configured day-type targets are derived (subtract formula)
+  if (shift.targets) {
+    const vals = Object.values(shift.targets).filter(v => v !== undefined) as DayTarget[];
+    if (vals.length > 0 && vals.every(v => isDerived(v))) {
+      const explicit = shifts.value
+        .filter(s => s.code !== shift.code && !s.offVariant)
+        .reduce((sum, s) => sum + row.days.filter(d => d === s.code).length, 0);
+      return daysInMonth.value - explicit;
+    }
+  }
+  return row.days.filter(d => d === shift.code).length;
+}
+
+function quotaTarget(row: ScheduleRow, shift: Shift): number | undefined {
+  const code = codeByName.value.get(row.name);
+  return code ? monthlyQuotaMap.value[code]?.[shift.code] : undefined;
+}
+
 function quotaStatus(row: ScheduleRow, shift: Shift): "over" | "under" | "met" | "none" {
   const code   = codeByName.value.get(row.name);
-  const mq     = code ? monthlyQuotaMap.value[code]?.[shift.code] : undefined;
-  const target = mq ?? shift.target;
-  if (target === undefined || target === null) return "none";
-  const actual = countShift(row, shift.code);
+  const target = code ? monthlyQuotaMap.value[code]?.[shift.code] : undefined;
+  if (target === undefined) return "none";
+  const actual = countForShift(row, shift);
   if (actual > target) return "over";
   if (actual < target) return "under";
   return "met";
@@ -442,11 +495,38 @@ async function qLoadState() {
   } catch { /* ignore */ }
 }
 
-function qCalc() {
+async function qCalc() {
   qError.value = "";
   const codes = qActiveStaff.value.map(s => s.code);
   if (!codes.length) { qError.value = "無可排班人員"; return; }
-  qPreview.value = buildPreview(codes, qTotals.value, balanceMap.value);
+
+  // For each quota field: rotate order from last month's nextStartCode
+  const savedOrders: Partial<Record<QuotaField, string[]>> = {};
+  try {
+    const db = await getDb();
+    const prevDate = new Date(currentYear.value, currentMonth.value - 2, 1);
+    const prevYYYYMM = `${prevDate.getFullYear()}${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
+    const rows = await db.select<{ value: string }[]>(
+      "SELECT value FROM app_settings WHERE key = ?",
+      [`scheduler_rotation_record_${prevYYYYMM}`]
+    );
+    if (rows[0]?.value) {
+      const prevRec = JSON.parse(rows[0].value);
+      for (const field of QUOTA_FIELDS) {
+        const nextStart = prevRec[field]?.nextStartCode;
+        if (!nextStart || !codes.includes(nextStart)) continue;
+        const balSorted = [...codes].sort((a, b) =>
+          (balanceMap.value[a]?.[field] ?? 0) - (balanceMap.value[b]?.[field] ?? 0)
+        );
+        const idx = balSorted.indexOf(nextStart);
+        if (idx >= 0) {
+          savedOrders[field] = [...balSorted.slice(idx), ...balSorted.slice(0, idx)];
+        }
+      }
+    }
+  } catch { /* prev month record not found, use balance sort */ }
+
+  qPreview.value = buildPreview(codes, qTotals.value, balanceMap.value, savedOrders);
 }
 
 async function qApply() {
@@ -454,9 +534,10 @@ async function qApply() {
   qLoading.value = true;
   qError.value = "";
   try {
+    const w6Key = shifts.value.find(s => s.offVariant)?.code ?? 'W6Off';
     const quotaResult: Record<string, Record<string, number>> = {};
     for (const entry of qPreview.value) {
-      quotaResult[entry.code] = { D: entry.D.quota, N: entry.N.quota, Off: entry.Off.quota };
+      quotaResult[entry.code] = { D: entry.D.quota, N: entry.N.quota, Off: entry.Off.quota, [w6Key]: entry.W6Off.quota };
     }
     await setSetting(`off_quota_${yyyyMM.value}`, JSON.stringify(quotaResult));
     monthlyQuotaMap.value = quotaResult;
@@ -495,9 +576,10 @@ async function qCommit() {
     }
 
     // Save off_quota if not already applied
+    const w6Key = shifts.value.find(s => s.offVariant)?.code ?? 'W6Off';
     const quotaResult: Record<string, Record<string, number>> = {};
     for (const entry of qPreview.value) {
-      quotaResult[entry.code] = { D: entry.D.quota, N: entry.N.quota, Off: entry.Off.quota };
+      quotaResult[entry.code] = { D: entry.D.quota, N: entry.N.quota, Off: entry.Off.quota, [w6Key]: entry.W6Off.quota };
     }
 
     const db = await getDb();
@@ -586,13 +668,20 @@ async function loadHolidays() {
       const parsed = JSON.parse(rows[0].value);
       // backward compat: old format was plain string[]
       if (Array.isArray(parsed) && (parsed.length === 0 || typeof parsed[0] === "string")) {
-        holidayList.value = (parsed as string[]).map(d => ({ date: d }));
+        holidayList.value = (parsed as string[]).map(d => ({ date: d, type: "holiday" as const }));
       } else {
         holidayList.value = parsed as HolidayEntry[];
       }
     } else {
       holidayList.value = [];
     }
+    // Migrate stale type assignments (e.g. 休息日 stored as "holiday")
+    let dirty = false;
+    for (const h of holidayList.value) {
+      const et = effectiveType(h);
+      if (et !== h.type) { h.type = et; dirty = true; }
+    }
+    if (dirty) await saveHolidays();
   } catch { holidayList.value = []; }
 }
 
@@ -613,8 +702,11 @@ async function fetchHolidaysFromApi() {
         const s    = String(d.date);
         const date = `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
         const desc = d.description ?? "";
+        const isSpringFestival = /春節|除夕|農曆初[一二三四五六七八九十]/.test(desc);
         const type: HolidayEntry["type"] =
-          desc === "休息日" ? "a0" : desc === "例假日" ? "b0" : "holiday";
+          desc === "休息日" ? "a0" :
+          desc === "例假日" ? "b0" :
+          isSpringFestival ? "c0" : "holiday";
         return { date, description: desc || undefined, type };
       });
     const dateMap = new Map(holidayList.value.map(h => [h.date, h]));
@@ -663,7 +755,7 @@ function addHoliday() {
   const d = newHolidayInput.value.trim();
   if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) { showToast("格式需為 YYYY-MM-DD"); return; }
   if (!holidayList.value.some(h => h.date === d)) {
-    holidayList.value = [...holidayList.value, { date: d }]
+    holidayList.value = [...holidayList.value, { date: d, type: "holiday" as const }]
       .sort((a, b) => a.date.localeCompare(b.date));
     saveHolidays();
   }
@@ -674,6 +766,34 @@ function removeHoliday(d: string) {
   holidayList.value = holidayList.value.filter(h => h.date !== d);
   saveHolidays();
 }
+
+// Returns true if this shift has any per-day-type targets configured
+function hasPerDayTargets(shift: Shift): boolean {
+  if (!shift.targets) return false;
+  return Object.values(shift.targets).some(v => v !== undefined);
+}
+
+// Daily staffing summary: for each day type, list shift counts + Off
+const staffingSummary = computed(() => {
+  const n = qActiveStaff.value.length;
+  return DAY_TYPE_LABELS.map(dt => {
+    const entries: Array<{ code: string; count: number; color: string }> = [];
+    let required = 0;
+    for (const s of shifts.value) {
+      if (s.code === 'Off') continue;
+      if (!s.targets) continue;
+      const raw = s.targets[dt.key] ?? s.targets.weekday;
+      if (raw === undefined || isDerived(raw)) continue;
+      const count = raw as number;
+      if (count > 0) {
+        entries.push({ code: s.code, count, color: colorOf(s.color).text });
+        required += count;
+      }
+    }
+    const off = n > 0 ? Math.max(0, n - required) : null;
+    return { label: dt.label, key: dt.key, entries, off };
+  });
+});
 
 // Shift daily-target editing helpers
 function toggleTargetMode(si: number, key: DayTypeKey) {
@@ -1801,21 +1921,24 @@ async function createTemplate() {
               class="w-4 h-4 rounded-full border border-gray-600 flex-shrink-0 transition-transform hover:scale-110"
               :style="{ backgroundColor: colorOf(shift.color).bg, borderColor: colorOf(shift.color).text }"
               title="點擊切換顏色" />
-            <div class="flex items-center gap-0.5">
-              <span class="text-gray-600 text-xs">月目標</span>
-              <input
-                :value="shift.target ?? ''"
-                @change="shift.target = ($event.target as HTMLInputElement).value ? parseInt(($event.target as HTMLInputElement).value) : undefined; saveShifts()"
-                type="number" min="0" max="31"
-                placeholder="—"
-                class="w-8 text-xs text-center bg-gray-900 border border-gray-700 rounded outline-none text-gray-400 focus:border-gray-500 focus:text-white px-0.5" />
-            </div>
+            <button @click="shift.offVariant = !shift.offVariant; saveShifts()"
+              class="text-xs px-1.5 py-0.5 rounded border transition-colors"
+              :class="shift.offVariant
+                ? 'bg-amber-900/40 border-amber-700 text-amber-400'
+                : 'bg-gray-900 border-gray-700 text-gray-600 hover:text-gray-400'"
+              title="Off類：此班不算上班人數，統計依targets日類型計算 Off 天數">
+              Off類
+            </button>
             <button @click="expandedShiftIdx = expandedShiftIdx === si ? null : si"
               class="text-xs px-1.5 py-0.5 rounded border transition-colors"
               :class="expandedShiftIdx === si
                 ? 'bg-blue-900/60 border-blue-700 text-blue-300'
-                : 'bg-gray-900 border-gray-700 text-gray-500 hover:text-gray-300'"
-              title="每日目標設定">每日</button>
+                : hasPerDayTargets(shift)
+                  ? 'bg-emerald-900/40 border-emerald-700 text-emerald-400 hover:bg-emerald-900/60'
+                  : 'bg-gray-900 border-gray-700 text-gray-500 hover:text-gray-300'"
+              title="每日人力目標設定">
+              每日<span v-if="hasPerDayTargets(shift) && expandedShiftIdx !== si" class="ml-0.5 text-emerald-400 text-[10px]">●</span>
+            </button>
             <button @click="removeShift(si)" class="text-gray-700 hover:text-red-500 text-xs leading-none">✕</button>
           </div>
           <div class="flex items-center gap-1">
@@ -1825,7 +1948,21 @@ async function createTemplate() {
             <button @click="addShift" class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded">+</button>
           </div>
         </div>
-        <p class="text-xs text-gray-600 mb-2">點色點切換顏色；月目標 = 每人當月應排天數；每日 = 設定每日所需人數</p>
+        <p class="text-xs text-gray-600 mb-2">點色點切換顏色；月目標/月配額 = 每人當月排班次數；每日<span class="text-emerald-600">●</span> = 已設定每日人力細項</p>
+
+        <!-- Daily staffing summary -->
+        <div v-if="staffingSummary.some(r => r.entries.length)" class="mb-3 flex flex-wrap gap-x-4 gap-y-1.5">
+          <div v-for="row in staffingSummary" :key="row.key"
+            class="flex items-center gap-1.5 text-xs">
+            <span class="text-gray-600 w-14 flex-shrink-0">{{ row.label }}</span>
+            <span class="flex items-center gap-1 flex-wrap">
+              <span v-for="e in row.entries" :key="e.code"
+                class="font-semibold" :style="{ color: e.color }">{{ e.count }}{{ e.code }}</span>
+              <span v-if="row.entries.length === 0" class="text-gray-700">—</span>
+              <span v-if="row.off !== null" class="text-gray-500">{{ row.off }}Off</span>
+            </span>
+          </div>
+        </div>
 
         <!-- Per-day-type target panel -->
         <div v-if="expandedShift" class="p-3 bg-gray-950 rounded border border-blue-900/60 space-y-3">
@@ -1910,7 +2047,9 @@ async function createTemplate() {
       <div class="border-t border-gray-800 pt-3">
         <div class="flex items-center gap-2 mb-2">
           <p class="text-xs text-gray-400 font-semibold">國定假日管理</p>
-          <span class="text-xs text-gray-700 border border-gray-800 rounded px-1.5 py-0.5">{{ currentYear }} 年・{{ holidayList.filter(h => h.date.startsWith(String(currentYear))).length }} 個</span>
+          <span class="text-xs text-gray-700 border border-gray-800 rounded px-1.5 py-0.5">
+            {{ currentYear }} 年・國定 {{ holidayList.filter(h => h.date.startsWith(String(currentYear)) && effectiveType(h) === 'holiday').length }} 個 / 共 {{ holidayList.filter(h => h.date.startsWith(String(currentYear))).length }} 筆
+          </span>
           <div class="flex-1"></div>
           <button @click="fetchHolidaysFromApi" :disabled="isHolidayLoading"
             class="text-xs px-3 py-1 bg-blue-800/60 hover:bg-blue-700 text-blue-200 rounded disabled:opacity-40">
@@ -1921,7 +2060,7 @@ async function createTemplate() {
             匯入 CSV
           </button>
         </div>
-        <p class="text-xs text-gray-700 mb-2">國定假日會套用 holiday 班別目標，並在班表格以橘色標示。API 來源：政府開放資料（TaiwanCalendar）</p>
+        <p class="text-xs text-gray-700 mb-2">橘=國定假日（計入配額）；黃=春節（不計入）；灰=周休二日（不計入）。API 來源：政府開放資料（TaiwanCalendar）</p>
         <!-- Manual add -->
         <div class="flex gap-2 mb-2">
           <input v-model="newHolidayInput" @keyup.enter="addHoliday" placeholder="手動新增 YYYY-MM-DD"
@@ -1936,12 +2075,24 @@ async function createTemplate() {
         </div>
         <!-- Holiday list (current year only) -->
         <div class="flex flex-wrap gap-1 max-h-28 overflow-y-auto">
-          <span
-            v-for="h in holidayList.filter(h => h.date.startsWith(String(currentYear)))" :key="h.date"
-            class="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-orange-950/50 border border-orange-900/60 text-orange-300 rounded font-mono">
-            {{ h.date }}<span v-if="h.description" class="text-orange-500 font-sans">{{ h.description }}</span>
-            <button @click="removeHoliday(h.date)" class="text-orange-700 hover:text-orange-400 leading-none">✕</button>
-          </span>
+          <template v-for="h in holidayList.filter(h => h.date.startsWith(String(currentYear)))" :key="h.date">
+            <span
+              class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded font-mono"
+              :class="effectiveType(h) === 'a0' || effectiveType(h) === 'b0'
+                ? 'bg-gray-800/60 border border-gray-700 text-gray-600'
+                : effectiveType(h) === 'c0'
+                  ? 'bg-amber-950/50 border border-amber-800/60 text-amber-300'
+                  : 'bg-orange-950/50 border border-orange-900/60 text-orange-300'">
+              {{ h.date }}
+              <span v-if="h.description" class="font-sans"
+                :class="effectiveType(h) === 'a0' || effectiveType(h) === 'b0' ? 'text-gray-700' : effectiveType(h) === 'c0' ? 'text-amber-500' : 'text-orange-500'">
+                {{ h.description }}
+              </span>
+              <button @click="removeHoliday(h.date)"
+                :class="effectiveType(h) === 'a0' || effectiveType(h) === 'b0' ? 'text-gray-700 hover:text-gray-400' : effectiveType(h) === 'c0' ? 'text-amber-700 hover:text-amber-400' : 'text-orange-700 hover:text-orange-400'"
+                class="leading-none">✕</button>
+            </span>
+          </template>
           <span v-if="!holidayList.filter(h => h.date.startsWith(String(currentYear))).length"
             class="text-xs text-gray-700">尚未設定 {{ currentYear }} 年假日</span>
         </div>
@@ -2117,7 +2268,6 @@ async function createTemplate() {
               :class="si === 0 ? 'border-l' : ''"
               :style="{ color: colorOf(shift.color).text }">
               <div>{{ shift.code }}</div>
-              <div v-if="shift.target" class="text-gray-600 font-normal" style="font-size:10px">目標{{ shift.target }}</div>
             </th>
             <th class="sticky top-0 z-20 bg-gray-900 border-b border-gray-800 w-6 py-2"></th>
           </tr>
@@ -2197,9 +2347,14 @@ async function createTemplate() {
                 'text-red-400':     quotaStatus(row, shift) === 'over',
                 'text-yellow-500':  quotaStatus(row, shift) === 'under',
               }" :style="quotaStatus(row, shift) === 'none' ? { color: colorOf(shift.color).text } : {}">
-                {{ countShift(row, shift.code) || '—' }}
+                {{ countForShift(row, shift) || '—' }}
               </span>
-              <span v-if="shift.target" class="text-gray-700 text-xs">/{{ shift.target }}</span>
+              <template v-if="quotaTarget(row, shift) !== undefined">
+                <span class="text-gray-700 text-xs">/{{ quotaTarget(row, shift) }}</span>
+                <span v-if="quotaStatus(row, shift) === 'met'"   class="text-emerald-400 text-xs">✓</span>
+                <span v-else-if="quotaStatus(row, shift) === 'under'" class="text-yellow-500 text-xs">↓</span>
+                <span v-else-if="quotaStatus(row, shift) === 'over'"  class="text-red-400 text-xs">↑</span>
+              </template>
             </td>
             <!-- Delete row -->
             <td class="border-b border-gray-800 text-center py-1.5">

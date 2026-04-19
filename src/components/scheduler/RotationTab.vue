@@ -53,6 +53,29 @@ function setShiftCode(code: string) {
   updatePool(selectedIdx.value, { shiftCode: code });
 }
 
+// ── Day-of-week filter ────────────────────────────────────────────────
+const DOW_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
+
+function isDayActive(dow: number): boolean {
+  const df = selected.value?.dayFilter;
+  if (df !== undefined) return df.includes(dow);
+  // fallback: infer from poolName prefix
+  const pn = selected.value?.poolName ?? '';
+  if (pn.startsWith('sat')) return dow === 6;
+  if (pn.startsWith('sun')) return dow === 0;
+  if (pn.startsWith('wd'))  return dow >= 1 && dow <= 5;
+  return false;
+}
+
+function toggleDayFilter(dow: number) {
+  if (!selected.value || !canEdit.value) return;
+  const df = selected.value.dayFilter ?? [];
+  const newDf = df.includes(dow)
+    ? df.filter(d => d !== dow)
+    : [...df, dow].sort((a, b) => a - b);
+  updatePool(selectedIdx.value, { dayFilter: newDf });
+}
+
 function setStartPoint(memberIdx: number) {
   if (!selected.value || !canEdit.value) return;
   const len = selected.value.order.length;
@@ -90,7 +113,7 @@ function addPool() {
   if (props.pools.some(p => p.poolName === pn)) return;
   const newPool: RotationPool = {
     poolName: pn, label: lb, shiftCode: newPoolShift.value,
-    quota: 1, order: [], lastIndex: -1, skipQueue: [],
+    quota: 1, order: [], lastIndex: -1, skipQueue: [], dayFilter: [],
   };
   emit("update:pools", [...props.pools, newPool]);
   selectedIdx.value = props.pools.length; // select new pool
@@ -357,6 +380,22 @@ onUnmounted(() => { if (animRaf) cancelAnimationFrame(animRaf) })
               <span class="px-2 text-xs text-white font-mono min-w-[1.5rem] text-center">{{ selected.quota }}</span>
               <button @click="setQuota(1)" :disabled="!canEdit"
                 class="px-1.5 py-0.5 text-gray-400 hover:bg-gray-700 disabled:opacity-30 text-xs">＋</button>
+            </div>
+          </div>
+
+          <!-- Day-of-week filter -->
+          <div class="flex items-center gap-1.5">
+            <span class="text-xs text-gray-500">啟用日</span>
+            <div class="flex gap-0.5">
+              <button
+                v-for="(lbl, di) in DOW_LABELS" :key="di"
+                @click="toggleDayFilter(di)"
+                :disabled="!canEdit"
+                class="w-6 h-6 text-xs rounded transition-colors disabled:opacity-50"
+                :class="isDayActive(di)
+                  ? (di === 0 ? 'bg-red-700 text-white' : di === 6 ? 'bg-blue-700 text-white' : 'bg-emerald-700 text-white')
+                  : 'bg-gray-800 text-gray-600 hover:text-gray-400'"
+              >{{ lbl }}</button>
             </div>
           </div>
 

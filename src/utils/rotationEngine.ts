@@ -11,6 +11,7 @@ export interface RotationPool {
   order: string[];    // 員工 code 輪序陣列
   lastIndex: number;  // 上次指派到的 index（-1 = 尚未開始）
   skipQueue: string[]; // 暫時跳過的員工 code
+  dayFilter?: number[]; // 啟用的星期幾（0=日,1=一...6=六）；undefined = 用 poolName 前綴判斷
 }
 
 export interface ProjectedCell {
@@ -81,10 +82,11 @@ export function runProjection(
     for (const pool of sim) {
       if (!pool.order.length) continue;
       const pn = pool.poolName;
-      const fires =
-        (isSat  && pn.startsWith('sat')) ||
-        (isSun  && pn.startsWith('sun')) ||
-        (!isSat && !isSun && pn.startsWith('wd'));
+      const fires = pool.dayFilter !== undefined
+        ? pool.dayFilter.includes(dow)
+        : (isSat  && pn.startsWith('sat')) ||
+          (isSun  && pn.startsWith('sun')) ||
+          (!isSat && !isSun && pn.startsWith('wd'));
       if (!fires) continue;
 
       const { codes, newLastIndex } = getNextFromPool(pool, pool.quota, dayAssigned);
@@ -103,11 +105,11 @@ export function runProjection(
 
 /** 預設輪序池（不含成員） */
 export const DEFAULT_POOLS: RotationPool[] = [
-  { poolName: 'satD',  label: '週六白班', shiftCode: 'D',   quota: 1, order: [], lastIndex: -1, skipQueue: [] },
-  { poolName: 'satN',  label: '週六夜班', shiftCode: 'N',   quota: 1, order: [], lastIndex: -1, skipQueue: [] },
-  { poolName: 'sunD',  label: '週日白班', shiftCode: 'D',   quota: 1, order: [], lastIndex: -1, skipQueue: [] },
-  { poolName: 'sunN',  label: '週日夜班', shiftCode: 'N',   quota: 1, order: [], lastIndex: -1, skipQueue: [] },
+  { poolName: 'satD',  label: '週六白班', shiftCode: 'D',   quota: 1, order: [], lastIndex: -1, skipQueue: [], dayFilter: [6] },
+  { poolName: 'satN',  label: '週六夜班', shiftCode: 'N',   quota: 1, order: [], lastIndex: -1, skipQueue: [], dayFilter: [6] },
+  { poolName: 'sunD',  label: '週日白班', shiftCode: 'D',   quota: 1, order: [], lastIndex: -1, skipQueue: [], dayFilter: [0] },
+  { poolName: 'sunN',  label: '週日夜班', shiftCode: 'N',   quota: 1, order: [], lastIndex: -1, skipQueue: [], dayFilter: [0] },
   { poolName: 'holD',  label: '假日白班', shiftCode: 'D',   quota: 1, order: [], lastIndex: -1, skipQueue: [] },
   { poolName: 'holN',  label: '假日夜班', shiftCode: 'N',   quota: 1, order: [], lastIndex: -1, skipQueue: [] },
-  { poolName: 'wdOff', label: '平日 Off', shiftCode: 'Off', quota: 1, order: [], lastIndex: -1, skipQueue: [] },
+  { poolName: 'wdOff', label: '平日 Off', shiftCode: 'Off', quota: 1, order: [], lastIndex: -1, skipQueue: [], dayFilter: [1,2,3,4,5] },
 ];

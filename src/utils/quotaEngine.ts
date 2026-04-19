@@ -41,7 +41,7 @@ function getFixedTarget(
   dayType: "weekday" | "saturday" | "sunday" | "holiday"
 ): number {
   if (!shift.targets) return 0;
-  const raw = shift.targets[dayType] ?? shift.targets.weekday;
+  const raw = shift.targets[dayType];
   if (raw === undefined) return 0;
   if (isDerived(raw)) return 0; // derived targets skipped — counted as Off
   return raw as number;
@@ -49,7 +49,11 @@ function getFixedTarget(
 
 /**
  * Compute how many D / N / Off / W6Off slots the whole team needs this month.
- * Off = sum over each day of (totalStaff − all fixed non-Off shift requirements)
+ *
+ * Uses shift.targets (per-day-type) as the staffing source of truth.
+ * Holiday Saturdays: getDayType returns "holiday" first → holiday targets apply →
+ * fewer required → more Off → W6Off reflects holiday-level staffing automatically.
+ * Spring Festival and regular weekends are excluded from holidayDates upstream.
  */
 export function computeMonthlyTotals(
   year: number,
@@ -67,7 +71,7 @@ export function computeMonthlyTotals(
 
     let required = 0;
     for (const s of shifts) {
-      if (s.code === "Off") continue;
+      if (s.code === "Off" || s.offVariant) continue;
       const t = getFixedTarget(s, dayType);
       required += t;
       if (s.code === "D") D += t;
@@ -107,9 +111,9 @@ export function buildPreview(
   );
 
   for (const field of QUOTA_FIELDS) {
-    const total   = totals[field];
-    const base    = Math.floor(total / n);
-    const extras  = total - base * n;
+    const total    = totals[field];
+    const base     = Math.floor(total / n);
+    const extras   = total - base * n;
     const expected = total / n;
 
     const saved = savedOrders[field];
@@ -132,7 +136,6 @@ export function buildPreview(
     });
   }
 
-  // Return in original staffCodes order
   return staffCodes.map(c => byCode[c]);
 }
 
