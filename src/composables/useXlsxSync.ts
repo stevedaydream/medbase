@@ -205,6 +205,8 @@ export async function importFromXlsx(): Promise<void> {
     lastSyncAt.value = nowLocal();
     syncStatus.value = `xlsx → DB 完成（${lastSyncAt.value}）`;
     autoCloudSync();
+    const { autoUpdatePassAhk } = await import("@/composables/usePassAhk");
+    autoUpdatePassAhk();
   } catch (e) {
     syncStatus.value = `匯入失敗：${(e as Error).message}`;
   } finally {
