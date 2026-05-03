@@ -8,15 +8,16 @@ import LoginModal, { type SessionUser } from "@/components/scheduler/LoginModal.
 import RotationTab  from "@/components/scheduler/RotationTab.vue";
 import RequestsTab  from "@/components/scheduler/RequestsTab.vue";
 import BookingTab   from "@/components/scheduler/BookingTab.vue";
-import { runProjection, DEFAULT_POOLS, type RotationPool } from "@/utils/rotationEngine";
+import { runProjection, runProjectionAndGetEndPools, DEFAULT_POOLS, type RotationPool } from "@/utils/rotationEngine";
 import { useShifts, isDerived, type Shift, type ShiftTargets, type DayTarget } from "@/composables/useShifts";
 import {
-  computeMonthlyTotals, buildPreview, getFieldOrder,
+  computeMonthlyTotals, buildPreview, getFieldOrder, computeExtraShiftTotals,
   QUOTA_FIELDS,
   type QuotaTotals, type QuotaEntry, type BalanceMap, type QuotaField,
 } from "@/utils/quotaEngine";
 import { useStaff } from "@/composables/useStaff";
 import { useCloudSettings } from "@/stores/cloudSettings";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 // ── Types ─────────────────────────────────────────────────────────────
 interface ScheduleRow {
@@ -44,6 +45,29 @@ const scheduleStatus = ref<"draft" | "published">("draft");
 // ── Rotation Pools ────────────────────────────────────────────────────
 const rotationPools       = ref<RotationPool[]>([]);
 const projectionBasePools = ref<RotationPool[]>([]); // previous-month snapshot
+
+// ── Rotation Applied Cells (drift tracking) ───────────────────────────
+// key: `${staffCode}-${dayIdx0}` → original shift code applied by rotation
+const rotationAppliedCells = ref<Map<string, string>>(new Map());
+
+// ── Rotation Snapshots ────────────────────────────────────────────────
+interface RotationSnapshot {
+  yyyymm:         string;
+  pools_json:     string;
+  end_pools_json: string | null;
+  projected_json: string | null;
+  staff_sig:      string | null;
+  committed:      number;
+}
+const rotationSnapshots   = ref<Map<string, RotationSnapshot>>(new Map());
+const isPreCalcRunning    = ref(false);
+
+interface DriftState {
+  affectedMonths: string[];
+  oldSigObj:      Record<string, string[]>;
+  newPools:       RotationPool[];
+}
+const driftState = ref<DriftState | null>(null);
 
 // ── Requests ──────────────────────────────────────────────────────────
 const requests = ref<RequestEntry[]>([]);
@@ -78,8 +102,25 @@ const visibleTabs = computed(() =>
 const now          = new Date();
 const currentYear  = ref(now.getFullYear());
 const currentMonth = ref(now.getMonth() + 1);
-const scheduleData = ref<ScheduleRow[]>([]);
-const isLoading    = ref(false);
+const scheduleData  = ref<ScheduleRow[]>([]);
+const isLoading     = ref(false);
+const scheduleZoom    = ref(1.0);
+const scheduleGridRef = ref<HTMLElement | null>(null);
+
+function onScheduleWheel(e: WheelEvent) {
+  if (!e.ctrlKey) return;
+  e.preventDefault();
+  const step = e.deltaY > 0 ? -0.1 : 0.1;
+  scheduleZoom.value = Math.min(2.0, Math.max(0.5,
+    Math.round((scheduleZoom.value + step) * 10) / 10
+  ));
+}
+
+watch(scheduleGridRef, (el, prev) => {
+  if (prev) prev.removeEventListener('wheel', onScheduleWheel);
+  if (el)   el.addEventListener('wheel', onScheduleWheel, { passive: false });
+});
+
 const newNameInput = ref("");
 const showAddRow   = ref(false);
 
@@ -159,12 +200,13 @@ async function loadScheduleFromDb() {
   try {
     const db   = await getDb();
     const rows = await db.select<{ key: string; value: string }[]>(
-      "SELECT key, value FROM app_settings WHERE key IN (?, ?, ?, ?)",
+      "SELECT key, value FROM app_settings WHERE key IN (?, ?, ?, ?, ?)",
       [
         `scheduler_schedule_data_${yyyyMM.value}`,
         `scheduler_schedule_source_${yyyyMM.value}`,
         `scheduler_schedule_saved_at_${yyyyMM.value}`,
         `scheduler_schedule_import_at_${yyyyMM.value}`,
+        `scheduler_rotation_applied_${yyyyMM.value}`,
       ]
     );
     const kv = Object.fromEntries(rows.map(r => [r.key.replace("scheduler_", ""), r.value]));
@@ -184,8 +226,13 @@ async function loadScheduleFromDb() {
       lastImport.value   = "";
       isDirty.value      = false;
     }
+    const appliedRaw = kv[`rotation_applied_${yyyyMM.value}`];
+    rotationAppliedCells.value = appliedRaw
+      ? new Map(Object.entries(JSON.parse(appliedRaw) as Record<string, string>))
+      : new Map();
   } catch {
     scheduleData.value = [];
+    rotationAppliedCells.value = new Map();
   }
 }
 function showToast(msg: string) {
@@ -421,12 +468,11 @@ function countForShift(row: ScheduleRow, shift: Shift): number {
 
 function quotaTarget(row: ScheduleRow, shift: Shift): number | undefined {
   const code = codeByName.value.get(row.name);
-  return code ? monthlyQuotaMap.value[code]?.[shift.code] : undefined;
+  return code ? (monthlyQuotaMap.value[code]?.[shift.code] ?? shift.target) : shift.target;
 }
 
 function quotaStatus(row: ScheduleRow, shift: Shift): "over" | "under" | "met" | "none" {
-  const code   = codeByName.value.get(row.name);
-  const target = code ? monthlyQuotaMap.value[code]?.[shift.code] : undefined;
+  const target = quotaTarget(row, shift);
   if (target === undefined) return "none";
   const actual = countForShift(row, shift);
   if (actual > target) return "over";
@@ -529,16 +575,73 @@ async function qCalc() {
   qPreview.value = buildPreview(codes, qTotals.value, balanceMap.value, savedOrders);
 }
 
+function buildQuotaResult(): Record<string, Record<string, number>> {
+  // Find Saturday-off shift: prefer offVariant (excluding 'Off'), fallback to W6* code prefix
+  const w6Shift =
+    shifts.value.find(s => s.offVariant && s.code !== 'Off') ??
+    shifts.value.find(s => s.code.toUpperCase().startsWith('W6') && !['D','N','Off'].includes(s.code));
+  const result: Record<string, Record<string, number>> = {};
+  for (const entry of qPreview.value) {
+    result[entry.code] = {
+      D: entry.D.quota,
+      N: entry.N.quota,
+      // Off = total (non-Sat + Sat); W6 shift is the Saturday subset for visibility
+      Off: entry.Off.quota,
+      ...(w6Shift ? { [w6Shift.code]: entry.W6Off.quota } : {}),
+    };
+  }
+
+  // Fixed extra shifts (H3, etc.) — evenly distributed
+  const extraTotals = computeExtraShiftTotals(
+    currentYear.value, currentMonth.value, shifts.value, holidaySet.value
+  );
+  const sortedCodes = Object.keys(result).sort();
+  const n = sortedCodes.length;
+  if (n > 0) {
+    for (const [shiftCode, total] of Object.entries(extraTotals)) {
+      if (total === 0) continue;
+      const base = Math.floor(total / n);
+      const extras = total - base * n;
+      sortedCodes.forEach((code, i) => {
+        result[code][shiftCode] = i < extras ? base + 1 : base;
+      });
+    }
+  }
+
+  // Remainder/derived shifts (e.g. S1) = daysInMonth - D - N - H3 - Off per person
+  const daysInMonth = new Date(currentYear.value, currentMonth.value, 0).getDate();
+  const fixedCodes = new Set([
+    'D', 'N', 'Off',
+    ...(w6Shift ? [w6Shift.code] : []),
+    ...Object.entries(extraTotals).filter(([, t]) => t > 0).map(([k]) => k),
+  ]);
+  const remainderShifts = shifts.value.filter(s =>
+    !fixedCodes.has(s.code) && !s.offVariant && s.code !== 'Off'
+  );
+  if (remainderShifts.length > 0) {
+    const w6Code = w6Shift?.code;
+    for (const code of Object.keys(result)) {
+      const r = result[code];
+      // W6Off is a subset of Off — exclude it to avoid double-counting
+      const fixedSum = Object.entries(r)
+        .filter(([k]) => k !== w6Code)
+        .reduce((sum, [, v]) => sum + v, 0);
+      const rem = Math.max(0, daysInMonth - fixedSum);
+      for (const s of remainderShifts) {
+        r[s.code] = rem;
+      }
+    }
+  }
+
+  return result;
+}
+
 async function qApply() {
   if (!qPreview.value.length) { qError.value = "請先試算"; return; }
   qLoading.value = true;
   qError.value = "";
   try {
-    const w6Key = shifts.value.find(s => s.offVariant)?.code ?? 'W6Off';
-    const quotaResult: Record<string, Record<string, number>> = {};
-    for (const entry of qPreview.value) {
-      quotaResult[entry.code] = { D: entry.D.quota, N: entry.N.quota, Off: entry.Off.quota, [w6Key]: entry.W6Off.quota };
-    }
+    const quotaResult = buildQuotaResult();
     await setSetting(`off_quota_${yyyyMM.value}`, JSON.stringify(quotaResult));
     monthlyQuotaMap.value = quotaResult;
     showToast("配額已帶入班表統計欄");
@@ -576,11 +679,7 @@ async function qCommit() {
     }
 
     // Save off_quota if not already applied
-    const w6Key = shifts.value.find(s => s.offVariant)?.code ?? 'W6Off';
-    const quotaResult: Record<string, Record<string, number>> = {};
-    for (const entry of qPreview.value) {
-      quotaResult[entry.code] = { D: entry.D.quota, N: entry.N.quota, Off: entry.Off.quota, [w6Key]: entry.W6Off.quota };
-    }
+    const quotaResult = buildQuotaResult();
 
     const db = await getDb();
     await db.execute(
@@ -847,6 +946,7 @@ async function loadSettings() {
     else                   rotationPools.value          = DEFAULT_POOLS.map(p => ({ ...p }));
   } catch { /* first launch */ }
   await loadMonthStatus();
+  await loadRotationSnapshots(); // 必須在 loadProjectionBase 前，後者需要快照資料
   await loadProjectionBase();
   await loadScheduleFromDb();
   await loadHolidays();
@@ -878,7 +978,117 @@ async function saveRotationPools() {
   await setSetting("rotation_pools", JSON.stringify(rotationPools.value));
 }
 
+// ── Snapshot helpers ──────────────────────────────────────────────────
+function computeStaffSig(pools: RotationPool[]): Record<string, string[]> {
+  return Object.fromEntries(pools.map(p => [p.poolName, [...p.order]]));
+}
+
+async function loadRotationSnapshots() {
+  try {
+    const db = await getDb();
+    const rows = await db.select<RotationSnapshot[]>("SELECT * FROM rotation_snapshots ORDER BY yyyymm");
+    rotationSnapshots.value = new Map(rows.map(r => [r.yyyymm, r]));
+  } catch { rotationSnapshots.value = new Map(); }
+}
+
+async function upsertSnapshot(snap: Omit<RotationSnapshot, 'committed'> & { committed?: number }) {
+  const db = await getDb();
+  await db.execute(
+    `INSERT INTO rotation_snapshots (yyyymm, pools_json, end_pools_json, projected_json, staff_sig, committed, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, datetime('now','localtime'))
+     ON CONFLICT(yyyymm) DO UPDATE SET
+       pools_json = excluded.pools_json,
+       end_pools_json = excluded.end_pools_json,
+       projected_json = excluded.projected_json,
+       staff_sig = excluded.staff_sig,
+       committed = excluded.committed,
+       updated_at = excluded.updated_at`,
+    [snap.yyyymm, snap.pools_json, snap.end_pools_json ?? null,
+     snap.projected_json ?? null, snap.staff_sig ?? null, snap.committed ?? 0]
+  );
+  rotationSnapshots.value.set(snap.yyyymm, { ...snap, committed: snap.committed ?? 0 });
+}
+
+async function preCalculateFuture(nMonths = 6) {
+  if (isPreCalcRunning.value) return;
+  isPreCalcRunning.value = true;
+  try {
+    let curPools = rotationPools.value;
+    let y = currentYear.value;
+    let m = currentMonth.value;
+    for (let i = 0; i < nMonths; i++) {
+      const mm = String(m).padStart(2, '0');
+      const yyyymm = `${y}${mm}`;
+      const { endPools, projection } = runProjectionAndGetEndPools(curPools, y, m);
+      const projObj: Record<string, { code: string; fromPool: string; shiftCode: string }[]> = {};
+      for (const [k, v] of projection) projObj[k] = v;
+      await upsertSnapshot({
+        yyyymm,
+        pools_json:     JSON.stringify(curPools),
+        end_pools_json: JSON.stringify(endPools),
+        projected_json: JSON.stringify(projObj),
+        staff_sig:      JSON.stringify(computeStaffSig(curPools)),
+        committed: rotationSnapshots.value.get(yyyymm)?.committed ?? 0,
+      });
+      curPools = endPools;
+      if (m === 12) { y++; m = 1; } else m++;
+    }
+    showToast(`已預算未來 ${nMonths} 個月輪序`);
+  } catch (e) {
+    showToast(`預算失敗：${(e as Error).message}`);
+  } finally {
+    isPreCalcRunning.value = false;
+  }
+}
+
+function checkPoolsDrift(newPools: RotationPool[]): boolean {
+  const curYYYYMM = yyyyMM.value;
+  const newSigObj = computeStaffSig(newPools);
+  const affected: string[] = [];
+  let oldSigObj: Record<string, string[]> = {};
+
+  for (const [yyyymm, snap] of rotationSnapshots.value) {
+    if (yyyymm <= curYYYYMM || !snap.staff_sig) continue;
+    const snapSig = JSON.parse(snap.staff_sig) as Record<string, string[]>;
+    const changed = Object.keys(newSigObj).some(pn =>
+      JSON.stringify(snapSig[pn] ?? []) !== JSON.stringify(newSigObj[pn] ?? [])
+    );
+    if (changed) {
+      if (!affected.length) oldSigObj = snapSig;
+      affected.push(yyyymm);
+    }
+  }
+
+  if (affected.length) {
+    driftState.value = { affectedMonths: affected.sort(), oldSigObj, newPools };
+    return true;
+  }
+  return false;
+}
+
+async function confirmDriftOverwrite() {
+  if (!driftState.value) return;
+  rotationPools.value = driftState.value.newPools;
+  await saveRotationPools();
+  driftState.value = null;
+  await preCalculateFuture(6);
+}
+
+async function applyDriftKeepSnapshots() {
+  if (!driftState.value) return;
+  rotationPools.value = driftState.value.newPools;
+  await saveRotationPools();
+  driftState.value = null;
+  showToast('輪序池已更新，舊預算保留');
+}
+
+function cancelDrift() {
+  driftState.value = null;
+}
+
 async function onPoolsUpdate(newPools: RotationPool[]) {
+  const hasDrift = checkPoolsDrift(newPools);
+  if (hasDrift) return; // wait for user decision in drift modal
   rotationPools.value = newPools;
   await saveRotationPools();
 }
@@ -916,12 +1126,36 @@ async function loadProjectionBase() {
     : `${y}${String(m - 1).padStart(2, "0")}`;
   try {
     const db = await getDb();
+    // 優先：已發布的舊快照（app_settings）— 須有至少一個池含成員才有效
     const rows = await db.select<{ value: string }[]>(
       "SELECT value FROM app_settings WHERE key = ?",
       [`scheduler_proposed_pools_${prevMM}`]
     );
-    projectionBasePools.value = rows[0]?.value ? JSON.parse(rows[0].value) : [];
+    if (rows[0]?.value) {
+      const parsed = JSON.parse(rows[0].value) as RotationPool[];
+      if (parsed.some(p => p.order.length > 0)) {
+        projectionBasePools.value = parsed;
+        return;
+      }
+    }
+    // 次選：rotation_snapshots 的上個月結束態
+    const snap = rotationSnapshots.value.get(prevMM);
+    if (snap?.end_pools_json) {
+      const parsed = JSON.parse(snap.end_pools_json) as RotationPool[];
+      if (parsed.some(p => p.order.length > 0)) {
+        projectionBasePools.value = parsed;
+        return;
+      }
+    }
+    // 最終 fallback：直接用 live pools（projectedCells 計算時會自動用 rotationPools）
+    projectionBasePools.value = [];
   } catch { projectionBasePools.value = []; }
+}
+
+function openGoogleSheet() {
+  const id = cloud.scheduleSpreadsheetId || cloud.spreadsheetId;
+  if (!id) { showToast("請先在設定填入試算表 ID"); return; }
+  openUrl(`https://docs.google.com/spreadsheets/d/${id}/edit`);
 }
 
 function applyRotationToSchedule() {
@@ -932,12 +1166,29 @@ function applyRotationToSchedule() {
         const proj = getProjectedCell(row.name, di);
         if (proj) {
           row.days[di] = proj.shiftCode;
+          const code = codeByName.value.get(row.name);
+          if (code) rotationAppliedCells.value.set(`${code}-${di}`, proj.shiftCode);
           applied++;
         }
       }
     }
   }
+  if (applied) {
+    const obj: Record<string, string> = {};
+    for (const [k, v] of rotationAppliedCells.value) obj[k] = v;
+    setSetting(`rotation_applied_${yyyyMM.value}`, JSON.stringify(obj));
+  }
   showToast(applied ? `已套用 ${applied} 格輪序` : "無可套用的輪序投影");
+}
+
+function getRotationHint(rowName: string, dayIdx: number): string | null {
+  const code = codeByName.value.get(rowName);
+  if (!code) return null;
+  const orig = rotationAppliedCells.value.get(`${code}-${dayIdx}`);
+  if (!orig) return null;
+  const current = scheduleData.value.find(r => r.name === rowName)?.days[dayIdx];
+  if (!current || current === orig) return null;
+  return orig;
 }
 
 // ── Parse Sheets / XLSX values → ScheduleRow[] ───────────────────────
@@ -1378,6 +1629,16 @@ async function publishSchedule() {
     await setSetting(`status_${yyyyMM.value}`, "published");
     // Phase F: save pool snapshot so next month can continue from correct position
     await setSetting(`proposed_pools_${yyyyMM.value}`, JSON.stringify(rotationPools.value));
+    // Snapshot: mark committed + update end state
+    const { endPools } = runProjectionAndGetEndPools(rotationPools.value, currentYear.value, currentMonth.value);
+    await upsertSnapshot({
+      yyyymm:         yyyyMM.value,
+      pools_json:     JSON.stringify(rotationPools.value),
+      end_pools_json: JSON.stringify(endPools),
+      projected_json: rotationSnapshots.value.get(yyyyMM.value)?.projected_json ?? null,
+      staff_sig:      JSON.stringify(computeStaffSig(rotationPools.value)),
+      committed:      1,
+    });
     await recordSync();
     showToast("班表已發布");
   } catch (e) {
@@ -1667,7 +1928,13 @@ async function createTemplate() {
             <span class="text-gray-600 font-semibold uppercase tracking-wide">本月預計</span>
             <span v-for="f in QUOTA_FIELDS" :key="f">
               <span class="font-mono text-gray-500 mr-0.5">{{ f }}</span>
-              <span class="text-white font-semibold">{{ qTotals[f] }}</span>
+              <span class="text-white font-semibold"
+                :title="f === 'Off' ? `非週六 ${qTotals.Off - qTotals.W6Off} + 週六 ${qTotals.W6Off} = ${qTotals.Off}` : undefined">
+                <template v-if="f === 'Off' && qTotals.W6Off > 0">
+                  {{ qTotals.Off - qTotals.W6Off }}<span class="text-gray-500 mx-0.5">+</span>{{ qTotals.W6Off }}
+                </template>
+                <template v-else>{{ qTotals[f] }}</template>
+              </span>
               <span class="text-gray-700 ml-1 text-[10px]">均 {{ qActiveStaff.length ? (qTotals[f] / qActiveStaff.length).toFixed(1) : '—' }}</span>
             </span>
           </div>
@@ -1689,8 +1956,12 @@ async function createTemplate() {
                     <span class="text-gray-300">{{ staff.find(s => s.code === entry.code)?.name ?? entry.code }}</span>
                   </td>
                   <td v-for="f in QUOTA_FIELDS" :key="f" class="px-4 py-1.5 text-center">
-                    <span :class="['font-mono font-semibold', entry[f].quota > entry[f].base ? 'text-amber-400' : 'text-gray-200']">
-                      {{ entry[f].quota }}
+                    <span :class="['font-mono font-semibold', entry[f].quota > entry[f].base ? 'text-amber-400' : 'text-gray-200']"
+                      :title="f === 'Off' ? `非週六 ${entry.Off.quota - entry.W6Off.quota} + 週六 ${entry.W6Off.quota} = ${entry.Off.quota}` : undefined">
+                      <template v-if="f === 'Off' && entry.W6Off.quota > 0">
+                        {{ entry.Off.quota - entry.W6Off.quota }}<span class="text-gray-500 mx-0.5">+</span>{{ entry.W6Off.quota }}
+                      </template>
+                      <template v-else>{{ entry[f].quota }}</template>
                     </span>
                     <span class="text-gray-700 text-[10px] ml-1"
                       :title="`累積：${entry[f].balanceBefore >= 0 ? '+' : ''}${entry[f].balanceBefore} → ${entry[f].balanceAfter >= 0 ? '+' : ''}${entry[f].balanceAfter}`">
@@ -1703,7 +1974,10 @@ async function createTemplate() {
                 <tr class="border-t border-gray-700 text-gray-500">
                   <td class="px-2 py-1 font-semibold">合計</td>
                   <td v-for="f in QUOTA_FIELDS" :key="f" class="px-4 py-1 text-center font-mono font-semibold">
-                    {{ qPreview.reduce((s, e) => s + e[f].quota, 0) }}
+                    <template v-if="f === 'Off' && qPreview.reduce((s, e) => s + e.W6Off.quota, 0) > 0">
+                      {{ qPreview.reduce((s, e) => s + e.Off.quota - e.W6Off.quota, 0) }}<span class="text-gray-700 mx-0.5">+</span>{{ qPreview.reduce((s, e) => s + e.W6Off.quota, 0) }}
+                    </template>
+                    <template v-else>{{ qPreview.reduce((s, e) => s + e[f].quota, 0) }}</template>
                   </td>
                 </tr>
               </tfoot>
@@ -2040,7 +2314,18 @@ async function createTemplate() {
             </button>
           </div>
         </div>
-        <p class="text-xs text-gray-700">輪序池的成員與順序可備份至 GAS Config，供跨設備還原</p>
+        <p class="text-xs text-gray-700 mb-2">輪序池的成員與順序可備份至 GAS Config，供跨設備還原</p>
+        <!-- Pre-calculate snapshots -->
+        <div class="flex items-center gap-2">
+          <button @click="preCalculateFuture(6)" :disabled="isPreCalcRunning"
+            class="text-xs px-2 py-1 bg-violet-900/50 hover:bg-violet-800/50 disabled:opacity-40 text-violet-300 rounded transition-colors"
+            title="從本月起算，預先計算並儲存未來 6 個月的輪序投影">
+            {{ isPreCalcRunning ? '計算中…' : '⚡ 預算未來 6 個月' }}
+          </button>
+          <span class="text-xs text-gray-700">
+            已存 {{ rotationSnapshots.size }} 個月快照
+          </span>
+        </div>
       </div>
 
       <!-- Holiday Management -->
@@ -2124,6 +2409,17 @@ async function createTemplate() {
       </div>
 
       <div class="h-4 w-px bg-gray-800"></div>
+
+      <!-- Google Sheet link -->
+      <button v-if="cloud.scheduleSpreadsheetId || cloud.spreadsheetId"
+        @click="openGoogleSheet"
+        class="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-green-900/50 hover:bg-green-800/60 text-green-300 rounded transition-colors"
+        title="在瀏覽器中開啟 Google 試算表">
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+        </svg>
+        Google Sheet
+      </button>
 
       <!-- Sync actions -->
       <button @click="pullFromCloud" :disabled="isLoading"
@@ -2230,7 +2526,14 @@ async function createTemplate() {
     </div>
 
     <!-- ── Schedule Grid ──────────────────────────────────────────── -->
-    <div class="flex-1 overflow-auto">
+    <div ref="scheduleGridRef" class="flex-1 overflow-auto relative">
+      <!-- Zoom indicator -->
+      <div v-if="scheduleZoom !== 1"
+        @dblclick="scheduleZoom = 1"
+        class="absolute bottom-3 right-3 z-30 text-[10px] bg-gray-800/90 text-gray-400 border border-gray-700 px-1.5 py-0.5 rounded cursor-pointer select-none"
+        title="Ctrl+滾輪縮放｜雙擊重置">
+        {{ Math.round(scheduleZoom * 100) }}%
+      </div>
 
       <!-- Empty state -->
       <div v-if="scheduleData.length === 0 && !isLoading"
@@ -2246,7 +2549,8 @@ async function createTemplate() {
       </div>
 
       <!-- Table -->
-      <table v-else class="border-collapse text-xs" style="min-width: max-content">
+      <table v-else class="border-collapse text-xs" style="min-width: max-content"
+        :style="{ zoom: scheduleZoom }">
         <thead>
           <!-- Date row -->
           <tr class="sticky top-0 z-20">
@@ -2336,6 +2640,13 @@ async function createTemplate() {
                 :class="getRequestBadge(row.name, day.d - 1)!.cls"
                 :title="getRequestBadge(row.name, day.d - 1)!.tip"
               >{{ getRequestBadge(row.name, day.d - 1)!.text }}</span>
+              <!-- Rotation drift badge (bottom-left corner): cell was changed from rotation -->
+              <span
+                v-if="getRotationHint(row.name, day.d - 1)"
+                class="absolute bottom-0 left-0 text-[7px] font-mono leading-none px-0.5 rounded-tr opacity-70 pointer-events-none"
+                :style="{ ...projectedStyleObj(getRotationHint(row.name, day.d - 1)!), opacity: '0.65' }"
+                :title="`輪序原排：${getRotationHint(row.name, day.d - 1)}（已換班）`"
+              >↺{{ getRotationHint(row.name, day.d - 1) }}</span>
             </td>
             <!-- Stats -->
             <td v-for="(shift, si) in shifts" :key="shift.code"
@@ -2466,6 +2777,49 @@ async function createTemplate() {
       <div v-if="toast"
         class="fixed bottom-5 right-5 px-4 py-2 bg-gray-800 border border-gray-700 text-gray-200 text-sm rounded-lg shadow-lg pointer-events-none">
         {{ toast }}
+      </div>
+    </Transition>
+
+    <!-- ── Drift Detection Modal ──────────────────────────────────── -->
+    <Transition name="toast">
+      <div v-if="driftState" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div class="bg-gray-900 border border-amber-700/50 rounded-xl shadow-2xl p-5 max-w-md w-full mx-4">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="text-amber-400 text-base">⚠</span>
+            <h3 class="text-sm font-semibold text-white">成員變動影響已預算的未來月份</h3>
+          </div>
+          <p class="text-xs text-gray-400 mb-3">以下月份的輪序預算因成員增減而需要更新：</p>
+          <div class="flex flex-wrap gap-1.5 mb-4">
+            <span v-for="m in driftState.affectedMonths" :key="m"
+              class="text-xs px-2 py-0.5 bg-amber-900/30 border border-amber-700/40 rounded text-amber-300 font-mono">
+              {{ m.slice(0,4) }}/{{ m.slice(4) }}
+            </span>
+          </div>
+          <!-- Diff: pools whose orders changed -->
+          <div class="bg-gray-800 rounded-lg p-3 text-xs font-mono max-h-36 overflow-y-auto mb-4 space-y-2">
+            <template v-for="pool in rotationPools" :key="pool.poolName">
+              <template v-if="JSON.stringify(driftState.oldSigObj[pool.poolName] ?? []) !== JSON.stringify(driftState.newPools.find(p=>p.poolName===pool.poolName)?.order ?? [])">
+                <div class="text-gray-500 font-sans mb-0.5">{{ pool.label }} ({{ pool.poolName }})</div>
+                <div class="text-red-400">− {{ (driftState.oldSigObj[pool.poolName] ?? []).map(c => staff.find(s=>s.code===c)?.name ?? c).join(' → ') || '（空）' }}</div>
+                <div class="text-emerald-400">+ {{ (driftState.newPools.find(p=>p.poolName===pool.poolName)?.order ?? []).map(c => staff.find(s=>s.code===c)?.name ?? c).join(' → ') || '（空）' }}</div>
+              </template>
+            </template>
+          </div>
+          <div class="flex gap-2 justify-end flex-wrap">
+            <button @click="cancelDrift"
+              class="text-xs px-3 py-1.5 text-gray-500 hover:text-gray-300 transition-colors">
+              取消此次修改
+            </button>
+            <button @click="applyDriftKeepSnapshots"
+              class="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors">
+              套用但保留舊預算
+            </button>
+            <button @click="confirmDriftOverwrite" :disabled="isPreCalcRunning"
+              class="text-xs px-3 py-1.5 bg-amber-700 hover:bg-amber-600 disabled:opacity-40 text-white rounded transition-colors">
+              {{ isPreCalcRunning ? '計算中…' : '重新計算並覆寫' }}
+            </button>
+          </div>
+        </div>
       </div>
     </Transition>
   </div>

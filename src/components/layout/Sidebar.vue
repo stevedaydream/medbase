@@ -24,6 +24,7 @@ const DEFAULT_NAV: NavItem[] = [
   { path: "/shift-memos", icon: "📝", label: "規則備忘錄" },
   { path: "/tools",       icon: "🧮", label: "臨床工具" },
   { path: "/icd",         icon: "🏷️", label: "ICD 查詢" },
+  { path: "/note-polish", icon: "✍️", label: "病歷潤飾" },
 ];
 
 const navItems = ref<NavItem[]>([...DEFAULT_NAV]);

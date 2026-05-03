@@ -27,6 +27,7 @@ const router = createRouter({
     { path: "/icd",          component: () => import("@/views/IcdView.vue"),         meta: { title: "ICD 查詢" } },
     { path: "/shift-memos",  component: () => import("@/views/ShiftMemosView.vue"),  meta: { title: "規則備忘錄", fullHeight: true } },
     { path: "/settings",     component: () => import("@/views/SettingView.vue"),     meta: { title: "設定" } },
+    { path: "/note-polish",  component: () => import("@/views/NotePolishView.vue"),  meta: { title: "病歷潤飾", fullHeight: true } },
   ],
 });
 

@@ -212,6 +212,43 @@ async function fetchChangelog() {
   } finally { changelogLoading.value = false; }
 }
 
+// ── Gemini API Key ─────────────────────────────────────────────────────
+const geminiApiKey      = ref("");
+const geminiApiKeyInput = ref("");
+const geminiKeySet      = ref(false);
+
+onMounted(async () => {
+  try {
+    const db = await getDb();
+    const rows = await db.select<{ value: string }[]>(
+      "SELECT value FROM app_settings WHERE key = 'gemini_api_key'"
+    );
+    if (rows[0]?.value) {
+      geminiApiKey.value  = rows[0].value;
+      geminiKeySet.value  = true;
+    }
+  } catch { /* first launch */ }
+});
+
+async function saveGeminiKey() {
+  const key = geminiApiKeyInput.value.trim();
+  if (!key) return;
+  const db = await getDb();
+  await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", ["gemini_api_key", key]);
+  geminiApiKey.value     = key;
+  geminiApiKeyInput.value = "";
+  geminiKeySet.value     = true;
+  showToast("Gemini API Key 已儲存");
+}
+
+async function clearGeminiKey() {
+  const db = await getDb();
+  await db.execute("DELETE FROM app_settings WHERE key = 'gemini_api_key'");
+  geminiApiKey.value  = "";
+  geminiKeySet.value  = false;
+  showToast("Gemini API Key 已清除");
+}
+
 // ── 管理員解鎖（Ctrl+Shift+L，session 等級，重新整理即鎖回）──────────
 const adminUnlocked = ref(false);
 
@@ -564,6 +601,42 @@ async function pullSettingsFromCloud() {
           </div>
         </div>
       </div><!-- end guide -->
+    </section>
+
+    <!-- ── AI 設定 ────────────────────────────────────────────────── -->
+    <section class="space-y-3">
+      <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">AI 設定</h2>
+      <div class="p-4 bg-gray-800 rounded-lg border border-gray-700 space-y-3">
+        <div class="flex items-center gap-2">
+          <p class="text-xs text-gray-400 font-medium">Gemini API Key</p>
+          <span v-if="geminiKeySet"
+            class="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-900/50 border border-emerald-700/50 text-emerald-400">
+            已設定 ✓
+          </span>
+          <span v-else
+            class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-900/40 border border-amber-700/50 text-amber-400">
+            未設定
+          </span>
+        </div>
+        <div class="flex gap-2">
+          <input v-model="geminiApiKeyInput" type="password"
+            placeholder="貼上 Gemini API Key（AIzaSy...）"
+            class="flex-1 text-xs px-2 py-1.5 bg-gray-900 border border-gray-600 rounded text-gray-200 font-mono outline-none focus:border-blue-500" />
+          <button @click="saveGeminiKey" :disabled="!geminiApiKeyInput.trim()"
+            class="text-xs px-4 py-1.5 bg-blue-700 hover:bg-blue-600 disabled:opacity-40 text-white rounded transition-colors">
+            儲存
+          </button>
+          <button v-if="geminiKeySet" @click="clearGeminiKey"
+            class="text-xs px-3 py-1.5 border border-red-800 text-red-500 hover:border-red-600 hover:text-red-400 rounded transition-colors">
+            清除
+          </button>
+        </div>
+        <p class="text-[11px] text-gray-600 leading-relaxed">
+          用於「病歷潤飾」功能呼叫 Gemini API。請至
+          <span class="font-mono text-blue-500">Google AI Studio</span>
+          取得 API Key（免費層有足夠額度）。
+        </p>
+      </div>
     </section>
 
     <!-- ── 版本與更新 ──────────────────────────────────────────────── -->

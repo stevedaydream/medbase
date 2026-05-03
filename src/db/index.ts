@@ -1,5 +1,5 @@
 import Database from "@tauri-apps/plugin-sql";
-import { seedPhysicians, seedContacts, seedAppSettings } from "./seed";
+import { seedPhysicians, seedContacts, seedAppSettings, seedNoteTemplates } from "./seed";
 import { sha256 } from "@/utils/sha256";
 
 let db: Database | null = null;
@@ -101,6 +101,17 @@ async function seedIfEmpty(db: Database) {
       "INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)",
       [s.key, s.value]
     );
+  }
+
+  // ⑥ 病歷潤飾格式範本（首次建立）
+  const ntRows = await db.select<{ c: number }[]>("SELECT COUNT(*) as c FROM note_templates");
+  if (ntRows[0].c === 0) {
+    for (const t of seedNoteTemplates) {
+      await db.execute(
+        "INSERT OR IGNORE INTO note_templates (format_key, format_label, system_prompt, example) VALUES (?,?,?,?)",
+        [t.format_key, t.format_label, t.system_prompt, t.example]
+      );
+    }
   }
 }
 
@@ -410,6 +421,20 @@ async function initSchema(db: Database) {
     );
   `);
 
+  // ── 輪序快照（每月池狀態 + 預算投影）────────────────────────
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS rotation_snapshots (
+      yyyymm          TEXT PRIMARY KEY,
+      pools_json      TEXT NOT NULL,
+      end_pools_json  TEXT,
+      projected_json  TEXT,
+      staff_sig       TEXT,
+      committed       INTEGER DEFAULT 0,
+      created_at      TEXT DEFAULT (datetime('now','localtime')),
+      updated_at      TEXT DEFAULT (datetime('now','localtime'))
+    );
+  `);
+
   // ── Debug 操作記錄（保留 7 天，供測試期分析用）──────────────
   await db.execute(`
     CREATE TABLE IF NOT EXISTS debug_logs (
@@ -449,4 +474,32 @@ async function initSchema(db: Database) {
   try { await db.execute(`ALTER TABLE contacts   ADD COLUMN updated_at TEXT`); } catch { /* 已存在 */ }
   await db.execute(`UPDATE physicians SET updated_at = datetime('now','localtime') WHERE updated_at IS NULL`);
   await db.execute(`UPDATE contacts   SET updated_at = datetime('now','localtime') WHERE updated_at IS NULL`);
+
+  // ── 病歷潤飾格式範本 ──────────────────────────────────────────
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS note_templates (
+      format_key    TEXT PRIMARY KEY,
+      format_label  TEXT NOT NULL,
+      system_prompt TEXT NOT NULL DEFAULT '',
+      example       TEXT NOT NULL DEFAULT ''
+    );
+  `);
+
+  // ── 病歷潤飾歷史記錄 ──────────────────────────────────────────
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS note_records (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      patient_id   TEXT NOT NULL DEFAULT '',
+      patient_name TEXT NOT NULL DEFAULT '',
+      bed_no       TEXT NOT NULL DEFAULT '',
+      format_key   TEXT NOT NULL DEFAULT '',
+      format_label TEXT NOT NULL DEFAULT '',
+      model        TEXT NOT NULL DEFAULT '',
+      input_text   TEXT NOT NULL DEFAULT '',
+      output_text  TEXT NOT NULL DEFAULT '',
+      created_at   TEXT DEFAULT (datetime('now', 'localtime'))
+    );
+  `);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_note_records_patient ON note_records(patient_id);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_note_records_name    ON note_records(patient_name);`);
 }

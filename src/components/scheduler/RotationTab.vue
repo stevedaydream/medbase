@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from "vue";
-import { runProjection, type RotationPool } from "@/utils/rotationEngine";
+import { ref, computed, watch, nextTick, onMounted } from "vue";
+import { runProjection, runProjectionAndGetEndPools, type RotationPool } from "@/utils/rotationEngine";
 
 interface StaffMember { code: string; name: string; role?: string }
 interface Shift { code: string; color: string }
@@ -101,6 +101,12 @@ function addMember(code: string) {
   showAddPicker.value = false;
 }
 
+function addAllStaff() {
+  if (!selected.value || !canEdit.value || !availableStaff.value.length) return;
+  updatePool(selectedIdx.value, { order: [...selected.value.order, ...availableStaff.value.map(s => s.code)] });
+  showAddPicker.value = false;
+}
+
 // ── Add / remove custom pool ──────────────────────────────────────────
 const showNewPool = ref(false);
 const newPoolName  = ref("");
@@ -177,6 +183,47 @@ function onMemberPointerDown(e: PointerEvent, idx: number) {
   document.addEventListener('pointerup', onUp);
 }
 
+// ── Pool month info (start/end dates + next month preview) ───────────
+interface DayHit { day: number; codes: string[] }
+interface PoolMonthInfo {
+  curFirst: DayHit | null
+  curLast:  DayHit | null
+  nextFirst: (DayHit & { year: number; month: number }) | null
+}
+
+const poolMonthInfo = computed((): PoolMonthInfo | null => {
+  if (!selected.value) return null
+  const poolName = selected.value.poolName
+  const daysInCur = new Date(props.year, props.month, 0).getDate()
+
+  const { projection: curProj, endPools } = runProjectionAndGetEndPools(props.pools, props.year, props.month)
+  let curFirst: DayHit | null = null
+  let curLast:  DayHit | null = null
+  for (let d = 1; d <= daysInCur; d++) {
+    const assigned = curProj.get(`${d}-${poolName}`)
+    if (assigned?.length) {
+      const hit = { day: d, codes: assigned.map(a => a.code) }
+      if (!curFirst) curFirst = hit
+      curLast = hit
+    }
+  }
+
+  const ny = props.month === 12 ? props.year + 1 : props.year
+  const nm = props.month === 12 ? 1 : props.month + 1
+  const daysInNext = new Date(ny, nm, 0).getDate()
+  const { projection: nextProj } = runProjectionAndGetEndPools(endPools, ny, nm)
+  let nextFirst: (DayHit & { year: number; month: number }) | null = null
+  for (let d = 1; d <= daysInNext; d++) {
+    const assigned = nextProj.get(`${d}-${poolName}`)
+    if (assigned?.length) {
+      nextFirst = { year: ny, month: nm, day: d, codes: assigned.map(a => a.code) }
+      break
+    }
+  }
+
+  return { curFirst, curLast, nextFirst }
+})
+
 // ── Projection preview ────────────────────────────────────────────────
 const prevYear  = ref(props.year);
 const prevMonth = ref(props.month);
@@ -224,62 +271,29 @@ const projectionRows = computed(() => {
 const shiftCodes = computed(() => props.shifts.map(s => s.code));
 
 // ── Caterpillar track ──────────────────────────────────────────────────
-const isLocked   = ref(false)
-const ITEM_W     = 88
-const animOffset = ref(0)
-const trackEl    = ref<HTMLElement | null>(null)
-let   animRaf: number | null = null
+const isLocked = ref(false)
+const trackEl  = ref<HTMLElement | null>(null)
 
 const trackDisplayItems = computed(() => {
   if (!selected.value?.order.length) return []
-  const { order } = selected.value
-  const N = order.length
-  return Array.from({ length: N * 3 }, (_, i) => ({
-    code: order[i % N],
-    name: getName(order[i % N]),
-    key: `${Math.floor(i / N)}-${i % N}`,
-  }))
+  return selected.value.order.map((code, idx) => ({ code, name: getName(code), idx }))
 })
 
-function computeBase(lastIdx: number, N: number): number {
-  const npi = (lastIdx + 1) % N
-  return -(N * ITEM_W) + npi * ITEM_W
+function isNextRange(i: number): boolean {
+  if (!selected.value?.order.length) return false
+  const { quota, order } = selected.value
+  const N = order.length
+  for (let q = 0; q < quota; q++) {
+    if (i === (nextPickIdx.value + q) % N) return true
+  }
+  return false
 }
 
-function animateTo(target: number, duration = 360) {
-  if (animRaf) cancelAnimationFrame(animRaf)
-  const from = animOffset.value
-  const t0   = performance.now()
-  function tick(now: number) {
-    const t = Math.min((now - t0) / duration, 1)
-    const e = 1 - Math.pow(1 - t, 3)
-    animOffset.value = from + (target - from) * e
-    if (t < 1) animRaf = requestAnimationFrame(tick)
-    else animOffset.value = target
-  }
-  animRaf = requestAnimationFrame(tick)
-}
-
-function onTrackPointerDown(e: PointerEvent) {
-  if (!selected.value?.order.length) return
-  ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-  if (animRaf) { cancelAnimationFrame(animRaf); animRaf = null }
-  const startX      = e.clientX
-  const startOffset = animOffset.value
-  function onMove(ev: PointerEvent) {
-    animOffset.value = startOffset + (ev.clientX - startX)
-  }
-  function onUp(ev: PointerEvent) {
-      document.removeEventListener('pointermove', onMove)
-    document.removeEventListener('pointerup', onUp)
-    const steps   = -Math.round((ev.clientX - startX) / ITEM_W)
-    const N       = selected.value!.order.length
-    const newLast = ((selected.value!.lastIndex + steps) % N + N) % N
-    updatePool(selectedIdx.value, { lastIndex: newLast })
-    animateTo(computeBase(newLast, N))
-  }
-  document.addEventListener('pointermove', onMove)
-  document.addEventListener('pointerup', onUp)
+function scrollToActive() {
+  nextTick(() => {
+    const el = trackEl.value?.querySelector('[data-active="true"]') as HTMLElement | null
+    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+  })
 }
 
 function stepTrack(delta: number) {
@@ -287,18 +301,14 @@ function stepTrack(delta: number) {
   const N       = selected.value.order.length
   const newLast = ((selected.value.lastIndex + delta) % N + N) % N
   updatePool(selectedIdx.value, { lastIndex: newLast })
-  animateTo(computeBase(newLast, N))
+  scrollToActive()
 }
 
-function initTrack() {
-  if (!selected.value?.order.length) return
-  animOffset.value = computeBase(selected.value.lastIndex, selected.value.order.length)
-}
+watch(selectedIdx, scrollToActive)
+watch(() => selected.value?.order.length, scrollToActive)
+watch(isLocked, locked => { if (locked) scrollToActive() })
 
-watch(selectedIdx, initTrack)
-watch(() => selected.value?.order.length, initTrack)
-watch(isLocked, locked => { if (locked) initTrack() })
-onUnmounted(() => { if (animRaf) cancelAnimationFrame(animRaf) })
+onMounted(() => { scrollToActive() })
 </script>
 
 <template>
@@ -470,55 +480,75 @@ onUnmounted(() => { if (animRaf) cancelAnimationFrame(animRaf) })
               <div v-if="showAddPicker"
                 class="absolute top-8 left-0 z-20 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-1 min-w-[10rem] max-h-48 overflow-y-auto">
                 <div v-if="!availableStaff.length" class="text-xs text-gray-600 px-2 py-1">全員已加入</div>
-                <button v-for="s in availableStaff" :key="s.code"
-                  @click="addMember(s.code)"
-                  class="w-full text-left text-xs px-2 py-1.5 hover:bg-gray-800 rounded text-gray-300 transition-colors">
-                  <span class="font-mono text-gray-500 mr-1.5">{{ s.code }}</span>{{ s.name }}
-                </button>
+                <template v-else>
+                  <button @click="addAllStaff"
+                    class="w-full text-left text-xs px-2 py-1.5 hover:bg-blue-900/40 rounded text-blue-300 transition-colors font-semibold border-b border-gray-800 mb-0.5">
+                    ＋ 全員加入 ({{ availableStaff.length }})
+                  </button>
+                  <button v-for="s in availableStaff" :key="s.code"
+                    @click="addMember(s.code)"
+                    class="w-full text-left text-xs px-2 py-1.5 hover:bg-gray-800 rounded text-gray-300 transition-colors">
+                    <span class="font-mono text-gray-500 mr-1.5">{{ s.code }}</span>{{ s.name }}
+                  </button>
+                </template>
               </div>
             </div>
           </div>
 
           <!-- 履帶模式 -->
-          <div v-else class="relative flex items-center gap-1 select-none">
+          <div v-else class="flex items-center gap-1 select-none">
             <button @click="stepTrack(-1)"
-              class="shrink-0 px-2 py-4 text-gray-500 hover:text-white hover:bg-gray-800 rounded transition-colors text-lg">‹</button>
+              class="shrink-0 px-2 py-3 text-gray-500 hover:text-white hover:bg-gray-800 rounded transition-colors text-lg">‹</button>
 
-            <!-- track container -->
             <div ref="trackEl"
-              class="relative flex-1 overflow-hidden h-[5.5rem] cursor-grab active:cursor-grabbing rounded"
-              @pointerdown="onTrackPointerDown">
-
-              <!-- 固定疊加：高亮區 + 起終點標籤 -->
-              <div class="absolute inset-0 pointer-events-none z-10">
-                <div class="absolute top-0 bottom-5 bg-blue-900/30 border-x border-blue-700/50"
-                  :style="{ left: '0px', width: (selected.quota * ITEM_W) + 'px' }" />
-                <div class="absolute bottom-0 left-0 text-[10px] text-blue-400 px-1">▶ 起點</div>
-                <div v-if="selected.quota > 1"
-                  class="absolute bottom-0 text-[10px] text-amber-400 px-1"
-                  :style="{ left: ((selected.quota - 1) * ITEM_W) + 'px' }">★ 終點</div>
+              class="flex overflow-x-auto gap-1.5 py-1.5 scroll-smooth flex-1"
+              style="scrollbar-width: none">
+              <div v-for="item in trackDisplayItems" :key="item.code"
+                :data-active="item.idx === nextPickIdx ? 'true' : undefined"
+                @click="canEdit && setStartPoint(item.idx)"
+                class="shrink-0 flex flex-col items-center justify-center px-2.5 py-1.5 rounded border text-xs min-w-[5rem] transition-colors"
+                :class="[
+                  isNextRange(item.idx)
+                    ? 'border-blue-500 bg-blue-900/40 text-blue-200'
+                    : 'border-gray-700 bg-gray-800 text-gray-400',
+                  canEdit ? 'cursor-pointer hover:border-blue-400 hover:bg-blue-900/20' : ''
+                ]"
+                :title="canEdit ? '點選設為起點' : ''">
+                <span class="font-mono text-gray-500 text-xs">{{ item.code }}</span>
+                <span class="text-xs truncate max-w-[4.5rem] text-center"
+                  :class="isNextRange(item.idx) ? 'text-blue-100' : 'text-gray-200'">{{ item.name }}</span>
+                <span v-if="item.idx === nextPickIdx" class="text-[10px] text-blue-400 mt-0.5">▶</span>
               </div>
-
-              <!-- 滑動軌道 -->
-              <div class="absolute flex top-0"
-                :style="{ transform: `translateX(${animOffset}px)` }">
-                <div v-for="item in trackDisplayItems" :key="item.key"
-                  class="flex flex-col items-center justify-center gap-0.5 border-r border-gray-700/50 bg-gray-800 text-center shrink-0"
-                  :style="{ width: ITEM_W + 'px', height: '4rem' }">
-                  <span class="font-mono text-xs text-gray-400">{{ item.code }}</span>
-                  <span class="text-xs text-gray-200 truncate w-full text-center px-1">{{ item.name }}</span>
-                </div>
-              </div>
-
-              <!-- 漸層遮罩 -->
-              <div class="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-gray-900 pointer-events-none z-20" />
-              <div class="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-gray-900 pointer-events-none z-20" />
             </div>
 
             <button @click="stepTrack(1)"
-              class="shrink-0 px-2 py-4 text-gray-500 hover:text-white hover:bg-gray-800 rounded transition-colors text-lg">›</button>
+              class="shrink-0 px-2 py-3 text-gray-500 hover:text-white hover:bg-gray-800 rounded transition-colors text-lg">›</button>
           </div>
         </div>
+      </div>
+
+      <!-- Pool date info bar -->
+      <div v-if="poolMonthInfo && selected?.order.length" class="flex items-center gap-2 px-4 py-2 border-t border-gray-800/60 bg-gray-900/40 flex-wrap text-xs">
+        <span class="text-gray-600 font-semibold shrink-0">{{ props.month }}月</span>
+        <span class="text-gray-600 shrink-0">起：</span>
+        <span v-if="poolMonthInfo.curFirst" class="text-emerald-400 font-mono shrink-0">
+          {{ props.month }}/{{ poolMonthInfo.curFirst.day }}
+          <span class="text-gray-400 font-sans ml-1">{{ poolMonthInfo.curFirst.codes.map(getName).join('、') }}</span>
+        </span>
+        <span v-else class="text-gray-700">—</span>
+        <span class="text-gray-700 shrink-0">→ 終：</span>
+        <span v-if="poolMonthInfo.curLast" class="text-amber-400 font-mono shrink-0">
+          {{ props.month }}/{{ poolMonthInfo.curLast.day }}
+          <span class="text-gray-400 font-sans ml-1">{{ poolMonthInfo.curLast.codes.map(getName).join('、') }}</span>
+        </span>
+        <span v-else class="text-gray-700">—</span>
+        <span class="text-gray-800 shrink-0 mx-1">｜</span>
+        <span class="text-gray-600 shrink-0">下月起：</span>
+        <span v-if="poolMonthInfo.nextFirst" class="text-blue-400 font-mono shrink-0">
+          {{ poolMonthInfo.nextFirst.month }}/{{ poolMonthInfo.nextFirst.day }}
+          <span class="text-gray-400 font-sans ml-1">{{ poolMonthInfo.nextFirst.codes.map(getName).join('、') }}</span>
+        </span>
+        <span v-else class="text-gray-700">—</span>
       </div>
 
       <!-- Bottom: Projection preview -->

@@ -39,3 +39,19 @@ export const seedAppSettings: { key: string; value: string }[] = [
   // 請在設定頁使用「匯入設定 JSON」匯入，或手動填寫後儲存。
   { key: "ahk_exe_path", value: "C:\\Program Files\\AutoHotkey\\v2\\AutoHotkey64.exe" },
 ];
+
+// ── 病歷潤飾格式範本 ────────────────────────────────────────────────────
+export interface SeedNoteTemplate {
+  format_key: string;
+  format_label: string;
+  system_prompt: string;
+  example: string;
+}
+
+export const seedNoteTemplates: SeedNoteTemplate[] = [
+  { format_key: "admission",  format_label: "入院病歷",      system_prompt: "", example: "" },
+  { format_key: "discharge",  format_label: "出院摘要",      system_prompt: "", example: "" },
+  { format_key: "transfer",   format_label: "轉科摘要",      system_prompt: "", example: "" },
+  { format_key: "weekly",     format_label: "週記錄",        system_prompt: "", example: "" },
+  { format_key: "progress",   format_label: "Progress Note", system_prompt: "", example: "" },
+];

@@ -87,6 +87,30 @@ export function computeMonthlyTotals(
 }
 
 /**
+ * Compute monthly totals for all extra shifts (not D/N/Off/offVariant).
+ * Returns a map of shiftCode → total slots needed this month.
+ */
+export function computeExtraShiftTotals(
+  year: number,
+  month: number,
+  shifts: Shift[],
+  holidayDates: Set<string>
+): Record<string, number> {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const extras = shifts.filter(s =>
+    s.code !== 'D' && s.code !== 'N' && s.code !== 'Off' && !s.offVariant && !!s.targets
+  );
+  const result: Record<string, number> = Object.fromEntries(extras.map(s => [s.code, 0]));
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dayType = getDayType(year, month, day, holidayDates);
+    for (const s of extras) {
+      result[s.code] += getFixedTarget(s, dayType);
+    }
+  }
+  return result;
+}
+
+/**
  * Distribute totals fairly.
  * Sort staff by cumulative balance ascending (most "owed" gets priority).
  * First `extras` people get `base+1`, rest get `base`.

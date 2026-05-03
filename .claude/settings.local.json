@@ -52,7 +52,8 @@
       "Bash(pip install:*)",
       "Bash(cargo doc *)",
       "Bash(grep -E \"\\\\.\\(gs|js\\)$\")",
-      "Bash(git pull *)"
+      "Bash(git pull *)",
+      "Bash(powershell -command ' *)"
     ]
   }
 }

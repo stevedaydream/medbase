@@ -21,7 +21,10 @@
     "http:default",
     {
       "identifier": "http:allow-fetch",
-      "allow": [{ "url": "https://data.gov.tw/**" }]
+      "allow": [
+        { "url": "https://data.gov.tw/**" },
+        { "url": "https://generativelanguage.googleapis.com/**" }
+      ]
     },
     "fs:default",
     "dialog:default",

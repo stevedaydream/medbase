@@ -103,6 +103,53 @@ export function runProjection(
   return result;
 }
 
+/**
+ * 同 runProjection，但同時回傳模擬結束後的池狀態（可作為下個月的起始點）
+ */
+export function runProjectionAndGetEndPools(
+  pools: RotationPool[],
+  year: number,
+  month: number
+): { projection: ProjectionMap; endPools: RotationPool[] } {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const result: ProjectionMap = new Map();
+
+  const sim: RotationPool[] = pools.map(p => ({
+    ...p,
+    order:     [...p.order],
+    skipQueue: [...(p.skipQueue ?? [])],
+  }));
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dow = new Date(year, month - 1, day).getDay();
+    const isSat = dow === 6;
+    const isSun = dow === 0;
+    const dayAssigned: string[] = [];
+
+    for (const pool of sim) {
+      if (!pool.order.length) continue;
+      const pn = pool.poolName;
+      const fires = pool.dayFilter !== undefined
+        ? pool.dayFilter.includes(dow)
+        : (isSat  && pn.startsWith('sat')) ||
+          (isSun  && pn.startsWith('sun')) ||
+          (!isSat && !isSun && pn.startsWith('wd'));
+      if (!fires) continue;
+
+      const { codes, newLastIndex } = getNextFromPool(pool, pool.quota, dayAssigned);
+      if (codes.length) {
+        pool.lastIndex = newLastIndex;
+        result.set(`${day}-${pn}`, codes.map(c => ({
+          code: c, fromPool: pn, shiftCode: pool.shiftCode,
+        })));
+        dayAssigned.push(...codes);
+      }
+    }
+  }
+
+  return { projection: result, endPools: sim };
+}
+
 /** 預設輪序池（不含成員） */
 export const DEFAULT_POOLS: RotationPool[] = [
   { poolName: 'satD',  label: '週六白班', shiftCode: 'D',   quota: 1, order: [], lastIndex: -1, skipQueue: [], dayFilter: [6] },
