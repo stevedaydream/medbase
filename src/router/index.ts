@@ -28,7 +28,6 @@ const router = createRouter({
     { path: "/shift-memos",  component: () => import("@/views/ShiftMemosView.vue"),  meta: { title: "規則備忘錄", fullHeight: true } },
     { path: "/settings",     component: () => import("@/views/SettingView.vue"),     meta: { title: "設定" } },
     { path: "/note-polish",  component: () => import("@/views/NotePolishView.vue"),  meta: { title: "病歷潤飾", fullHeight: true } },
-    { path: "/his-scraper",  component: () => import("@/views/HisScraperView.vue"),  meta: { title: "HIS 病歷擷取", fullHeight: true } },
   ],
 });
 

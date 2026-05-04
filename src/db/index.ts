@@ -103,24 +103,7 @@ async function seedIfEmpty(db: Database) {
     );
   }
 
-  // ⑥ HIS 爬蟲設定預設值
-  const HIS_DEFAULTS = [
-    { key: "his_base_url",             value: "http://10.15.1.232/cgh/html" },
-    { key: "his_login_path",           value: "/servlet/HttpDispatcher/Login/login" },
-    { key: "his_patient_list_path",    value: "" },
-    { key: "his_note_view_path",       value: "/servlet/HttpDispatcher/Ins010218/noteTotalView" },
-    { key: "his_logout_path",          value: "/servlet/HttpDispatcher/Logout/logout" },
-    { key: "his_login_username_field", value: "usrno" },
-    { key: "his_login_password_field", value: "usrpw" },
-  ];
-  for (const s of HIS_DEFAULTS) {
-    await db.execute(
-      "INSERT OR IGNORE INTO app_settings (key, value) VALUES (?, ?)",
-      [s.key, s.value]
-    );
-  }
-
-  // ⑦ 病歷潤飾格式範本（首次建立）
+  // ⑥ 病歷潤飾格式範本（首次建立）
   const ntRows = await db.select<{ c: number }[]>("SELECT COUNT(*) as c FROM note_templates");
   if (ntRows[0].c === 0) {
     for (const t of seedNoteTemplates) {
@@ -520,24 +503,4 @@ async function initSchema(db: Database) {
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_note_records_patient ON note_records(patient_id);`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_note_records_name    ON note_records(patient_name);`);
 
-  // ── HIS 病歷擷取記錄 ────────────────────────────────────────────
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS his_notes (
-      id           INTEGER PRIMARY KEY AUTOINCREMENT,
-      account_no   TEXT NOT NULL,
-      chart_no     TEXT NOT NULL,
-      patient_name TEXT NOT NULL DEFAULT '',
-      bed_no       TEXT NOT NULL DEFAULT '',
-      ward         TEXT NOT NULL DEFAULT '',
-      raw_html     TEXT NOT NULL DEFAULT '',
-      note_text    TEXT NOT NULL DEFAULT '',
-      physician_id INTEGER REFERENCES physicians(id),
-      scraped_at   TEXT DEFAULT (datetime('now','localtime')),
-      status       TEXT NOT NULL DEFAULT 'ok',
-      error_msg    TEXT
-    );
-  `);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_his_notes_chart   ON his_notes(chart_no);`);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_his_notes_account ON his_notes(account_no);`);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_his_notes_scraped ON his_notes(scraped_at);`);
 }

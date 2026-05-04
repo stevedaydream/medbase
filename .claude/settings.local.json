@@ -53,7 +53,11 @@
       "Bash(cargo doc *)",
       "Bash(grep -E \"\\\\.\\(gs|js\\)$\")",
       "Bash(git pull *)",
-      "Bash(powershell -command ' *)"
+      "Bash(powershell -command ' *)",
+      "Bash(git checkout *)",
+      "Bash(rm \"C:\\\\Users\\\\user\\\\OneDrive\\\\桌面\\\\project\\\\medbase\\\\src\\\\views\\\\HisScraperView.vue\")",
+      "Bash(rm \"C:\\\\Users\\\\user\\\\OneDrive\\\\桌面\\\\project\\\\medbase\\\\src\\\\composables\\\\useHisScraper.ts\")",
+      "Bash(cargo check *)"
     ]
   }
 }
