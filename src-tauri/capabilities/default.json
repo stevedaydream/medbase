@@ -23,7 +23,8 @@
       "identifier": "http:allow-fetch",
       "allow": [
         { "url": "https://data.gov.tw/**" },
-        { "url": "https://generativelanguage.googleapis.com/**" }
+        { "url": "https://generativelanguage.googleapis.com/**" },
+        { "url": "http://10.15.1.232/**" }
       ]
     },
     "fs:default",
