@@ -545,75 +545,79 @@ async function doDelete() {
 </script>
 
 <template>
-  <div class="flex h-full overflow-hidden">
+  <div class="flex gap-6 h-full p-1 overflow-hidden">
 
     <!-- ── 左：套組列表 ──────────────────────────── -->
-    <div class="flex flex-col w-60 shrink-0 border-r border-gray-800 overflow-hidden">
+    <div class="flex flex-col w-80 shrink-0 bg-zinc-950/40 backdrop-blur-md border border-white/5 rounded-2xl p-4 shadow-xl overflow-hidden">
       <!-- 搜尋 + 新增 -->
-      <div class="p-3 border-b border-gray-800 flex gap-2">
+      <div class="flex gap-2 mb-3 shrink-0">
         <input v-model="searchSet" placeholder="搜尋套組…"
-          class="flex-1 px-2.5 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-100 text-xs placeholder-gray-500 focus:outline-none focus:border-blue-500" />
+          class="flex-1 px-3 py-2 text-xs rounded-xl bg-slate-950/60 border border-white/10 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-violet-500/50 focus:shadow-[0_0_12px_rgba(139,92,246,0.15)] transition-all font-bold" />
         <button @click="openAddSet"
-          class="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium shrink-0">
-          ＋
-        </button>
+          class="w-9 h-9 rounded-xl bg-violet-600 border border-violet-500/30 text-white text-lg font-black hover:bg-violet-500 active:scale-95 transition-all flex items-center justify-center cursor-pointer shrink-0"
+          title="新增套組">＋</button>
       </div>
+
       <!-- 雲端同步 -->
-      <div class="px-3 py-2 border-b border-gray-800 flex gap-1.5">
+      <div class="grid grid-cols-2 gap-2 mb-3 shrink-0">
         <button @click="pullFromCloud" :disabled="isSyncing"
-          class="flex-1 text-xs py-1 bg-blue-800/60 hover:bg-blue-700 disabled:opacity-40 text-blue-200 rounded">
+          class="flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-400 text-xs font-black hover:text-slate-200 disabled:opacity-40 active:scale-95 transition-all cursor-pointer">
           {{ isSyncing ? '…' : '↓ 雲端同步' }}
         </button>
         <button @click="pushToCloud" :disabled="isSyncing"
-          class="flex-1 text-xs py-1 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-200 rounded">
+          class="flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl bg-slate-800/40 border border-white/5 text-slate-400 text-xs font-black hover:text-slate-200 disabled:opacity-40 active:scale-95 transition-all cursor-pointer">
           {{ isSyncing ? '…' : '↑ 上傳' }}
         </button>
       </div>
 
       <!-- 分組列表 -->
-      <div class="flex-1 overflow-y-auto py-1">
-        <div v-for="group in grouped" :key="group.name" class="mb-1">
+      <div class="flex-1 overflow-y-auto pr-1 custom-scrollbar">
+        <div v-for="group in grouped" :key="group.name" class="mb-2">
           <!-- 醫師群組標題 -->
-          <div class="px-3 pt-3 pb-1.5 flex items-center gap-2">
-            <span class="text-sm font-bold text-white tracking-wide">{{ group.name }}</span>
-            <span class="text-[10px] text-gray-600 bg-gray-800 rounded-full px-1.5 py-0.5">{{ group.items.length }}</span>
+          <div class="px-2 pt-2.5 pb-1.5 flex items-center gap-2 sticky top-0 bg-slate-950/20 backdrop-blur-sm z-[2]">
+            <span class="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse shrink-0"></span>
+            <span class="text-xs font-black text-slate-200 tracking-wide truncate flex-1">{{ group.name }}</span>
+            <span class="text-[9px] font-mono font-bold text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-white/5">{{ group.items.length }}</span>
           </div>
           <!-- 套組項目 -->
-          <div
-            v-for="s in group.items" :key="s.id"
-            @click="selectSet(s)"
-            class="group w-full flex items-center justify-between pl-6 pr-2 py-2 text-left text-xs transition-colors cursor-pointer"
-            :class="activeSet?.id === s.id
-              ? 'bg-blue-600 text-white'
-              : 'text-gray-300 hover:bg-gray-800'"
-          >
-            <span class="truncate flex-1 min-w-0">{{ s.surgery_type || s.name }}</span>
-            <button
-              @click.stop="deleteTarget = { type: 'set', row: s }"
-              class="opacity-0 group-hover:opacity-100 hover:text-red-400 px-1 transition-opacity shrink-0"
-              :class="activeSet?.id === s.id ? 'text-blue-200' : 'text-gray-600'"
-              title="刪除套組"
-            >×</button>
+          <div class="space-y-1 mt-1 pl-3.5 border-l border-white/5">
+            <div
+              v-for="s in group.items" :key="s.id"
+              @click="selectSet(s)"
+              class="group w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all cursor-pointer"
+              :class="activeSet?.id === s.id
+                ? 'bg-violet-600/20 border-violet-500/40 text-violet-100 shadow-[0_0_12px_rgba(139,92,246,0.08)]'
+                : 'bg-slate-950/10 border-white/5 text-slate-400 hover:text-slate-200 hover:bg-slate-900/40 hover:border-white/10'"
+            >
+              <span class="text-xs font-bold truncate flex-1 min-w-0">{{ s.surgery_type || s.name }}</span>
+              <button
+                @click.stop="deleteTarget = { type: 'set', row: s }"
+                class="opacity-0 group-hover:opacity-100 hover:text-rose-400 px-1 transition-opacity shrink-0 cursor-pointer text-sm leading-none"
+                :class="activeSet?.id === s.id ? 'text-violet-300' : 'text-slate-600'"
+                title="刪除套組"
+              >×</button>
+            </div>
           </div>
         </div>
-        <div v-if="grouped.length === 0" class="text-center text-gray-600 text-xs py-8">
-          {{ searchSet ? "找不到套組" : "尚無套組" }}
+        <div v-if="grouped.length === 0" class="text-center text-slate-600 text-xs py-10 italic">
+          {{ searchSet ? "找不到套組資料" : "目前無套組" }}
         </div>
       </div>
     </div>
 
     <!-- ── 右：套組內容 ─────────────────────────── -->
-    <div class="flex flex-col flex-1 overflow-hidden">
+    <div class="flex flex-col flex-1 bg-zinc-900/50 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden shadow-2xl min-w-0">
 
       <!-- 空白提示 -->
-      <div v-if="!activeSet" class="flex-1 flex items-center justify-center text-gray-600 text-sm">
-        ← 選擇左側套組，或點 ＋ 新增
+      <div v-if="!activeSet" class="flex-1 flex flex-col items-center justify-center text-slate-600 gap-3 py-16">
+        <span class="text-5xl">🔪</span>
+        <p class="text-xs font-bold tracking-wide">選擇左側套組，或點 ＋ 新增套組</p>
       </div>
 
       <template v-else>
         <!-- 套組 Header -->
-        <div class="flex items-start justify-between px-5 py-4 border-b border-gray-800 shrink-0">
-          <div>
+        <div class="flex items-start justify-between p-6 border-b border-white/5 shrink-0 bg-slate-950/20">
+          <div class="min-w-0 flex-1 mr-4">
             <div class="flex items-center gap-2">
               <template v-if="renamingSet">
                 <input
@@ -622,92 +626,94 @@ async function doDelete() {
                   @keyup.esc="renamingSet = false"
                   @blur="saveRename"
                   autofocus
-                  class="text-gray-100 font-semibold text-base bg-gray-800 border border-blue-500 rounded px-2 py-0.5 focus:outline-none w-64"
+                  class="text-slate-100 font-bold text-base bg-slate-950 border border-violet-500 rounded-xl px-3 py-1.5 focus:outline-none w-72 focus:shadow-[0_0_12px_rgba(139,92,246,0.15)] transition-all"
                 />
               </template>
               <template v-else>
-                <h2 class="text-gray-100 font-semibold text-base">{{ activeSet.name }}</h2>
+                <h2 class="text-slate-100 font-black text-lg tracking-wide hover:bg-white/5 hover:text-white px-2 py-0.5 rounded-lg cursor-pointer transition-colors" @click="renamingSet = true; renameValue = activeSet.name">
+                  {{ activeSet.name }}
+                </h2>
               </template>
             </div>
-            <div class="flex items-center gap-3 mt-1 text-xs text-gray-500">
-              <span v-if="activeSet.phys_name">👨‍⚕️ {{ activeSet.phys_name }}</span>
-              <span v-if="activeSet.surgery_type">🔪 {{ activeSet.surgery_type }}</span>
-              <span v-if="activeSet.notes" class="text-gray-600">{{ activeSet.notes }}</span>
+            <div class="flex items-center gap-2.5 mt-2 flex-wrap">
+              <span v-if="activeSet.phys_name" class="text-[10px] font-bold bg-slate-900 border border-white/5 text-slate-400 px-2 py-0.5 rounded-full">👨‍⚕️ {{ activeSet.phys_name }}</span>
+              <span v-if="activeSet.surgery_type" class="text-[10px] font-bold bg-violet-500/10 border border-violet-500/20 text-violet-400 px-2 py-0.5 rounded-full">🔪 {{ activeSet.surgery_type }}</span>
+              <span v-if="activeSet.notes" class="text-[10px] text-slate-500 italic max-w-sm truncate">{{ activeSet.notes }}</span>
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
-            <span class="text-xs text-gray-500">
-              {{ setItems.filter(i => !i.is_optional).length }} 必用 ＋
+            <span class="text-[10px] font-bold font-mono text-slate-500 mr-2 bg-slate-950 px-2 py-1 border border-white/5 rounded-lg">
+              {{ setItems.filter(i => !i.is_optional).length }} 必用 /
               {{ setItems.filter(i => i.is_optional).length }} PRN
             </span>
             <button @click="showOverwriteConfirm = true"
-              class="px-3 py-1.5 rounded-lg bg-amber-800/60 hover:bg-amber-700/80 text-amber-200 text-xs font-medium">
+              class="px-3.5 py-2 rounded-xl bg-amber-800/30 border border-amber-600/30 text-amber-400 text-xs font-bold hover:bg-amber-800/40 hover:text-amber-300 transition-all cursor-pointer">
               ↑ 覆蓋上傳
             </button>
             <button @click="openEditSet(activeSet)"
-              class="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs font-medium">
+              class="px-3.5 py-2 rounded-xl bg-slate-800 border border-white/5 text-slate-300 text-xs font-bold hover:text-slate-100 hover:bg-slate-700 transition-all cursor-pointer">
               編輯套組
             </button>
             <button @click="openAddItem"
-              class="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium">
+              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-600 border border-violet-500/30 text-white text-xs font-black hover:bg-violet-500 active:scale-95 transition-all cursor-pointer">
               ＋ 加入品項
             </button>
           </div>
         </div>
 
         <!-- 品項列表 -->
-        <div class="flex-1 overflow-auto">
-          <table class="w-full text-sm">
-            <thead class="sticky top-0 bg-gray-900 z-10">
-              <tr class="border-b border-gray-800 text-gray-500 text-xs">
-                <th class="text-left px-4 py-2.5 font-medium">院內碼</th>
-                <th class="text-left px-4 py-2.5 font-medium">品名</th>
-                <th class="text-center px-3 py-2.5 font-medium w-24">數量</th>
-                <th class="text-center px-3 py-2.5 font-medium w-16">PRN</th>
-                <th class="text-right px-4 py-2.5 font-medium">價格</th>
-                <th class="text-left px-4 py-2.5 font-medium">備註</th>
-                <th class="w-10 px-3 py-2.5"></th>
+        <div class="flex-1 overflow-auto custom-scrollbar">
+          <table class="w-full text-xs border-collapse">
+            <thead class="sticky top-0 bg-slate-900 border-b border-white/5 z-10">
+              <tr class="text-slate-400 text-[10px] font-black uppercase tracking-widest font-mono">
+                <th class="text-left px-5 py-4 font-bold">院內碼</th>
+                <th class="text-left px-5 py-4 font-bold">品名</th>
+                <th class="text-center px-4 py-4 font-bold w-28">數量</th>
+                <th class="text-center px-4 py-4 font-bold w-20">PRN (按需)</th>
+                <th class="text-right px-5 py-4 font-bold">自費單價</th>
+                <th class="text-left px-5 py-4 font-bold">備註</th>
+                <th class="w-12 px-4 py-4"></th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="setItems.length === 0">
-                <td colspan="7" class="text-center text-gray-600 py-10 text-xs">
-                  尚無品項，點「＋ 加入品項」開始新增
+                <td colspan="7" class="text-center text-slate-500 py-16 italic font-bold">
+                  尚無品項資料，點擊右上角「＋ 加入品項」開始編輯
                 </td>
               </tr>
               <tr
                 v-for="si in setItems" :key="si.id"
-                class="border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors"
-                :class="si.is_optional ? 'opacity-60' : ''"
+                class="border-b border-white/[0.02] hover:bg-white/[0.01] transition-colors"
+                :class="si.is_optional ? 'opacity-50' : ''"
               >
-                <td class="px-4 py-2 font-mono text-xs text-gray-400">{{ si.hospital_code }}</td>
-                <td class="px-4 py-2 text-gray-200">
+                <td class="px-5 py-3 font-mono text-xs text-slate-500 select-all">{{ si.hospital_code }}</td>
+                <td class="px-5 py-3 text-slate-200 font-bold leading-normal">
                   {{ si.name_zh || si.name_en || si.hospital_code || "—" }}
                 </td>
-                <td class="px-3 py-2">
-                  <div class="flex items-center justify-center gap-1">
+                <td class="px-4 py-3">
+                  <div class="flex items-center justify-center gap-2">
                     <button @click="updateQty(si, -1)"
-                      class="w-5 h-5 rounded text-gray-400 hover:bg-gray-700 hover:text-white text-xs leading-none">−</button>
-                    <span class="text-gray-300 font-mono w-4 text-center text-xs">{{ si.quantity }}</span>
+                      class="w-5 h-5 rounded-lg border border-white/5 bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors text-xs leading-none flex items-center justify-center cursor-pointer font-bold">−</button>
+                    <span class="text-slate-300 font-mono text-xs font-bold w-6 text-center">{{ si.quantity }}</span>
                     <button @click="updateQty(si, +1)"
-                      class="w-5 h-5 rounded text-gray-400 hover:bg-gray-700 hover:text-white text-xs leading-none">＋</button>
+                      class="w-5 h-5 rounded-lg border border-white/5 bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors text-xs leading-none flex items-center justify-center cursor-pointer font-bold">＋</button>
                   </div>
                 </td>
-                <td class="px-3 py-2 text-center">
+                <td class="px-4 py-3 text-center">
                   <button @click="toggleOptional(si)"
-                    class="w-8 h-4 rounded-full transition-colors relative"
-                    :class="si.is_optional ? 'bg-amber-600' : 'bg-gray-700'">
-                    <span class="absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all"
-                      :class="si.is_optional ? 'right-0.5' : 'left-0.5'"></span>
+                    class="w-10 h-5 rounded-full transition-all relative border border-white/10 cursor-pointer"
+                    :class="si.is_optional ? 'bg-amber-600/30 border-amber-500/40 shadow-inner' : 'bg-slate-950/60'">
+                    <span class="absolute top-0.5 w-3.5 h-3.5 rounded-full bg-slate-300 transition-all shadow-md"
+                      :class="si.is_optional ? 'right-0.5 bg-amber-400 shadow-amber-500/50' : 'left-0.5 bg-slate-500'"></span>
                   </button>
                 </td>
-                <td class="px-4 py-2 text-right font-mono text-xs"
-                  :class="si.is_optional ? 'text-gray-600' : 'text-green-400'">
+                <td class="px-5 py-3 text-right font-mono text-xs font-bold"
+                  :class="si.is_optional ? 'text-slate-600' : 'text-emerald-400'">
                   {{ si.price ? `$${si.price.toLocaleString()}` : "—" }}
                 </td>
-                <td class="px-4 py-2 text-gray-500 text-xs">{{ si.notes || "—" }}</td>
-                <td class="px-3 py-2">
-                  <button @click="removeItem(si)" class="text-gray-600 hover:text-red-400 text-sm">×</button>
+                <td class="px-5 py-3 text-slate-500 text-xs">{{ si.notes || "—" }}</td>
+                <td class="px-4 py-3 text-center">
+                  <button @click="removeItem(si)" class="text-slate-600 hover:text-rose-400 transition-colors text-sm cursor-pointer shrink-0">×</button>
                 </td>
               </tr>
             </tbody>
@@ -716,10 +722,10 @@ async function doDelete() {
 
         <!-- 底部：小計 -->
         <div v-if="setItems.length > 0"
-          class="flex items-center justify-end gap-4 px-5 py-3 border-t border-gray-800 text-xs text-gray-500 shrink-0">
+          class="flex items-center justify-end gap-5 px-6 py-4.5 border-t border-white/5 bg-slate-950/20 text-[10px] font-bold font-mono text-slate-500 shrink-0">
           <span>必用 {{ setItems.filter(i=>!i.is_optional).length }} 項</span>
-          <span class="text-gray-600">PRN {{ setItems.filter(i=>i.is_optional).length }} 項（不計入）</span>
-          <span class="text-sm font-mono text-green-400 font-semibold">
+          <span class="text-slate-600">PRN {{ setItems.filter(i=>i.is_optional).length }} 項（未計費）</span>
+          <span class="text-xs font-mono text-emerald-400 font-black tracking-wide bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-lg">
             合計 ${{ setTotal.toLocaleString() }}
           </span>
         </div>
@@ -730,54 +736,57 @@ async function doDelete() {
   <!-- ════ Modal：新增/編輯套組 ════ -->
   <Teleport to="body">
     <div v-if="showSetModal"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      class="fixed inset-0 z-[9000] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm"
       @click.self="showSetModal = false">
-      <div class="w-full max-w-md bg-gray-900 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-800">
-          <h3 class="font-semibold text-gray-100">{{ setModalMode === "add" ? "新增套組" : "編輯套組" }}</h3>
-          <button @click="showSetModal = false" class="text-gray-500 hover:text-gray-300 text-xl">×</button>
+      <div class="w-full max-w-md bg-slate-900 border border-white/10 shadow-2xl rounded-2xl overflow-hidden text-slate-100">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-white/5 bg-slate-950/30">
+          <h3 class="text-xs font-black uppercase tracking-widest font-mono text-slate-200">{{ setModalMode === "add" ? "新增套組" : "編輯套組" }}</h3>
+          <button @click="showSetModal = false" class="text-slate-500 hover:text-white text-xl leading-none cursor-pointer">×</button>
         </div>
-        <div class="px-5 py-4 space-y-3">
+        <div class="px-5 py-4 space-y-4">
           <!-- 醫師 -->
           <div>
-            <label class="text-xs text-gray-500 mb-1 block">主治醫師</label>
-            <select v-model="setForm.physician_id" @change="updateSetName"
-              class="w-full px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-100 text-sm focus:outline-none focus:border-blue-500">
-              <option :value="null">— 未指定 —</option>
-              <optgroup label="套組 VS（is_vs）">
-                <option v-for="p in physicians.filter(p=>p.is_vs)" :key="p.id" :value="p.id">
-                  {{ p.name }}{{ p.department ? ` (${p.department})` : "" }}
-                </option>
-              </optgroup>
-              <optgroup label="其他醫師">
-                <option v-for="p in physicians.filter(p=>!p.is_vs)" :key="p.id" :value="p.id">
-                  {{ p.name }}{{ p.department ? ` (${p.department})` : "" }}
-                </option>
-              </optgroup>
-            </select>
+            <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">主治醫師</label>
+            <div class="relative">
+              <select v-model="setForm.physician_id" @change="updateSetName"
+                class="w-full pl-3 pr-8 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-bold appearance-none cursor-pointer">
+                <option :value="null">— 未指定醫師 —</option>
+                <optgroup label="VS 主治醫師">
+                  <option v-for="p in physicians.filter(p=>p.is_vs)" :key="p.id" :value="p.id">
+                    {{ p.name }}{{ p.department ? ` (${p.department})` : "" }}
+                  </option>
+                </optgroup>
+                <optgroup label="其他醫師">
+                  <option v-for="p in physicians.filter(p=>!p.is_vs)" :key="p.id" :value="p.id">
+                    {{ p.name }}{{ p.department ? ` (${p.department})` : "" }}
+                  </option>
+                </optgroup>
+              </select>
+              <span class="absolute right-3 top-2.5 text-[9px] text-slate-500 pointer-events-none">▼</span>
+            </div>
           </div>
           <!-- 術式 -->
           <div>
-            <label class="text-xs text-gray-500 mb-1 block">術式</label>
-            <input v-model="setForm.surgery_type" @input="updateSetName" placeholder="TKR / THR / 肩關節鏡…"
-              class="w-full px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-100 text-sm focus:outline-none focus:border-blue-500" />
+            <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">術式名稱</label>
+            <input v-model="setForm.surgery_type" @input="updateSetName" placeholder="如 TKR / THR / 肩關節鏡…"
+              class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
           </div>
           <!-- 套組名稱 -->
           <div>
-            <label class="text-xs text-gray-500 mb-1 block">套組名稱 *</label>
-            <input v-model="setForm.name" placeholder="自動產生或手動輸入"
-              class="w-full px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-100 text-sm focus:outline-none focus:border-blue-500" />
+            <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">套組顯示名稱 *</label>
+            <input v-model="setForm.name" placeholder="系統自動產生，或手動覆寫"
+              class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
           </div>
           <!-- 備註 -->
           <div>
-            <label class="text-xs text-gray-500 mb-1 block">備註</label>
-            <input v-model="setForm.notes"
-              class="w-full px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-100 text-sm focus:outline-none focus:border-blue-500" />
+            <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">備註說明</label>
+            <input v-model="setForm.notes" placeholder="其他配製或備註"
+              class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
           </div>
         </div>
-        <div class="flex justify-end gap-2 px-5 py-3 border-t border-gray-800">
-          <button @click="showSetModal = false" class="px-4 py-1.5 rounded-lg text-sm text-gray-400 hover:bg-gray-800">取消</button>
-          <button @click="saveSet" class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium">儲存</button>
+        <div class="flex justify-end gap-2.5 px-5 py-4 border-t border-white/5 bg-slate-950/20 shrink-0">
+          <button @click="showSetModal = false" class="px-4 py-2 text-xs font-bold bg-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded-xl transition-all cursor-pointer">取消</button>
+          <button @click="saveSet" :disabled="!setForm.name?.trim()" class="px-5 py-2 text-xs font-black bg-violet-600 hover:bg-violet-500 border border-violet-500/30 text-white rounded-xl transition-all disabled:opacity-40 cursor-pointer">儲存套組</button>
         </div>
       </div>
     </div>
@@ -786,67 +795,67 @@ async function doDelete() {
   <!-- ════ Modal：加入品項 ════ -->
   <Teleport to="body">
     <div v-if="showAddItem"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      class="fixed inset-0 z-[9000] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm"
       @click.self="showAddItem = false">
-      <div class="w-full max-w-md bg-gray-900 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-800">
-          <h3 class="font-semibold text-gray-100">加入品項</h3>
-          <button @click="showAddItem = false" class="text-gray-500 hover:text-gray-300 text-xl">×</button>
+      <div class="w-full max-w-md bg-slate-900 border border-white/10 shadow-2xl rounded-2xl overflow-hidden text-slate-100">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-white/5 bg-slate-950/30">
+          <h3 class="text-xs font-black uppercase tracking-widest font-mono text-slate-200">加入品項</h3>
+          <button @click="showAddItem = false" class="text-slate-500 hover:text-white text-xl leading-none cursor-pointer">×</button>
         </div>
-        <div class="px-5 py-4 space-y-3">
+        <div class="px-5 py-4 space-y-4">
           <!-- 品項搜尋 -->
           <div class="relative">
-            <label class="text-xs text-gray-500 mb-1 block">搜尋品項（院內碼 / 中文 / 英文）</label>
-            <input v-model="itemSearch" placeholder="e.g. M1C50965 或 膝關節"
-              class="w-full px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-100 text-sm focus:outline-none focus:border-blue-500" />
+            <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">搜尋品項（院內碼 / 中文 / 英文）</label>
+            <input v-model="itemSearch" placeholder="請輸入院內碼或自費品名搜尋…"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
             <!-- 建議下拉 -->
             <div v-if="suggestions.length > 0"
-              class="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl overflow-hidden">
+              class="absolute z-10 w-full mt-1.5 bg-slate-950 border border-white/10 rounded-xl shadow-2xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar">
               <button
                 v-for="s in suggestions" :key="s.hospital_code"
                 @click="pickSuggestion(s)"
-                class="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-gray-700 transition-colors">
-                <span class="font-mono text-xs text-gray-400 w-20 shrink-0">{{ s.hospital_code }}</span>
-                <span class="text-gray-200 text-xs truncate">{{ s.name_zh || s.name_en }}</span>
-                <span class="ml-auto text-green-400 font-mono text-xs shrink-0">
+                class="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-slate-900 transition-colors border-b border-white/[0.02] cursor-pointer">
+                <span class="font-mono text-xs text-slate-400 w-20 shrink-0 font-bold">{{ s.hospital_code }}</span>
+                <span class="text-slate-200 text-xs truncate flex-1 font-bold">{{ s.name_zh || s.name_en }}</span>
+                <span class="text-emerald-400 font-mono text-xs shrink-0 font-bold">
                   {{ s.price ? `$${s.price.toLocaleString()}` : "" }}
                 </span>
               </button>
             </div>
           </div>
           <!-- 院內碼（選完後顯示） -->
-          <div v-if="itemForm.hospital_code" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 border border-blue-700">
-            <span class="font-mono text-xs text-blue-400">{{ itemForm.hospital_code }}</span>
-            <button @click="itemForm.hospital_code=''; itemSearch=''" class="ml-auto text-gray-500 hover:text-gray-300">×</button>
+          <div v-if="itemForm.hospital_code" class="flex items-center gap-2 px-3 py-2 rounded-xl bg-violet-950/20 border border-violet-500/30 shadow-inner">
+            <span class="font-mono text-xs text-violet-400 font-bold">{{ itemForm.hospital_code }}</span>
+            <button @click="itemForm.hospital_code=''; itemSearch=''" class="ml-auto text-slate-500 hover:text-slate-300 cursor-pointer">×</button>
           </div>
           <!-- 數量 + PRN -->
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="text-xs text-gray-500 mb-1 block">數量</label>
+              <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">數量</label>
               <input v-model.number="itemForm.quantity" type="number" min="1"
-                class="w-full px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-100 text-sm focus:outline-none focus:border-blue-500" />
+                class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-mono font-bold" />
             </div>
             <div class="flex flex-col justify-end">
-              <label class="flex items-center gap-2 cursor-pointer pb-1.5">
+              <label class="flex items-center gap-2 cursor-pointer pb-2 select-none">
                 <input type="checkbox" v-model="itemForm.is_optional" :true-value="1" :false-value="0"
-                  class="w-4 h-4 rounded accent-amber-500" />
-                <span class="text-sm text-gray-300">PRN（按需）</span>
+                  class="w-4 h-4 rounded accent-violet-500 bg-slate-950 border border-white/10" />
+                <span class="text-xs font-bold text-slate-300">PRN 按需（不計費）</span>
               </label>
             </div>
           </div>
           <!-- 備註 -->
           <div>
-            <label class="text-xs text-gray-500 mb-1 block">備註</label>
-            <input v-model="itemForm.notes" placeholder="e.g. 主任有說才用"
-              class="w-full px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-100 text-sm focus:outline-none focus:border-blue-500" />
+            <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">備註說明</label>
+            <input v-model="itemForm.notes" placeholder="e.g. 特殊指名才使用 / 次要選擇…"
+              class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
           </div>
         </div>
-        <div class="flex justify-end gap-2 px-5 py-3 border-t border-gray-800">
-          <button @click="showAddItem = false" class="px-4 py-1.5 rounded-lg text-sm text-gray-400 hover:bg-gray-800">取消</button>
+        <div class="flex justify-end gap-2.5 px-5 py-4 border-t border-white/5 bg-slate-950/20 shrink-0">
+          <button @click="showAddItem = false" class="px-4 py-2 text-xs font-bold bg-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded-xl transition-all cursor-pointer">取消</button>
           <button @click="addItem"
             :disabled="!itemForm.hospital_code"
-            class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium disabled:opacity-40">
-            加入
+            class="px-5 py-2 text-xs font-black bg-violet-600 hover:bg-violet-500 border border-violet-500/30 text-white rounded-xl transition-all disabled:opacity-40 cursor-pointer">
+            確認加入
           </button>
         </div>
       </div>
@@ -856,22 +865,24 @@ async function doDelete() {
   <!-- ════ 覆蓋上傳確認 ════ -->
   <Teleport to="body">
     <div v-if="showOverwriteConfirm"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+      class="fixed inset-0 z-[9000] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm"
       @click.self="showOverwriteConfirm = false">
-      <div class="w-full max-w-sm bg-gray-900 rounded-2xl border border-amber-800 shadow-2xl p-6 space-y-4">
-        <h3 class="text-amber-300 font-semibold">覆蓋上傳確認</h3>
-        <p class="text-sm text-gray-300">
-          將以本地的
-          <span class="text-white font-medium">「{{ activeSet?.name }}」</span>
-          覆蓋雲端上的同名套組及其所有品項。<br/>
-          <span class="text-gray-500 text-xs mt-1 block">其他套組不受影響。</span>
+      <div class="w-full max-w-sm bg-slate-900 border border-amber-900/30 shadow-2xl p-6 rounded-2xl space-y-4 text-slate-100">
+        <h3 class="text-amber-400 font-black text-xs uppercase tracking-widest font-mono flex items-center gap-1.5">
+          <span>⚠️</span> 覆蓋上傳確認
+        </h3>
+        <p class="text-xs text-slate-300 leading-normal">
+          將以本機的
+          <span class="text-amber-300 font-bold">「{{ activeSet?.name }}」</span>
+          強行覆蓋雲端上的同名套組及其所有品項。<br/>
+          <span class="text-slate-500 block mt-1">注意：其他人的套組不受影響，但此動作將完全覆寫雲端上對應的套組內容。</span>
         </p>
-        <div class="flex gap-3 justify-end">
+        <div class="flex gap-2.5 justify-end pt-2">
           <button @click="showOverwriteConfirm = false"
-            class="px-4 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600">取消</button>
+            class="px-4 py-2 text-xs font-bold bg-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-700 border border-white/5 rounded-xl cursor-pointer">取消</button>
           <button @click="overwriteSetToCloud" :disabled="isSyncing"
-            class="px-4 py-2 text-sm bg-amber-700 text-white rounded-lg hover:bg-amber-600 disabled:opacity-40">
-            {{ isSyncing ? '上傳中…' : '確認覆蓋' }}
+            class="px-5 py-2 text-xs font-black bg-amber-600 hover:bg-amber-500 border border-amber-500/30 text-white rounded-xl disabled:opacity-40 cursor-pointer">
+            {{ isSyncing ? '同步中…' : '確定覆蓋上傳' }}
           </button>
         </div>
       </div>
@@ -881,16 +892,16 @@ async function doDelete() {
   <!-- ════ 刪除確認 ════ -->
   <Teleport to="body">
     <div v-if="deleteTarget"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div class="w-full max-w-sm bg-gray-900 rounded-2xl border border-gray-700 shadow-2xl p-6 text-center">
+      class="fixed inset-0 z-[9000] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+      <div class="w-full max-w-sm bg-slate-900 border border-white/10 shadow-2xl p-6 rounded-2xl text-center text-slate-100">
         <div class="text-3xl mb-3">🗑️</div>
-        <p class="text-sm text-gray-300 mb-1 font-medium">確認刪除套組？</p>
-        <p class="text-xs text-gray-500 mb-5">套組內所有品項也會一併刪除（無法復原）</p>
+        <p class="text-sm font-bold mb-1">確認刪除套組？</p>
+        <p class="text-xs text-slate-500 mb-5 leading-normal">套組內包含的所有自費品項清單關聯也會一併刪除（此動作無法復原）。</p>
         <div class="flex gap-3 justify-center">
           <button @click="deleteTarget = null"
-            class="px-5 py-2 rounded-lg text-sm text-gray-400 hover:bg-gray-800 border border-gray-700">取消</button>
+            class="px-5 py-2 rounded-xl text-xs font-bold bg-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-700 border border-white/5 cursor-pointer">取消</button>
           <button @click="doDelete"
-            class="px-5 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-medium">確認刪除</button>
+            class="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 border border-rose-500/30 text-white text-xs font-black cursor-pointer">確認刪除</button>
         </div>
       </div>
     </div>
@@ -900,7 +911,7 @@ async function doDelete() {
   <Teleport to="body">
     <Transition name="toast">
       <div v-if="toastMsg"
-        class="fixed bottom-6 right-6 z-[60] px-4 py-3 rounded-xl bg-gray-800 border border-gray-700 text-gray-200 text-sm shadow-2xl">
+        class="fixed bottom-6 right-6 z-[9999] px-4 py-3 rounded-xl bg-slate-900 border border-white/15 text-slate-200 text-xs font-bold shadow-2xl">
         {{ toastMsg }}
       </div>
     </Transition>
@@ -910,4 +921,20 @@ async function doDelete() {
 <style scoped>
 .toast-enter-active, .toast-leave-active { transition: all .2s ease; }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(8px); }
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
 </style>

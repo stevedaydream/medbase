@@ -8,7 +8,6 @@ const SYNC_META: Record<string, { label: string; route: string }> = {
   ahk:           { label: "AHK 管理",   route: "/ahk" },
   prescriptions: { label: "處方套組",   route: "/prescriptions" },
   items:         { label: "自費品項",   route: "/items" },
-  medications:   { label: "藥物字典",   route: "/medications" },
   examination:   { label: "檢查處置",   route: "/examination" },
   disease:       { label: "疾病常規",   route: "/disease" },
   contacts:      { label: "常用分機",   route: "/contacts" },

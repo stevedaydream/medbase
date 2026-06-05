@@ -249,17 +249,17 @@ async function saveEdit() {
 </script>
 
 <template>
-  <div class="flex flex-col h-full overflow-hidden bg-zinc-950">
+  <div class="flex flex-col h-full overflow-hidden bg-slate-950 text-slate-100">
 
     <!-- ── 頂部格式 tab 列 ──────────────────────────────────────────── -->
-    <div class="flex items-center gap-1 px-3 py-2 border-b border-zinc-800 bg-zinc-900 shrink-0 overflow-x-auto">
+    <div class="flex items-center gap-1.5 px-6 py-3 border-b border-white/5 bg-slate-950 shrink-0 overflow-x-auto custom-scrollbar">
       <button
         v-for="t in templates" :key="t.format_key"
         @click="activeKey = t.format_key"
-        class="shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap"
+        class="shrink-0 px-3.5 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer"
         :class="activeKey === t.format_key
-          ? 'bg-blue-800/60 border-blue-600/60 text-white'
-          : 'bg-transparent border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'"
+          ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-200 shadow-[0_0_12px_rgba(99,102,241,0.08)]'
+          : 'bg-slate-900/40 border-white/5 text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'"
       >
         {{ t.format_label }}
       </button>
@@ -267,16 +267,16 @@ async function saveEdit() {
       <div class="ml-auto flex items-center gap-2 shrink-0">
         <button
           @click="openHistory"
-          class="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-zinc-700
-                 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors"
+          class="flex items-center gap-1.5 px-3.5 py-2 text-xs rounded-xl border border-white/10
+                 bg-slate-900/40 text-slate-400 hover:text-slate-200 hover:border-white/20 transition-all cursor-pointer font-bold"
         >
           📂 歷史記錄
         </button>
         <button
           @click="openEdit"
           :disabled="!activeTemplate"
-          class="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-zinc-700
-                 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 disabled:opacity-30 transition-colors"
+          class="flex items-center gap-1.5 px-3.5 py-2 text-xs rounded-xl border border-white/10
+                 bg-slate-900/40 text-slate-400 hover:text-slate-200 hover:border-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer font-bold"
         >
           ⚙ 編輯範例
         </button>
@@ -284,106 +284,113 @@ async function saveEdit() {
     </div>
 
     <!-- ── 病人資訊列 ───────────────────────────────────────────────── -->
-    <div class="flex items-center gap-2 px-4 py-2 border-b border-zinc-800 bg-zinc-900/50 shrink-0">
-      <span class="text-[10px] text-zinc-600 shrink-0">病人</span>
-      <input
-        v-model="patientId"
-        placeholder="病歷號"
-        class="w-28 text-xs px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-zinc-300
-               placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 font-mono"
-      />
-      <input
-        v-model="patientName"
-        placeholder="姓名"
-        class="w-24 text-xs px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-zinc-300
-               placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
-      />
-      <input
-        v-model="bedNo"
-        placeholder="床號"
-        class="w-20 text-xs px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-zinc-300
-               placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500 font-mono"
-      />
+    <div class="flex items-center gap-4 px-6 py-2.5 border-b border-white/5 bg-slate-900/20 shrink-0">
+      <span class="text-[10px] text-slate-500 font-black uppercase tracking-widest font-mono shrink-0">病人資料:</span>
+      <div class="flex items-center gap-2">
+        <input
+          v-model="patientId"
+          placeholder="病歷號"
+          class="w-32 text-xs px-3 py-1.5 bg-slate-950/60 border border-white/10 rounded-xl text-slate-200
+                 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50 font-mono font-bold"
+        />
+        <input
+          v-model="patientName"
+          placeholder="姓名"
+          class="w-28 text-xs px-3 py-1.5 bg-slate-950/60 border border-white/10 rounded-xl text-slate-200
+                 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50 font-bold"
+        />
+        <input
+          v-model="bedNo"
+          placeholder="床號"
+          class="w-24 text-xs px-3 py-1.5 bg-slate-950/60 border border-white/10 rounded-xl text-slate-200
+                 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50 font-mono font-bold"
+        />
+      </div>
     </div>
 
     <!-- ── 輸入區 ───────────────────────────────────────────────────── -->
-    <div class="flex flex-col border-b border-zinc-800 overflow-hidden" style="flex: 1 1 0">
-      <div class="flex items-center px-4 py-2 border-b border-zinc-800 shrink-0">
-        <span class="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest">輸入草稿</span>
+    <div class="flex flex-col border-b border-white/5 overflow-hidden p-4 pb-2" style="flex: 1 1 0">
+      <div class="flex items-center px-2 pb-2 shrink-0">
+        <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono">病歷草稿</span>
         <button
           v-if="inputText"
           @click="inputText = ''"
-          class="ml-auto text-xs text-zinc-700 hover:text-zinc-400 transition-colors"
-        >清除</button>
+          class="ml-auto text-xs font-bold text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+        >清除內容</button>
       </div>
       <textarea
         v-model="inputText"
         placeholder="在此貼上病歷草稿（progress notes）…"
-        class="flex-1 resize-none bg-transparent text-sm text-zinc-300 px-4 py-3
-               placeholder:text-zinc-700 focus:outline-none font-mono leading-relaxed"
+        class="flex-1 resize-none bg-slate-950/50 border border-white/5 focus:border-indigo-500/30 rounded-2xl p-4
+               placeholder:text-slate-700 focus:outline-none font-mono text-xs leading-relaxed text-slate-200 focus:shadow-[0_0_12px_rgba(99,102,241,0.08)] transition-all custom-scrollbar"
       />
     </div>
 
     <!-- ── 操作列 ───────────────────────────────────────────────────── -->
-    <div class="flex items-center gap-2 px-4 py-2.5 bg-zinc-900 border-b border-zinc-800 shrink-0">
+    <div class="flex items-center gap-3 px-6 py-3 bg-slate-950 border-b border-white/5 shrink-0 flex-wrap">
       <button
         @click="generate"
         :disabled="isGenerating || !inputText.trim() || !activeTemplate || !apiKey"
         :title="!apiKey ? '請先至設定頁填入 Gemini API Key' : ''"
-        class="flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg
-               bg-blue-700 hover:bg-blue-600 text-white disabled:opacity-40 transition-colors"
+        class="flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-xl
+               bg-indigo-600 border border-indigo-500/30 hover:bg-indigo-500 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-[0_0_15px_rgba(99,102,241,0.25)] transition-all cursor-pointer"
       >
         <span v-if="isGenerating"
           class="inline-block w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"
         />
         <span v-else>✦</span>
-        {{ isGenerating ? "生成中…" : "生成" }}
+        {{ isGenerating ? "生成中…" : "開始 AI 整理" }}
       </button>
 
-      <select
-        v-model="selectedModel"
-        @change="onModelChange"
-        class="text-xs px-2 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-300
-               focus:outline-none focus:border-zinc-500 cursor-pointer"
-      >
-        <option v-for="m in MODELS" :key="m.id" :value="m.id">{{ m.label }}</option>
-      </select>
+      <div class="relative">
+        <select
+          v-model="selectedModel"
+          @change="onModelChange"
+          class="text-xs pl-3 pr-8 py-2 bg-slate-900 border border-white/10 rounded-xl text-slate-300
+                 focus:outline-none focus:border-indigo-500/50 cursor-pointer font-bold appearance-none"
+        >
+          <option v-for="m in MODELS" :key="m.id" :value="m.id">{{ m.label }}</option>
+        </select>
+        <span class="absolute right-3 top-2.5 text-[10px] text-slate-500 pointer-events-none">▼</span>
+      </div>
 
-      <span v-if="!apiKey" class="text-xs text-amber-500/80">⚠ 請先至設定頁填入 Gemini API Key</span>
+      <span v-if="!apiKey" class="text-xs text-amber-400 font-bold flex items-center gap-1">
+        <span>⚠️</span> 請先至設定頁填入 Gemini API Key
+      </span>
 
       <div class="ml-auto flex items-center gap-2">
         <button
           @click="saveRecord"
           :disabled="!outputText.trim()"
-          class="text-xs px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-30
-                 border-emerald-700 text-emerald-500 hover:bg-emerald-900/30 hover:border-emerald-500"
+          class="text-xs px-4 py-2.5 rounded-xl border font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer
+                 bg-emerald-600/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/15"
         >
-          💾 儲存
+          💾 儲存歷史
         </button>
         <button
           v-if="outputText"
           @click="copyOutput"
-          class="text-xs px-3 py-1.5 rounded-lg border transition-colors"
+          class="text-xs px-4 py-2.5 rounded-xl border font-bold transition-all cursor-pointer"
           :class="copied
-            ? 'bg-emerald-700/40 border-emerald-600/50 text-emerald-300'
-            : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'"
+            ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-300'
+            : 'bg-slate-900/40 border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20'"
         >
-          {{ copied ? "✓ 已複製" : "複製" }}
+          {{ copied ? "✓ 已複製結果" : "📋 複製結果" }}
         </button>
       </div>
     </div>
 
     <!-- ── 輸出區 ───────────────────────────────────────────────────── -->
-    <div class="flex flex-col overflow-hidden" style="flex: 1 1 0">
-      <div class="flex items-center px-4 py-2 border-b border-zinc-800 shrink-0">
-        <span class="text-[10px] font-semibold text-zinc-500 uppercase tracking-widest">輸出結果</span>
+    <div class="flex flex-col p-4 pt-2 overflow-hidden" style="flex: 1 1 0">
+      <div class="flex items-center px-2 pb-2 shrink-0">
+        <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono">整理結果</span>
       </div>
-      <div class="flex-1 overflow-y-auto px-4 py-3">
+      <div class="flex-1 overflow-y-auto bg-slate-950/50 border border-white/5 rounded-2xl px-5 py-4 custom-scrollbar">
         <pre v-if="outputText"
-          class="text-sm text-zinc-200 whitespace-pre-wrap font-mono leading-relaxed"
+          class="text-xs text-slate-200 whitespace-pre-wrap font-mono leading-relaxed select-all"
         >{{ outputText }}</pre>
-        <div v-else class="flex items-center justify-center h-full text-zinc-700 text-sm">
-          點擊「生成」後，結果將顯示於此
+        <div v-else class="flex items-center justify-center h-full text-slate-600 text-xs font-bold italic py-12">
+          點擊「開始 AI 整理」後，結果將顯示於此
         </div>
       </div>
     </div>
@@ -392,65 +399,67 @@ async function saveEdit() {
     <Teleport to="body">
       <div
         v-if="historyOpen"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+        class="fixed inset-0 z-[9000] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm"
         @click.self="historyOpen = false"
       >
         <div
-          class="bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl flex flex-col"
-          style="width: 700px; max-width: 92vw; max-height: 80vh"
+          class="bg-slate-900 border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-slate-100"
+          style="width: 760px; max-width: 92vw; max-height: 80vh"
         >
-          <div class="flex items-center gap-3 px-5 py-4 border-b border-zinc-800 shrink-0">
-            <h2 class="text-sm font-semibold text-white">歷史記錄</h2>
+          <!-- Modal Header -->
+          <div class="flex items-center gap-3 px-5 py-4 border-b border-white/5 bg-slate-950/30 shrink-0">
+            <h3 class="text-xs font-black uppercase tracking-widest font-mono text-slate-200">歷史記錄</h3>
             <input
               v-model="historySearch"
               placeholder="搜尋病歷號、姓名、床號…"
-              class="ml-4 flex-1 text-xs px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg
-                     text-zinc-300 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500"
+              class="ml-4 flex-1 text-xs px-3.5 py-1.5 bg-slate-950/80 border border-white/10 rounded-xl
+                     text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50 font-bold"
             />
             <button
               @click="historyOpen = false"
-              class="ml-2 text-zinc-500 hover:text-zinc-300 text-xl leading-none"
+              class="ml-2 text-slate-500 hover:text-white text-xl leading-none transition-colors cursor-pointer"
             >×</button>
           </div>
 
-          <div class="flex-1 overflow-y-auto">
+          <!-- Modal Body -->
+          <div class="flex-1 overflow-y-auto custom-scrollbar">
             <div v-if="!filteredRecords.length"
-              class="py-12 text-center text-zinc-600 text-sm">
+              class="py-16 text-center text-slate-500 text-xs italic font-bold">
               {{ records.length ? '無符合搜尋條件的記錄' : '尚無儲存記錄' }}
             </div>
 
-            <table v-else class="w-full text-xs">
-              <thead class="sticky top-0 bg-zinc-900 border-b border-zinc-800">
-                <tr>
-                  <th class="text-left px-4 py-2 text-zinc-500 font-medium">時間</th>
-                  <th class="text-left px-3 py-2 text-zinc-500 font-medium">病歷號</th>
-                  <th class="text-left px-3 py-2 text-zinc-500 font-medium">姓名</th>
-                  <th class="text-left px-3 py-2 text-zinc-500 font-medium">床號</th>
-                  <th class="text-left px-3 py-2 text-zinc-500 font-medium">格式</th>
-                  <th class="px-3 py-2"></th>
+            <table v-else class="w-full text-xs border-collapse">
+              <thead class="sticky top-0 bg-slate-900 z-10 border-b border-white/5">
+                <tr class="text-slate-400 text-[10px] font-black uppercase tracking-widest font-mono">
+                  <th class="text-left px-5 py-3.5 font-bold">時間</th>
+                  <th class="text-left px-4 py-3.5 font-bold">病歷號</th>
+                  <th class="text-left px-4 py-3.5 font-bold">姓名</th>
+                  <th class="text-left px-4 py-3.5 font-bold">床號</th>
+                  <th class="text-left px-4 py-3.5 font-bold">格式</th>
+                  <th class="w-12 px-4 py-3.5"></th>
                 </tr>
               </thead>
               <tbody>
                 <tr
                   v-for="r in filteredRecords" :key="r.id"
-                  class="border-b border-zinc-800/60 hover:bg-zinc-800/40 cursor-pointer transition-colors group"
+                  class="border-b border-white/[0.02] hover:bg-white/[0.02] cursor-pointer transition-colors group"
                   @click="loadRecord(r)"
                 >
-                  <td class="px-4 py-2.5 text-zinc-500 whitespace-nowrap">
+                  <td class="px-5 py-3 text-slate-500 whitespace-nowrap font-mono">
                     {{ r.created_at.slice(0, 16) }}
                   </td>
-                  <td class="px-3 py-2.5 text-zinc-300 font-mono">{{ r.patient_id || '—' }}</td>
-                  <td class="px-3 py-2.5 text-zinc-300">{{ r.patient_name || '—' }}</td>
-                  <td class="px-3 py-2.5 text-zinc-400 font-mono">{{ r.bed_no || '—' }}</td>
-                  <td class="px-3 py-2.5">
-                    <span class="px-1.5 py-0.5 rounded bg-blue-900/40 border border-blue-800/50 text-blue-300">
+                  <td class="px-4 py-3 text-slate-300 font-mono font-bold">{{ r.patient_id || '—' }}</td>
+                  <td class="px-4 py-3 text-slate-300 font-bold">{{ r.patient_name || '—' }}</td>
+                  <td class="px-4 py-3 text-slate-400 font-mono font-bold">{{ r.bed_no || '—' }}</td>
+                  <td class="px-4 py-3">
+                    <span class="text-[10px] font-bold bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded-full">
                       {{ r.format_label }}
                     </span>
                   </td>
-                  <td class="px-3 py-2.5 text-right">
+                  <td class="px-4 py-3 text-right">
                     <button
                       @click.stop="deleteRecord(r.id)"
-                      class="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-500 transition-all px-1"
+                      class="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 transition-opacity px-1 text-sm cursor-pointer"
                       title="刪除"
                     >✕</button>
                   </td>
@@ -459,7 +468,8 @@ async function saveEdit() {
             </table>
           </div>
 
-          <div class="px-5 py-3 border-t border-zinc-800 shrink-0 text-[11px] text-zinc-600">
+          <!-- Modal Footer -->
+          <div class="px-5 py-3 border-t border-white/5 bg-slate-950/20 shrink-0 text-[10px] font-bold font-mono text-slate-500">
             共 {{ records.length }} 筆記錄，點擊列表可載入
           </div>
         </div>
@@ -470,56 +480,61 @@ async function saveEdit() {
     <Teleport to="body">
       <div
         v-if="editOpen"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+        class="fixed inset-0 z-[9000] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm"
         @click.self="editOpen = false"
       >
         <div
-          class="bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl w-[640px] max-w-[90vw] flex flex-col"
-          style="max-height: 80vh"
+          class="bg-slate-900 border border-white/10 rounded-2xl shadow-2xl w-[680px] max-w-[90vw] flex flex-col overflow-hidden text-slate-100"
+          style="max-height: 85vh"
         >
-          <div class="flex items-center gap-3 px-5 py-4 border-b border-zinc-800 shrink-0">
-            <h2 class="text-sm font-semibold text-white">
+          <!-- Header -->
+          <div class="flex items-center justify-between px-5 py-4 border-b border-white/5 bg-slate-950/30 shrink-0">
+            <h3 class="text-xs font-black uppercase tracking-widest font-mono text-slate-200">
               編輯範例 — {{ activeTemplate?.format_label }}
-            </h2>
+            </h3>
             <button
               @click="editOpen = false"
-              class="ml-auto text-zinc-500 hover:text-zinc-300 text-xl leading-none"
+              class="text-slate-500 hover:text-white text-xl leading-none transition-colors cursor-pointer"
             >×</button>
           </div>
 
-          <div class="flex flex-col flex-1 min-h-0 px-5 py-4 gap-3 overflow-hidden">
-            <div class="flex flex-col gap-1 shrink-0">
-              <label class="text-xs text-zinc-500">
-                System Prompt（角色說明，如：你是資深住院醫師，請整理為標準中文出院摘要…）
+          <!-- Body -->
+          <div class="flex flex-col flex-1 min-h-0 px-5 py-4 gap-4 overflow-hidden bg-slate-950/10">
+            <div class="flex flex-col gap-1.5 shrink-0">
+              <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono">
+                System Prompt（AI 角色說明與整理準則）
               </label>
               <textarea
                 v-model="editSystemPrompt"
                 rows="4"
-                class="resize-none text-sm bg-zinc-800 border border-zinc-700 rounded-lg
-                       text-zinc-200 px-3 py-2 focus:outline-none focus:border-blue-500 font-mono leading-relaxed"
+                placeholder="例如：你是資深住院醫師，請將以下草稿整理為標準出院摘要..."
+                class="resize-none text-xs bg-slate-950/80 border border-white/10 rounded-xl
+                       text-slate-200 px-3.5 py-2.5 focus:outline-none focus:border-indigo-500/50 font-mono leading-relaxed focus:shadow-[0_0_10px_rgba(99,102,241,0.06)]"
               />
             </div>
-            <div class="flex flex-col gap-1 flex-1 min-h-0">
-              <label class="text-xs text-zinc-500">
-                範例輸出（給 AI 參考的格式樣板，越具體效果越好）
+            <div class="flex flex-col gap-1.5 flex-1 min-h-0">
+              <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono">
+                範例輸出樣板（提供給 AI 的 Output Template，格式越具體效果越好）
               </label>
               <textarea
                 v-model="editExample"
-                class="flex-1 resize-none text-sm bg-zinc-800 border border-zinc-700 rounded-lg
-                       text-zinc-200 px-3 py-2 focus:outline-none focus:border-blue-500 font-mono leading-relaxed"
+                placeholder="例如：&#10;Discharge Diagnosis:&#10;- ...&#10;&#10;Brief History:&#10;- ..."
+                class="flex-1 resize-none text-xs bg-slate-950/80 border border-white/10 rounded-xl
+                       text-slate-200 px-3.5 py-2.5 focus:outline-none focus:border-indigo-500/50 font-mono leading-relaxed focus:shadow-[0_0_10px_rgba(99,102,241,0.06)] custom-scrollbar"
               />
             </div>
           </div>
 
-          <div class="flex justify-end gap-3 px-5 py-4 border-t border-zinc-800 shrink-0">
+          <!-- Footer -->
+          <div class="flex justify-end gap-2.5 px-5 py-4 border-t border-white/5 bg-slate-950/20 shrink-0">
             <button
               @click="editOpen = false"
-              class="px-4 py-2 text-sm bg-zinc-700 hover:bg-zinc-600 text-zinc-300 rounded-lg transition-colors"
+              class="px-4 py-2 text-xs font-bold bg-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded-xl transition-all cursor-pointer"
             >取消</button>
             <button
               @click="saveEdit"
-              class="px-5 py-2 text-sm font-semibold bg-blue-700 hover:bg-blue-600 text-white rounded-lg transition-colors"
-            >儲存</button>
+              class="px-5 py-2 text-xs font-black bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 text-white rounded-xl transition-all cursor-pointer"
+            >儲存修改</button>
           </div>
         </div>
       </div>
@@ -529,8 +544,8 @@ async function saveEdit() {
     <Transition name="toast">
       <div
         v-if="toast"
-        class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 bg-zinc-700 text-white text-sm
-               rounded-lg shadow-xl z-50 pointer-events-none"
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2.5 bg-slate-900 border border-white/15 text-slate-200 text-xs font-bold
+               rounded-xl shadow-2xl z-[9999] pointer-events-none"
       >
         {{ toast }}
       </div>
@@ -542,4 +557,20 @@ async function saveEdit() {
 <style scoped>
 .toast-enter-active, .toast-leave-active { transition: all 0.2s ease; }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateX(-50%) translateY(8px); }
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
 </style>

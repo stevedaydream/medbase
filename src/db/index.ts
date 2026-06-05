@@ -117,22 +117,6 @@ async function seedIfEmpty(db: Database) {
 
 async function initSchema(db: Database) {
   await db.execute(`
-    CREATE TABLE IF NOT EXISTS medications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      generic_name TEXT,
-      synonyms TEXT,          -- JSON array
-      category TEXT,
-      route TEXT,             -- IV / PO / IM / SC
-      dose TEXT,
-      iv_rate TEXT,
-      warnings TEXT,          -- JSON array (防呆紅字)
-      notes TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-  `);
-
-  await db.execute(`
     CREATE TABLE IF NOT EXISTS prescriptions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -238,7 +222,6 @@ async function initSchema(db: Database) {
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_items_purpose    ON items(purpose);`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_items_name_zh    ON items(name_zh);`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_items_code       ON items(hospital_code);`);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_medications_name ON medications(name);`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_item_depts_code  ON item_depts(hospital_code);`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_sets_physician   ON sets(physician_id);`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_sets_dept        ON sets(department_id);`);
@@ -392,22 +375,6 @@ async function initSchema(db: Database) {
     );
   `);
 
-  // ── ICD 診斷碼查詢（ICD-9 / ICD-10）────────────────────────
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS icd_codes (
-      code           TEXT PRIMARY KEY,
-      version        TEXT NOT NULL DEFAULT 'ICD10',  -- 'ICD9' | 'ICD10'
-      description_zh TEXT NOT NULL DEFAULT '',
-      description_en TEXT NOT NULL DEFAULT '',
-      category       TEXT NOT NULL DEFAULT ''
-    );
-  `);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_icd_version ON icd_codes(version);`);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_icd_desczh  ON icd_codes(description_zh);`);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_icd_ver_code ON icd_codes(version, code);`);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_icd_ver_zh   ON icd_codes(version, description_zh);`);
-  try { await db.execute(`ALTER TABLE icd_codes ADD COLUMN is_starred INTEGER NOT NULL DEFAULT 0`); } catch { /* 已存在 */ }
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_icd_starred ON icd_codes(version, is_starred);`);
 
   // ── 上班規則備忘錄 ─────────────────────────────────────────
   await db.execute(`

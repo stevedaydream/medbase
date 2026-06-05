@@ -36,22 +36,19 @@ function onActivity() {
   emit("activity");
 }
 
-type TabId = "medications" | "items" | "sets" | "physicians";
-
-interface Medication  { id: number; name: string; dose: string; route: string; }
+type TabId = "items" | "sets" | "physicians";
 interface Item        { hospital_code: string; name_zh: string; name_en: string; }
 interface Physician   { id: number; name: string; department: string; title: string; ext: string; his_account: string; }
 interface SetRow      { id: number; name: string; phys_name: string | null; }
 interface SetItem     { id: number; set_id: number; hospital_code: string; quantity: number; name_zh: string | null; }
 
 const TABS: { id: TabId; icon: string; label: string }[] = [
-  { id: "medications", icon: "💊", label: "藥物字典" },
   { id: "items",       icon: "📦", label: "自費品項" },
   { id: "sets",        icon: "🗂️", label: "套組" },
   { id: "physicians",  icon: "👤", label: "通訊錄" },
 ];
 
-const activeTab = ref<TabId>("medications");
+const activeTab = ref<TabId>("items");
 const searchQ   = ref("");
 const copiedKey = ref("");
 let copyTimer: ReturnType<typeof setTimeout> | null = null;
@@ -68,16 +65,7 @@ async function copyText(text: string, key: string) {
   markCopied(key);
 }
 
-// ── 藥物字典 ─────────────────────────────────────────────────
-const medList = ref<Medication[]>([]);
-async function loadMeds() {
-  const db = await getDb();
-  const q = `%${searchQ.value.trim()}%`;
-  medList.value = await db.select<Medication[]>(
-    "SELECT id, name, dose, route FROM medications WHERE name LIKE ? OR generic_name LIKE ? ORDER BY name LIMIT 50",
-    [q, q]
-  );
-}
+
 
 // ── 自費品項 ─────────────────────────────────────────────────
 const itemList = ref<Item[]>([]);
@@ -165,8 +153,7 @@ function switchTab(id: TabId) {
 }
 
 function refreshList() {
-  if (activeTab.value === "medications") loadMeds();
-  else if (activeTab.value === "items")  loadItems();
+  if (activeTab.value === "items")       loadItems();
   else if (activeTab.value === "sets")   loadSets();
   else if (activeTab.value === "physicians") loadPhysicians();
 }
@@ -240,7 +227,7 @@ refreshList();
     <!-- Search / filter -->
     <div class="px-2.5 py-2 border-b border-gray-800 shrink-0">
       <input v-if="activeTab !== 'sets'" v-model="searchQ"
-        :placeholder="activeTab === 'medications' ? '藥名…' : activeTab === 'items' ? '品項碼/名稱…' : '醫師名/科別…'"
+        placeholder="品項碼/名稱…"
         class="w-full px-2.5 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-100 text-xs placeholder-gray-600 focus:outline-none focus:border-blue-500" />
       <input v-else v-model="physicianFilter"
         placeholder="醫師名稱篩選…"
@@ -250,25 +237,10 @@ refreshList();
     <!-- Content area -->
     <div class="flex-1 overflow-y-auto">
 
-      <!-- 💊 Medications -->
-      <template v-if="activeTab === 'medications'">
-        <div v-if="!medList.length" class="text-gray-600 text-xs text-center py-8">
-          {{ searchQ ? '無結果' : '輸入藥名搜尋' }}
-        </div>
-        <div v-for="m in medList" :key="m.id"
-          @click="copyText(m.name, `med-${m.id}`)"
-          class="flex items-center gap-2 px-3 py-2 border-b border-gray-800/50 cursor-pointer hover:bg-gray-800/40 transition-colors">
-          <div class="flex-1 min-w-0">
-            <p class="text-sm text-gray-200 truncate" :class="copiedKey === `med-${m.id}` ? 'text-green-400' : ''">
-              {{ copiedKey === `med-${m.id}` ? '✓ 已複製' : m.name }}
-            </p>
-            <p v-if="m.dose || m.route" class="text-xs text-gray-500 truncate">{{ [m.dose, m.route].filter(Boolean).join(' · ') }}</p>
-          </div>
-        </div>
-      </template>
+
 
       <!-- 📦 Items -->
-      <template v-else-if="activeTab === 'items'">
+      <template v-if="activeTab === 'items'">
         <div v-if="!itemList.length" class="text-gray-600 text-xs text-center py-8">
           {{ searchQ ? '無結果' : '輸入品項碼或名稱搜尋' }}
         </div>

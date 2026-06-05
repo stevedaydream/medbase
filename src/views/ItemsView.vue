@@ -231,12 +231,6 @@ const isAllActive = computed(() => {
   return activeSurgeries.value.size === 0;
 });
 
-const tagActiveClass = computed(() => {
-  if (filterMode.value === "dept")    return "bg-cyan-600 text-white shadow shadow-cyan-900/60";
-  if (filterMode.value === "purpose") return "bg-teal-600 text-white shadow shadow-teal-900/60";
-  return "bg-violet-600 text-white shadow shadow-violet-900/60";
-});
-
 function isActiveFilter(key: string | number): boolean {
   if (filterMode.value === "dept")    return activeDepts.value.has(key as string);
   if (filterMode.value === "purpose") return activePurposes.value.has(key as string);
@@ -554,46 +548,54 @@ async function pullSurgeryTypesFromCloud() {
 </script>
 
 <template>
-  <div class="flex flex-col h-full gap-3">
+  <div class="flex flex-col h-full gap-4 text-slate-100 select-none bg-slate-950/20">
 
     <!-- ── 搜尋列 ──────────────────────────────────────────── -->
-    <div class="flex items-center gap-3">
-      <input
-        v-model="searchRaw"
-        placeholder="搜尋品名 / 院內碼 / 用途 / 科別 / 廠商 / 醫師 / 套組名…"
-        class="flex-1 px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-100 text-sm placeholder-gray-500 focus:outline-none focus:border-teal-500"
-      />
-      <span class="text-xs text-gray-500 shrink-0">{{ filtered.length }} / {{ items.length }} 筆</span>
-      <button @click="pullFromCloud" :disabled="isSyncing"
-        class="text-xs px-3 py-1.5 bg-blue-800/60 hover:bg-blue-700 disabled:opacity-40 text-blue-200 rounded whitespace-nowrap">
-        {{ isSyncing ? "…" : "↓ 雲端同步" }}
-      </button>
-      <button @click="pushToCloud" :disabled="isSyncing"
-        class="text-xs px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-200 rounded whitespace-nowrap">
-        {{ isSyncing ? "…" : "↑ 上傳雲端" }}
-      </button>
+    <div class="flex items-center gap-3 bg-slate-900/40 backdrop-blur-md border border-white/5 rounded-2xl p-4 shadow-lg shrink-0">
+      <div class="relative flex-1">
+        <span class="absolute left-3.5 top-3 text-slate-600 text-sm">🔍</span>
+        <input
+          v-model="searchRaw"
+          placeholder="搜尋品名 / 院內碼 / 用途 / 科別 / 廠商 / 醫師 / 套組名…"
+          class="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs placeholder-slate-600 outline-none focus:border-teal-500/50 font-bold"
+        />
+      </div>
+      <span class="text-[10px] font-mono font-bold text-slate-500 shrink-0 bg-slate-950 px-3 py-2 rounded-xl border border-white/5">{{ filtered.length }} / {{ items.length }} ITEMS</span>
+      
+      <div class="flex gap-1.5 shrink-0">
+        <button @click="pullFromCloud" :disabled="isSyncing"
+          class="text-xs px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/30 text-indigo-400 hover:text-white rounded-xl font-bold transition-all cursor-pointer">
+          {{ isSyncing ? "…" : "↓ 雲端同步" }}
+        </button>
+        <button @click="pushToCloud" :disabled="isSyncing"
+          class="text-xs px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-white/5 text-slate-300 rounded-xl font-bold transition-all cursor-pointer">
+          {{ isSyncing ? "…" : "↑ 上傳雲端" }}
+        </button>
+      </div>
     </div>
+
+    <!-- Toast -->
     <Transition name="toast">
       <div v-if="syncToast"
-        class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 bg-gray-700 text-white text-sm rounded-lg shadow-xl z-50 pointer-events-none">
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 px-5 py-2.5 bg-slate-900/90 border border-white/10 text-slate-200 text-xs font-bold rounded-2xl shadow-2xl z-50 pointer-events-none backdrop-blur-md">
         {{ syncToast }}
       </div>
     </Transition>
 
     <!-- ── 醫師快捷 ─────────────────────────────────────────── -->
-    <div v-if="doctorsWithSets.length > 0" class="flex flex-wrap gap-1.5">
+    <div v-if="doctorsWithSets.length > 0" class="flex flex-wrap gap-2 shrink-0 bg-slate-900/20 p-2 rounded-2xl border border-white/[0.03]">
       <button
         v-for="doc in doctorsWithSets" :key="doc.id"
         @click="selectDoctor(doc.id)"
-        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+        class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer"
         :class="activeDoctorId === doc.id
-          ? 'bg-indigo-700 text-white shadow shadow-indigo-900'
-          : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200 border border-gray-700'"
+          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/10 border border-indigo-500/30'
+          : 'bg-slate-950/40 text-slate-400 hover:text-slate-200 border border-white/5'"
       >
-        <span class="text-[11px]">👨‍⚕️</span>
-        {{ doc.name }}
-        <span class="rounded-full px-1.5 py-0.5 text-[10px] font-mono"
-          :class="activeDoctorId === doc.id ? 'bg-indigo-500 text-white' : 'bg-gray-700 text-gray-500'">
+        <span>👨‍⚕️</span>
+        <span>{{ doc.name }}</span>
+        <span class="rounded-full px-2 py-0.5 text-[10px] font-mono font-bold"
+          :class="activeDoctorId === doc.id ? 'bg-indigo-500 text-white' : 'bg-slate-900 text-slate-500'">
           {{ doc.sets.length }}
         </span>
       </button>
@@ -602,18 +604,18 @@ async function pullSurgeryTypesFromCloud() {
     <!-- ── 套組子按鈕 ───────────────────────────────────────── -->
     <Transition name="slide-down">
       <div v-if="activeDoctorId !== null && activeDoctorSets.length > 0"
-        class="flex flex-wrap gap-1.5 pl-2 border-l-2 border-indigo-700">
+        class="flex flex-wrap gap-1.5 pl-3 border-l-2 border-indigo-500 shrink-0 py-1">
         <button
           v-for="s in activeDoctorSets" :key="s.id"
           @click="selectSet(s.id)"
-          class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+          class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer"
           :class="activeSetId === s.id
-            ? 'bg-indigo-600 text-white'
-            : 'bg-gray-800/80 text-gray-400 hover:bg-indigo-950 hover:text-indigo-300 border border-gray-700'"
+            ? 'bg-indigo-600/30 border border-indigo-500/50 text-white'
+            : 'bg-slate-950/40 text-slate-400 hover:text-indigo-400 border border-white/5'"
         >
-          {{ s.name }}
+          <span>{{ s.name }}</span>
           <span v-if="activeSetId === s.id && activeSetCodes.size > 0"
-            class="bg-indigo-500 text-white rounded-full px-1.5 py-0.5 text-[10px] font-mono">
+            class="bg-indigo-500 text-white rounded-full px-1.5 py-0.5 text-[9px] font-mono">
             {{ activeSetCodes.size }}
           </span>
         </button>
@@ -621,8 +623,8 @@ async function pullSurgeryTypesFromCloud() {
     </Transition>
 
     <!-- ── 篩選維度 (L1) ─────────────────────────────────────── -->
-    <div class="space-y-2">
-      <div class="flex items-center gap-1.5 flex-wrap">
+    <div class="space-y-3 bg-slate-900/40 backdrop-blur-md border border-white/5 rounded-2xl p-4 shadow-lg shrink-0">
+      <div class="flex items-center gap-2 flex-wrap border-b border-white/5 pb-3">
         <button
           v-for="mode in ([
             { key: 'dept',    label: '科別' },
@@ -631,40 +633,40 @@ async function pullSurgeryTypesFromCloud() {
           ] as const)"
           :key="mode.key"
           @click="filterMode = mode.key"
-          class="px-3 py-1 rounded-md text-xs font-medium transition-colors"
+          class="px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer"
           :class="filterMode === mode.key
-            ? 'bg-gray-600 text-white'
-            : 'bg-gray-800/60 text-gray-500 hover:text-gray-300 border border-gray-700/50'"
+            ? 'bg-slate-800 border border-white/[0.03] text-teal-400 shadow-inner'
+            : 'bg-slate-950/40 text-slate-500 hover:text-slate-300 border border-white/5'"
         >
           {{ mode.label }}
           <span v-if="mode.key === 'surgery' && surgeryTypes.length > 0"
-            class="ml-1 text-[10px] opacity-60">{{ surgeryTypes.length }}</span>
+            class="ml-1 text-[9px] font-mono bg-slate-950 px-1 py-0.5 rounded text-slate-500">{{ surgeryTypes.length }}</span>
         </button>
         <button v-if="filterMode === 'surgery'"
           @click="showSurgeryMgmt = true"
-          class="ml-1 text-xs px-2 py-0.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-400 transition-colors">
-          ⚙ 管理
+          class="ml-auto text-xs px-3 py-1.5 rounded-xl bg-slate-950 border border-white/5 text-slate-400 hover:text-slate-200 transition-all cursor-pointer">
+          ⚙ 管理術式
         </button>
       </div>
 
       <!-- L2：目前維度的標籤 ──────────────────────────────── -->
-      <div class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+      <div class="flex flex-wrap gap-2 max-h-24 overflow-y-auto pr-1 custom-scrollbar">
         <button
           v-for="tag in currentTags" :key="tag.key"
           @click="toggleFilter(tag.key)"
-          class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+          class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer"
           :class="tag.key === '__all__'
             ? (isAllActive
-                ? 'bg-gray-600 text-white'
-                : 'bg-gray-800 text-gray-500 hover:bg-gray-700 border border-gray-700')
+                ? 'bg-slate-800 border border-white/[0.03] text-white shadow-inner'
+                : 'bg-slate-950/40 text-slate-500 border border-white/5 hover:text-slate-300')
             : (isActiveFilter(tag.key)
-                ? tagActiveClass
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200 border border-gray-700')"
+                ? (filterMode === 'dept' ? 'bg-cyan-600/20 border-cyan-500/50 text-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.1)]' : filterMode === 'purpose' ? 'bg-teal-600/20 border-teal-500/50 text-teal-400 shadow-[0_0_12px_rgba(20,184,166,0.1)]' : 'bg-violet-600/20 border-violet-500/50 text-violet-400 shadow-[0_0_12px_rgba(139,92,246,0.1)]')
+                : 'bg-slate-950/40 text-slate-400 hover:text-slate-200 border border-white/5')"
         >
-          {{ tag.label }}
-          <span v-if="tag.sub" class="text-[9px] opacity-60 ml-0.5">{{ tag.sub }}</span>
-          <span class="rounded-full px-1 text-[10px] font-mono ml-0.5"
-            :class="(tag.key !== '__all__' && isActiveFilter(tag.key)) ? 'bg-white/20' : 'bg-gray-700 text-gray-500'">
+          <span>{{ tag.label }}</span>
+          <span v-if="tag.sub" class="text-[9px] opacity-60 font-mono font-medium">{{ tag.sub }}</span>
+          <span class="rounded-full px-2 py-0.5 text-[9px] font-mono font-bold"
+            :class="(tag.key !== '__all__' && isActiveFilter(tag.key)) ? 'bg-slate-950/60' : 'bg-slate-950 text-slate-600'">
             {{ tag.count }}
           </span>
         </button>
@@ -672,87 +674,87 @@ async function pullSurgeryTypesFromCloud() {
 
       <!-- 已選篩選 Chips ──────────────────────────────────── -->
       <Transition name="slide-down">
-        <div v-if="activeFilterChips.length > 0" class="flex flex-wrap gap-1 items-center">
-          <span class="text-[10px] text-gray-600 shrink-0">篩選：</span>
+        <div v-if="activeFilterChips.length > 0" class="flex flex-wrap gap-2 items-center border-t border-white/5 pt-3">
+          <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono shrink-0">篩選項目:</span>
           <span
             v-for="chip in activeFilterChips" :key="`${chip.mode}-${chip.key}`"
-            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border"
+            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border"
             :class="{
-              'bg-cyan-900/40 border-cyan-800/60 text-cyan-300':   chip.mode === 'dept',
-              'bg-teal-900/40 border-teal-800/60 text-teal-300':   chip.mode === 'purpose',
-              'bg-violet-900/40 border-violet-800/60 text-violet-300': chip.mode === 'surgery',
+              'bg-cyan-600/10 border-cyan-500/20 text-cyan-400':   chip.mode === 'dept',
+              'bg-teal-600/10 border-teal-500/20 text-teal-400':   chip.mode === 'purpose',
+              'bg-violet-600/10 border-violet-500/20 text-violet-400': chip.mode === 'surgery',
             }"
           >
-            <span class="text-[9px] opacity-50">{{ chip.typeLabel }}</span>
-            {{ chip.label }}
-            <button @click="removeChip(chip)" class="opacity-50 hover:opacity-100 leading-none ml-0.5">×</button>
+            <span class="text-[9px] font-black uppercase opacity-60">{{ chip.typeLabel }}</span>
+            <span>{{ chip.label }}</span>
+            <button @click="removeChip(chip)" class="opacity-50 hover:opacity-100 cursor-pointer text-sm leading-none ml-1">×</button>
           </span>
-          <button @click="resetAllFilters" class="text-[10px] text-gray-600 hover:text-gray-400 ml-1">
-            清除全部
+          <button @click="resetAllFilters" class="text-xs text-slate-500 hover:text-slate-300 font-bold ml-auto cursor-pointer">
+            清除全部篩選
           </button>
         </div>
       </Transition>
     </div>
 
     <!-- ── 表格 ─────────────────────────────────────────────── -->
-    <div class="flex-1 rounded-xl bg-gray-900 border border-gray-800 overflow-auto min-h-0">
-      <table class="w-full text-sm">
-        <thead class="sticky top-0 bg-gray-900 z-10">
-          <tr class="border-b border-gray-800 text-gray-500 text-xs">
-            <th class="text-left px-4 py-3 font-medium">院內碼</th>
-            <th class="text-left px-4 py-3 font-medium">中文品名</th>
-            <th class="text-left px-4 py-3 font-medium">英文品名</th>
-            <th class="text-left px-4 py-3 font-medium">用途</th>
-            <th class="text-left px-4 py-3 font-medium">適用科別</th>
-            <th class="text-right px-4 py-3 font-medium">自費金額</th>
-            <th class="text-left px-4 py-3 font-medium">單位</th>
-            <th class="text-left px-4 py-3 font-medium">廠商</th>
+    <div class="flex-1 rounded-2xl bg-slate-900/40 backdrop-blur-md border border-white/5 overflow-auto min-h-0 shadow-xl custom-scrollbar">
+      <table class="w-full text-xs border-collapse">
+        <thead class="sticky top-0 bg-slate-900 z-10 border-b border-white/5">
+          <tr class="text-slate-400 text-[10px] font-black uppercase tracking-widest font-mono">
+            <th class="text-left px-5 py-4.5 font-bold">院內碼</th>
+            <th class="text-left px-5 py-4.5 font-bold">中文品名</th>
+            <th class="text-left px-5 py-4.5 font-bold">英文品名</th>
+            <th class="text-left px-5 py-4.5 font-bold">用途</th>
+            <th class="text-left px-5 py-4.5 font-bold">適用科別</th>
+            <th class="text-right px-5 py-4.5 font-bold">自費金額</th>
+            <th class="text-left px-5 py-4.5 font-bold">單位</th>
+            <th class="text-left px-5 py-4.5 font-bold">廠商</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="errMsg">
-            <td colspan="8" class="text-center text-red-400 py-12">{{ errMsg }}</td>
+            <td colspan="8" class="text-center text-rose-400 py-16 font-bold">{{ errMsg }}</td>
           </tr>
           <tr v-else-if="loading">
-            <td colspan="8" class="text-center text-gray-500 py-12">載入中…</td>
+            <td colspan="8" class="text-center text-slate-500 py-16 italic font-bold">載入中…</td>
           </tr>
           <tr v-else-if="filtered.length === 0">
-            <td colspan="8" class="text-center text-gray-600 py-12">
+            <td colspan="8" class="text-center text-slate-600 py-16 italic">
               {{ search ? "找不到符合的品項" : "此條件無資料" }}
             </td>
           </tr>
           <tr
             v-for="m in filtered" :key="m.hospital_code"
-            class="border-b border-gray-800/50 hover:bg-gray-800/50 transition-colors"
+            class="border-b border-white/[0.03] hover:bg-slate-900/40 transition-colors"
           >
             <td
-              class="px-4 py-2.5 font-mono text-xs cursor-pointer select-none transition-colors"
-              :class="copiedCode === m.hospital_code ? 'text-green-400' : 'text-gray-400 hover:text-teal-400'"
+              class="px-5 py-3.5 font-mono text-xs cursor-pointer select-none transition-colors"
+              :class="copiedCode === m.hospital_code ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-teal-400'"
               :title="'複製 ' + m.hospital_code"
               @click="copyCode(m.hospital_code)"
             >
               {{ copiedCode === m.hospital_code ? "✓ 已複製" : m.hospital_code }}
             </td>
-            <td class="px-4 py-2.5 text-gray-200 font-medium">{{ m.name_zh || "—" }}</td>
-            <td class="px-4 py-2.5 text-gray-400 text-xs">{{ m.name_en || "—" }}</td>
-            <td class="px-4 py-2.5">
-              <span v-if="m.purpose" class="text-xs bg-teal-900/40 text-teal-300 px-2 py-0.5 rounded-full">
+            <td class="px-5 py-3.5 text-slate-200 font-bold">{{ m.name_zh || "—" }}</td>
+            <td class="px-5 py-3.5 text-slate-400 text-xs leading-normal">{{ m.name_en || "—" }}</td>
+            <td class="px-5 py-3.5">
+              <span v-if="m.purpose" class="text-[10px] bg-teal-500/10 border border-teal-500/30 text-teal-400 px-2 py-0.5 rounded-full font-bold">
                 {{ m.purpose }}
               </span>
-              <span v-else class="text-gray-600 text-xs">—</span>
+              <span v-else class="text-slate-600 text-xs">—</span>
             </td>
-            <td class="px-4 py-2.5">
+            <td class="px-5 py-3.5">
               <div class="flex flex-wrap gap-1">
                 <span v-for="d in m.depts" :key="d"
-                  class="text-xs bg-cyan-900/30 text-cyan-400 px-1.5 py-0.5 rounded">{{ d }}</span>
-                <span v-if="m.depts.length === 0" class="text-gray-600 text-xs">—</span>
+                  class="text-[9px] font-bold bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full">{{ d }}</span>
+                <span v-if="m.depts.length === 0" class="text-slate-600 text-xs">—</span>
               </div>
             </td>
-            <td class="px-4 py-2.5 text-right text-green-400 font-mono">
+            <td class="px-5 py-3.5 text-right text-emerald-400 font-mono font-bold">
               {{ m.price ? `$${m.price.toLocaleString()}` : "—" }}
             </td>
-            <td class="px-4 py-2.5 text-gray-400 text-xs">{{ m.unit || "—" }}</td>
-            <td class="px-4 py-2.5 text-gray-500 text-xs">{{ m.supplier || "—" }}</td>
+            <td class="px-5 py-3.5 text-slate-400 text-xs">{{ m.unit || "—" }}</td>
+            <td class="px-5 py-3.5 text-slate-500 text-xs">{{ m.supplier || "—" }}</td>
           </tr>
         </tbody>
       </table>
@@ -763,53 +765,55 @@ async function pullSurgeryTypesFromCloud() {
   <!-- ── 手術術式管理 Modal ──────────────────────────────────── -->
   <Teleport to="body">
     <div v-if="showSurgeryMgmt"
-      class="fixed inset-0 z-[9000] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      class="fixed inset-0 z-[9000] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm"
       @click.self="showSurgeryMgmt = false">
-      <div class="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-[780px] max-w-[95vw] h-[600px] max-h-[90vh] flex flex-col">
+      <div class="bg-slate-900 border border-white/10 rounded-2xl shadow-2xl w-[820px] max-w-[95vw] h-[640px] max-h-[90vh] flex flex-col overflow-hidden text-slate-100">
 
         <!-- Modal Header -->
-        <div class="flex items-center gap-3 px-5 py-3 border-b border-gray-700 shrink-0">
-          <h3 class="text-white font-semibold text-sm shrink-0">管理手術術式</h3>
-          <div class="flex items-center gap-1.5 flex-1">
-            <button @click="pullSurgeryTypesFromCloud" :disabled="isSurgSyncing"
-              class="text-xs px-2.5 py-1 rounded bg-blue-800/60 hover:bg-blue-700 disabled:opacity-40 text-blue-200 transition-colors whitespace-nowrap">
-              {{ isSurgSyncing ? '…' : '↓ 雲端同步' }}
-            </button>
-            <button @click="pushSurgeryTypesToCloud" :disabled="isSurgSyncing"
-              class="text-xs px-2.5 py-1 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-200 transition-colors whitespace-nowrap">
-              {{ isSurgSyncing ? '…' : '↑ 上傳雲端' }}
-            </button>
-            <span v-if="surgSyncToast" class="text-xs text-gray-400 ml-1">{{ surgSyncToast }}</span>
+        <div class="flex items-center justify-between px-5 py-4 border-b border-white/5 shrink-0 bg-slate-950/30">
+          <div class="flex items-center gap-3">
+            <h3 class="text-xs font-black uppercase tracking-widest font-mono text-slate-200">管理手術術式</h3>
+            <div class="flex items-center gap-1.5">
+              <button @click="pullSurgeryTypesFromCloud" :disabled="isSurgSyncing"
+                class="text-[10px] font-bold px-3 py-1.5 rounded-lg border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 disabled:opacity-40 transition-colors cursor-pointer">
+                {{ isSurgSyncing ? '…' : '↓ 雲端同步' }}
+              </button>
+              <button @click="pushSurgeryTypesToCloud" :disabled="isSurgSyncing"
+                class="text-[10px] font-bold px-3 py-1.5 rounded-lg border border-white/5 bg-slate-800 text-slate-400 hover:text-slate-200 disabled:opacity-40 transition-colors cursor-pointer">
+                {{ isSurgSyncing ? '…' : '↑ 上傳雲端' }}
+              </button>
+              <span v-if="surgSyncToast" class="text-[10px] text-slate-500 font-bold font-mono ml-2">{{ surgSyncToast }}</span>
+            </div>
           </div>
-          <button @click="showSurgeryMgmt = false" class="text-gray-500 hover:text-white text-xl leading-none transition-colors shrink-0">×</button>
+          <button @click="showSurgeryMgmt = false" class="text-slate-500 hover:text-white text-xl leading-none transition-colors cursor-pointer shrink-0">×</button>
         </div>
 
         <!-- Modal Body -->
-        <div class="flex flex-1 min-h-0">
+        <div class="flex flex-1 min-h-0 bg-slate-950/10">
 
           <!-- 左欄：術式清單 -->
-          <div class="w-56 border-r border-gray-700 flex flex-col shrink-0">
-            <div class="p-3 border-b border-gray-700/50 shrink-0">
+          <div class="w-64 border-r border-white/5 flex flex-col shrink-0">
+            <div class="p-3 border-b border-white/5 shrink-0 bg-slate-950/20">
               <button @click="mgmtStartAdd"
-                class="w-full text-xs px-3 py-1.5 rounded-lg bg-violet-700 hover:bg-violet-600 text-white transition-colors font-medium">
+                class="w-full text-xs px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 border border-violet-500/30 text-white transition-all font-bold cursor-pointer">
                 ＋ 新增術式
               </button>
             </div>
 
             <!-- 新增 / 編輯表單 -->
             <Transition name="slide-down">
-              <div v-if="mgmtShowForm" class="p-3 space-y-2 border-b border-gray-700/50 bg-gray-800/50 shrink-0">
+              <div v-if="mgmtShowForm" class="p-4 space-y-2 border-b border-white/5 bg-slate-900/50 shrink-0">
                 <input v-model="mgmtFormName" placeholder="術式名稱 *" maxlength="40"
-                  class="w-full px-2.5 py-1.5 text-xs rounded bg-gray-700 border border-gray-600 text-gray-100 focus:outline-none focus:border-violet-500 placeholder-gray-500" />
+                  class="w-full px-3 py-2 text-xs rounded-xl bg-slate-950 border border-white/10 text-slate-200 focus:outline-none focus:border-violet-500/50 placeholder-slate-600 font-bold" />
                 <input v-model="mgmtFormDept" placeholder="科別（選填）" maxlength="20"
-                  class="w-full px-2.5 py-1.5 text-xs rounded bg-gray-700 border border-gray-600 text-gray-100 focus:outline-none focus:border-violet-500 placeholder-gray-500" />
+                  class="w-full px-3 py-2 text-xs rounded-xl bg-slate-950 border border-white/10 text-slate-200 focus:outline-none focus:border-violet-500/50 placeholder-slate-600 font-bold" />
                 <div class="flex gap-2">
                   <button @click="mgmtSaveForm" :disabled="!mgmtFormName.trim()"
-                    class="flex-1 text-xs py-1 rounded bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white transition-colors">
+                    class="flex-1 text-xs py-1.5 rounded-lg bg-violet-600 border border-violet-500/30 hover:bg-violet-500 disabled:opacity-40 text-white font-bold cursor-pointer">
                     {{ mgmtEditId === null ? "新增" : "儲存" }}
                   </button>
                   <button @click="mgmtShowForm = false"
-                    class="text-xs px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors">
+                    class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200 cursor-pointer">
                     取消
                   </button>
                 </div>
@@ -817,32 +821,32 @@ async function pullSurgeryTypesFromCloud() {
             </Transition>
 
             <!-- 術式列表 -->
-            <div class="flex-1 overflow-y-auto">
-              <div v-if="surgeryTypes.length === 0" class="text-center text-gray-600 text-xs py-10">
+            <div class="flex-1 overflow-y-auto custom-scrollbar">
+              <div v-if="surgeryTypes.length === 0" class="text-center text-slate-600 text-xs py-10 italic">
                 尚無術式，點上方新增
               </div>
               <button
                 v-for="st in surgeryTypes" :key="st.id"
                 @click="mgmtSelectSurgery(st.id)"
-                class="w-full text-left px-3 py-2.5 border-b border-gray-800/50 flex items-start justify-between gap-1 transition-colors group"
+                class="w-full text-left px-4 py-3.5 border-b border-white/[0.02] flex items-start justify-between gap-1 transition-all group cursor-pointer"
                 :class="mgmtSelId === st.id
-                  ? 'bg-violet-900/40 border-l-2 border-l-violet-500 pl-2.5'
-                  : 'hover:bg-gray-800/60'"
+                  ? 'bg-violet-600/10 border-l-2 border-violet-500 pl-3.5'
+                  : 'hover:bg-slate-900/40'"
               >
                 <div class="min-w-0 flex-1">
-                  <div class="text-xs text-gray-200 truncate">{{ st.name }}</div>
-                  <div v-if="st.dept" class="text-[10px] text-violet-400 mt-0.5">{{ st.dept }}</div>
+                  <div class="text-xs text-slate-200 font-bold truncate">{{ st.name }}</div>
+                  <div v-if="st.dept" class="text-[9px] font-mono text-violet-400 font-bold mt-1">{{ st.dept }}</div>
                 </div>
-                <div class="flex items-center gap-0.5 shrink-0 mt-0.5">
-                  <span class="text-[10px] font-mono text-gray-600 min-w-[20px] text-right">
+                <div class="flex items-center gap-1 shrink-0 mt-0.5">
+                  <span class="text-[10px] font-mono text-slate-500 bg-slate-950 px-1.5 py-0.5 rounded font-bold">
                     {{ surgeryTypeItemMap.get(st.id)?.size ?? 0 }}
                   </span>
                   <button @click.stop="mgmtStartEdit(st)"
-                    class="text-gray-600 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity px-1 text-[11px]">
+                    class="text-slate-500 hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity px-1 text-[11px] cursor-pointer">
                     ✎
                   </button>
                   <button @click.stop="mgmtDeleteSurgery(st.id)"
-                    class="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity px-1 text-[11px]">
+                    class="text-slate-500 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity px-1 text-[11px] cursor-pointer">
                     ✕
                   </button>
                 </div>
@@ -852,45 +856,48 @@ async function pullSurgeryTypesFromCloud() {
 
           <!-- 右欄：品項關聯 -->
           <div class="flex-1 flex flex-col min-w-0">
-            <div v-if="!mgmtSelId" class="flex-1 flex items-center justify-center text-gray-600 text-sm">
+            <div v-if="!mgmtSelId" class="flex-1 flex items-center justify-center text-slate-500 text-xs italic py-12">
               選擇左側術式以管理關聯品項
             </div>
             <template v-else>
               <!-- 右欄 Header -->
-              <div class="px-4 py-2.5 border-b border-gray-700/50 flex items-center gap-3 shrink-0 flex-wrap gap-y-1.5">
-                <span class="text-sm text-white font-medium">{{ mgmtSelected?.name }}</span>
-                <span v-if="mgmtSelected?.dept" class="text-xs text-violet-400">{{ mgmtSelected.dept }}</span>
-                <span class="text-xs text-gray-500">已關聯 {{ mgmtSelCodes.size }} 筆</span>
-                <label class="ml-auto flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none">
-                  <input type="checkbox" v-model="mgmtOnlyLinked" class="accent-violet-500" />
+              <div class="px-5 py-3.5 border-b border-white/5 flex items-center gap-3 shrink-0 flex-wrap bg-slate-950/10">
+                <span class="text-xs text-slate-200 font-black tracking-wider truncate">{{ mgmtSelected?.name }}</span>
+                <span v-if="mgmtSelected?.dept" class="text-[9px] font-mono bg-violet-500/10 border border-violet-500/30 text-violet-400 px-2 py-0.5 rounded-full font-bold">{{ mgmtSelected.dept }}</span>
+                <span class="text-[10px] font-mono font-bold text-slate-500 bg-slate-950 px-2 py-0.5 rounded border border-white/5">已關聯 {{ mgmtSelCodes.size }} 品項</span>
+                
+                <label class="ml-auto flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none font-bold">
+                  <input type="checkbox" v-model="mgmtOnlyLinked" class="accent-violet-500 w-3.5 h-3.5 rounded" />
                   只顯示已關聯
                 </label>
               </div>
+              
               <!-- 搜尋 -->
-              <div class="px-4 py-2 border-b border-gray-700/30 shrink-0">
+              <div class="px-5 py-2.5 border-b border-white/5 shrink-0 bg-slate-950/20">
                 <input v-model="mgmtItemSearch" placeholder="搜尋品名 / 院內碼 / 用途…"
-                  class="w-full px-3 py-1.5 text-xs rounded bg-gray-800 border border-gray-700 text-gray-100 focus:outline-none focus:border-violet-500 placeholder-gray-500" />
+                  class="w-full px-3 py-2 text-xs rounded-xl bg-slate-950 border border-white/10 text-slate-200 focus:outline-none focus:border-violet-500/50 placeholder-slate-600 font-bold" />
               </div>
+              
               <!-- 品項清單 -->
-              <div class="flex-1 overflow-y-auto">
-                <div v-if="mgmtFilteredItems.length === 0" class="text-center text-gray-600 text-xs py-10">
+              <div class="flex-1 overflow-y-auto custom-scrollbar">
+                <div v-if="mgmtFilteredItems.length === 0" class="text-center text-slate-500 text-xs py-12 italic">
                   {{ mgmtItemSearch ? "找不到符合的品項" : (mgmtOnlyLinked ? "尚無關聯品項" : "無品項資料") }}
                 </div>
                 <div
                   v-for="m in mgmtFilteredItems" :key="m.hospital_code"
-                  class="flex items-center gap-3 px-4 py-2 border-b border-gray-700/20 hover:bg-gray-800/50 cursor-pointer transition-colors select-none"
+                  class="flex items-center gap-3 px-5 py-3 border-b border-white/[0.02] hover:bg-slate-900/40 cursor-pointer transition-colors select-none group"
                   @click="mgmtToggleItem(m.hospital_code)"
                 >
                   <div class="shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors"
                     :class="mgmtSelCodes.has(m.hospital_code)
-                      ? 'bg-violet-600 border-violet-500'
-                      : 'border-gray-600'">
-                    <span v-if="mgmtSelCodes.has(m.hospital_code)" class="text-white text-[10px] leading-none">✓</span>
+                      ? 'bg-violet-600 border-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.3)]'
+                      : 'border-white/20 bg-slate-950'">
+                    <span v-if="mgmtSelCodes.has(m.hospital_code)" class="text-white text-[9px] leading-none font-bold">✓</span>
                   </div>
-                  <span class="text-[10px] font-mono text-gray-500 shrink-0 w-22">{{ m.hospital_code }}</span>
-                  <span class="text-xs text-gray-200 flex-1 truncate">{{ m.name_zh || m.name_en || "—" }}</span>
-                  <span v-if="m.purpose" class="text-[10px] text-teal-400 shrink-0 truncate max-w-[80px]">{{ m.purpose }}</span>
-                  <span v-if="m.depts.length" class="text-[10px] text-cyan-500 shrink-0">{{ m.depts[0] }}</span>
+                  <span class="text-xs font-mono text-slate-400 shrink-0 w-24 group-hover:text-violet-400 transition-colors">{{ m.hospital_code }}</span>
+                  <span class="text-xs text-slate-200 font-bold flex-1 truncate">{{ m.name_zh || m.name_en || "—" }}</span>
+                  <span v-if="m.purpose" class="text-[9px] font-bold bg-teal-500/10 border border-teal-500/20 text-teal-400 px-2 py-0.5 rounded-full shrink-0 truncate max-w-[90px]">{{ m.purpose }}</span>
+                  <span v-if="m.depts.length" class="text-[9px] font-bold bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full shrink-0">{{ m.depts[0] }}</span>
                 </div>
               </div>
             </template>
@@ -907,6 +914,23 @@ async function pullSurgeryTypesFromCloud() {
 .slide-down-leave-active { transition: all 0.2s ease; }
 .slide-down-enter-from,
 .slide-down-leave-to { opacity: 0; transform: translateY(-6px); }
+
 .toast-enter-active, .toast-leave-active { transition: opacity .25s, transform .25s; }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateX(-50%) translateY(8px); }
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
 </style>

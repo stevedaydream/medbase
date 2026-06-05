@@ -10,7 +10,6 @@ const router = useRouter();
 interface NavItem { path: string; icon: string; label: string }
 
 const DEFAULT_NAV: NavItem[] = [
-  { path: "/medications", icon: "💊", label: "藥物字典" },
   { path: "/prescriptions", icon: "📋", label: "處方套組" },
   { path: "/surgery",     icon: "🔪", label: "手術處置" },
   { path: "/disease",     icon: "🏥", label: "疾病常規" },
@@ -23,7 +22,6 @@ const DEFAULT_NAV: NavItem[] = [
   { path: "/schedule",    icon: "📅", label: "排班表" },
   { path: "/shift-memos", icon: "📝", label: "規則備忘錄" },
   { path: "/tools",       icon: "🧮", label: "臨床工具" },
-  { path: "/icd",         icon: "🏷️", label: "ICD 查詢" },
   { path: "/note-polish", icon: "✍️", label: "病歷潤飾" },
 ];
 

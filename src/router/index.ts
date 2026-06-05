@@ -7,8 +7,7 @@ declare module "vue-router" {
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: "/", redirect: "/medications" },
-    { path: "/medications", component: () => import("@/views/MedicationsView.vue"), meta: { title: "藥物字典" } },
+    { path: "/", redirect: "/prescriptions" },
     { path: "/prescriptions", component: () => import("@/views/PrescriptionsView.vue"), meta: { title: "處方套組" } },
     { path: "/surgery", component: () => import("@/views/SurgeryView.vue"), meta: { title: "手術處置" } },
     { path: "/disease", component: () => import("@/views/DiseaseView.vue"), meta: { title: "疾病常規" } },
@@ -24,7 +23,6 @@ const router = createRouter({
     { path: "/ahk",      component: () => import("@/views/AhkView.vue"),       meta: { title: "AHK 管理",  fullHeight: true } },
     { path: "/schedule", component: () => import("@/views/SchedulerView.vue"), meta: { title: "排班表",    fullHeight: true } },
     { path: "/tools",        component: () => import("@/views/ToolsView.vue"),       meta: { title: "臨床工具",  fullHeight: true } },
-    { path: "/icd",          component: () => import("@/views/IcdView.vue"),         meta: { title: "ICD 查詢" } },
     { path: "/shift-memos",  component: () => import("@/views/ShiftMemosView.vue"),  meta: { title: "規則備忘錄", fullHeight: true } },
     { path: "/settings",     component: () => import("@/views/SettingView.vue"),     meta: { title: "設定" } },
     { path: "/note-polish",  component: () => import("@/views/NotePolishView.vue"),  meta: { title: "病歷潤飾", fullHeight: true } },

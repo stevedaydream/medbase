@@ -124,7 +124,12 @@ function formatTime(s: number) {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
-function copy(text: string) { navigator.clipboard.writeText(text); }
+const copySuccess = ref(false);
+function copy(text: string) {
+  navigator.clipboard.writeText(text);
+  copySuccess.value = true;
+  setTimeout(() => { copySuccess.value = false; }, 1500);
+}
 
 function exportRecord() {
   if (!selected.value) return;
@@ -137,132 +142,181 @@ function exportRecord() {
     ...actions.map((a, i) => `${checkedActions.value.has(i) ? "✓" : "○"} ${a}`),
   ];
   navigator.clipboard.writeText(lines.join("\n"));
-  alert("已複製至剪貼簿");
+  alert("急救處置紀錄已複製至剪貼簿");
 }
 </script>
 
 <template>
-  <div class="flex gap-4 h-full">
-    <!-- Protocol list -->
-    <div class="w-64 shrink-0 space-y-1.5">
-      <p class="text-xs text-red-500 font-semibold uppercase tracking-wide mb-3">Emergency Protocols</p>
-      <button
-        v-for="p in protocols"
-        :key="p.id"
-        @click="selectProtocol(p)"
-        class="w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors border"
-        :class="selected?.id === p.id
-          ? 'bg-red-700 border-red-600 text-white'
-          : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800'"
-      >
-        <div class="font-semibold">{{ p.name }}</div>
-        <div class="text-xs opacity-60 mt-0.5 truncate">{{ parseJson<string>(p.triggers).join(' · ') }}</div>
-      </button>
-      <div v-if="protocols.length === 0" class="text-zinc-600 text-sm text-center py-8">載入中…</div>
+  <div class="flex gap-6 h-full bg-slate-950/20 rounded-2xl border border-white/5 shadow-2xl p-1 overflow-hidden">
+    
+    <!-- Left: Protocol list -->
+    <div class="w-72 shrink-0 flex flex-col bg-slate-900/60 backdrop-blur-xl border-r border-white/5 p-4 space-y-4">
+      <div class="border-b border-white/5 pb-4 flex items-center gap-2">
+        <span class="text-rose-500 animate-pulse text-lg">🚨</span>
+        <div>
+          <p class="text-xs font-bold text-rose-500 uppercase tracking-widest">Emergency Protocols</p>
+          <p class="text-[9px] text-slate-500 font-mono tracking-tight">CRITICAL PATHWAY MONITOR</p>
+        </div>
+      </div>
+      
+      <div class="flex-1 overflow-y-auto space-y-2 pr-1">
+        <button
+          v-for="p in protocols"
+          :key="p.id"
+          @click="selectProtocol(p)"
+          class="w-full text-left px-4 py-3.5 rounded-xl transition-all duration-300 border relative group overflow-hidden"
+          :class="selected?.id === p.id
+            ? 'bg-rose-500/10 border-rose-500/30 text-rose-200 shadow-[0_0_15px_rgba(239,68,68,0.05)]'
+            : 'bg-slate-950/40 border-white/5 text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'"
+        >
+          <div v-if="selected?.id === p.id" class="absolute left-0 top-0 bottom-0 w-1 bg-rose-500" />
+          <div class="font-bold text-xs uppercase tracking-wide transition-colors" :class="selected?.id === p.id ? 'text-rose-300' : 'text-slate-300'">{{ p.name }}</div>
+          <div class="text-[10px] text-slate-500 mt-1 truncate font-mono">{{ parseJson<string>(p.triggers).join(' · ') }}</div>
+        </button>
+        <div v-if="protocols.length === 0" class="text-slate-600 text-xs text-center py-12 font-mono">LOADING PROTOCOLS...</div>
+      </div>
     </div>
 
-    <!-- Protocol detail -->
-    <div class="flex-1 overflow-y-auto space-y-4">
-      <div v-if="!selected" class="flex items-center justify-center h-full text-zinc-600 text-sm">
-        ← 選擇情境
+    <!-- Right: Protocol detail -->
+    <div class="flex-1 overflow-y-auto p-4 space-y-6">
+      <div v-if="!selected" class="flex flex-col items-center justify-center h-full text-slate-600 text-center space-y-3">
+        <span class="text-4xl opacity-20">🚨</span>
+        <p class="text-xs uppercase tracking-widest font-mono">Please select an emergency protocol from the left</p>
       </div>
 
       <template v-else>
         <!-- Header -->
-        <div class="flex items-center justify-between">
-          <h2 class="text-2xl font-bold text-red-400">🚨 {{ selected.name }}</h2>
+        <div class="flex items-center justify-between border-b border-white/5 pb-4">
+          <div>
+            <h2 class="text-xl font-black text-rose-400 tracking-wide uppercase flex items-center gap-2">
+              <span class="inline-block w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+              {{ selected.name }}
+            </h2>
+            <p class="text-[10px] text-slate-500 mt-1 font-mono uppercase tracking-wide">Emergency Action Plan</p>
+          </div>
           <button
             @click="exportRecord()"
-            class="px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs hover:bg-zinc-700 transition-colors cursor-pointer"
+            class="px-4 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:scale-95 text-slate-300 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-lg"
           >
-            📋 複製護理紀錄
+            <span>📋</span> 複製急救護理紀錄
           </button>
         </div>
 
-        <!-- Triggers -->
-        <div class="p-3 rounded-lg bg-amber-950/40 border border-amber-900/50">
-          <p class="text-amber-400 text-xs font-semibold mb-2">啟動時機</p>
-          <div class="flex flex-wrap gap-2">
+        <!-- Triggers / Hazards Display -->
+        <div class="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 relative overflow-hidden shadow-inner">
+          <!-- Subtle warning pattern backdrop -->
+          <div class="absolute inset-0 opacity-[0.02] pointer-events-none bg-[linear-gradient(45deg,#f59e0b_25%,transparent_25%,transparent_50%,#f59e0b_50%,#f59e0b_75%,transparent_75%,transparent)] bg-[length:24px_24px]" />
+          <p class="text-amber-400 text-xs font-bold uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+            <span>⚠️</span> 啟動時機 / 臨床指徵 (Triggers)
+          </p>
+          <div class="flex flex-wrap gap-2.5 relative z-10">
             <span
               v-for="t in parseJson<string>(selected.triggers)"
               :key="t"
-              class="px-2 py-0.5 rounded-full bg-amber-900/40 text-amber-300 text-xs"
+              class="px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-semibold font-mono"
             >{{ t }}</span>
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
-          <!-- Immediate actions -->
-          <div class="rounded-xl bg-zinc-900 border border-zinc-800 p-4">
-            <p class="text-white text-sm font-semibold mb-3">立即處置步驟</p>
-            <div class="space-y-2">
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+          <!-- Immediate actions Checklist -->
+          <div class="rounded-2xl bg-slate-900/40 border border-white/5 p-5 space-y-4">
+            <div class="border-b border-white/5 pb-2.5 flex justify-between items-center">
+              <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">立即處置步驟 (Checklist)</span>
+              <span class="text-[10px] text-slate-500 font-mono">
+                {{ checkedActions.size }} / {{ parseJson(selected.immediate_actions).length }} 已處理
+              </span>
+            </div>
+            
+            <div class="space-y-3">
               <label
                 v-for="(action, idx) in parseJson<string>(selected.immediate_actions)"
                 :key="idx"
-                class="flex items-start gap-2.5 cursor-pointer"
+                class="flex items-start gap-3.5 p-3 rounded-xl border border-white/[0.02] bg-slate-950/20 cursor-pointer select-none transition-all duration-300 hover:bg-white/[0.02]"
+                :class="checkedActions.has(idx) ? 'opacity-40 border-transparent bg-transparent' : 'border-white/5'"
               >
-                <input
-                  type="checkbox"
-                  :checked="checkedActions.has(idx)"
-                  @change="toggleAction(idx)"
-                  class="mt-0.5 accent-red-500"
-                />
+                <div class="relative flex items-center mt-0.5">
+                  <input
+                    type="checkbox"
+                    :checked="checkedActions.has(idx)"
+                    @change="toggleAction(idx)"
+                    class="sr-only peer"
+                  />
+                  <div class="w-5 h-5 rounded-lg border-2 transition-all duration-300 peer-checked:bg-rose-500 peer-checked:border-rose-500 border-white/20 flex items-center justify-center">
+                    <span class="text-white text-xs scale-0 peer-checked:scale-100 transition-transform font-bold">✓</span>
+                  </div>
+                </div>
                 <span
-                  class="text-sm transition-colors"
-                  :class="checkedActions.has(idx) ? 'text-zinc-500 line-through' : 'text-zinc-200'"
+                  class="text-xs transition-all duration-300 leading-normal"
+                  :class="checkedActions.has(idx) ? 'text-slate-500 line-through' : 'text-slate-200 font-semibold'"
                 >{{ action }}</span>
               </label>
             </div>
           </div>
 
-          <div class="space-y-4">
+          <!-- Meds / Timers / Contacts Panel -->
+          <div class="space-y-6">
             <!-- Critical meds -->
-            <div class="rounded-xl bg-zinc-900 border border-zinc-800 p-4">
-              <p class="text-white text-sm font-semibold mb-3">關鍵用藥</p>
-              <div class="space-y-2">
+            <div class="rounded-2xl bg-slate-900/40 border border-white/5 p-5 space-y-4">
+              <div class="border-b border-white/5 pb-2.5">
+                <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">關鍵急救用藥 (Critical Meds)</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div
                   v-for="med in parseMeds(selected.critical_meds)"
                   :key="med.name"
-                  class="flex gap-2 p-2 rounded-lg text-sm"
-                  :class="med.color === 'red' ? 'bg-red-950/60 border border-red-900/60' : med.color === 'yellow' ? 'bg-amber-950/60 border border-amber-900/60' : 'bg-blue-950/60 border border-blue-900/60'"
+                  class="p-3 rounded-xl border transition-all duration-300 flex flex-col justify-between"
+                  :class="med.color === 'red'
+                    ? 'bg-rose-500/5 border-rose-500/20 text-rose-300 shadow-[0_0_10px_rgba(244,63,94,0.03)]'
+                    : med.color === 'yellow'
+                      ? 'bg-amber-500/5 border-amber-500/20 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.03)]'
+                      : 'bg-sky-500/5 border-sky-500/20 text-sky-300'"
                 >
-                  <div>
-                    <p
-                      class="font-semibold"
-                      :class="med.color === 'red' ? 'text-red-300' : med.color === 'yellow' ? 'text-amber-300' : 'text-blue-300'"
-                    >{{ med.name }}</p>
-                    <p class="text-xs text-zinc-400 mt-0.5">{{ med.dose }}</p>
-                  </div>
+                  <p
+                    class="font-bold text-xs uppercase tracking-wide"
+                    :class="med.color === 'red' ? 'text-rose-300' : med.color === 'yellow' ? 'text-amber-300' : 'text-sky-300'"
+                  >{{ med.name }}</p>
+                  <p class="text-[10px] text-slate-400 mt-1 font-mono leading-snug">{{ med.dose }}</p>
                 </div>
               </div>
             </div>
 
-            <!-- Timers -->
-            <div v-if="timerStates.length" class="rounded-xl bg-zinc-900 border border-zinc-800 p-4">
-              <p class="text-white text-sm font-semibold mb-3">倒數計時器</p>
-              <div class="space-y-3">
+            <!-- Timers Widget -->
+            <div v-if="timerStates.length" class="rounded-2xl bg-slate-900/40 border border-white/5 p-5 space-y-4">
+              <div class="border-b border-white/5 pb-2.5">
+                <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">程序監控計時器 (Timers)</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div
                   v-for="t in timerStates"
                   :key="t.label"
-                  class="flex items-center justify-between p-2 rounded-lg"
-                  :class="t.expired ? 'bg-red-900/40 border border-red-700' : 'bg-zinc-800'"
+                  class="flex items-center justify-between p-4 rounded-xl border transition-all duration-300"
+                  :class="t.expired
+                    ? 'bg-rose-500/10 border-rose-500/30 shadow-[0_0_15px_rgba(239,68,68,0.1)]'
+                    : 'bg-slate-950/40 border-white/5'"
                 >
-                  <div>
-                    <p class="text-xs text-zinc-400">{{ t.label }}</p>
+                  <div class="min-w-0">
+                    <p class="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{{ t.label }}</p>
                     <p
-                      class="text-2xl font-mono font-bold mt-0.5"
-                      :class="t.expired ? 'text-red-400 animate-pulse' : t.remaining < 30 ? 'text-amber-400' : 'text-green-400'"
+                      class="text-3xl font-mono font-black tracking-wider mt-1 transition-all"
+                      :class="t.expired
+                        ? 'text-rose-500 animate-pulse'
+                        : t.remaining < 30
+                          ? 'text-amber-400 animate-pulse'
+                          : t.running
+                            ? 'text-emerald-400'
+                            : 'text-slate-400'"
                     >{{ formatTime(t.remaining) }}</p>
                   </div>
-                  <div class="flex gap-1.5">
+                  <div class="flex flex-col gap-1.5 ml-3 shrink-0">
                     <button
                       v-if="!t.running && !t.expired"
                       @click="startTimer(t)"
-                      class="px-2 py-1 rounded bg-green-800 text-green-200 text-xs hover:bg-green-700 cursor-pointer"
+                      class="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold hover:bg-emerald-500/20 transition-all cursor-pointer"
                     >▶ 開始</button>
                     <button
                       @click="resetTimer(t)"
-                      class="px-2 py-1 rounded bg-zinc-700 text-zinc-300 text-xs hover:bg-zinc-600 cursor-pointer"
+                      class="px-3 py-1.5 rounded-lg bg-slate-800 border border-white/5 text-slate-400 text-[10px] font-bold hover:bg-slate-700 hover:text-slate-200 transition-all cursor-pointer"
                     >↺ 重置</button>
                   </div>
                 </div>
@@ -270,21 +324,27 @@ function exportRecord() {
             </div>
 
             <!-- Contacts -->
-            <div v-if="parseJson(selected.contacts).length" class="rounded-xl bg-zinc-900 border border-zinc-800 p-4">
-              <p class="text-white text-sm font-semibold mb-3">緊急聯絡分機</p>
+            <div v-if="parseJson(selected.contacts).length" class="rounded-2xl bg-slate-900/40 border border-white/5 p-5 space-y-4">
+              <div class="border-b border-white/5 pb-2.5">
+                <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">緊急通報聯絡 (Hotlines)</span>
+              </div>
               <div class="space-y-2">
                 <div
                   v-for="c in parseContacts(selected.contacts)"
                   :key="c.ext"
-                  class="flex items-center justify-between"
+                  class="flex items-center justify-between p-3 rounded-xl bg-slate-950/40 border border-white/5 hover:border-rose-500/20 transition-all"
                 >
-                  <span class="text-zinc-400 text-sm">{{ c.label }}</span>
+                  <span class="text-slate-400 text-xs font-semibold">{{ c.label }}</span>
                   <button
                     @click="copy(c.ext)"
-                    class="font-mono text-sm font-bold text-red-300 hover:text-red-200 cursor-pointer"
-                  >📞 {{ c.ext }}</button>
+                    class="font-mono text-xs font-bold text-rose-400 hover:text-rose-300 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>📞</span> {{ c.ext }}
+                  </button>
                 </div>
               </div>
+              <!-- Mini Toast for clipboard -->
+              <p v-if="copySuccess" class="text-[10px] text-emerald-400 text-center animate-pulse">分機已成功複製至剪貼簿</p>
             </div>
           </div>
         </div>
@@ -292,3 +352,10 @@ function exportRecord() {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Standard checkbox override style */
+.peer:checked ~ div {
+  box-shadow: 0 0 10px rgba(244,63,94,0.3);
+}
+</style>
