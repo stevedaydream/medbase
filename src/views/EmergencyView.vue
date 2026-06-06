@@ -155,7 +155,7 @@ function exportRecord() {
         <span class="text-rose-500 animate-pulse text-lg">🚨</span>
         <div>
           <p class="text-xs font-bold text-rose-500 uppercase tracking-widest">Emergency Protocols</p>
-          <p class="text-[9px] text-slate-500 font-mono tracking-tight">CRITICAL PATHWAY MONITOR</p>
+          <p class="text-3xs text-slate-500 font-mono tracking-tight">CRITICAL PATHWAY MONITOR</p>
         </div>
       </div>
       
@@ -171,7 +171,7 @@ function exportRecord() {
         >
           <div v-if="selected?.id === p.id" class="absolute left-0 top-0 bottom-0 w-1 bg-rose-500" />
           <div class="font-bold text-xs uppercase tracking-wide transition-colors" :class="selected?.id === p.id ? 'text-rose-300' : 'text-slate-300'">{{ p.name }}</div>
-          <div class="text-[10px] text-slate-500 mt-1 truncate font-mono">{{ parseJson<string>(p.triggers).join(' · ') }}</div>
+          <div class="text-2xs text-slate-500 mt-1 truncate font-mono">{{ parseJson<string>(p.triggers).join(' · ') }}</div>
         </button>
         <div v-if="protocols.length === 0" class="text-slate-600 text-xs text-center py-12 font-mono">LOADING PROTOCOLS...</div>
       </div>
@@ -192,7 +192,7 @@ function exportRecord() {
               <span class="inline-block w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
               {{ selected.name }}
             </h2>
-            <p class="text-[10px] text-slate-500 mt-1 font-mono uppercase tracking-wide">Emergency Action Plan</p>
+            <p class="text-2xs text-slate-500 mt-1 font-mono uppercase tracking-wide">Emergency Action Plan</p>
           </div>
           <button
             @click="exportRecord()"
@@ -223,7 +223,7 @@ function exportRecord() {
           <div class="rounded-2xl bg-slate-900/40 border border-white/5 p-5 space-y-4">
             <div class="border-b border-white/5 pb-2.5 flex justify-between items-center">
               <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">立即處置步驟 (Checklist)</span>
-              <span class="text-[10px] text-slate-500 font-mono">
+              <span class="text-2xs text-slate-500 font-mono">
                 {{ checkedActions.size }} / {{ parseJson(selected.immediate_actions).length }} 已處理
               </span>
             </div>
@@ -276,7 +276,7 @@ function exportRecord() {
                     class="font-bold text-xs uppercase tracking-wide"
                     :class="med.color === 'red' ? 'text-rose-300' : med.color === 'yellow' ? 'text-amber-300' : 'text-sky-300'"
                   >{{ med.name }}</p>
-                  <p class="text-[10px] text-slate-400 mt-1 font-mono leading-snug">{{ med.dose }}</p>
+                  <p class="text-2xs text-slate-400 mt-1 font-mono leading-snug">{{ med.dose }}</p>
                 </div>
               </div>
             </div>
@@ -296,7 +296,7 @@ function exportRecord() {
                     : 'bg-slate-950/40 border-white/5'"
                 >
                   <div class="min-w-0">
-                    <p class="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{{ t.label }}</p>
+                    <p class="text-2xs text-slate-500 uppercase font-bold tracking-wider">{{ t.label }}</p>
                     <p
                       class="text-3xl font-mono font-black tracking-wider mt-1 transition-all"
                       :class="t.expired
@@ -312,11 +312,11 @@ function exportRecord() {
                     <button
                       v-if="!t.running && !t.expired"
                       @click="startTimer(t)"
-                      class="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold hover:bg-emerald-500/20 transition-all cursor-pointer"
+                      class="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-2xs font-bold hover:bg-emerald-500/20 transition-all cursor-pointer"
                     >▶ 開始</button>
                     <button
                       @click="resetTimer(t)"
-                      class="px-3 py-1.5 rounded-lg bg-slate-800 border border-white/5 text-slate-400 text-[10px] font-bold hover:bg-slate-700 hover:text-slate-200 transition-all cursor-pointer"
+                      class="px-3 py-1.5 rounded-lg bg-slate-800 border border-white/5 text-slate-400 text-2xs font-bold hover:bg-slate-700 hover:text-slate-200 transition-all cursor-pointer"
                     >↺ 重置</button>
                   </div>
                 </div>
@@ -344,7 +344,7 @@ function exportRecord() {
                 </div>
               </div>
               <!-- Mini Toast for clipboard -->
-              <p v-if="copySuccess" class="text-[10px] text-emerald-400 text-center animate-pulse">分機已成功複製至剪貼簿</p>
+              <p v-if="copySuccess" class="text-2xs text-emerald-400 text-center animate-pulse">分機已成功複製至剪貼簿</p>
             </div>
           </div>
         </div>

@@ -120,7 +120,7 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
         </button>
         <div>
           <h2 class="text-sm font-black text-slate-200 uppercase tracking-widest font-mono">ACP 套組模板管理</h2>
-          <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider font-mono mt-0.5">Configure ACP sets and clinical checklist items</p>
+          <p class="text-2xs text-slate-500 font-bold uppercase tracking-wider font-mono mt-0.5">Configure ACP sets and clinical checklist items</p>
         </div>
       </div>
     </div>
@@ -172,7 +172,7 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
 
         <div class="flex-1 flex flex-col overflow-hidden">
           <div class="flex items-center gap-2 mb-4 shrink-0">
-            <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono">目前類別 /</span>
+            <span class="text-2xs font-black text-slate-500 uppercase tracking-widest font-mono">目前類別 /</span>
             <h4 class="text-xs font-black text-slate-300 uppercase tracking-widest font-mono">管理「{{ tabs.find(t=>t.key===activeTab)?.label }}」項目細項</h4>
           </div>
           
@@ -198,11 +198,11 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
                        class="flex-1 bg-slate-950 border border-indigo-500/50 rounded-lg px-3 py-1.5 text-xs text-slate-200 outline-none" 
                        autofocus />
                 <button @click="updateItem" 
-                        class="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-bold cursor-pointer transition-colors">
+                        class="text-2xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-bold cursor-pointer transition-colors">
                   儲存
                 </button>
                 <button @click="editingItemId = null" 
-                        class="text-[10px] text-slate-500 hover:text-slate-300 px-2 font-bold cursor-pointer">
+                        class="text-2xs text-slate-500 hover:text-slate-300 px-2 font-bold cursor-pointer">
                   取消
                 </button>
               </div>

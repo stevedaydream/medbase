@@ -3,6 +3,8 @@ import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { setGlobalSyncing } from "@/composables/useCloudSync";
+import { markLocalModified, saveSyncTimestamp } from "@/composables/useSyncMonitor";
+import { useLogger } from "@/composables/useLogger";
 
 interface Disease {
   id: number; name: string; icd10: string; category: string;
@@ -107,6 +109,8 @@ async function save() {
   const prevId = selected.value?.id;
   await reload();
   selected.value = items.value.find((m) => m.id === prevId) ?? null;
+  await markLocalModified("disease");
+  pushToCloud().catch(() => {});
 }
 
 async function deleteSelected() {
@@ -122,13 +126,19 @@ async function pushToCloud() {
   if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
   isSyncing.value = true; setGlobalSyncing("disease", true);
   try {
-    await fetch(cloud.gasUrl, {
+    const res = await fetch(cloud.gasUrl, {
       method: "POST", headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "saveDisease", data: items.value }),
-      mode: "no-cors",
     });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error ?? "GAS 錯誤");
     toast(`已上傳 ${items.value.length} 筆至雲端`);
-  } catch (e) { toast(`上傳失敗：${(e as Error).message}`); }
+    await saveSyncTimestamp("disease");
+    useLogger().addLog("info", `[雲端同步] push 疾病常規 — ${items.value.length} 筆`, JSON.stringify({ table: "disease", action: "push", timestamp: new Date().toISOString() }));
+  } catch (e) {
+    toast(`上傳失敗：${(e as Error).message}`);
+    useLogger().addLog("warn", "[雲端同步] push 疾病常規 失敗", String(e));
+  }
   finally { isSyncing.value = false; setGlobalSyncing("disease", false); }
 }
 
@@ -175,14 +185,14 @@ async function pullFromCloud() {
       </div>
       
       <div class="flex items-center justify-between px-1.5 mb-3 shrink-0">
-        <span class="text-slate-500 text-[10px] font-black uppercase tracking-widest font-mono">{{ filtered.length }} RECORDS</span>
+        <span class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono">{{ filtered.length }} RECORDS</span>
         <div class="flex gap-1">
           <button @click="pullFromCloud" :disabled="isSyncing"
-            class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg border border-indigo-500/30 text-indigo-400 hover:border-indigo-500 hover:bg-indigo-500/10 disabled:opacity-40 transition-colors cursor-pointer">
+            class="text-2xs font-bold px-2.5 py-1.5 rounded-lg border border-indigo-500/30 text-indigo-400 hover:border-indigo-500 hover:bg-indigo-500/10 disabled:opacity-40 transition-colors cursor-pointer">
             {{ isSyncing ? "…" : "↓ 同步" }}
           </button>
           <button @click="pushToCloud" :disabled="isSyncing"
-            class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg border border-white/5 bg-slate-800 text-slate-400 hover:text-slate-200 disabled:opacity-40 transition-colors cursor-pointer">
+            class="text-2xs font-bold px-2.5 py-1.5 rounded-lg border border-white/5 bg-slate-800 text-slate-400 hover:text-slate-200 disabled:opacity-40 transition-colors cursor-pointer">
             {{ isSyncing ? "…" : "↑ 上傳" }}
           </button>
         </div>
@@ -197,7 +207,7 @@ async function pullFromCloud() {
             ? 'bg-emerald-600/20 border-emerald-500/50 text-white shadow-[0_0_15px_rgba(16,185,129,0.08)]' 
             : 'bg-slate-950/40 border-white/5 text-slate-400 hover:border-white/10 hover:text-slate-200 hover:bg-slate-900/30'">
           <div class="font-bold text-xs truncate">{{ m.name }}</div>
-          <div class="text-[10px] font-mono mt-1 flex items-center gap-1.5 opacity-65">
+          <div class="text-2xs font-mono mt-1 flex items-center gap-1.5 opacity-65">
             <span v-if="m.icd10" class="bg-slate-950 px-1.5 py-0.5 rounded text-emerald-400 font-semibold">{{ m.icd10 }}</span>
             <span v-if="m.category" class="truncate">{{ m.category }}</span>
           </div>
@@ -210,7 +220,7 @@ async function pullFromCloud() {
       <div v-if="!selected" class="flex-1 flex flex-col items-center justify-center gap-3 text-slate-500 py-12">
         <span class="text-4xl animate-pulse">🦠</span>
         <p class="text-xs font-black uppercase tracking-widest font-mono">請選擇疾病，或點擊 ＋ 新增</p>
-        <span class="text-[10px] text-center text-slate-600 max-w-xs mt-1 leading-relaxed">
+        <span class="text-2xs text-center text-slate-600 max-w-xs mt-1 leading-relaxed">
           收錄入院需開哪些 Labs / 影像、需會診科別與流程、常規醫囑。
         </span>
       </div>
@@ -220,8 +230,8 @@ async function pullFromCloud() {
           <div class="min-w-0 flex-1 mr-4">
             <h2 class="text-base font-black text-slate-200 tracking-wider">{{ selected.name }}</h2>
             <div class="flex items-center gap-2 mt-2 flex-wrap font-mono">
-              <span v-if="selected.icd10" class="text-[10px] font-bold bg-slate-950 border border-white/5 text-slate-400 px-2 py-0.5 rounded">{{ selected.icd10 }}</span>
-              <span v-if="selected.category" class="text-[9px] font-black uppercase bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-full">{{ selected.category }}</span>
+              <span v-if="selected.icd10" class="text-2xs font-bold bg-slate-950 border border-white/5 text-slate-400 px-2 py-0.5 rounded">{{ selected.icd10 }}</span>
+              <span v-if="selected.category" class="text-3xs font-black uppercase bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-full">{{ selected.category }}</span>
             </div>
           </div>
           <div class="flex gap-1.5 shrink-0">
@@ -239,7 +249,7 @@ async function pullFromCloud() {
           <button @click="activeTab = 'workup'"
             class="flex-1 py-2 rounded-lg text-xs font-black transition-all cursor-pointer"
             :class="activeTab === 'workup' ? 'bg-slate-800 text-emerald-400 shadow border border-white/[0.02]' : 'text-slate-500 hover:text-slate-300'">
-            入院 Workup <span class="text-[10px] font-mono opacity-70 ml-1 font-bold">({{ parse(selected.workup).length }})</span>
+            入院 Workup <span class="text-2xs font-mono opacity-70 ml-1 font-bold">({{ parse(selected.workup).length }})</span>
           </button>
           <button @click="activeTab = 'consult'"
             class="flex-1 py-2 rounded-lg text-xs font-black transition-all cursor-pointer"
@@ -249,7 +259,7 @@ async function pullFromCloud() {
           <button @click="activeTab = 'orders'"
             class="flex-1 py-2 rounded-lg text-xs font-black transition-all cursor-pointer"
             :class="activeTab === 'orders' ? 'bg-slate-800 text-emerald-400 shadow border border-white/[0.02]' : 'text-slate-500 hover:text-slate-300'">
-            常規醫囑 <span class="text-[10px] font-mono opacity-70 ml-1 font-bold">({{ parse(selected.treatment_orders).length }})</span>
+            常規醫囑 <span class="text-2xs font-mono opacity-70 ml-1 font-bold">({{ parse(selected.treatment_orders).length }})</span>
           </button>
         </nav>
 
@@ -257,7 +267,7 @@ async function pullFromCloud() {
         <div class="flex-1 flex flex-col min-h-0 space-y-4">
           <!-- Workup -->
           <div v-if="activeTab === 'workup'" class="bg-slate-950/40 border border-white/5 rounded-2xl p-5 flex flex-col flex-1 overflow-hidden shadow-inner">
-            <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono mb-4">入院需開 Labs / 影像</p>
+            <p class="text-2xs font-black text-slate-500 uppercase tracking-widest font-mono mb-4">入院需開 Labs / 影像</p>
             <div class="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
               <div v-for="(o, i) in parse(selected.workup)" :key="i"
                 class="flex items-start gap-3 text-slate-300 text-xs font-mono bg-slate-950/60 border border-white/[0.03] rounded-xl px-4 py-3 hover:border-white/10 transition-colors">
@@ -272,12 +282,12 @@ async function pullFromCloud() {
 
           <!-- 會診流程 -->
           <div v-if="activeTab === 'consult'" class="bg-slate-950/40 border border-white/5 rounded-2xl p-5 flex flex-col flex-1 overflow-hidden shadow-inner">
-            <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono mb-4">會診科別與流程說明</p>
+            <p class="text-2xs font-black text-slate-500 uppercase tracking-widest font-mono mb-4">會診科別與流程說明</p>
             <div class="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
               <div v-if="selected.consult_flow" class="space-y-3">
                 <div v-for="(line, i) in (selected.consult_flow ?? '').split('\n').filter(l => l.trim())" :key="i"
                   class="flex items-start gap-4 text-slate-300 text-xs">
-                  <span class="shrink-0 w-6 h-6 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] flex items-center justify-center font-bold font-mono mt-0.5">
+                  <span class="shrink-0 w-6 h-6 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-2xs flex items-center justify-center font-bold font-mono mt-0.5">
                     {{ i + 1 }}
                   </span>
                   <span class="leading-relaxed font-bold pt-0.5">{{ line }}</span>
@@ -291,7 +301,7 @@ async function pullFromCloud() {
 
           <!-- 常規醫囑 -->
           <div v-if="activeTab === 'orders'" class="bg-slate-950/40 border border-white/5 rounded-2xl p-5 flex flex-col flex-1 overflow-hidden shadow-inner">
-            <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono mb-4">常規入院醫囑參考</p>
+            <p class="text-2xs font-black text-slate-500 uppercase tracking-widest font-mono mb-4">常規入院醫囑參考</p>
             <div class="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
               <div v-for="(o, i) in parse(selected.treatment_orders)" :key="i"
                 class="flex items-start gap-3 text-slate-300 text-xs font-mono bg-slate-950/60 border border-white/[0.03] rounded-xl px-4 py-3 hover:border-white/10 transition-colors">
@@ -306,7 +316,7 @@ async function pullFromCloud() {
 
           <!-- 備註 -->
           <div v-if="selected.notes" class="bg-slate-950/30 border border-white/5 rounded-2xl p-4 shrink-0 shadow-md">
-            <p class="text-[9px] font-black text-slate-500 uppercase tracking-widest font-mono mb-2">備註說明 / 注意事項</p>
+            <p class="text-3xs font-black text-slate-500 uppercase tracking-widest font-mono mb-2">備註說明 / 注意事項</p>
             <p class="text-slate-300 text-xs leading-relaxed whitespace-pre-line font-bold">{{ selected.notes }}</p>
           </div>
         </div>
@@ -329,19 +339,19 @@ async function pullFromCloud() {
           <div class="overflow-y-auto px-6 py-5 space-y-4 flex-1 custom-scrollbar">
             <div class="flex gap-4">
               <div class="flex-1">
-                <label class="text-slate-500 text-[10px] font-black uppercase tracking-widest font-mono block mb-1.5">疾病 / 入院診斷 <span class="text-rose-400">*</span></label>
+                <label class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">疾病 / 入院診斷 <span class="text-rose-400">*</span></label>
                 <input v-model="form.name"
                   class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs outline-none focus:border-emerald-500/50 font-bold"
                   placeholder="如：急性闌尾炎、膽管炎、腸阻塞" />
               </div>
               <div class="w-32">
-                <label class="text-slate-500 text-[10px] font-black uppercase tracking-widest font-mono block mb-1.5">ICD-10</label>
+                <label class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">ICD-10</label>
                 <input v-model="form.icd10"
                   class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs font-mono outline-none focus:border-emerald-500/50 font-bold"
                   placeholder="如：K37" />
               </div>
               <div class="w-32">
-                <label class="text-slate-500 text-[10px] font-black uppercase tracking-widest font-mono block mb-1.5">科別</label>
+                <label class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">科別</label>
                 <input v-model="form.category"
                   class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs outline-none focus:border-emerald-500/50 font-bold"
                   placeholder="一般外科" />
@@ -351,13 +361,13 @@ async function pullFromCloud() {
             <!-- Workup + 常規醫囑 並排 -->
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="text-slate-500 text-[10px] font-black uppercase tracking-widest font-mono block mb-1.5">入院 Workup（每行一筆）</label>
+                <label class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">入院 Workup（每行一筆）</label>
                 <textarea v-model="form.workup" rows="10"
                   placeholder="CBC+DC&#10;BMP&#10;LFT, amylase, lipase&#10;CXR&#10;Abdominal CT with contrast&#10;…"
                   class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs font-mono outline-none focus:border-emerald-500/50 resize-none custom-scrollbar font-medium" />
               </div>
               <div>
-                <label class="text-slate-500 text-[10px] font-black uppercase tracking-widest font-mono block mb-1.5">常規醫囑（每行一筆）</label>
+                <label class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">常規醫囑（每行一筆）</label>
                 <textarea v-model="form.treatment_orders" rows="10"
                   placeholder="NPO&#10;IV access, NS 1L bolus&#10;Morphine 2mg IV prn pain&#10;…"
                   class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs font-mono outline-none focus:border-emerald-500/50 resize-none custom-scrollbar font-medium" />
@@ -366,14 +376,14 @@ async function pullFromCloud() {
 
             <!-- 會診流程 -->
             <div>
-              <label class="text-slate-500 text-[10px] font-black uppercase tracking-widest font-mono block mb-1.5">會診流程（每行一步）</label>
+              <label class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">會診流程（每行一步）</label>
               <textarea v-model="form.consult_flow" rows="4"
                 placeholder="1. 先電話通知 Anesthesia 評估手術風險&#10;2. 視 CT 結果決定是否需要 IR 介入&#10;3. 若 Bilirubin > 5，加會 GI/ERCP&#10;…"
                 class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs outline-none focus:border-emerald-500/50 resize-none custom-scrollbar font-medium" />
             </div>
 
             <div>
-              <label class="text-slate-500 text-[10px] font-black uppercase tracking-widest font-mono block mb-1.5">備註</label>
+              <label class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">備註</label>
               <textarea v-model="form.notes" rows="2"
                 class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs outline-none focus:border-emerald-500/50 resize-none custom-scrollbar font-medium" />
             </div>

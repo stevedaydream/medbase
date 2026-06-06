@@ -277,7 +277,7 @@ const fio2Result = computed(() => {
         <span class="text-xl">🎛️</span>
         <div>
           <p class="text-sm font-bold text-slate-200 tracking-wider">臨床工具集</p>
-          <p class="text-[10px] text-slate-500 font-mono tracking-tight">CLINICAL DASHBOARD v1.1</p>
+          <p class="text-2xs text-slate-500 font-mono tracking-tight">CLINICAL DASHBOARD v1.1</p>
         </div>
       </div>
       <nav class="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
@@ -298,7 +298,7 @@ const fio2Result = computed(() => {
           <span class="text-xl leading-none shrink-0 transition-transform duration-300 group-hover:scale-110">{{ t.icon }}</span>
           <div class="min-w-0">
             <div class="text-xs font-bold tracking-wide uppercase transition-colors" :class="activeTool === t.id ? 'text-cyan-200' : 'text-slate-300'">{{ t.label }}</div>
-            <div class="text-[10px] text-slate-500 leading-tight mt-0.5 font-sans truncate">{{ t.sub }}</div>
+            <div class="text-2xs text-slate-500 leading-tight mt-0.5 font-sans truncate">{{ t.sub }}</div>
           </div>
         </button>
       </nav>
@@ -362,7 +362,7 @@ const fio2Result = computed(() => {
                 </div>
                 <div class="mt-2 text-xs font-bold tracking-wide" :class="caStatus?.color">{{ caStatus?.label }}</div>
 
-                <div class="mt-6 space-y-1.5 border-t border-white/5 pt-4 text-[11px] text-slate-500 font-sans leading-relaxed">
+                <div class="mt-6 space-y-1.5 border-t border-white/5 pt-4 text-[0.6875rem] text-slate-500 font-sans leading-relaxed">
                   <div class="flex justify-between"><span>正常範圍：</span><span class="font-mono text-slate-300">8.5 – 10.5 mg/dL</span></div>
                   <div class="flex justify-between"><span>低血鈣風險 (&lt;7.0)：</span><span class="text-sky-300">有抽搐/痙攣風險</span></div>
                   <div class="flex justify-between"><span>高血鈣危機 (&gt;12.0)：</span><span class="text-rose-300">心律不整/意識模糊</span></div>
@@ -376,7 +376,7 @@ const fio2Result = computed(() => {
             </div>
           </div>
 
-          <div class="max-w-2xl bg-white/[0.02] border border-white/5 rounded-xl p-4 text-[11px] text-slate-500 space-y-1.5">
+          <div class="max-w-2xl bg-white/[0.02] border border-white/5 rounded-xl p-4 text-[0.6875rem] text-slate-500 space-y-1.5">
             <p class="font-semibold text-slate-400 uppercase tracking-wider mb-1">臨床備忘</p>
             <p>• 血中大約有 40-50% 的鈣離子是與白蛋白結合。當低白蛋白血症 (Albumin &lt; 4.0 g/dL) 發生時，測得的總鈣量會呈現偽性偏低，因此需要此公式校正。</p>
             <p>• 若臨床情況複雜（如酸鹼平衡失調、腎功能衰竭），強烈建議直接抽血量測 **游離鈣 (Ionized Calcium)** 最為精準。</p>
@@ -450,7 +450,7 @@ const fio2Result = computed(() => {
               </div>
 
               <!-- Quick normal values -->
-              <div class="bg-white/[0.01] border border-white/5 rounded-2xl p-4 text-[10px] text-slate-500 grid grid-cols-2 gap-3 font-mono leading-relaxed">
+              <div class="bg-white/[0.01] border border-white/5 rounded-2xl p-4 text-2xs text-slate-500 grid grid-cols-2 gap-3 font-mono leading-relaxed">
                 <div>
                   <p class="font-bold text-slate-400 mb-1 tracking-wider uppercase">生理正常值參考</p>
                   <div>pH: 7.35 – 7.45</div>
@@ -515,7 +515,7 @@ const fio2Result = computed(() => {
                       placeholder="例：250"
                       class="w-full text-sm px-4 py-3 bg-slate-900/50 border border-white/10 rounded-xl text-slate-200 outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-slate-600 transition-all font-mono"
                     />
-                    <span class="absolute right-4 top-3.5 text-[10px] text-slate-600 font-mono">mg/dL</span>
+                    <span class="absolute right-4 top-3.5 text-2xs text-slate-600 font-mono">mg/dL</span>
                   </div>
                 </div>
                 <div>
@@ -527,7 +527,7 @@ const fio2Result = computed(() => {
                       placeholder="140"
                       class="w-full text-sm px-4 py-3 bg-slate-900/50 border border-white/10 rounded-xl text-slate-200 outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-slate-600 transition-all font-mono"
                     />
-                    <span class="absolute right-4 top-3.5 text-[10px] text-slate-600 font-mono">mg/dL</span>
+                    <span class="absolute right-4 top-3.5 text-2xs text-slate-600 font-mono">mg/dL</span>
                   </div>
                 </div>
               </div>
@@ -536,7 +536,7 @@ const fio2Result = computed(() => {
                 <p class="text-xs font-semibold text-slate-400 mb-3 tracking-wide uppercase">胰島素敏感度 (ISF) 計算基準 <span class="text-slate-600 font-normal">擇一</span></p>
                 <div class="grid grid-cols-2 gap-4">
                   <div>
-                    <label class="block text-[11px] text-slate-500 mb-1 font-medium">每日胰島素總劑量 (TDD)</label>
+                    <label class="block text-[0.6875rem] text-slate-500 mb-1 font-medium">每日胰島素總劑量 (TDD)</label>
                     <div class="relative">
                       <input
                         v-model.number="glu_tdd"
@@ -544,11 +544,11 @@ const fio2Result = computed(() => {
                         placeholder="例：40"
                         class="w-full text-xs px-3.5 py-2.5 bg-slate-900/50 border border-white/10 rounded-lg text-slate-200 outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-slate-600 transition-all font-mono"
                       />
-                      <span class="absolute right-3 top-3 text-[9px] text-slate-600 font-mono">Units</span>
+                      <span class="absolute right-3 top-3 text-3xs text-slate-600 font-mono">Units</span>
                     </div>
                   </div>
                   <div>
-                    <label class="block text-[11px] text-slate-500 mb-1 font-medium">直接指定 ISF 數值</label>
+                    <label class="block text-[0.6875rem] text-slate-500 mb-1 font-medium">直接指定 ISF 數值</label>
                     <div class="relative">
                       <input
                         v-model.number="glu_isf"
@@ -556,7 +556,7 @@ const fio2Result = computed(() => {
                         placeholder="例：42"
                         class="w-full text-xs px-3.5 py-2.5 bg-slate-900/50 border border-white/10 rounded-lg text-slate-200 outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-slate-600 transition-all font-mono"
                       />
-                      <span class="absolute right-3 top-3 text-[9px] text-slate-600 font-mono">mg/dL/U</span>
+                      <span class="absolute right-3 top-3 text-3xs text-slate-600 font-mono">mg/dL/U</span>
                     </div>
                   </div>
                 </div>
@@ -588,7 +588,7 @@ const fio2Result = computed(() => {
                     <span>✓</span> 血糖達標，不需追加速效胰島素。
                   </div>
                   
-                  <div class="mt-6 pt-4 border-t border-white/5 space-y-1 text-[11px] text-slate-500">
+                  <div class="mt-6 pt-4 border-t border-white/5 space-y-1 text-[0.6875rem] text-slate-500">
                     <div class="flex justify-between"><span>估算敏感度 ISF：</span><span class="font-mono text-slate-300">{{ insulinResult.isf }} mg/dL / Unit</span></div>
                     <div class="flex justify-between"><span>當前血糖狀態：</span><span class="font-bold text-slate-300">{{ insulinResult.status }}</span></div>
                   </div>
@@ -602,7 +602,7 @@ const fio2Result = computed(() => {
             </div>
           </div>
 
-          <div class="max-w-2xl bg-white/[0.02] border border-white/5 rounded-xl p-4 text-[11px] text-slate-500 space-y-1 border-t border-white/5 mt-4">
+          <div class="max-w-2xl bg-white/[0.02] border border-white/5 rounded-xl p-4 text-[0.6875rem] text-slate-500 space-y-1 border-t border-white/5 mt-4">
             <p class="font-semibold text-slate-400 uppercase tracking-wider mb-1">注意事項</p>
             <p>• 一般病房住院患者餐前血糖控制目標建議為 140–180 mg/dL，重症病房 (ICU) 同樣建議維持在 140–180 mg/dL。</p>
             <p>• 本試算之校正劑量已四捨五入至最接近的 0.5 單位 (Unit)，臨床醫囑開立仍需依患者個別胰島素抗性與臨床現狀進行細微調整。</p>
@@ -703,37 +703,37 @@ const fio2Result = computed(() => {
                     <span class="text-4xl font-extrabold text-white tracking-tight font-mono">{{ nutResult.tdee }}</span>
                     <span class="text-xs text-slate-400 font-mono">kcal / 每日</span>
                   </div>
-                  <div class="text-[10px] text-slate-500 mt-1 font-mono">基礎代謝率 (BMR): {{ nutResult.bmr }} kcal</div>
+                  <div class="text-2xs text-slate-500 mt-1 font-mono">基礎代謝率 (BMR): {{ nutResult.bmr }} kcal</div>
                 </div>
 
                 <!-- Detail Grid -->
                 <div class="grid grid-cols-2 gap-3">
                   <div class="rounded-xl border border-white/5 bg-slate-900/30 p-4">
-                    <p class="text-[10px] uppercase font-bold tracking-wider text-slate-500">蛋白質目標</p>
+                    <p class="text-2xs uppercase font-bold tracking-wider text-slate-500">蛋白質目標</p>
                     <p class="text-2xl font-bold text-cyan-300 font-mono mt-1">{{ nutResult.protein }} <span class="text-xs font-normal text-slate-500">g</span></p>
-                    <p class="text-[9px] text-slate-600 font-mono mt-1">{{ nut_protein }} g/kg × {{ nut_weight }} kg</p>
+                    <p class="text-3xs text-slate-600 font-mono mt-1">{{ nut_protein }} g/kg × {{ nut_weight }} kg</p>
                   </div>
 
                   <div class="rounded-xl border border-white/5 bg-slate-900/30 p-4">
-                    <p class="text-[10px] uppercase font-bold tracking-wider text-slate-500">醣/脂分配估算</p>
+                    <p class="text-2xs uppercase font-bold tracking-wider text-slate-500">醣/脂分配估算</p>
                     <p class="text-base font-bold text-slate-200 font-mono mt-1.5">{{ nutResult.carb }}g <span class="text-xs text-slate-500">/ {{ nutResult.fat }}g</span></p>
-                    <p class="text-[9px] text-slate-600 mt-1">碳水40% / 脂肪30%</p>
+                    <p class="text-3xs text-slate-600 mt-1">碳水40% / 脂肪30%</p>
                   </div>
 
                   <div class="rounded-xl border border-white/5 bg-slate-900/30 p-4">
-                    <p class="text-[10px] uppercase font-bold tracking-wider text-slate-500">BMI / 標準體重 (IBW)</p>
+                    <p class="text-2xs uppercase font-bold tracking-wider text-slate-500">BMI / 標準體重 (IBW)</p>
                     <p class="text-xl font-bold font-mono mt-1" :class="Number(nutResult.bmi) < 18.5 ? 'text-sky-400' : Number(nutResult.bmi) > 24 ? 'text-rose-400' : 'text-emerald-400'">
                       {{ nutResult.bmi }}
                     </p>
-                    <p class="text-[9px] text-slate-600 font-mono mt-1">理想體重 ≈ {{ nutResult.ibw }} kg</p>
+                    <p class="text-3xs text-slate-600 font-mono mt-1">理想體重 ≈ {{ nutResult.ibw }} kg</p>
                   </div>
 
                   <div class="rounded-xl border border-white/5 bg-slate-900/30 p-4">
-                    <p class="text-[10px] uppercase font-bold tracking-wider text-slate-500">快速熱量區間</p>
+                    <p class="text-2xs uppercase font-bold tracking-wider text-slate-500">快速熱量區間</p>
                     <p class="text-sm font-bold text-slate-300 font-mono mt-2">
                       {{ Math.round(Number(nut_weight) * 25) }} – {{ Math.round(Number(nut_weight) * 30) }} <span class="text-xs font-normal">kcal</span>
                     </p>
-                    <p class="text-[9px] text-slate-600 mt-1">依 25–30 kcal/kg/d 粗估</p>
+                    <p class="text-3xs text-slate-600 mt-1">依 25–30 kcal/kg/d 粗估</p>
                   </div>
                 </div>
               </div>
@@ -780,7 +780,7 @@ const fio2Result = computed(() => {
             <div class="space-y-4">
               <!-- Venturi specifics -->
               <div v-if="o2_device === 'venturi'" class="bg-white/[0.01] border border-white/5 rounded-2xl p-4 space-y-3">
-                <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wide">選擇文氏面罩 (Venturi) 設定點</label>
+                <label class="block text-[0.6875rem] font-semibold text-slate-400 uppercase tracking-wide">選擇文氏面罩 (Venturi) 設定點</label>
                 <div class="grid grid-cols-6 gap-1">
                   <button
                     v-for="v in venturiOptions"
@@ -794,7 +794,7 @@ const fio2Result = computed(() => {
                     {{ v }}%
                   </button>
                 </div>
-                <p class="text-[10px] text-slate-500 font-sans mt-1">💡 文氏面罩在此設定下需配合同步給予流量：**≥ {{ venturiMap[o2_venturi] }} L/min**</p>
+                <p class="text-2xs text-slate-500 font-sans mt-1">💡 文氏面罩在此設定下需配合同步給予流量：**≥ {{ venturiMap[o2_venturi] }} L/min**</p>
               </div>
 
               <!-- HFNC specifics -->
@@ -855,7 +855,7 @@ const fio2Result = computed(() => {
                     <span class="text-5xl font-extrabold text-white tracking-tight font-mono">{{ fio2Result.fio2 }}</span>
                     <span class="text-lg text-slate-400 font-mono">% FiO₂</span>
                   </div>
-                  <p class="text-[10px] text-slate-500 font-sans mt-1.5 leading-relaxed">{{ fio2Result.note }}</p>
+                  <p class="text-2xs text-slate-500 font-sans mt-1.5 leading-relaxed">{{ fio2Result.note }}</p>
                 </div>
 
                 <div v-if="fio2Result.pf !== null" class="pt-4 border-t border-white/5 space-y-1.5">
@@ -888,7 +888,7 @@ const fio2Result = computed(() => {
           <!-- Quick table reference -->
           <div class="bg-white/[0.01] border border-white/5 rounded-2xl p-5 space-y-3 max-w-xl">
             <p class="text-xs font-bold text-slate-300 uppercase tracking-wide">氧氣裝置估算對照表 (Quick Reference)</p>
-            <table class="w-full text-[11px] text-slate-500 border-collapse">
+            <table class="w-full text-[0.6875rem] text-slate-500 border-collapse">
               <thead>
                 <tr class="text-slate-400 border-b border-white/5 text-left font-mono">
                   <th class="pb-2 font-semibold">給氧裝置</th>

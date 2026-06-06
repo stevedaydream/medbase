@@ -3,6 +3,8 @@ import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { setGlobalSyncing } from "@/composables/useCloudSync";
+import { markLocalModified, saveSyncTimestamp } from "@/composables/useSyncMonitor";
+import { useLogger } from "@/composables/useLogger";
 
 interface Surgery {
   id: number; name: string; category: string; indication: string;
@@ -99,6 +101,8 @@ async function save() {
   const prevId = selected.value?.id;
   await reload();
   selected.value = items.value.find((m) => m.id === prevId) ?? null;
+  await markLocalModified("surgery");
+  pushToCloud().catch(() => {});
 }
 
 async function deleteSelected() {
@@ -114,13 +118,19 @@ async function pushToCloud() {
   if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
   isSyncing.value = true; setGlobalSyncing("surgery", true);
   try {
-    await fetch(cloud.gasUrl, {
+    const res = await fetch(cloud.gasUrl, {
       method: "POST", headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "saveSurgery", data: items.value }),
-      mode: "no-cors",
     });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error ?? "GAS 錯誤");
     toast(`已上傳 ${items.value.length} 筆至雲端`);
-  } catch (e) { toast(`上傳失敗：${(e as Error).message}`); }
+    await saveSyncTimestamp("surgery");
+    useLogger().addLog("info", `[雲端同步] push 手術處置 — ${items.value.length} 筆`, JSON.stringify({ table: "surgery", action: "push", timestamp: new Date().toISOString() }));
+  } catch (e) {
+    toast(`上傳失敗：${(e as Error).message}`);
+    useLogger().addLog("warn", "[雲端同步] push 手術處置 失敗", String(e));
+  }
   finally { isSyncing.value = false; setGlobalSyncing("surgery", false); }
 }
 
@@ -170,14 +180,14 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
       </div>
       
       <div class="flex items-center justify-between px-1.5 mb-3 shrink-0">
-        <span class="text-slate-500 text-[10px] font-black uppercase tracking-widest font-mono">{{ filtered.length }} SURGERIES</span>
+        <span class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono">{{ filtered.length }} SURGERIES</span>
         <div class="flex gap-1">
           <button @click="pullFromCloud" :disabled="isSyncing"
-            class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg border border-indigo-500/30 text-indigo-400 hover:border-indigo-500 hover:bg-indigo-500/10 disabled:opacity-40 transition-colors cursor-pointer">
+            class="text-2xs font-bold px-2.5 py-1.5 rounded-lg border border-indigo-500/30 text-indigo-400 hover:border-indigo-500 hover:bg-indigo-500/10 disabled:opacity-40 transition-colors cursor-pointer">
             {{ isSyncing ? "…" : "↓ 同步" }}
           </button>
           <button @click="pushToCloud" :disabled="isSyncing"
-            class="text-[10px] font-bold px-2.5 py-1.5 rounded-lg border border-white/5 bg-slate-800 text-slate-400 hover:text-slate-200 disabled:opacity-40 transition-colors cursor-pointer">
+            class="text-2xs font-bold px-2.5 py-1.5 rounded-lg border border-white/5 bg-slate-800 text-slate-400 hover:text-slate-200 disabled:opacity-40 transition-colors cursor-pointer">
             {{ isSyncing ? "…" : "↑ 上傳" }}
           </button>
         </div>
@@ -192,7 +202,7 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
             ? 'bg-orange-600/20 border-orange-500/50 text-white shadow-[0_0_15px_rgba(249,115,22,0.08)]' 
             : 'bg-slate-950/40 border-white/5 text-slate-400 hover:border-white/10 hover:text-slate-200 hover:bg-slate-900/30'">
           <div class="font-bold text-xs truncate">{{ m.name }}</div>
-          <div class="text-[10px] font-mono mt-1 flex items-center gap-1.5 opacity-65">
+          <div class="text-2xs font-mono mt-1 flex items-center gap-1.5 opacity-65">
             <span v-if="m.category" class="bg-slate-950 px-1.5 py-0.5 rounded text-orange-400 font-semibold">{{ m.category }}</span>
           </div>
         </button>
@@ -204,7 +214,7 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
       <div v-if="!selected" class="flex-1 flex flex-col items-center justify-center gap-3 text-slate-500 py-12">
         <span class="text-4xl animate-pulse">🔪</span>
         <p class="text-xs font-black uppercase tracking-widest font-mono">請選擇術式，或點擊 ＋ 新增</p>
-        <span class="text-[10px] text-center text-slate-600 max-w-xs mt-1 leading-relaxed">
+        <span class="text-2xs text-center text-slate-600 max-w-xs mt-1 leading-relaxed">
           收錄各術式術前禁食/備血/Consent、術後引流/換藥/飲食等 Order Set。
         </span>
       </div>
@@ -214,7 +224,7 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
           <div class="min-w-0 flex-1 mr-4">
             <h2 class="text-base font-black text-slate-200 tracking-wider">{{ selected.name }}</h2>
             <div class="flex items-center gap-2 mt-2 flex-wrap font-mono">
-              <span v-if="selected.category" class="text-[9px] font-black uppercase bg-orange-500/10 border border-orange-500/30 text-orange-400 px-2 py-0.5 rounded-full">{{ selected.category }}</span>
+              <span v-if="selected.category" class="text-3xs font-black uppercase bg-orange-500/10 border border-orange-500/30 text-orange-400 px-2 py-0.5 rounded-full">{{ selected.category }}</span>
               <span v-if="selected.indication" class="text-slate-400 text-xs font-bold">{{ selected.indication }}</span>
             </div>
           </div>
@@ -233,19 +243,19 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
           <button @click="activeTab = 'pre'"
             class="flex-1 py-2 rounded-lg text-xs font-black transition-all cursor-pointer"
             :class="activeTab === 'pre' ? 'bg-slate-800 text-orange-400 shadow border border-white/[0.02]' : 'text-slate-500 hover:text-slate-300'">
-            術前常規 <span class="text-[10px] font-mono opacity-70 ml-1 font-bold">({{ parse(selected.pre_op_orders).length }})</span>
+            術前常規 <span class="text-2xs font-mono opacity-70 ml-1 font-bold">({{ parse(selected.pre_op_orders).length }})</span>
           </button>
           <button @click="activeTab = 'post'"
             class="flex-1 py-2 rounded-lg text-xs font-black transition-all cursor-pointer"
             :class="activeTab === 'post' ? 'bg-slate-800 text-orange-400 shadow border border-white/[0.02]' : 'text-slate-500 hover:text-slate-300'">
-            術後常規 <span class="text-[10px] font-mono opacity-70 ml-1 font-bold">({{ parse(selected.post_op_orders).length }})</span>
+            術後常規 <span class="text-2xs font-mono opacity-70 ml-1 font-bold">({{ parse(selected.post_op_orders).length }})</span>
           </button>
         </nav>
 
         <!-- Tab Content -->
         <div class="flex-1 flex flex-col min-h-0 space-y-4">
           <div class="bg-slate-950/40 border border-white/5 rounded-2xl p-5 flex flex-col flex-1 overflow-hidden shadow-inner">
-            <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono mb-4">
+            <p class="text-2xs font-black text-slate-500 uppercase tracking-widest font-mono mb-4">
               {{ activeTab === 'pre' ? '術前醫囑參考 (Pre-op Orders)' : '術後醫囑參考 (Post-op Orders)' }}
             </p>
             <div class="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
@@ -262,7 +272,7 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
 
           <!-- 備註 -->
           <div v-if="selected.notes" class="bg-slate-950/30 border border-white/5 rounded-2xl p-4 shrink-0 shadow-md">
-            <p class="text-[9px] font-black text-slate-500 uppercase tracking-widest font-mono mb-2">備註說明 / 注意事項</p>
+            <p class="text-3xs font-black text-slate-500 uppercase tracking-widest font-mono mb-2">備註說明 / 注意事項</p>
             <p class="text-slate-300 text-xs leading-relaxed whitespace-pre-line font-bold">{{ selected.notes }}</p>
           </div>
         </div>
@@ -285,13 +295,13 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
           <div class="overflow-y-auto px-6 py-5 space-y-4 flex-1 custom-scrollbar">
             <div class="flex gap-4">
               <div class="flex-1">
-                <label class="text-slate-500 text-[10px] font-black uppercase tracking-widest font-mono block mb-1.5">術式名稱 <span class="text-rose-400">*</span></label>
+                <label class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">術式名稱 <span class="text-rose-400">*</span></label>
                 <input v-model="form.name"
                   class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs outline-none focus:border-orange-500/50 font-bold"
                   placeholder="如：腹腔鏡膽囊切除、TKA、右半大腸切除" />
               </div>
               <div class="w-48">
-                <label class="text-slate-500 text-[10px] font-black uppercase tracking-widest font-mono block mb-1.5">科別</label>
+                <label class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">科別</label>
                 <input v-model="form.category"
                   class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs outline-none focus:border-orange-500/50 font-bold"
                   placeholder="如：一般外科" />
@@ -299,7 +309,7 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
             </div>
             
             <div>
-              <label class="text-slate-500 text-[10px] font-black uppercase tracking-widest font-mono block mb-1.5">備註說明</label>
+              <label class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">備註說明</label>
               <input v-model="form.indication"
                 class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs outline-none focus:border-orange-500/50 font-bold"
                 placeholder="如：限擇期手術，急診另行修改" />
@@ -308,7 +318,7 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
             <!-- 術前/術後並排 -->
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="text-slate-500 text-[10px] font-black uppercase tracking-widest font-mono block mb-1.5">
+                <label class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">
                   術前常規（每行一筆）
                   <span class="text-slate-600 font-mono font-bold ml-1">({{ preCount }})</span>
                 </label>
@@ -317,7 +327,7 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
                   class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs font-mono outline-none focus:border-orange-500/50 resize-none custom-scrollbar font-medium" />
               </div>
               <div>
-                <label class="text-slate-500 text-[10px] font-black uppercase tracking-widest font-mono block mb-1.5">
+                <label class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">
                   術後常規（每行一筆）
                   <span class="text-slate-600 font-mono font-bold ml-1">({{ postCount }})</span>
                 </label>
@@ -328,7 +338,7 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
             </div>
 
             <div>
-              <label class="text-slate-500 text-[10px] font-black uppercase tracking-widest font-mono block mb-1.5">備註</label>
+              <label class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">備註</label>
               <textarea v-model="form.notes" rows="2"
                 class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs outline-none focus:border-orange-500/50 resize-none custom-scrollbar font-medium" />
             </div>

@@ -6,6 +6,8 @@ import { useCloudSettings } from "@/stores/cloudSettings";
 import { autoUpdatePassAhk } from "@/composables/usePassAhk";
 import { setGlobalSyncing } from "@/composables/useCloudSync";
 import { exportToXlsx, autoCloudSync, xlsxPath } from "@/composables/useXlsxSync";
+import { markLocalModified, saveSyncTimestamp } from "@/composables/useSyncMonitor";
+import { useLogger } from "@/composables/useLogger";
 
 interface Physician { id: number; name: string; department: string; title: string; ext: string; his_account: string; his_password: string; phs_account: string; phs_password: string; notes: string; }
 
@@ -100,8 +102,11 @@ async function pushToCloud() {
     const pushJson = await pushRes.json();
     if (!pushJson.ok) throw new Error(pushJson.error);
     showToast(`已上傳 ${newLocal.length} 筆新資料（跳過 ${physicians.value.length - newLocal.length} 筆重複）`);
+    await saveSyncTimestamp("physicians");
+    useLogger().addLog("info", `[雲端同步] push 醫師 — ${newLocal.length} 筆`, JSON.stringify({ table: "physicians", action: "push", timestamp: new Date().toISOString() }));
   } catch (err) {
     showToast(`推送失敗：${(err as Error).message}`);
+    useLogger().addLog("warn", "[雲端同步] push 醫師 失敗", String(err));
   } finally {
     syncing.value = false; setGlobalSyncing("physicians", false);
   }
@@ -120,8 +125,11 @@ async function overwriteCloud() {
     const json = await res.json();
     if (!json.ok) throw new Error(json.error);
     showToast(`已覆蓋雲端（共 ${physicians.value.length} 筆）`);
+    await saveSyncTimestamp("physicians");
+    useLogger().addLog("info", `[雲端同步] overwrite 醫師 — ${physicians.value.length} 筆`, JSON.stringify({ table: "physicians", action: "push", timestamp: new Date().toISOString() }));
   } catch (err) {
     showToast(`覆蓋失敗：${(err as Error).message}`);
+    useLogger().addLog("warn", "[雲端同步] overwrite 醫師 失敗", String(err));
   } finally {
     syncing.value = false; setGlobalSyncing("physicians", false);
   }
@@ -168,6 +176,11 @@ async function pullFromCloud() {
   } finally {
     syncing.value = false; setGlobalSyncing("physicians", false);
   }
+}
+
+function onTagsWheel(e: WheelEvent) {
+  const el = e.currentTarget as HTMLElement;
+  el.scrollLeft += e.deltaY;
 }
 
 function showToast(msg: string) {
@@ -228,206 +241,189 @@ async function saveForm() {
   const syncMsg = await autoUpdatePassAhk();
   if (syncMsg) showToast(syncMsg);
   if (xlsxPath.value) { exportToXlsx(); autoCloudSync(); }
+  await markLocalModified("physicians");
+  overwriteCloud().catch(() => {});
 }
 </script>
 
 <template>
-  <div class="flex gap-6 h-full bg-slate-950/20 rounded-2xl border border-white/5 shadow-2xl p-1 overflow-hidden">
-    <!-- Left panel (Directory Search) -->
-    <div class="w-80 shrink-0 flex flex-col bg-slate-900/60 backdrop-blur-xl border-r border-white/5 p-4 space-y-4">
-      <!-- Search Input -->
-      <div class="relative">
-        <span class="absolute left-3 top-2.5 text-slate-500 text-sm">🔍</span>
-        <input
-          v-model="search"
-          placeholder="搜尋姓名 / 科別…"
-          class="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-sm placeholder-slate-600 outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 transition-all font-sans"
-        />
-        <button v-if="search" @click="search = ''" class="absolute right-3 top-2 text-slate-500 hover:text-slate-300 text-lg leading-none cursor-pointer">×</button>
-      </div>
+  <div class="flex flex-col h-full gap-3">
 
-      <!-- Department filter tags -->
-      <div v-if="departments.length" class="space-y-1.5">
-        <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">科別篩選</p>
-        <div class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto no-scrollbar">
-          <button
-            @click="deptFilter = ''"
-            class="px-3 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer"
-            :class="deptFilter === '' 
-              ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300' 
-              : 'bg-slate-950 border-white/5 text-slate-500 hover:text-slate-300'"
-          >全部</button>
-          <button
-            v-for="dept in departments" :key="dept"
-            @click="deptFilter = deptFilter === dept ? '' : dept"
-            class="px-3 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer"
-            :class="deptFilter === dept 
-              ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300 shadow-[0_0_8px_rgba(6,182,212,0.05)]' 
-              : 'bg-slate-950 border-white/5 text-slate-500 hover:text-slate-300'"
-          >{{ dept }}</button>
+    <!-- Top bar: two rows -->
+    <div class="shrink-0 flex flex-col gap-2 bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-white/5 px-4 py-3">
+      <!-- Row 1: search + cloud sync + add -->
+      <div class="flex items-center gap-3">
+        <div class="relative w-52 shrink-0">
+          <span class="absolute left-3 top-2.5 text-slate-500 text-sm">🔍</span>
+          <input v-model="search" placeholder="搜尋姓名 / 科別…"
+            class="w-full pl-9 pr-8 py-2 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-sm placeholder-slate-600 outline-none focus:border-cyan-500/50 transition-all" />
+          <button v-if="search" @click="search = ''" class="absolute right-2.5 top-2 text-slate-500 hover:text-slate-300 text-lg leading-none cursor-pointer">×</button>
         </div>
-      </div>
-
-      <!-- Title filter tags -->
-      <div v-if="titles.length" class="space-y-1.5 border-t border-white/5 pt-3">
-        <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">職稱篩選</p>
-        <div class="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto no-scrollbar">
-          <button
-            @click="titleFilter = ''"
-            class="px-3 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer"
-            :class="titleFilter === '' 
-              ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300' 
-              : 'bg-slate-950 border-white/5 text-slate-500 hover:text-slate-300'"
-          >所有職稱</button>
-          <button
-            v-for="title in titles" :key="title"
-            @click="titleFilter = titleFilter === title ? '' : title"
-            class="px-3 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer"
-            :class="titleFilter === title 
-              ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300 shadow-[0_0_8px_rgba(99,102,241,0.05)]' 
-              : 'bg-slate-950 border-white/5 text-slate-500 hover:text-slate-300'"
-          >{{ title }}</button>
-        </div>
-      </div>
-
-      <!-- Cloud sync panel -->
-      <div class="space-y-1.5 border-t border-white/5 pt-3">
-        <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">雲端同步備份</p>
-        <div class="flex gap-2">
-          <button @click="pushToCloud" :disabled="syncing"
-            class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs font-bold hover:bg-blue-500/20 disabled:opacity-50 transition-colors cursor-pointer"
-            title="本地有、雲端無的才上傳（雲端已有的保留不動）">
-            {{ syncing ? '…' : '☁️↑' }} 推送
-          </button>
-          <button @click="pullFromCloud" :disabled="syncing"
-            class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-bold hover:bg-indigo-500/20 disabled:opacity-50 transition-colors cursor-pointer">
-            {{ syncing ? '…' : '☁️↓' }} 拉取
-          </button>
-        </div>
+        <div class="flex-1" />
+        <button @click="pullFromCloud" :disabled="syncing"
+          class="px-3 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-bold hover:bg-indigo-500/20 disabled:opacity-50 transition-colors cursor-pointer"
+          title="從雲端拉取">
+          {{ syncing ? '…' : '↓' }} 拉取
+        </button>
+        <button @click="pushToCloud" :disabled="syncing"
+          class="px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs font-bold hover:bg-blue-500/20 disabled:opacity-50 transition-colors cursor-pointer"
+          title="本地有、雲端無才上傳">
+          {{ syncing ? '…' : '↑' }} 推送
+        </button>
         <button @click="overwriteCloud" :disabled="syncing"
-          class="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-rose-500/5 border border-rose-500/20 text-rose-300 text-xs font-bold hover:bg-rose-500/15 disabled:opacity-50 transition-colors cursor-pointer"
-          title="以本地資料完整覆蓋雲端（不保留雲端原有資料）">
-          {{ syncing ? '…' : '⚠️' }} 覆蓋雲端
+          class="px-3 py-1.5 rounded-xl bg-rose-500/5 border border-rose-500/20 text-rose-300 text-xs font-bold hover:bg-rose-500/15 disabled:opacity-50 transition-colors cursor-pointer"
+          title="以本地資料完整覆蓋雲端">
+          覆蓋
         </button>
-      </div>
-
-      <!-- List control row -->
-      <div class="flex items-center justify-between border-t border-white/5 pt-3">
-        <p class="text-xs font-bold text-slate-500 font-mono">TOTAL: {{ filtered().length }} RECORD(S)</p>
+        <div class="w-px h-5 bg-white/10" />
         <button @click="openAdd"
-          class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-bold hover:from-blue-500 hover:to-cyan-500 transition-all shadow-md cursor-pointer">
-          ＋ 新增醫師
+          class="px-4 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-bold hover:from-blue-500 hover:to-cyan-500 transition-all shadow-md cursor-pointer">
+          ＋ 新增
         </button>
       </div>
 
-      <!-- Physicians list -->
-      <div class="flex-1 overflow-y-auto space-y-1.5 pr-1">
-        <div v-if="filtered().length === 0" class="text-slate-600 text-xs font-mono text-center py-10">NO PHYSICIANS</div>
-        <div v-for="p in filtered()" :key="p.id"
-          class="group flex items-center gap-2 px-3 py-2.5 rounded-xl transition-all border cursor-pointer relative overflow-hidden"
-          :class="selected?.id === p.id 
-            ? 'bg-slate-900 border-cyan-500/20 text-cyan-200 shadow-md' 
-            : 'bg-transparent border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200'">
-          
-          <div v-if="selected?.id === p.id" class="absolute left-0 top-0 bottom-0 w-1 bg-cyan-500" />
-          
-          <button @click="selected = p" class="flex-1 text-left min-w-0">
-            <div class="text-sm font-bold transition-colors" :class="selected?.id === p.id ? 'text-cyan-300' : 'text-slate-200'">{{ p.name }}</div>
-            <div class="text-xs text-slate-500 mt-0.5">{{ p.department }} · {{ p.title }}</div>
-          </button>
-          <button @click.stop="deleteTarget = p"
-            class="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 text-xs px-1.5 transition-all shrink-0 cursor-pointer">×</button>
-        </div>
+      <!-- Row 2: filter tags (horizontal scroll) -->
+      <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar" @wheel.prevent="onTagsWheel">
+        <button @click="deptFilter = ''"
+          class="shrink-0 px-3 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer"
+          :class="deptFilter === '' ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300' : 'bg-slate-950 border-white/5 text-slate-500 hover:text-slate-300'">
+          全科
+        </button>
+        <button v-for="dept in departments" :key="dept"
+          @click="deptFilter = deptFilter === dept ? '' : dept"
+          class="shrink-0 px-3 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer"
+          :class="deptFilter === dept ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300' : 'bg-slate-950 border-white/5 text-slate-500 hover:text-slate-300'">
+          {{ dept }}
+        </button>
+        <div class="w-px h-4 bg-white/10 mx-1 shrink-0" />
+        <button @click="titleFilter = ''"
+          class="shrink-0 px-3 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer"
+          :class="titleFilter === '' ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300' : 'bg-slate-950 border-white/5 text-slate-500 hover:text-slate-300'">
+          所有職稱
+        </button>
+        <button v-for="title in titles" :key="title"
+          @click="titleFilter = titleFilter === title ? '' : title"
+          class="shrink-0 px-3 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer"
+          :class="titleFilter === title ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300' : 'bg-slate-950 border-white/5 text-slate-500 hover:text-slate-300'">
+          {{ title }}
+        </button>
       </div>
     </div>
 
-    <!-- Right panel (Dossier View) -->
-    <div class="flex-1 rounded-2xl bg-slate-950/40 backdrop-blur-md p-6 overflow-y-auto">
-      <div v-if="!selected" class="flex flex-col items-center justify-center h-full text-slate-600 text-center space-y-3">
-        <span class="text-4xl opacity-20">👨‍⚕️</span>
-        <p class="text-sm uppercase tracking-widest font-mono">Select a physician card to view detail dossier</p>
+    <!-- Main: name list + detail -->
+    <div class="flex flex-1 gap-3 min-h-0">
+
+      <!-- Left: names only -->
+      <div class="w-44 shrink-0 flex flex-col bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-white/5 overflow-hidden">
+        <div class="px-3 py-2 border-b border-white/5 shrink-0">
+          <span class="text-2xs font-mono font-bold text-slate-500">{{ filtered().length }} RECORDS</span>
+        </div>
+        <div class="flex-1 overflow-y-auto custom-scrollbar">
+          <div v-if="filtered().length === 0" class="text-slate-600 text-xs text-center py-10 font-mono">NO DATA</div>
+          <div v-for="p in filtered()" :key="p.id"
+            @click="selected = p"
+            class="group relative flex items-center px-3 py-2.5 cursor-pointer transition-all"
+            :class="selected?.id === p.id
+              ? 'bg-slate-800/80'
+              : 'hover:bg-white/5'">
+            <div v-if="selected?.id === p.id" class="absolute left-0 top-0 bottom-0 w-0.5 bg-cyan-500 rounded-r" />
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-bold truncate" :class="selected?.id === p.id ? 'text-cyan-300' : 'text-slate-200'">{{ p.name }}</div>
+              <div v-if="p.department" class="text-2xs text-slate-500 truncate mt-0.5">{{ p.department }}</div>
+            </div>
+            <button @click.stop="deleteTarget = p"
+              class="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 text-sm leading-none cursor-pointer transition-all shrink-0 ml-1">×</button>
+          </div>
+        </div>
       </div>
-      <div v-else class="space-y-6">
-        <!-- Dossier Header -->
-        <div class="flex items-start justify-between border-b border-white/5 pb-4">
-          <div>
-            <h2 class="text-2xl font-black text-slate-100 tracking-wide">{{ selected.name }}</h2>
-            <p class="text-sm font-semibold text-slate-500 mt-1 uppercase tracking-wider">{{ selected.department }} · {{ selected.title }}</p>
-          </div>
-          <div class="flex gap-2 shrink-0">
-            <button @click="openEdit(selected)"
-              class="px-4 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:scale-95 text-slate-300 text-sm font-bold transition-all cursor-pointer">
-              編輯
-            </button>
-            <button @click="deleteTarget = selected"
-              class="px-4 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm font-bold hover:bg-rose-500/20 transition-all cursor-pointer">
-              刪除
-            </button>
-          </div>
+
+      <!-- Right: dossier detail -->
+      <div class="flex-1 rounded-2xl bg-slate-900/40 backdrop-blur-md border border-white/5 p-6 overflow-y-auto min-h-0 custom-scrollbar">
+        <div v-if="!selected" class="flex flex-col items-center justify-center h-full text-slate-600 text-center space-y-3">
+          <span class="text-4xl opacity-20">👨‍⚕️</span>
+          <p class="text-sm uppercase tracking-widest font-mono">Select a physician card to view detail dossier</p>
         </div>
 
-        <!-- Extension code -->
-        <div v-if="selected.ext" class="p-4 rounded-2xl bg-slate-900/40 border border-white/5 flex items-center justify-between shadow-lg relative overflow-hidden group hover:border-cyan-500/20 transition-all">
-          <div class="flex items-center gap-4">
-            <span class="text-lg">📞</span>
+        <div v-else class="space-y-6">
+          <!-- Header -->
+          <div class="flex items-start justify-between border-b border-white/5 pb-4">
             <div>
-              <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">院內聯絡分機</p>
-              <p class="text-3xl font-mono font-black text-cyan-400 mt-1 tracking-widest">{{ selected.ext }}</p>
+              <h2 class="text-2xl font-black text-slate-100 tracking-wide">{{ selected.name }}</h2>
+              <p class="text-sm font-semibold text-slate-500 mt-1 uppercase tracking-wider">{{ selected.department }} · {{ selected.title }}</p>
             </div>
-          </div>
-          <button @click="copy(selected.ext)" class="text-xs font-bold px-3 py-1.5 bg-slate-800 border border-white/5 text-slate-400 hover:text-cyan-400 hover:border-cyan-500/20 rounded-xl transition-all cursor-pointer">
-            複製分機
-          </button>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <!-- HIS Credentials Card -->
-          <div class="rounded-2xl border border-white/5 bg-slate-900/30 p-5 space-y-4">
-            <div class="border-b border-white/5 pb-2.5 flex justify-between items-center">
-              <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">HIS 系統登入資料</span>
-              <span class="text-[10px] font-mono text-slate-600">HIS CREDENTIALS</span>
-            </div>
-            
-            <div class="space-y-3 font-mono text-sm">
-              <div class="flex items-center justify-between p-3 bg-slate-950/60 rounded-xl border border-white/[0.02]">
-                <span class="text-slate-500 w-12">帳號</span>
-                <span class="text-slate-200 font-bold flex-1 select-all truncate ml-2">{{ selected.his_account || '—' }}</span>
-                <button v-if="selected.his_account" @click="copy(selected.his_account)" class="text-slate-600 hover:text-cyan-400 text-xs pl-2 cursor-pointer">📋</button>
-              </div>
-              <div class="flex items-center justify-between p-3 bg-slate-950/60 rounded-xl border border-white/[0.02]">
-                <span class="text-slate-500 w-12">密碼</span>
-                <span class="text-slate-200 font-bold flex-1 select-all truncate ml-2">{{ selected.his_password || '—' }}</span>
-                <button v-if="selected.his_password" @click="copy(selected.his_password)" class="text-slate-600 hover:text-cyan-400 text-xs pl-2 cursor-pointer">📋</button>
-              </div>
+            <div class="flex gap-2 shrink-0">
+              <button @click="openEdit(selected)"
+                class="px-4 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:scale-95 text-slate-300 text-sm font-bold transition-all cursor-pointer">
+                編輯
+              </button>
+              <button @click="deleteTarget = selected"
+                class="px-4 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm font-bold hover:bg-rose-500/20 transition-all cursor-pointer">
+                刪除
+              </button>
             </div>
           </div>
 
-          <!-- PHS Credentials Card -->
-          <div class="rounded-2xl border border-white/5 bg-slate-900/30 p-5 space-y-4">
-            <div class="border-b border-white/5 pb-2.5 flex justify-between items-center">
-              <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">PHS 系統登入資料</span>
-              <span class="text-[10px] font-mono text-slate-600">PHS CREDENTIALS</span>
-            </div>
-            
-            <div class="space-y-3 font-mono text-sm">
-              <div class="flex items-center justify-between p-3 bg-slate-950/60 rounded-xl border border-white/[0.02]">
-                <span class="text-slate-500 w-12">帳號</span>
-                <span class="text-slate-200 font-bold flex-1 select-all truncate ml-2">{{ selected.phs_account || '—' }}</span>
-                <button v-if="selected.phs_account" @click="copy(selected.phs_account)" class="text-slate-600 hover:text-cyan-400 text-xs pl-2 cursor-pointer">📋</button>
+          <!-- Extension -->
+          <div v-if="selected.ext" class="p-4 rounded-2xl bg-slate-900/40 border border-white/5 flex items-center justify-between shadow-lg group hover:border-cyan-500/20 transition-all">
+            <div class="flex items-center gap-4">
+              <span class="text-lg">📞</span>
+              <div>
+                <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">院內聯絡分機</p>
+                <p class="text-3xl font-mono font-black text-cyan-400 mt-1 tracking-widest">{{ selected.ext }}</p>
               </div>
-              <div class="flex items-center justify-between p-3 bg-slate-950/60 rounded-xl border border-white/[0.02]">
-                <span class="text-slate-500 w-12">密碼</span>
-                <span class="text-slate-200 font-bold flex-1 select-all truncate ml-2">{{ selected.phs_password || '—' }}</span>
-                <button v-if="selected.phs_password" @click="copy(selected.phs_password)" class="text-slate-600 hover:text-cyan-400 text-xs pl-2 cursor-pointer">📋</button>
+            </div>
+            <button @click="copy(selected.ext)" class="text-xs font-bold px-3 py-1.5 bg-slate-800 border border-white/5 text-slate-400 hover:text-cyan-400 hover:border-cyan-500/20 rounded-xl transition-all cursor-pointer">
+              複製分機
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- HIS -->
+            <div class="rounded-2xl border border-white/5 bg-slate-900/30 p-5 space-y-4">
+              <div class="border-b border-white/5 pb-2.5 flex justify-between items-center">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">HIS 系統登入資料</span>
+                <span class="text-2xs font-mono text-slate-600">HIS CREDENTIALS</span>
+              </div>
+              <div class="space-y-3 font-mono text-sm">
+                <div class="flex items-center justify-between p-3 bg-slate-950/60 rounded-xl border border-white/[0.02]">
+                  <span class="text-slate-500 w-12">帳號</span>
+                  <span class="text-slate-200 font-bold flex-1 select-all truncate ml-2">{{ selected.his_account || '—' }}</span>
+                  <button v-if="selected.his_account" @click="copy(selected.his_account)" class="text-slate-600 hover:text-cyan-400 text-xs pl-2 cursor-pointer">📋</button>
+                </div>
+                <div class="flex items-center justify-between p-3 bg-slate-950/60 rounded-xl border border-white/[0.02]">
+                  <span class="text-slate-500 w-12">密碼</span>
+                  <span class="text-slate-200 font-bold flex-1 select-all truncate ml-2">{{ selected.his_password || '—' }}</span>
+                  <button v-if="selected.his_password" @click="copy(selected.his_password)" class="text-slate-600 hover:text-cyan-400 text-xs pl-2 cursor-pointer">📋</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- PHS -->
+            <div class="rounded-2xl border border-white/5 bg-slate-900/30 p-5 space-y-4">
+              <div class="border-b border-white/5 pb-2.5 flex justify-between items-center">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">PHS 系統登入資料</span>
+                <span class="text-2xs font-mono text-slate-600">PHS CREDENTIALS</span>
+              </div>
+              <div class="space-y-3 font-mono text-sm">
+                <div class="flex items-center justify-between p-3 bg-slate-950/60 rounded-xl border border-white/[0.02]">
+                  <span class="text-slate-500 w-12">帳號</span>
+                  <span class="text-slate-200 font-bold flex-1 select-all truncate ml-2">{{ selected.phs_account || '—' }}</span>
+                  <button v-if="selected.phs_account" @click="copy(selected.phs_account)" class="text-slate-600 hover:text-cyan-400 text-xs pl-2 cursor-pointer">📋</button>
+                </div>
+                <div class="flex items-center justify-between p-3 bg-slate-950/60 rounded-xl border border-white/[0.02]">
+                  <span class="text-slate-500 w-12">密碼</span>
+                  <span class="text-slate-200 font-bold flex-1 select-all truncate ml-2">{{ selected.phs_password || '—' }}</span>
+                  <button v-if="selected.phs_password" @click="copy(selected.phs_password)" class="text-slate-600 hover:text-cyan-400 text-xs pl-2 cursor-pointer">📋</button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Notes -->
-        <div v-if="selected.notes" class="p-5 rounded-2xl bg-slate-900/30 border border-white/5">
-          <p class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">備註說明 / 排班偏好</p>
-          <p class="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap font-sans">{{ selected.notes }}</p>
+          <!-- Notes -->
+          <div v-if="selected.notes" class="p-5 rounded-2xl bg-slate-900/30 border border-white/5">
+            <p class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">備註說明 / 排班偏好</p>
+            <p class="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap font-sans">{{ selected.notes }}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -452,7 +448,6 @@ async function saveForm() {
         <h2 class="text-slate-100 font-black text-sm uppercase tracking-wider border-b border-white/5 pb-2">
           {{ editTarget ? '⚙️ 編輯醫師基本檔案' : '✨ 新增醫師基本檔案' }}
         </h2>
-        
         <div class="grid grid-cols-2 gap-4">
           <div class="col-span-2">
             <label class="text-xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">醫師姓名 *</label>
@@ -491,7 +486,6 @@ async function saveForm() {
             <input v-model="form.notes" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-sm focus:outline-none focus:border-cyan-500/50" />
           </div>
         </div>
-        
         <div class="flex gap-3 justify-end pt-2 border-t border-white/5 bg-slate-900">
           <button @click="showAddModal = false" class="px-4 py-2 text-xs font-bold bg-slate-800 border border-white/5 text-slate-400 rounded-xl hover:bg-slate-700 hover:text-slate-200 transition-colors">取消</button>
           <button @click="saveForm" class="px-5 py-2 text-xs font-bold bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-500 hover:to-cyan-500 transition-all shadow-lg">儲存並寫入</button>
@@ -500,7 +494,7 @@ async function saveForm() {
     </div>
   </Teleport>
 
-  <!-- Toast notification -->
+  <!-- Toast -->
   <Teleport to="body">
     <Transition name="toast">
       <div v-if="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4.5 py-2.5 bg-slate-900 border border-white/10 text-slate-200 text-xs font-bold rounded-xl shadow-2xl z-[9999] pointer-events-none">

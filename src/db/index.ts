@@ -103,13 +103,13 @@ async function seedIfEmpty(db: Database) {
     );
   }
 
-  // ⑥ 病歷潤飾格式範本（首次建立）
+  // ⑥ 病歷潤飾格式範本（首次建立 or 遷移到 profile 架構）
   const ntRows = await db.select<{ c: number }[]>("SELECT COUNT(*) as c FROM note_templates");
   if (ntRows[0].c === 0) {
     for (const t of seedNoteTemplates) {
       await db.execute(
-        "INSERT OR IGNORE INTO note_templates (format_key, format_label, system_prompt, example) VALUES (?,?,?,?)",
-        [t.format_key, t.format_label, t.system_prompt, t.example]
+        "INSERT OR IGNORE INTO note_templates (format_key, profile, format_label, system_prompt, example) VALUES (?,?,?,?,?)",
+        [t.format_key, 'default', t.format_label, t.system_prompt, t.example]
       );
     }
   }
@@ -442,15 +442,38 @@ async function initSchema(db: Database) {
   await db.execute(`UPDATE physicians SET updated_at = datetime('now','localtime') WHERE updated_at IS NULL`);
   await db.execute(`UPDATE contacts   SET updated_at = datetime('now','localtime') WHERE updated_at IS NULL`);
 
-  // ── 病歷潤飾格式範本 ──────────────────────────────────────────
+  // ── 病歷潤飾格式範本（v2：加入 profile 欄位，複合主鍵）────────
   await db.execute(`
     CREATE TABLE IF NOT EXISTS note_templates (
-      format_key    TEXT PRIMARY KEY,
+      format_key    TEXT NOT NULL,
+      profile       TEXT NOT NULL DEFAULT 'default',
       format_label  TEXT NOT NULL,
       system_prompt TEXT NOT NULL DEFAULT '',
-      example       TEXT NOT NULL DEFAULT ''
+      example       TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (format_key, profile)
     );
   `);
+  // 舊版（format_key 為單一 PK）遷移至 v2 複合主鍵
+  try {
+    await db.select("SELECT profile FROM note_templates LIMIT 1");
+  } catch {
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS note_templates_v2 (
+        format_key    TEXT NOT NULL,
+        profile       TEXT NOT NULL DEFAULT 'default',
+        format_label  TEXT NOT NULL,
+        system_prompt TEXT NOT NULL DEFAULT '',
+        example       TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (format_key, profile)
+      )
+    `);
+    await db.execute(`
+      INSERT OR IGNORE INTO note_templates_v2 (format_key, profile, format_label, system_prompt, example)
+      SELECT format_key, 'default', format_label, system_prompt, example FROM note_templates
+    `);
+    await db.execute(`DROP TABLE note_templates`);
+    await db.execute(`ALTER TABLE note_templates_v2 RENAME TO note_templates`);
+  }
 
   // ── 病歷潤飾歷史記錄 ──────────────────────────────────────────
   await db.execute(`

@@ -107,15 +107,15 @@ function isDifferentSession(idx: number): boolean {
     <!-- ── Header ── -->
     <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-900 border-b border-gray-700 rounded-tl-xl shrink-0 flex-wrap gap-y-1">
       <span class="text-gray-400 font-semibold">Debug</span>
-      <span class="bg-gray-800 text-gray-500 rounded px-1.5 py-0.5 text-[10px]">{{ SESSION_ID }}</span>
-      <span class="text-gray-600 text-[10px]">Ctrl+Shift+D</span>
+      <span class="bg-gray-800 text-gray-500 rounded px-1.5 py-0.5 text-2xs">{{ SESSION_ID }}</span>
+      <span class="text-gray-600 text-2xs">Ctrl+Shift+D</span>
 
       <!-- 篩選 tabs -->
       <div class="flex gap-0.5 ml-1">
         <button v-for="(label, key) in ({ all:'全部', action:'操作', error:'錯誤', warn:'警告', info:'Info' } as Record<Filter,string>)"
           :key="key"
           @click="filter = key as Filter"
-          class="px-1.5 py-0.5 rounded text-[10px] transition-colors"
+          class="px-1.5 py-0.5 rounded text-2xs transition-colors"
           :class="filter === key
             ? 'bg-gray-600 text-white'
             : 'text-gray-600 hover:text-gray-400'">
@@ -124,9 +124,9 @@ function isDifferentSession(idx: number): boolean {
       </div>
 
       <div class="ml-auto flex items-center gap-1.5 flex-wrap">
-        <span v-if="exportMsg" class="text-green-400 text-[10px]">{{ exportMsg }}</span>
+        <span v-if="exportMsg" class="text-green-400 text-2xs">{{ exportMsg }}</span>
         <button @click="toggleHistory" :disabled="loadingHistory"
-          class="px-2 py-0.5 rounded text-[10px] transition-colors"
+          class="px-2 py-0.5 rounded text-2xs transition-colors"
           :class="showHistory ? 'bg-indigo-700 text-indigo-200' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'">
           {{ loadingHistory ? '載入中…' : showHistory ? '歷史 ▲' : '歷史 ▼' }}
         </button>
@@ -159,7 +159,7 @@ function isDifferentSession(idx: number): boolean {
             <!-- 時間 -->
             <span class="shrink-0 text-gray-600 mt-0.5 w-[62px]">{{ entry.time }}</span>
             <!-- Level badge -->
-            <span class="shrink-0 rounded px-1 py-0.5 text-[9px] leading-none mt-0.5 w-[42px] text-center"
+            <span class="shrink-0 rounded px-1 py-0.5 text-3xs leading-none mt-0.5 w-[42px] text-center"
               :class="levelClass[entry.level]">
               {{ entry.level === 'action' ? 'CLICK' : entry.level.toUpperCase() }}
             </span>
@@ -190,7 +190,7 @@ function isDifferentSession(idx: number): boolean {
         <!-- Session 分隔線 -->
         <div v-if="isDifferentSession(idx)" class="flex items-center gap-2 px-3 py-1 bg-gray-900/60">
           <div class="flex-1 h-px bg-gray-800"></div>
-          <span class="text-[9px] text-gray-700 shrink-0">session {{ filtered[idx+1]?.session }}</span>
+          <span class="text-3xs text-gray-700 shrink-0">session {{ filtered[idx+1]?.session }}</span>
           <div class="flex-1 h-px bg-gray-800"></div>
         </div>
       </template>

@@ -21,6 +21,7 @@ import {
   autoCloudSync,
 } from "@/composables/useXlsxSync";
 import { autoUpdatePassAhk } from "@/composables/usePassAhk";
+import { markLocalModified, pushTableToCloud } from "@/composables/useSyncMonitor";
 
 // ── 型別定義 ────────────────────────────────────────────────────
 interface Item {
@@ -899,6 +900,13 @@ async function saveItem() {
     await dbWrite("INSERT OR IGNORE INTO item_depts (hospital_code,dept) VALUES (?,?)", [f.hospital_code, dept]);
   }
   closeModal(); await loadAll();
+  await markLocalModified("items");
+  const gasUrl = useCloudSettings().gasUrl;
+  if (gasUrl) {
+    const db2 = await getDb();
+    const allItems = await db2.select("SELECT * FROM items");
+    pushTableToCloud("items", gasUrl, { action: "saveItems", data: allItems }, (allItems as any[]).length).catch(() => {});
+  }
 }
 async function deleteItem(row: Item) {
   await dbWrite("DELETE FROM items WHERE hospital_code=?", [row.hospital_code]);
@@ -929,6 +937,13 @@ async function savePhysician() {
   const syncMsg = await autoUpdatePassAhk();
   if (syncMsg) showToast("success", syncMsg);
   if (xlsxSyncPathRef.value) { exportToXlsx(); autoCloudSync(); }
+  await markLocalModified("physicians");
+  const gasUrlP = useCloudSettings().gasUrl;
+  if (gasUrlP) {
+    const db2 = await getDb();
+    const allPhys = await db2.select("SELECT * FROM physicians");
+    pushTableToCloud("physicians", gasUrlP, { action: "savePhysicians", data: allPhys }, (allPhys as any[]).length).catch(() => {});
+  }
 }
 async function saveInlinePhys() {
   const f  = editBuf.value;
@@ -944,6 +959,13 @@ async function saveInlinePhys() {
   const syncMsg = await autoUpdatePassAhk();
   if (syncMsg) showToast("success", syncMsg);
   if (xlsxSyncPathRef.value) { exportToXlsx(); autoCloudSync(); }
+  await markLocalModified("physicians");
+  const gasUrlP = useCloudSettings().gasUrl;
+  if (gasUrlP) {
+    const db2 = await getDb();
+    const allPhys = await db2.select("SELECT * FROM physicians");
+    pushTableToCloud("physicians", gasUrlP, { action: "savePhysicians", data: allPhys }, (allPhys as any[]).length).catch(() => {});
+  }
 }
 
 async function deletePhysician(row: Physician) {
@@ -976,7 +998,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
     <!-- ── 左側 Tab 列 ──────────────────────────────── -->
     <div class="flex flex-col w-48 shrink-0 border-r border-white/5 bg-slate-900/40 backdrop-blur-md py-4 gap-1 px-3">
       <div class="px-3 pb-3 mb-2 border-b border-white/5">
-        <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest font-mono">資料庫管理</span>
+        <span class="text-2xs font-black text-slate-500 uppercase tracking-widest font-mono">資料庫管理</span>
       </div>
       <button
         v-for="tab in tabs" :key="tab.key"
@@ -990,7 +1012,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
           <span class="text-base leading-none opacity-85">{{ tab.icon }}</span>
           <span>{{ tab.label }}</span>
         </span>
-        <span v-if="tab.count() > 0" class="text-[10px] font-mono font-bold bg-white/5 border border-white/5 text-slate-500 px-1.5 py-0.5 rounded-md">{{ tab.count() }}</span>
+        <span v-if="tab.count() > 0" class="text-2xs font-mono font-bold bg-white/5 border border-white/5 text-slate-500 px-1.5 py-0.5 rounded-md">{{ tab.count() }}</span>
       </button>
     </div>
 
@@ -1039,7 +1061,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
       <Transition name="slide-down">
         <div v-if="importResults"
           class="flex items-center gap-4 px-6 py-2.5 bg-indigo-500/5 border-b border-indigo-500/10 shrink-0 text-xs">
-          <span class="text-indigo-400 font-bold font-mono uppercase tracking-wider text-[10px]">匯入結果</span>
+          <span class="text-indigo-400 font-bold font-mono uppercase tracking-wider text-2xs">匯入結果</span>
           <span v-for="r in importResults" :key="r.sheet"
             class="flex items-center gap-1 text-slate-300 font-medium">
             <span class="text-emerald-400 font-mono font-bold">+{{ r.upserted }}</span>
@@ -1056,7 +1078,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         <div class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 shadow-2xl overflow-hidden">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="border-b border-white/10 bg-slate-900/50 text-slate-400 text-[10px] font-bold tracking-wider uppercase font-mono">
+              <tr class="border-b border-white/10 bg-slate-900/50 text-slate-400 text-2xs font-bold tracking-wider uppercase font-mono">
                 <th class="px-4 py-3">院內碼</th>
                 <th class="px-4 py-3">中文品名</th>
                 <th class="px-4 py-3">用途</th>
@@ -1075,12 +1097,12 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
                 <td class="px-4 py-2.5 text-slate-400 font-mono text-xs font-semibold">{{ m.hospital_code }}</td>
                 <td class="px-4 py-2.5 text-slate-200 text-xs font-bold">{{ m.name_zh || m.name_en || "—" }}</td>
                 <td class="px-4 py-2.5 text-xs">
-                  <span v-if="m.purpose" class="bg-teal-500/10 border border-teal-500/20 text-teal-400 px-2 py-0.5 rounded-lg text-[10px] font-bold font-mono">{{ m.purpose }}</span>
+                  <span v-if="m.purpose" class="bg-teal-500/10 border border-teal-500/20 text-teal-400 px-2 py-0.5 rounded-lg text-2xs font-bold font-mono">{{ m.purpose }}</span>
                   <span v-else class="text-slate-600">—</span>
                 </td>
                 <td class="px-4 py-2.5 text-xs">
                   <div class="flex flex-wrap gap-1">
-                    <span v-for="d in m.depts" :key="d" class="bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-lg text-[10px] font-bold">{{ d }}</span>
+                    <span v-for="d in m.depts" :key="d" class="bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-lg text-2xs font-bold">{{ d }}</span>
                     <span v-if="!m.depts.length" class="text-slate-600">—</span>
                   </div>
                 </td>
@@ -1104,7 +1126,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         <div class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 shadow-2xl overflow-hidden">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="border-b border-white/10 bg-slate-900/50 text-slate-400 text-[10px] font-bold tracking-wider uppercase font-mono">
+              <tr class="border-b border-white/10 bg-slate-900/50 text-slate-400 text-2xs font-bold tracking-wider uppercase font-mono">
                 <th class="px-4 py-3">姓名</th>
                 <th class="px-4 py-3">科別</th>
                 <th class="px-4 py-3">職稱</th>
@@ -1229,7 +1251,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               <div class="flex items-center justify-between mb-4 border-b border-amber-500/10 pb-2">
                 <span class="text-xs font-black text-amber-400 uppercase tracking-widest font-mono">▲ 1. 觸發情境 (Triggers)</span>
                 <button @click="protocolForm.triggers.push('')"
-                  class="text-[10px] font-bold bg-amber-500/10 border border-amber-500/20 text-amber-300 px-2 py-1 rounded-lg hover:bg-amber-500/20 transition-all cursor-pointer"
+                  class="text-2xs font-bold bg-amber-500/10 border border-amber-500/20 text-amber-300 px-2 py-1 rounded-lg hover:bg-amber-500/20 transition-all cursor-pointer"
                 >＋ 新增條件</button>
               </div>
               <div class="space-y-2">
@@ -1250,7 +1272,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               <div class="flex items-center justify-between mb-4 border-b border-rose-500/10 pb-2">
                 <span class="text-xs font-black text-rose-400 uppercase tracking-widest font-mono">⚡ 2. 立即處置 (Immediate Actions)</span>
                 <button @click="protocolForm.immediate_actions.push('')"
-                  class="text-[10px] font-bold bg-rose-500/10 border border-rose-500/20 text-rose-300 px-2 py-1 rounded-lg hover:bg-rose-500/20 transition-all cursor-pointer"
+                  class="text-2xs font-bold bg-rose-500/10 border border-rose-500/20 text-rose-300 px-2 py-1 rounded-lg hover:bg-rose-500/20 transition-all cursor-pointer"
                 >＋ 新增處置</button>
               </div>
               <div class="space-y-2">
@@ -1272,7 +1294,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               <div class="flex items-center justify-between mb-4 border-b border-indigo-500/10 pb-2">
                 <span class="text-xs font-black text-indigo-400 uppercase tracking-widest font-mono">💊 3. 關鍵藥物 (Critical Medications)</span>
                 <button @click="protocolForm.critical_meds.push({ name:'', dose:'', color:'blue' })"
-                  class="text-[10px] font-bold bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 px-2 py-1 rounded-lg hover:bg-indigo-500/20 transition-all cursor-pointer"
+                  class="text-2xs font-bold bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 px-2 py-1 rounded-lg hover:bg-indigo-500/20 transition-all cursor-pointer"
                 >＋ 新增藥物</button>
               </div>
               <div class="space-y-2">
@@ -1306,7 +1328,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               <div class="flex items-center justify-between mb-4 border-b border-emerald-500/10 pb-2">
                 <span class="text-xs font-black text-emerald-400 uppercase tracking-widest font-mono">⏱ 4. 循環計時器 (Timers)</span>
                 <button @click="protocolForm.timers.push({ label:'', seconds: 120 })"
-                  class="text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 px-2 py-1 rounded-lg hover:bg-emerald-500/20 transition-all cursor-pointer"
+                  class="text-2xs font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 px-2 py-1 rounded-lg hover:bg-emerald-500/20 transition-all cursor-pointer"
                 >＋ 新增計時</button>
               </div>
               <div class="space-y-2">
@@ -1332,7 +1354,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               <div class="flex items-center justify-between mb-4 border-b border-violet-500/10 pb-2">
                 <span class="text-xs font-black text-violet-400 uppercase tracking-widest font-mono">📞 5. 緊急通報分機 (Contacts)</span>
                 <button @click="protocolForm.contacts.push({ label:'', ext:'' })"
-                  class="text-[10px] font-bold bg-violet-500/10 border border-violet-500/20 text-violet-300 px-2 py-1 rounded-lg hover:bg-violet-500/20 transition-all cursor-pointer"
+                  class="text-2xs font-bold bg-violet-500/10 border border-violet-500/20 text-violet-300 px-2 py-1 rounded-lg hover:bg-violet-500/20 transition-all cursor-pointer"
                 >＋ 新增聯絡</button>
               </div>
               <div class="space-y-2">
@@ -1353,7 +1375,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
 
             <!-- Notes -->
             <div class="bg-slate-900/30 border border-white/5 rounded-2xl p-5">
-              <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest font-mono mb-2 block">備註資訊</label>
+              <label class="text-2xs font-black text-slate-400 uppercase tracking-widest font-mono mb-2 block">備註資訊</label>
               <textarea v-model="protocolForm.notes" rows="4"
                 class="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-white/5 focus:border-white/20 text-slate-200 text-xs font-medium focus:outline-none resize-none leading-relaxed transition-all"
                 placeholder="其他背景知識、藥物稀釋配方、診斷排除指引等資訊…" />
@@ -1382,7 +1404,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             <span class="text-lg">🗄️</span>
             <h3 class="font-bold text-slate-200 text-sm">資料庫實體備份 (.db 檔案)</h3>
           </div>
-          <p class="text-xs text-slate-400 leading-relaxed">下載或載入 MedBase 的主 SQLite 資料庫檔案 <code class="font-mono text-indigo-300 bg-slate-950 px-1.5 py-0.5 rounded text-[10px] border border-white/5">medbase.db</code>。此選項適用於完全遷移、手動硬碟備份。還原成功後，程式將自動重啟以載入新庫。</p>
+          <p class="text-xs text-slate-400 leading-relaxed">下載或載入 MedBase 的主 SQLite 資料庫檔案 <code class="font-mono text-indigo-300 bg-slate-950 px-1.5 py-0.5 rounded text-2xs border border-white/5">medbase.db</code>。此選項適用於完全遷移、手動硬碟備份。還原成功後，程式將自動重啟以載入新庫。</p>
           <div class="flex gap-3 pt-2">
             <button @click="backupDb" :disabled="dbBackingUp || dbRestoring"
               class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 border border-indigo-500/30 text-white text-xs font-bold hover:bg-indigo-500 transition-all disabled:opacity-40 cursor-pointer shadow-lg shadow-indigo-500/10">
@@ -1423,12 +1445,12 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               <div class="min-w-0 flex-1">
                 <div class="flex items-center justify-between text-xs text-slate-200 font-bold">
                   <span>{{ g.icon }} {{ g.label }}</span>
-                  <span v-if="groupCount(g) > 0" class="text-[10px] font-mono font-bold bg-white/5 border border-white/5 text-emerald-400 px-1.5 py-0.5 rounded">
+                  <span v-if="groupCount(g) > 0" class="text-2xs font-mono font-bold bg-white/5 border border-white/5 text-emerald-400 px-1.5 py-0.5 rounded">
                     {{ groupCount(g).toLocaleString() }} 筆
                   </span>
-                  <span v-else-if="Object.keys(tableMetaMap).length > 0" class="text-[10px] font-mono text-slate-600 px-1 py-0.5">空</span>
+                  <span v-else-if="Object.keys(tableMetaMap).length > 0" class="text-2xs font-mono text-slate-600 px-1 py-0.5">空</span>
                 </div>
-                <div class="text-[10px] text-slate-500 mt-1 font-medium">{{ g.desc }}</div>
+                <div class="text-2xs text-slate-500 mt-1 font-medium">{{ g.desc }}</div>
               </div>
             </label>
           </div>
@@ -1493,8 +1515,8 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
                 <span class="font-mono text-emerald-400 font-bold">{{ row.rows }} 筆</span>
               </div>
             </div>
-            <p class="text-[11px] text-slate-500 leading-relaxed">
-              * 系統將使用 <code class="font-mono bg-slate-950 px-1 py-0.5 text-slate-400 border border-white/5 rounded text-[10px]">INSERT OR REPLACE</code> 執行寫入，具有相同 ID 或主鍵的列將被<b>完全覆寫</b>。
+            <p class="text-[0.6875rem] text-slate-500 leading-relaxed">
+              * 系統將使用 <code class="font-mono bg-slate-950 px-1 py-0.5 text-slate-400 border border-white/5 rounded text-2xs">INSERT OR REPLACE</code> 執行寫入，具有相同 ID 或主鍵的列將被<b>完全覆寫</b>。
             </p>
             <!-- 進度條（匯入中才顯示） -->
             <div v-if="importingFull" class="w-full rounded-full bg-slate-950 border border-white/5 h-2 overflow-hidden">
@@ -1523,7 +1545,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             <h3 class="font-bold text-slate-200 text-sm">通訊錄雙軌即時同步 (.xlsx)</h3>
           </div>
           <p class="text-xs text-slate-400 leading-relaxed">
-            將此程式通訊錄資料庫與本地指定之 <code class="font-mono text-indigo-300 bg-slate-950 px-1.5 py-0.5 rounded text-[10px] border border-white/5">通訊錄.xlsx</code> 連結。對程式做出的任何通訊錄修改會同步回寫該 Excel；若 Excel 檔遭外部程式修改，MedBase 亦會自動偵測並重載，並即時推送 GAS 雲端表單以維持同步。
+            將此程式通訊錄資料庫與本地指定之 <code class="font-mono text-indigo-300 bg-slate-950 px-1.5 py-0.5 rounded text-2xs border border-white/5">通訊錄.xlsx</code> 連結。對程式做出的任何通訊錄修改會同步回寫該 Excel；若 Excel 檔遭外部程式修改，MedBase 亦會自動偵測並重載，並即時推送 GAS 雲端表單以維持同步。
           </p>
 
           <!-- 未綁定 -->
@@ -1547,8 +1569,8 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             <div class="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-slate-950 border border-white/5 text-xs">
               <span class="text-emerald-400 animate-pulse mt-0.5">●</span>
               <div class="space-y-1">
-                <div class="text-slate-500 font-bold uppercase tracking-wider text-[9px] font-mono">即時監控路徑</div>
-                <div class="text-slate-200 font-mono break-all font-bold text-[11px]">{{ xlsxSyncPath }}</div>
+                <div class="text-slate-500 font-bold uppercase tracking-wider text-3xs font-mono">即時監控路徑</div>
+                <div class="text-slate-200 font-mono break-all font-bold text-[0.6875rem]">{{ xlsxSyncPath }}</div>
               </div>
             </div>
             <div v-if="xlsxFormatSummary" class="px-4 py-2.5 rounded-xl bg-slate-950 border border-white/[0.03] text-xs text-slate-400 font-medium">
@@ -1620,10 +1642,10 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         </div>
 
         <!-- ③ 注意事項 -->
-        <div class="text-[10px] text-slate-600 space-y-1.5 px-2 py-4 border-t border-white/[0.02] font-medium leading-relaxed">
+        <div class="text-2xs text-slate-600 space-y-1.5 px-2 py-4 border-t border-white/[0.02] font-medium leading-relaxed">
           <p>• 模組備份 XLSX 的每個分頁 (Sheet) 名稱對應資料庫實體表名稱，方便手動用 Excel 大量編輯。</p>
           <p>• 還原匯入時系統會自動關閉外鍵檢查，並依賴資料相依拓撲順序寫入，確保不會觸發外鍵衝突。</p>
-          <p>• <span class="text-amber-500/80">班表參數設定</span>及帳號密碼，均儲存在「排班系統」模組的 <code class="font-mono bg-slate-950 px-1 py-0.5 rounded border border-white/5 text-[9px]">app_settings</code> 表中，備份排班資料時請務必勾選該群組。</p>
+          <p>• <span class="text-amber-500/80">班表參數設定</span>及帳號密碼，均儲存在「排班系統」模組的 <code class="font-mono bg-slate-950 px-1 py-0.5 rounded border border-white/5 text-3xs">app_settings</code> 表中，備份排班資料時請務必勾選該群組。</p>
           <p>• AHK 腳本的<span class="text-amber-500/80">硬碟實體檔案</span>不在 SQLite 資料庫備份範圍內，此處備份僅包含腳本的元資料、群組結構及關聯資訊。</p>
         </div>
 
@@ -1650,38 +1672,38 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         <div class="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">院內碼 *</label>
+              <label class="text-2xs font-bold text-slate-500 uppercase mb-1 block">院內碼 *</label>
               <input v-model="itemForm.hospital_code" :disabled="modalMode==='edit'"
                 class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-100 text-xs font-mono font-bold focus:outline-none focus:border-indigo-500/50 disabled:opacity-40 disabled:cursor-not-allowed"
                 placeholder="M1A01234" />
             </div>
             <div>
-              <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">計價單位</label>
+              <label class="text-2xs font-bold text-slate-500 uppercase mb-1 block">計價單位</label>
               <input v-model="itemForm.unit"
                 class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-100 text-xs font-medium focus:outline-none focus:border-indigo-500/50"
                 placeholder="個 / 支 / 組" />
             </div>
           </div>
           <div>
-            <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">中文品名</label>
+            <label class="text-2xs font-bold text-slate-500 uppercase mb-1 block">中文品名</label>
             <input v-model="itemForm.name_zh"
               class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-100 text-xs font-bold focus:outline-none focus:border-indigo-500/50"
               placeholder="請輸入中文品名..." />
           </div>
           <div>
-            <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">英文品名</label>
+            <label class="text-2xs font-bold text-slate-500 uppercase mb-1 block">英文品名</label>
             <input v-model="itemForm.name_en"
               class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-100 text-xs font-medium focus:outline-none focus:border-indigo-500/50"
               placeholder="English Name / Description..." />
           </div>
           <div>
-            <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">耗材用途分類</label>
+            <label class="text-2xs font-bold text-slate-500 uppercase mb-1 block">耗材用途分類</label>
             <input v-model="itemForm.purpose"
               class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-100 text-xs font-bold focus:outline-none focus:border-teal-500/50"
               placeholder="例如：止血劑 / Mesh人工網膜 / 骨釘" />
           </div>
           <div>
-            <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">適用科別（多科請用分號分隔，如：骨科;一般外科）</label>
+            <label class="text-2xs font-bold text-slate-500 uppercase mb-1 block">適用科別（多科請用分號分隔，如：骨科;一般外科）</label>
             <input
               :value="(itemForm as any).depts?.join(';') ?? ''"
               @input="(itemForm as any).depts = ($event.target as HTMLInputElement).value.split(';').map((s:string)=>s.trim()).filter(Boolean)"
@@ -1690,20 +1712,20 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">自費金額 (NTD)</label>
+              <label class="text-2xs font-bold text-slate-500 uppercase mb-1 block">自費金額 (NTD)</label>
               <input v-model.number="itemForm.price" type="number"
                 class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-100 text-xs font-mono font-bold focus:outline-none focus:border-indigo-500/50"
                 placeholder="0" />
             </div>
             <div>
-              <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">材料廠商名稱</label>
+              <label class="text-2xs font-bold text-slate-500 uppercase mb-1 block">材料廠商名稱</label>
               <input v-model="itemForm.supplier"
                 class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-100 text-xs font-medium focus:outline-none focus:border-indigo-500/50"
                 placeholder="進口商或供應商" />
             </div>
           </div>
           <div>
-            <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">備註資訊</label>
+            <label class="text-2xs font-bold text-slate-500 uppercase mb-1 block">備註資訊</label>
             <textarea v-model="itemForm.notes" rows="2"
               class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-100 text-xs font-medium focus:outline-none focus:border-indigo-500/50 resize-none leading-relaxed" />
           </div>
@@ -1724,13 +1746,13 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         <div class="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">姓名 *</label>
+              <label class="text-2xs font-bold text-slate-500 uppercase mb-1 block">姓名 *</label>
               <input v-model="physForm.name"
                 class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-100 text-xs font-bold focus:outline-none focus:border-indigo-500/50"
                 placeholder="王大明" />
             </div>
             <div>
-              <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">所屬科別</label>
+              <label class="text-2xs font-bold text-slate-500 uppercase mb-1 block">所屬科別</label>
               <input v-model="physForm.department"
                 class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-100 text-xs font-bold focus:outline-none focus:border-indigo-500/50"
                 placeholder="骨科 / 一般外科" />
@@ -1738,45 +1760,45 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">職稱 / 職等</label>
+              <label class="text-2xs font-bold text-slate-500 uppercase mb-1 block">職稱 / 職等</label>
               <input v-model="physForm.title"
                 class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-100 text-xs font-bold focus:outline-none focus:border-indigo-500/50"
                 placeholder="主治醫師 / 住院醫師" />
             </div>
             <div>
-              <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">院內電話分機</label>
+              <label class="text-2xs font-bold text-slate-500 uppercase mb-1 block">院內電話分機</label>
               <input v-model="physForm.ext"
                 class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-100 text-xs font-mono font-bold focus:outline-none focus:border-indigo-500/50"
                 placeholder="1234" />
             </div>
           </div>
           <div class="border-t border-white/5 pt-3">
-            <span class="text-[10px] font-bold text-slate-500 uppercase mb-3 block">資訊系統登入金鑰 (用於 AHK 自動登入)</span>
+            <span class="text-2xs font-bold text-slate-500 uppercase mb-3 block">資訊系統登入金鑰 (用於 AHK 自動登入)</span>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="text-[10px] font-bold text-slate-600 mb-1 block">HIS 醫療系統帳號</label>
+                <label class="text-2xs font-bold text-slate-600 mb-1 block">HIS 醫療系統帳號</label>
                 <input v-model="physForm.his_account"
                   class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-200 text-xs font-mono focus:outline-none focus:border-indigo-500/50" />
               </div>
               <div>
-                <label class="text-[10px] font-bold text-slate-600 mb-1 block">HIS 醫療系統密碼</label>
+                <label class="text-2xs font-bold text-slate-600 mb-1 block">HIS 醫療系統密碼</label>
                 <input v-model="physForm.his_password" type="password"
                   class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-200 text-xs font-mono focus:outline-none focus:border-indigo-500/50" />
               </div>
               <div>
-                <label class="text-[10px] font-bold text-slate-600 mb-1 block">PHS 通訊系統帳號</label>
+                <label class="text-2xs font-bold text-slate-600 mb-1 block">PHS 通訊系統帳號</label>
                 <input v-model="physForm.phs_account"
                   class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-200 text-xs font-mono focus:outline-none focus:border-indigo-500/50" />
               </div>
               <div>
-                <label class="text-[10px] font-bold text-slate-600 mb-1 block">PHS 通訊系統密碼</label>
+                <label class="text-2xs font-bold text-slate-600 mb-1 block">PHS 通訊系統密碼</label>
                 <input v-model="physForm.phs_password" type="password"
                   class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-200 text-xs font-mono focus:outline-none focus:border-indigo-500/50" />
               </div>
             </div>
           </div>
           <div>
-            <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">備註說明</label>
+            <label class="text-2xs font-bold text-slate-500 uppercase mb-1 block">備註說明</label>
             <textarea v-model="physForm.notes" rows="2"
               class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-100 text-xs font-medium focus:outline-none focus:border-indigo-500/50 resize-none leading-relaxed" />
           </div>
@@ -1801,7 +1823,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         <div class="flex items-center justify-between px-6 py-4 border-b border-white/5 shrink-0">
           <div>
             <h3 class="font-bold text-slate-100 text-sm">自費耗材批次快速輸入</h3>
-            <p class="text-[10px] text-slate-500 mt-1 font-medium">填入多筆品項後一次性儲存。院內碼為必要識別欄，若院內碼已存在則會自動略過避免重疊。</p>
+            <p class="text-2xs text-slate-500 mt-1 font-medium">填入多筆品項後一次性儲存。院內碼為必要識別欄，若院內碼已存在則會自動略過避免重疊。</p>
           </div>
           <button @click="showBatchAdd = false" class="text-slate-500 hover:text-slate-300 text-lg leading-none cursor-pointer">✕</button>
         </div>
@@ -1810,7 +1832,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         <div class="flex-1 overflow-auto px-4 py-2">
           <table class="w-full text-xs text-left border-collapse">
             <thead class="sticky top-0 bg-slate-900 z-10 border-b border-white/10">
-              <tr class="text-slate-500 text-[10px] font-bold tracking-wider uppercase font-mono">
+              <tr class="text-slate-500 text-2xs font-bold tracking-wider uppercase font-mono">
                 <th class="px-3 py-3 w-32">院內碼 *</th>
                 <th class="px-3 py-3">中文品名</th>
                 <th class="px-3 py-3 w-36">用途分類</th>

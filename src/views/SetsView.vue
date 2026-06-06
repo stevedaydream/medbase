@@ -3,6 +3,8 @@ import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { setGlobalSyncing } from "@/composables/useCloudSync";
+import { markLocalModified, saveSyncTimestamp } from "@/composables/useSyncMonitor";
+import { useLogger } from "@/composables/useLogger";
 
 // ── 型別 ────────────────────────────────────────────────────────
 interface Physician { id: number; name: string; department: string | null; is_vs: number; }
@@ -68,6 +70,8 @@ async function saveRename() {
     const idx = sets.value.findIndex(s => s.id === activeSet.value!.id);
     if (idx >= 0) sets.value[idx] = { ...sets.value[idx], name: newName };
     toast("套組名稱已更新");
+    await markLocalModified("sets");
+    pushToCloud().catch(() => {});
   } catch (e) { toast(`更新失敗：${(e as Error).message}`); }
 }
 
@@ -191,6 +195,8 @@ async function saveSet() {
       if (updated) activeSet.value = updated;
     }
     toast(wasEdit ? "套組已更新" : "套組已新增");
+    await markLocalModified("sets");
+    pushToCloud().catch(() => {});
   } catch (e) { toast(`儲存失敗：${(e as Error).message}`); }
 }
 
@@ -319,14 +325,20 @@ async function pushToCloud() {
       .filter(p => physIdSet.has(p.id))
       .map(p => ({ id: p.id, name: p.name, department: p.department || "", title: (p as any).title || "" }));
 
-    await fetch(cloud.gasUrl, {
+    const pushRes = await fetch(cloud.gasUrl, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "saveSets", sets: mergedSets, setItems: mergedSetItems, physicians: referencedPhysicians }),
-      mode: "no-cors",
     });
+    const pushJson = await pushRes.json();
+    if (!pushJson.ok) throw new Error(pushJson.error ?? "GAS 錯誤");
     toast(`已上傳至雲端（新增 ${addCount}、更新 ${updateCount} 個套組）`);
-  } catch (e) { toast(`上傳失敗：${(e as Error).message}`); }
+    await saveSyncTimestamp("sets");
+    useLogger().addLog("info", `[雲端同步] push 套組 — 新增 ${addCount}、更新 ${updateCount} 筆`, JSON.stringify({ table: "sets", action: "push", timestamp: new Date().toISOString() }));
+  } catch (e) {
+    toast(`上傳失敗：${(e as Error).message}`);
+    useLogger().addLog("warn", "[雲端同步] push 套組 失敗", String(e));
+  }
   finally { isSyncing.value = false; setGlobalSyncing("sets", false); }
 }
 
@@ -369,15 +381,21 @@ async function overwriteSetToCloud() {
       .filter(p => physIdSet.has(p.id))
       .map(p => ({ id: p.id, name: p.name, department: p.department || "", title: (p as any).title || "" }));
 
-    await fetch(cloud.gasUrl, {
+    const ovRes = await fetch(cloud.gasUrl, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "saveSets", sets: newSets, setItems: newSetItems, physicians: referencedPhysicians }),
-      mode: "no-cors",
     });
+    const ovJson = await ovRes.json();
+    if (!ovJson.ok) throw new Error(ovJson.error ?? "GAS 錯誤");
     showOverwriteConfirm.value = false;
     toast(`「${localSet.name}」已覆蓋上傳至雲端`);
-  } catch (e) { toast(`覆蓋失敗：${(e as Error).message}`); }
+    await saveSyncTimestamp("sets");
+    useLogger().addLog("info", `[雲端同步] overwrite 套組「${localSet.name}」`, JSON.stringify({ table: "sets", action: "push", timestamp: new Date().toISOString() }));
+  } catch (e) {
+    toast(`覆蓋失敗：${(e as Error).message}`);
+    useLogger().addLog("warn", "[雲端同步] overwrite 套組 失敗", String(e));
+  }
   finally { isSyncing.value = false; setGlobalSyncing("sets", false); }
 }
 
@@ -577,7 +595,7 @@ async function doDelete() {
           <div class="px-2 pt-2.5 pb-1.5 flex items-center gap-2 sticky top-0 bg-slate-950/20 backdrop-blur-sm z-[2]">
             <span class="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse shrink-0"></span>
             <span class="text-xs font-black text-slate-200 tracking-wide truncate flex-1">{{ group.name }}</span>
-            <span class="text-[9px] font-mono font-bold text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-white/5">{{ group.items.length }}</span>
+            <span class="text-3xs font-mono font-bold text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-white/5">{{ group.items.length }}</span>
           </div>
           <!-- 套組項目 -->
           <div class="space-y-1 mt-1 pl-3.5 border-l border-white/5">
@@ -636,13 +654,13 @@ async function doDelete() {
               </template>
             </div>
             <div class="flex items-center gap-2.5 mt-2 flex-wrap">
-              <span v-if="activeSet.phys_name" class="text-[10px] font-bold bg-slate-900 border border-white/5 text-slate-400 px-2 py-0.5 rounded-full">👨‍⚕️ {{ activeSet.phys_name }}</span>
-              <span v-if="activeSet.surgery_type" class="text-[10px] font-bold bg-violet-500/10 border border-violet-500/20 text-violet-400 px-2 py-0.5 rounded-full">🔪 {{ activeSet.surgery_type }}</span>
-              <span v-if="activeSet.notes" class="text-[10px] text-slate-500 italic max-w-sm truncate">{{ activeSet.notes }}</span>
+              <span v-if="activeSet.phys_name" class="text-2xs font-bold bg-slate-900 border border-white/5 text-slate-400 px-2 py-0.5 rounded-full">👨‍⚕️ {{ activeSet.phys_name }}</span>
+              <span v-if="activeSet.surgery_type" class="text-2xs font-bold bg-violet-500/10 border border-violet-500/20 text-violet-400 px-2 py-0.5 rounded-full">🔪 {{ activeSet.surgery_type }}</span>
+              <span v-if="activeSet.notes" class="text-2xs text-slate-500 italic max-w-sm truncate">{{ activeSet.notes }}</span>
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
-            <span class="text-[10px] font-bold font-mono text-slate-500 mr-2 bg-slate-950 px-2 py-1 border border-white/5 rounded-lg">
+            <span class="text-2xs font-bold font-mono text-slate-500 mr-2 bg-slate-950 px-2 py-1 border border-white/5 rounded-lg">
               {{ setItems.filter(i => !i.is_optional).length }} 必用 /
               {{ setItems.filter(i => i.is_optional).length }} PRN
             </span>
@@ -665,7 +683,7 @@ async function doDelete() {
         <div class="flex-1 overflow-auto custom-scrollbar">
           <table class="w-full text-xs border-collapse">
             <thead class="sticky top-0 bg-slate-900 border-b border-white/5 z-10">
-              <tr class="text-slate-400 text-[10px] font-black uppercase tracking-widest font-mono">
+              <tr class="text-slate-400 text-2xs font-black uppercase tracking-widest font-mono">
                 <th class="text-left px-5 py-4 font-bold">院內碼</th>
                 <th class="text-left px-5 py-4 font-bold">品名</th>
                 <th class="text-center px-4 py-4 font-bold w-28">數量</th>
@@ -722,7 +740,7 @@ async function doDelete() {
 
         <!-- 底部：小計 -->
         <div v-if="setItems.length > 0"
-          class="flex items-center justify-end gap-5 px-6 py-4.5 border-t border-white/5 bg-slate-950/20 text-[10px] font-bold font-mono text-slate-500 shrink-0">
+          class="flex items-center justify-end gap-5 px-6 py-4.5 border-t border-white/5 bg-slate-950/20 text-2xs font-bold font-mono text-slate-500 shrink-0">
           <span>必用 {{ setItems.filter(i=>!i.is_optional).length }} 項</span>
           <span class="text-slate-600">PRN {{ setItems.filter(i=>i.is_optional).length }} 項（未計費）</span>
           <span class="text-xs font-mono text-emerald-400 font-black tracking-wide bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-lg">
@@ -746,7 +764,7 @@ async function doDelete() {
         <div class="px-5 py-4 space-y-4">
           <!-- 醫師 -->
           <div>
-            <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">主治醫師</label>
+            <label class="text-2xs font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">主治醫師</label>
             <div class="relative">
               <select v-model="setForm.physician_id" @change="updateSetName"
                 class="w-full pl-3 pr-8 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-bold appearance-none cursor-pointer">
@@ -762,24 +780,24 @@ async function doDelete() {
                   </option>
                 </optgroup>
               </select>
-              <span class="absolute right-3 top-2.5 text-[9px] text-slate-500 pointer-events-none">▼</span>
+              <span class="absolute right-3 top-2.5 text-3xs text-slate-500 pointer-events-none">▼</span>
             </div>
           </div>
           <!-- 術式 -->
           <div>
-            <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">術式名稱</label>
+            <label class="text-2xs font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">術式名稱</label>
             <input v-model="setForm.surgery_type" @input="updateSetName" placeholder="如 TKR / THR / 肩關節鏡…"
               class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
           </div>
           <!-- 套組名稱 -->
           <div>
-            <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">套組顯示名稱 *</label>
+            <label class="text-2xs font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">套組顯示名稱 *</label>
             <input v-model="setForm.name" placeholder="系統自動產生，或手動覆寫"
               class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
           </div>
           <!-- 備註 -->
           <div>
-            <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">備註說明</label>
+            <label class="text-2xs font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">備註說明</label>
             <input v-model="setForm.notes" placeholder="其他配製或備註"
               class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
           </div>
@@ -805,7 +823,7 @@ async function doDelete() {
         <div class="px-5 py-4 space-y-4">
           <!-- 品項搜尋 -->
           <div class="relative">
-            <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">搜尋品項（院內碼 / 中文 / 英文）</label>
+            <label class="text-2xs font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">搜尋品項（院內碼 / 中文 / 英文）</label>
             <input v-model="itemSearch" placeholder="請輸入院內碼或自費品名搜尋…"
               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
             <!-- 建議下拉 -->
@@ -831,7 +849,7 @@ async function doDelete() {
           <!-- 數量 + PRN -->
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">數量</label>
+              <label class="text-2xs font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">數量</label>
               <input v-model.number="itemForm.quantity" type="number" min="1"
                 class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-mono font-bold" />
             </div>
@@ -845,7 +863,7 @@ async function doDelete() {
           </div>
           <!-- 備註 -->
           <div>
-            <label class="text-[10px] font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">備註說明</label>
+            <label class="text-2xs font-black text-slate-500 uppercase tracking-wider font-mono mb-1.5 block">備註說明</label>
             <input v-model="itemForm.notes" placeholder="e.g. 特殊指名才使用 / 次要選擇…"
               class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
           </div>

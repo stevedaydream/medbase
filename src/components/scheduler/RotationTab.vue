@@ -517,7 +517,7 @@ onMounted(() => { scrollToActive() })
                 <span class="font-mono text-gray-500 text-xs">{{ item.code }}</span>
                 <span class="text-xs truncate max-w-[4.5rem] text-center"
                   :class="isNextRange(item.idx) ? 'text-blue-100' : 'text-gray-200'">{{ item.name }}</span>
-                <span v-if="item.idx === nextPickIdx" class="text-[10px] text-blue-400 mt-0.5">▶</span>
+                <span v-if="item.idx === nextPickIdx" class="text-2xs text-blue-400 mt-0.5">▶</span>
               </div>
             </div>
 

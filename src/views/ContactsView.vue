@@ -4,6 +4,8 @@ import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { setGlobalSyncing } from "@/composables/useCloudSync";
 import { exportToXlsx, autoCloudSync, xlsxPath } from "@/composables/useXlsxSync";
+import { markLocalModified, saveSyncTimestamp } from "@/composables/useSyncMonitor";
+import { useLogger } from "@/composables/useLogger";
 
 interface Contact {
   id: number;
@@ -199,6 +201,8 @@ async function save() {
   await load();
   showToast(modalMode.value === "add" ? "已新增" : "已儲存");
   if (xlsxPath.value) { exportToXlsx(); autoCloudSync(); }
+  await markLocalModified("contacts");
+  pushToCloud().catch(() => {});
 }
 
 // ── 雲端同步 ─────────────────────────────────────────────────────
@@ -214,8 +218,11 @@ async function pushToCloud() {
     const json = await res.json();
     if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
     showToast(`已上傳 ${contacts.value.length} 筆至雲端`);
+    await saveSyncTimestamp("contacts");
+    useLogger().addLog("info", `[雲端同步] push 常用分機 — ${contacts.value.length} 筆`, JSON.stringify({ table: "contacts", action: "push", timestamp: new Date().toISOString() }));
   } catch (e) {
     showToast(`上傳失敗：${(e as Error).message}`);
+    useLogger().addLog("warn", "[雲端同步] push 常用分機 失敗", String(e));
   } finally { isSyncing.value = false; setGlobalSyncing("contacts", false); }
 }
 
@@ -304,7 +311,7 @@ async function doDelete() {
       <button
         v-for="cat in categories" :key="cat"
         @click="catFilter = cat"
-        class="px-4 py-1.5 rounded-full text-[10px] font-bold tracking-wide uppercase transition-all whitespace-nowrap border cursor-pointer"
+        class="px-4 py-1.5 rounded-full text-2xs font-bold tracking-wide uppercase transition-all whitespace-nowrap border cursor-pointer"
         :class="catFilter === cat
           ? 'bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border-cyan-500/30 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.05)]'
           : 'bg-slate-950/40 border-white/5 text-slate-500 hover:text-slate-300 hover:bg-slate-900/60'"
@@ -318,15 +325,15 @@ async function doDelete() {
       <div v-if="filtered.length === 0" class="text-center py-20 rounded-2xl border border-dashed border-white/5 bg-slate-900/10">
         <div class="text-4xl mb-3 opacity-20">📞</div>
         <p class="text-slate-500 text-xs font-medium uppercase tracking-wider">No contacts found</p>
-        <p class="text-slate-600 text-[10px] font-mono mt-1">Press "+ 新增分機" to create a new directory record</p>
+        <p class="text-slate-600 text-2xs font-mono mt-1">Press "+ 新增分機" to create a new directory record</p>
       </div>
 
       <!-- Categories dossier -->
       <div v-for="[cat, items] in grouped" :key="cat" class="space-y-3">
         <!-- Section divider label -->
         <div class="flex items-center gap-2.5">
-          <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{{ cat }}</span>
-          <span class="text-[9px] text-slate-600 font-mono border border-white/5 px-2 py-0.5 rounded-md bg-white/[0.01]">{{ items.length }}</span>
+          <span class="text-2xs font-bold text-slate-500 uppercase tracking-widest">{{ cat }}</span>
+          <span class="text-3xs text-slate-600 font-mono border border-white/5 px-2 py-0.5 rounded-md bg-white/[0.01]">{{ items.length }}</span>
           <div class="flex-1 border-t border-white/5"></div>
         </div>
 
@@ -340,8 +347,8 @@ async function doDelete() {
             <div class="flex items-start justify-between gap-3">
               <span class="text-xs font-bold text-slate-200 tracking-wide leading-normal">{{ c.label }}</span>
               <div class="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all shrink-0">
-                <button @click="openEdit(c)" class="text-[10px] font-bold px-2 py-1 rounded bg-slate-800 border border-white/5 text-slate-400 hover:text-cyan-400 hover:border-cyan-500/20 transition-all cursor-pointer">編輯</button>
-                <button @click="confirmDelete(c)" class="text-[10px] font-bold px-2 py-1 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 transition-all cursor-pointer">刪除</button>
+                <button @click="openEdit(c)" class="text-2xs font-bold px-2 py-1 rounded bg-slate-800 border border-white/5 text-slate-400 hover:text-cyan-400 hover:border-cyan-500/20 transition-all cursor-pointer">編輯</button>
+                <button @click="confirmDelete(c)" class="text-2xs font-bold px-2 py-1 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 transition-all cursor-pointer">刪除</button>
               </div>
             </div>
 
@@ -354,11 +361,11 @@ async function doDelete() {
               >
                 <span>📞</span> {{ c.ext }}
               </button>
-              <span class="text-[8px] font-bold text-slate-600 uppercase tracking-widest pointer-events-none">COPY</span>
+              <span class="text-[0.5rem] font-bold text-slate-600 uppercase tracking-widest pointer-events-none">COPY</span>
             </div>
 
             <!-- Notes -->
-            <p v-if="c.notes" class="mt-2.5 text-[10px] text-slate-500 font-sans truncate leading-normal" :title="c.notes">{{ c.notes }}</p>
+            <p v-if="c.notes" class="mt-2.5 text-2xs text-slate-500 font-sans truncate leading-normal" :title="c.notes">{{ c.notes }}</p>
           </div>
         </div>
       </div>
@@ -382,25 +389,25 @@ async function doDelete() {
         <!-- Form -->
         <div class="px-5 py-4 space-y-3.5">
           <div>
-            <label class="text-[10px] font-bold text-slate-500 mb-1 block uppercase tracking-wide">名稱 *</label>
+            <label class="text-2xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">名稱 *</label>
             <input v-model="form.label" autofocus
               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-cyan-500/50"
               placeholder="護理站、值班室、藥局…" />
           </div>
           <div>
-            <label class="text-[10px] font-bold text-slate-500 mb-1 block uppercase tracking-wide">分機號碼 *</label>
+            <label class="text-2xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">分機號碼 *</label>
             <input v-model="form.ext"
               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs font-mono focus:outline-none focus:border-cyan-500/50"
               placeholder="12345" />
           </div>
           <div>
-            <label class="text-[10px] font-bold text-slate-500 mb-1 block uppercase tracking-wide">類別分類</label>
+            <label class="text-2xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">類別分類</label>
             <input v-model="form.category"
               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-cyan-500/50"
               placeholder="常用分機" />
           </div>
           <div>
-            <label class="text-[10px] font-bold text-slate-500 mb-1 block uppercase tracking-wide">備註說明</label>
+            <label class="text-2xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">備註說明</label>
             <input v-model="form.notes"
               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-cyan-500/50"
               placeholder="選填說明" />

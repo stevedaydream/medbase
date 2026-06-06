@@ -3,6 +3,7 @@ import { ref, watch, onMounted, onUnmounted } from "vue";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { useUiSettings, FONT_SIZE_LABELS, type FontSize } from "@/stores/uiSettings";
+import { checkCloudVersions, requestImmediateSync } from "@/composables/useSyncMonitor";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { getVersion } from "@tauri-apps/api/app";
@@ -297,6 +298,55 @@ async function handleSettingsImport(e: Event) {
   }
 }
 
+// ── 雲端同步排程 ─────────────────────────────────────────────────────────
+interface SyncWindow { from: string; to: string; }
+const syncWindows      = ref<SyncWindow[]>([]);
+const syncIntervalHours = ref(0);
+const isSavingSchedule = ref(false);
+const isCheckingVersions = ref(false);
+const isTriggeringSync = ref(false);
+
+onMounted(async () => {
+  try {
+    const db = await getDb();
+    const wRows = await db.select<{ value: string }[]>("SELECT value FROM app_settings WHERE key=?", ["sync_schedule_windows"]);
+    if (wRows[0]?.value) syncWindows.value = JSON.parse(wRows[0].value) as SyncWindow[];
+    const iRows = await db.select<{ value: string }[]>("SELECT value FROM app_settings WHERE key=?", ["sync_interval_hours"]);
+    if (iRows[0]?.value) syncIntervalHours.value = Number(iRows[0].value) || 0;
+  } catch { /* first launch */ }
+});
+
+async function saveSyncSchedule() {
+  isSavingSchedule.value = true;
+  try {
+    const db = await getDb();
+    await db.execute("INSERT OR REPLACE INTO app_settings (key,value) VALUES (?,?)", ["sync_schedule_windows", JSON.stringify(syncWindows.value)]);
+    await db.execute("INSERT OR REPLACE INTO app_settings (key,value) VALUES (?,?)", ["sync_interval_hours", String(syncIntervalHours.value)]);
+    showToast("同步排程已儲存");
+  } catch (e) { showToast(`儲存失敗：${(e as Error).message}`); }
+  finally { isSavingSchedule.value = false; }
+}
+
+function addSyncWindow() { syncWindows.value.push({ from: "07:00", to: "07:30" }); }
+function removeSyncWindow(i: number) { syncWindows.value.splice(i, 1); }
+
+async function triggerCheckVersions() {
+  if (!cloud.gasUrl) { showToast("請先填入 GAS Web App URL"); return; }
+  isCheckingVersions.value = true;
+  try {
+    const pending = await checkCloudVersions(cloud.gasUrl);
+    showToast(pending.length ? `偵測到 ${pending.length} 個資料表有更新` : "雲端資料已是最新");
+  } catch (e) { showToast(`檢查失敗：${(e as Error).message}`); }
+  finally { isCheckingVersions.value = false; }
+}
+
+function triggerFullSync() {
+  if (!cloud.gasUrl) { showToast("請先填入 GAS Web App URL"); return; }
+  isTriggeringSync.value = true;
+  requestImmediateSync();
+  setTimeout(() => { isTriggeringSync.value = false; showToast("同步已觸發，將在背景執行"); }, 500);
+}
+
 // ── Save ──────────────────────────────────────────────────────────────
 async function saveSettings() {
   const db = await getDb();
@@ -393,45 +443,45 @@ async function pullSettingsFromCloud() {
       class="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-white/5 bg-slate-900/40 backdrop-blur-md text-slate-400 text-xs select-none cursor-default w-fit shadow-md">
       <span>🔒</span>
       <span class="font-bold">系統管理員參數設定（已鎖定）</span>
-      <span class="text-[10px] text-slate-600 font-medium">(快速鍵 Ctrl+Shift+L 解鎖)</span>
+      <span class="text-2xs text-slate-600 font-medium">(快速鍵 Ctrl+Shift+L 解鎖)</span>
     </div>
 
     <section v-if="adminUnlocked" class="space-y-4">
       <div class="flex items-center justify-between">
         <h2 class="flex items-center gap-2.5 text-xs font-black text-slate-400 uppercase tracking-widest font-mono">
           <span>⚙️</span> 班表資料串接與後端設定
-          <span class="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 shadow-[0_0_10px_rgba(245,158,11,0.05)]">管理員模式</span>
+          <span class="text-3xs font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 shadow-[0_0_10px_rgba(245,158,11,0.05)]">管理員模式</span>
         </h2>
-        <button @click="adminUnlocked = false" class="text-[10px] text-slate-500 hover:text-slate-300 font-bold cursor-pointer">🔒 鎖定設定</button>
+        <button @click="adminUnlocked = false" class="text-2xs text-slate-500 hover:text-slate-300 font-bold cursor-pointer">🔒 鎖定設定</button>
       </div>
 
       <div class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 p-6 shadow-xl space-y-4">
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">主試算表 ID (Google Spreadsheet ID)</label>
+            <label class="block text-2xs font-bold text-slate-500 uppercase mb-1">主試算表 ID (Google Spreadsheet ID)</label>
             <input v-model="cloud.spreadsheetId" placeholder="請輸入試算表 ID..."
               class="w-full text-xs px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 font-mono outline-none focus:border-indigo-500/50" />
           </div>
           <div>
-            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">Google API Key (金鑰憑證)</label>
+            <label class="block text-2xs font-bold text-slate-500 uppercase mb-1">Google API Key (金鑰憑證)</label>
             <input v-model="cloud.apiKey" type="password" placeholder="請輸入 API Key..."
               class="w-full text-xs px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 font-mono outline-none focus:border-indigo-500/50" />
           </div>
           <div>
-            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">GAS Web App URL (回寫閘道連結)</label>
+            <label class="block text-2xs font-bold text-slate-500 uppercase mb-1">GAS Web App URL (回寫閘道連結)</label>
             <input v-model="cloud.gasUrl" placeholder="https://script.google.com/macros/s/.../exec"
               class="w-full text-xs px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 font-mono outline-none focus:border-indigo-500/50" />
           </div>
           <div>
-            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">班表 Sheet 分頁前綴</label>
+            <label class="block text-2xs font-bold text-slate-500 uppercase mb-1">班表 Sheet 分頁前綴</label>
             <input v-model="sheetPrefix" placeholder="Schedule_"
               class="w-full text-xs px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 font-mono outline-none focus:border-indigo-500/50" />
           </div>
           <div class="col-span-2">
-            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">獨立班表試算表 ID（留空則寫入上方主試算表）</label>
+            <label class="block text-2xs font-bold text-slate-500 uppercase mb-1">獨立班表試算表 ID（留空則寫入上方主試算表）</label>
             <input v-model="cloud.scheduleSpreadsheetId" placeholder="選填：指定寫入專屬的月度班表 Excel 檔案"
               class="w-full text-xs px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 font-mono outline-none focus:border-indigo-500/50" />
-            <p class="text-[10px] text-slate-500 mt-1 font-medium">指定後，排班系統將自動將 <span class="font-mono text-slate-400">Schedule_YYYYMM</span> 分頁寫入此處；請確保 GAS URL 的 Google 帳號擁有編輯權限。</p>
+            <p class="text-2xs text-slate-500 mt-1 font-medium">指定後，排班系統將自動將 <span class="font-mono text-slate-400">Schedule_YYYYMM</span> 分頁寫入此處；請確保 GAS URL 的 Google 帳號擁有編輯權限。</p>
           </div>
         </div>
 
@@ -592,11 +642,11 @@ async function pullSettingsFromCloud() {
         <div class="flex items-center gap-2.5">
           <p class="text-xs text-slate-300 font-bold">Gemini API Access Token</p>
           <span v-if="geminiKeySet"
-            class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.05)]">
+            class="text-3xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.05)]">
             授權有效 ✓
           </span>
           <span v-else
-            class="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-800 border border-white/5 text-slate-500">
+            class="text-3xs font-bold px-2 py-0.5 rounded-full bg-slate-800 border border-white/5 text-slate-500">
             尚未填寫
           </span>
         </div>
@@ -613,7 +663,7 @@ async function pullSettingsFromCloud() {
             清除金鑰
           </button>
         </div>
-        <p class="text-[10px] text-slate-500 leading-relaxed font-medium">
+        <p class="text-2xs text-slate-500 leading-relaxed font-medium">
           此 API 金鑰僅會安全儲存於本機資料庫中，用於「病歷潤飾」功能時調用 Gemini 模型。您可以免費前往
           <a href="https://aistudio.google.com/" target="_blank" class="text-indigo-400 hover:text-indigo-300 underline font-bold">Google AI Studio</a>
           申請個人專屬的免費額度 API Key。
@@ -628,7 +678,7 @@ async function pullSettingsFromCloud() {
       <!-- 目前版本 + 檢查按鈕 -->
       <div class="flex items-center gap-6 p-5 bg-slate-950 rounded-2xl border border-white/5 shadow-md">
         <div class="flex-1">
-          <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider font-mono mb-1">目前安裝版本</p>
+          <p class="text-2xs font-bold text-slate-500 uppercase tracking-wider font-mono mb-1">目前安裝版本</p>
           <p class="text-2xl font-black text-slate-200 font-mono tracking-wider">v{{ APP_VERSION }}</p>
         </div>
         <div class="flex flex-col items-end gap-1.5 shrink-0">
@@ -636,7 +686,7 @@ async function pullSettingsFromCloud() {
             class="text-xs px-4 py-2 bg-indigo-600 border border-indigo-500/30 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl font-bold cursor-pointer transition-all shadow-lg shadow-indigo-500/10">
             {{ updateChecking ? '正在線上搜檢…' : '檢查線上更新' }}
           </button>
-          <p class="text-[10px] text-slate-600 font-medium">系統將比對 GitHub Releases 最新發佈</p>
+          <p class="text-2xs text-slate-600 font-medium">系統將比對 GitHub Releases 最新發佈</p>
         </div>
       </div>
 
@@ -659,9 +709,9 @@ async function pullSettingsFromCloud() {
       <div class="space-y-4">
         <div class="flex items-center gap-3 border-b border-white/5 pb-2">
           <p class="text-xs font-bold text-slate-300">GitHub Releases 發佈歷史紀錄</p>
-          <span v-if="changelogFetchedAt" class="text-[10px] text-slate-500 font-mono">上次同步：{{ changelogFetchedAt }}</span>
+          <span v-if="changelogFetchedAt" class="text-2xs text-slate-500 font-mono">上次同步：{{ changelogFetchedAt }}</span>
           <button @click="fetchChangelog" :disabled="changelogLoading"
-            class="ml-auto text-[10px] font-bold px-3 py-1.5 border border-white/5 bg-slate-800 text-slate-400 hover:text-slate-200 rounded-lg cursor-pointer transition-all">
+            class="ml-auto text-2xs font-bold px-3 py-1.5 border border-white/5 bg-slate-800 text-slate-400 hover:text-slate-200 rounded-lg cursor-pointer transition-all">
             {{ changelogLoading ? '正在擷取…' : '↻ 從雲端同步日誌' }}
           </button>
         </div>
@@ -686,15 +736,73 @@ async function pullSettingsFromCloud() {
                 :class="entry.version === APP_VERSION ? 'text-indigo-400' : 'text-slate-300'">
                 v{{ entry.version }}
               </span>
-              <span class="text-[10px] text-slate-500 font-mono font-bold">{{ entry.date }}</span>
+              <span class="text-2xs text-slate-500 font-mono font-bold">{{ entry.date }}</span>
               <span v-if="entry.version === APP_VERSION"
-                class="text-[9px] font-bold px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.05)]">
+                class="text-3xs font-bold px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.05)]">
                 目前安裝版本
               </span>
             </div>
             <pre class="text-xs text-slate-500 whitespace-pre-wrap font-sans leading-relaxed p-4 bg-slate-950/40 border border-white/[0.02] rounded-xl font-medium">{{ entry.body || '（無更新細節說明）' }}</pre>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- ── 雲端同步排程 ────────────────────────────────────────────── -->
+    <section class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 p-5 shadow-xl space-y-4">
+      <h2 class="text-xs font-black text-slate-500 uppercase tracking-widest font-mono">雲端自動同步排程 (Sync Schedule)</h2>
+
+      <!-- 固定時段 -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-bold text-slate-400">固定時段同步</p>
+          <button @click="addSyncWindow"
+            class="text-xs px-3 py-1 rounded-lg bg-slate-800 border border-white/5 text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors cursor-pointer font-bold">
+            + 新增時段
+          </button>
+        </div>
+        <p class="text-2xs text-slate-600 font-medium">每天在設定的時間範圍內執行一次自動同步（當天已觸發者跳過）。</p>
+        <div v-if="syncWindows.length" class="space-y-2">
+          <div v-for="(w, i) in syncWindows" :key="i" class="flex items-center gap-2">
+            <input v-model="w.from" type="time"
+              class="text-xs px-2 py-1.5 bg-slate-950 border border-white/10 rounded-lg text-slate-200 font-mono outline-none focus:border-indigo-500/50 w-28" />
+            <span class="text-slate-600 text-xs">→</span>
+            <input v-model="w.to" type="time"
+              class="text-xs px-2 py-1.5 bg-slate-950 border border-white/10 rounded-lg text-slate-200 font-mono outline-none focus:border-indigo-500/50 w-28" />
+            <button @click="removeSyncWindow(i)" class="text-slate-600 hover:text-rose-400 text-sm leading-none cursor-pointer transition-colors">✕</button>
+          </div>
+        </div>
+        <p v-else class="text-2xs text-slate-700 font-medium italic">尚未設定任何時段</p>
+      </div>
+
+      <!-- 間隔同步 -->
+      <div class="flex items-center gap-4 border-t border-white/5 pt-4">
+        <p class="text-xs font-bold text-slate-400 shrink-0">固定間隔同步</p>
+        <select v-model="syncIntervalHours"
+          class="text-xs px-3 py-1.5 bg-slate-950 border border-white/10 rounded-lg text-slate-200 font-mono outline-none focus:border-indigo-500/50 cursor-pointer">
+          <option :value="0">停用</option>
+          <option :value="1">每 1 小時</option>
+          <option :value="2">每 2 小時</option>
+          <option :value="4">每 4 小時</option>
+          <option :value="8">每 8 小時</option>
+        </select>
+        <p class="text-2xs text-slate-600 font-medium">程式執行期間每隔指定小時自動同步一次。</p>
+      </div>
+
+      <!-- 儲存 + 手動觸發 -->
+      <div class="flex items-center gap-3 flex-wrap border-t border-white/5 pt-4">
+        <button @click="saveSyncSchedule" :disabled="isSavingSchedule"
+          class="text-xs px-4 py-2 bg-indigo-600 border border-indigo-500/30 hover:bg-indigo-500 text-white rounded-xl font-bold cursor-pointer transition-all shadow-lg shadow-indigo-500/10 disabled:opacity-50">
+          {{ isSavingSchedule ? '儲存中…' : '儲存排程設定' }}
+        </button>
+        <button @click="triggerCheckVersions" :disabled="isCheckingVersions || !cloud.gasUrl"
+          class="text-xs px-4 py-2 rounded-xl border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600 disabled:opacity-40 transition-colors font-bold cursor-pointer">
+          {{ isCheckingVersions ? '檢查中…' : '☁ 立即檢查版本' }}
+        </button>
+        <button @click="triggerFullSync" :disabled="isTriggeringSync || !cloud.gasUrl"
+          class="text-xs px-4 py-2 rounded-xl border border-cyan-700/40 text-cyan-400 hover:text-cyan-300 hover:border-cyan-600/60 disabled:opacity-40 transition-colors font-bold cursor-pointer">
+          {{ isTriggeringSync ? '觸發中…' : '↻ 立即完整同步' }}
+        </button>
       </div>
     </section>
 

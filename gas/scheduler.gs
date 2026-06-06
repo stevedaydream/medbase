@@ -38,6 +38,36 @@ function getTargetSS(p) {
     : SpreadsheetApp.getActiveSpreadsheet();
 }
 
+/** 在 Config sheet 寫入 {tableName}_last_updated = ISO 時間，供多裝置版本偵測使用 */
+function _setLastUpdated(tableName) {
+  const ss  = SpreadsheetApp.getActiveSpreadsheet();
+  const cfg = ss.getSheetByName('Config') || ss.insertSheet('Config');
+  const vals = cfg.getDataRange().getValues();
+  const key  = tableName + '_last_updated';
+  const iso  = new Date().toISOString();
+  const rowIdx = vals.findIndex(function(r) { return r[0] === key; });
+  if (rowIdx >= 0) {
+    cfg.getRange(rowIdx + 1, 2).setValue(iso);
+  } else {
+    cfg.appendRow([key, iso]);
+  }
+}
+
+/** 取得所有 *_last_updated 版本時間戳，供客戶端輪詢比對 */
+function getVersions() {
+  const ss  = SpreadsheetApp.getActiveSpreadsheet();
+  const cfg = ss.getSheetByName('Config');
+  if (!cfg) return json({ ok: true, data: {} });
+  const versions = {};
+  cfg.getDataRange().getValues().forEach(function(r) {
+    if (r[0] && String(r[0]).endsWith('_last_updated')) {
+      const v = r[1];
+      versions[String(r[0])] = (v instanceof Date) ? v.toISOString() : String(v);
+    }
+  });
+  return json({ ok: true, data: versions });
+}
+
 function doPost(e) {
   const p  = JSON.parse(e.postData.contents);
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -212,6 +242,7 @@ function doPost(e) {
         sh.clearContents();
         sh.getRange(1,1,1,hd.length).setValues([hd]);
         if (rw.length) sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        _setLastUpdated('contacts');
         return json({ ok: true });
       }
 
@@ -246,6 +277,7 @@ function doPost(e) {
           });
           dataRange.setValues(rw);
         }
+        _setLastUpdated('physicians');
         return json({ ok: true });
       }
 
@@ -274,6 +306,7 @@ function doPost(e) {
         sh.clearContents();
         sh.getRange(1,1,1,hd.length).setValues([hd]);
         if (rw.length) sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        _setLastUpdated('items');
         return json({ ok: true });
       }
 
@@ -316,6 +349,7 @@ function doPost(e) {
           shP.getRange(1,1,1,hdP.length).setValues([hdP]);
           shP.getRange(2,1,rwP.length,hdP.length).setValues(rwP);
         }
+        _setLastUpdated('sets');
         return json({ ok: true });
       }
 
@@ -381,6 +415,7 @@ function doPost(e) {
         sh.clearContents();
         sh.getRange(1,1,1,hd.length).setValues([hd]);
         if (rw.length) sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        _setLastUpdated('ahk');
         return json({ ok: true });
       }
 
@@ -422,6 +457,7 @@ function doPost(e) {
         sh.clearContents();
         sh.getRange(1,1,1,hd.length).setValues([hd]);
         if (rw.length) sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        _setLastUpdated('prescriptions');
         return json({ ok: true, count: rw.length });
       }
 
@@ -445,6 +481,7 @@ function doPost(e) {
         sh.clearContents();
         sh.getRange(1,1,1,hd.length).setValues([hd]);
         if (rw.length) sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        _setLastUpdated('surgery');
         return json({ ok: true, count: rw.length });
       }
 
@@ -469,6 +506,7 @@ function doPost(e) {
         sh.clearContents();
         sh.getRange(1,1,1,hd.length).setValues([hd]);
         if (rw.length) sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        _setLastUpdated('examination');
         return json({ ok: true, count: rw.length });
       }
 
@@ -493,6 +531,7 @@ function doPost(e) {
         sh.clearContents();
         sh.getRange(1,1,1,hd.length).setValues([hd]);
         if (rw.length) sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        _setLastUpdated('disease');
         return json({ ok: true, count: rw.length });
       }
 
@@ -541,6 +580,7 @@ function doPost(e) {
         sh.clearContents();
         sh.getRange(1,1,1,hd.length).setValues([hd]);
         if (rw.length) sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        _setLastUpdated('shiftMemos');
         return json({ ok: true, count: rw.length });
       }
 
@@ -589,6 +629,9 @@ function doPost(e) {
             })) : [];
         return json({ ok: true, surgeryTypes, surgeryTypeItems });
       }
+
+      // ── 取得版本時間戳（多裝置同步輪詢用）────────────────────────
+      case 'getVersions': return getVersions();
 
       default:
         return json({ ok: false, error: `Unknown action: ${p.action}` });

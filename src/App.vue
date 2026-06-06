@@ -1,13 +1,27 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 import { useEventListener } from "@vueuse/core";
 import { useRoute } from "vue-router";
 import { useActiveSyncBanners } from "@/composables/useCloudSync";
+import {
+  pendingTables,
+  checkCloudVersions,
+  fetchCloudTable,
+  saveSyncTimestamp,
+  hasConflict,
+  logPullResult,
+  startPolling,
+  stopPolling,
+  SYNC_TABLE_META,
+  syncRequest,
+} from "@/composables/useSyncMonitor";
+import { useCloudSettings } from "@/stores/cloudSettings";
 import Sidebar from "@/components/layout/Sidebar.vue";
 import TopBar from "@/components/layout/TopBar.vue";
 import OmniSearch from "@/components/OmniSearch.vue";
 import DebugPanel from "@/components/DebugPanel.vue";
 import CompactPanel from "@/components/CompactPanel.vue";
+import SyncDiffModal from "@/components/SyncDiffModal.vue";
 import { useUiSettings } from "@/stores/uiSettings";
 import { useLogger } from "@/composables/useLogger";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
@@ -15,17 +29,171 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { startXlsxWatchFromSettings } from "@/composables/useXlsxSync";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize, LogicalPosition } from "@tauri-apps/api/dpi";
+import { getDb } from "@/db";
 
 const searchOpen  = ref(false);
 const debugOpen   = ref(false);
 const compactMode = ref(false);
 const uiSettings  = useUiSettings();
 const route       = useRoute();
+const cloud       = useCloudSettings();
 const activeSyncLabels = useActiveSyncBanners(computed(() => route.path));
-onMounted(() => {
+
+// ── 雲端同步衝突 Modal ────────────────────────────────────────────────────
+interface SyncConflict {
+  table: string;
+  localRows: Record<string, unknown>[];
+  cloudRows: Record<string, unknown>[];
+  resolve: (merged: Record<string, unknown>[]) => void;
+  reject: () => void;
+}
+const syncConflict = ref<SyncConflict | null>(null);
+
+// ── 背景自動 pull（輪詢偵測到更新後觸發）───────────────────────────────
+async function syncPendingTables() {
+  const tables = [...pendingTables.value];
+  if (!tables.length || !cloud.gasUrl) return;
+
+  const syncedLabels: string[] = [];
+  const conflictLabels: string[] = [];
+
+  for (const table of tables) {
+    try {
+      const conflict = await hasConflict(table);
+      const cloudRows = await fetchCloudTable(table, cloud.gasUrl);
+      if (!cloudRows) continue;
+
+      if (conflict) {
+        // 需要使用者介入
+        const db = await getDb();
+        const localRows = await db.select<Record<string, unknown>[]>(`SELECT * FROM ${getTableName(table)}`);
+        const merged = await new Promise<Record<string, unknown>[] | null>((res) => {
+          syncConflict.value = {
+            table,
+            localRows,
+            cloudRows: cloudRows as Record<string, unknown>[],
+            resolve: (m) => { syncConflict.value = null; res(m); },
+            reject:  () => { syncConflict.value = null; res(null); },
+          };
+        });
+        if (!merged) { conflictLabels.push(SYNC_TABLE_META[table]?.label ?? table); continue; }
+        await applyCloudData(table, merged);
+      } else {
+        await applyCloudData(table, cloudRows as Record<string, unknown>[]);
+        syncedLabels.push(SYNC_TABLE_META[table]?.label ?? table);
+      }
+
+      await saveSyncTimestamp(table);
+      logPullResult(table, cloudRows.length, 0);
+      pendingTables.value = pendingTables.value.filter(t => t !== table);
+    } catch { /* 單筆失敗不阻斷其餘 */ }
+  }
+
+  if (syncedLabels.length > 0) {
+    showToast(`☁ ${syncedLabels.join("、")} 已自動同步最新雲端資料`);
+  }
+  if (conflictLabels.length > 0) {
+    showToast(`⚠ ${conflictLabels.join("、")} 資料有衝突，已取消同步`);
+  }
+}
+
+function getTableName(table: string): string {
+  const MAP: Record<string, string> = {
+    items: "items", physicians: "physicians", prescriptions: "prescriptions",
+    surgery: "surgery", examination: "examination", disease: "disease",
+    contacts: "contacts", shiftMemos: "shift_memos",
+  };
+  return MAP[table] ?? table;
+}
+
+async function applyCloudData(table: string, rows: Record<string, unknown>[]): Promise<void> {
+  if (table === "ahk" || table === "sets") return; // complex tables: skip auto-apply
+  const db = await getDb();
+  const tableName = getTableName(table);
+  if (!tableName) return;
+  await db.execute(`DELETE FROM ${tableName}`, []);
+  for (const row of rows) {
+    const cols = Object.keys(row);
+    const placeholders = cols.map(() => "?").join(", ");
+    const vals = cols.map(c => row[c] ?? null);
+    await db.execute(
+      `INSERT OR REPLACE INTO ${tableName} (${cols.join(", ")}) VALUES (${placeholders})`,
+      vals
+    );
+  }
+}
+
+// ── 設定頁「立即完整同步」觸發 ──────────────────────────────────────────
+watch(syncRequest, async (val) => {
+  if (!val || !cloud.gasUrl) return;
+  await checkCloudVersions(cloud.gasUrl);
+  await syncPendingTables();
+});
+
+// ── 定時自動同步 ─────────────────────────────────────────────────────────
+let scheduleTimer: ReturnType<typeof setInterval> | null = null;
+const todaySynced = new Set<string>();
+
+async function startScheduleTimer() {
+  if (scheduleTimer) clearInterval(scheduleTimer);
+
+  let lastMinute = -1;
+  scheduleTimer = setInterval(async () => {
+    const now = new Date();
+    const currentMinute = now.getHours() * 60 + now.getMinutes();
+    if (currentMinute === lastMinute) return;
+    lastMinute = currentMinute;
+
+    const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+    try {
+      const db = await getDb();
+      // 時段模式
+      const windowsRow = await db.select<{ value: string }[]>(
+        "SELECT value FROM app_settings WHERE key = 'sync_schedule_windows'"
+      );
+      if (windowsRow[0]?.value) {
+        const windows: { from: string; to: string }[] = JSON.parse(windowsRow[0].value);
+        for (const w of windows) {
+          if (hhmm >= w.from && hhmm <= w.to) {
+            const key = `window_${w.from}`;
+            const todayKey = `${now.toDateString()}_${key}`;
+            if (!todaySynced.has(todayKey)) {
+              todaySynced.add(todayKey);
+              if (cloud.gasUrl) await checkCloudVersions(cloud.gasUrl);
+              await syncPendingTables();
+            }
+          }
+        }
+      }
+      // 間隔模式
+      const intervalRow = await db.select<{ value: string }[]>(
+        "SELECT value FROM app_settings WHERE key = 'sync_interval_hours'"
+      );
+      const intervalH = Number(intervalRow[0]?.value ?? 0);
+      if (intervalH > 0) {
+        const minutesSinceMidnight = now.getHours() * 60 + now.getMinutes();
+        if (minutesSinceMidnight % (intervalH * 60) === 0) {
+          if (cloud.gasUrl) await checkCloudVersions(cloud.gasUrl);
+          await syncPendingTables();
+        }
+      }
+    } catch { /* 靜默 */ }
+  }, 60_000);
+}
+
+onMounted(async () => {
   uiSettings.load();
+  await cloud.load();
   useLogger().initClickTracking(() => route.path);
   startXlsxWatchFromSettings().catch(() => {/* 找不到路徑，靜默跳過 */});
+  startPolling(() => cloud.gasUrl);
+  await startScheduleTimer();
+});
+
+onUnmounted(() => {
+  stopPolling();
+  if (scheduleTimer) clearInterval(scheduleTimer);
 });
 
 // ── 精簡模式 ─────────────────────────────────────────────────────────
@@ -154,10 +322,10 @@ useEventListener("keydown", (e: KeyboardEvent) => {
 // ── 啟動自動更新檢查 ──────────────────────────────────────────────────
 const toast = ref("");
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
-function showToast(msg: string) {
+function showToast(msg: string, ms = 3000) {
   toast.value = msg;
   if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { toast.value = ""; }, 2500);
+  toastTimer = setTimeout(() => { toast.value = ""; }, ms);
 }
 
 const updateDialogOpen   = ref(false);
@@ -275,6 +443,16 @@ function dismissUpdate() {
         </div>
       </div>
     </Transition>
+
+    <!-- 雲端同步衝突解決 Modal -->
+    <SyncDiffModal
+      v-if="syncConflict"
+      :table="syncConflict.table"
+      :local-rows="syncConflict.localRows"
+      :cloud-rows="syncConflict.cloudRows"
+      @confirm="(merged) => syncConflict?.resolve(merged)"
+      @cancel="syncConflict?.reject()"
+    />
 
     <!-- Toast -->
     <Transition name="toast">

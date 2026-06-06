@@ -3,6 +3,8 @@ import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { setGlobalSyncing } from "@/composables/useCloudSync";
+import { markLocalModified, saveSyncTimestamp } from "@/composables/useSyncMonitor";
+import { useLogger } from "@/composables/useLogger";
 
 interface Prescription {
   id: number; name: string; category: string;
@@ -97,6 +99,8 @@ async function save() {
   const prevId = selected.value?.id;
   await reload();
   selected.value = items.value.find((m) => m.id === prevId) ?? null;
+  await markLocalModified("prescriptions");
+  pushToCloud().catch(() => {});
 }
 
 async function deleteSelected() {
@@ -112,13 +116,19 @@ async function pushToCloud() {
   if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
   isSyncing.value = true; setGlobalSyncing("prescriptions", true);
   try {
-    await fetch(cloud.gasUrl, {
+    const res = await fetch(cloud.gasUrl, {
       method: "POST", headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "savePrescriptions", data: items.value }),
-      mode: "no-cors",
     });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error ?? "GAS 錯誤");
     toast(`已上傳 ${items.value.length} 筆至雲端`);
-  } catch (e) { toast(`上傳失敗：${(e as Error).message}`); }
+    await saveSyncTimestamp("prescriptions");
+    useLogger().addLog("info", `[雲端同步] push 處方套組 — ${items.value.length} 筆`, JSON.stringify({ table: "prescriptions", action: "push", timestamp: new Date().toISOString() }));
+  } catch (e) {
+    toast(`上傳失敗：${(e as Error).message}`);
+    useLogger().addLog("warn", "[雲端同步] push 處方套組 失敗", String(e));
+  }
   finally { isSyncing.value = false; setGlobalSyncing("prescriptions", false); }
 }
 
@@ -175,7 +185,7 @@ const stepCount = computed(() =>
           title="新增藥物配製參考">＋</button>
       </div>
 
-      <p class="text-slate-500 text-[10px] font-black uppercase tracking-wider font-mono mb-2 px-1">{{ filtered.length }} 筆資料</p>
+      <p class="text-slate-500 text-2xs font-black uppercase tracking-wider font-mono mb-2 px-1">{{ filtered.length }} 筆資料</p>
 
       <!-- Sync Actions -->
       <div class="grid grid-cols-2 gap-2 mb-3 shrink-0">
@@ -199,8 +209,8 @@ const stepCount = computed(() =>
             : 'bg-slate-950/20 border-white/5 text-slate-400 hover:text-slate-200 hover:bg-slate-900/40 hover:border-white/10'">
           <div class="font-black text-xs text-slate-200 truncate">{{ m.name }}</div>
           <div class="flex items-center gap-1.5 mt-1.5">
-            <span class="text-[9px] font-bold bg-slate-900 px-1.5 py-0.5 rounded text-slate-500 border border-white/5 font-mono">{{ m.category }}</span>
-            <span v-if="m.indication" class="text-[9px] text-slate-500 truncate flex-1 font-mono font-medium">{{ m.indication }}</span>
+            <span class="text-3xs font-bold bg-slate-900 px-1.5 py-0.5 rounded text-slate-500 border border-white/5 font-mono">{{ m.category }}</span>
+            <span v-if="m.indication" class="text-3xs text-slate-500 truncate flex-1 font-mono font-medium">{{ m.indication }}</span>
           </div>
         </button>
       </div>
@@ -211,7 +221,7 @@ const stepCount = computed(() =>
       <div v-if="!selected" class="flex flex-col items-center justify-center h-full gap-3 text-slate-600 text-xs font-bold italic py-16">
         <span class="text-5xl animate-pulse">💊</span>
         <span>選擇右側/左側藥物配製參考，或按 ＋ 新增</span>
-        <span class="text-[10px] text-center text-slate-700 max-w-xs mt-1 leading-relaxed font-mono not-italic uppercase tracking-wide">收錄升壓劑泡法、特殊稀釋步驟、抗生素劑量注意事項等</span>
+        <span class="text-2xs text-center text-slate-700 max-w-xs mt-1 leading-relaxed font-mono not-italic uppercase tracking-wide">收錄升壓劑泡法、特殊稀釋步驟、抗生素劑量注意事項等</span>
       </div>
 
       <div v-else class="space-y-6">
@@ -221,7 +231,7 @@ const stepCount = computed(() =>
             <h2 class="text-lg font-black text-slate-100 tracking-wide truncate">{{ selected.name }}</h2>
             <div class="flex items-center gap-2 mt-2 flex-wrap">
               <span v-if="selected.category"
-                class="text-[10px] font-bold bg-amber-500/10 border border-amber-500/20 text-amber-400 px-2.5 py-0.5 rounded-full">
+                class="text-2xs font-bold bg-amber-500/10 border border-amber-500/20 text-amber-400 px-2.5 py-0.5 rounded-full">
                 {{ selected.category }}
               </span>
               <span v-if="selected.indication" class="text-amber-200/60 text-xs font-mono font-medium">
@@ -247,13 +257,13 @@ const stepCount = computed(() =>
 
         <!-- 配製步驟 -->
         <div class="bg-white/[0.02] border border-white/5 rounded-xl p-5">
-          <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest font-mono mb-4">
+          <p class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono mb-4">
             配製 &amp; 給藥步驟 · {{ parseSteps(selected.orders).length }} 步
           </p>
           <ol class="space-y-3.5">
             <li v-for="(o, i) in parseSteps(selected.orders)" :key="i"
               class="flex items-start gap-3.5 text-slate-200 text-xs leading-relaxed font-bold">
-              <span class="shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 text-white text-[10px] flex items-center justify-center font-black font-mono shadow-md shadow-amber-900/20">
+              <span class="shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 text-white text-2xs flex items-center justify-center font-black font-mono shadow-md shadow-amber-900/20">
                 {{ i + 1 }}
               </span>
               <span class="font-mono mt-0.5 leading-relaxed flex-1 select-all">{{ o }}</span>
@@ -289,27 +299,27 @@ const stepCount = computed(() =>
           </div>
           <div class="overflow-y-auto px-5 py-4 space-y-4 flex-1 custom-scrollbar">
             <div>
-              <label class="text-slate-500 text-[10px] font-black uppercase tracking-wider font-mono block mb-1.5">藥物 / 處方名稱 <span class="text-rose-400">*</span></label>
+              <label class="text-slate-500 text-2xs font-black uppercase tracking-wider font-mono block mb-1.5">藥物 / 處方名稱 <span class="text-rose-400">*</span></label>
               <input v-model="form.name"
                 class="w-full px-3.5 py-2 text-xs rounded-xl bg-slate-950 border border-white/10 text-slate-200 focus:outline-none focus:border-amber-500/50 font-bold"
                 placeholder="如：Dopamine、FOY、Ceftriaxone" />
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="text-slate-500 text-[10px] font-black uppercase tracking-wider font-mono block mb-1.5">分類</label>
+                <label class="text-slate-500 text-2xs font-black uppercase tracking-wider font-mono block mb-1.5">分類</label>
                 <input v-model="form.category"
                   class="w-full px-3.5 py-2 text-xs rounded-xl bg-slate-950 border border-white/10 text-slate-200 focus:outline-none focus:border-amber-500/50 font-bold"
                   placeholder="如：升壓劑、抗生素、消化科" />
               </div>
               <div>
-                <label class="text-slate-500 text-[10px] font-black uppercase tracking-wider font-mono block mb-1.5">濃度 / 規格</label>
+                <label class="text-slate-500 text-2xs font-black uppercase tracking-wider font-mono block mb-1.5">濃度 / 規格</label>
                 <input v-model="form.indication"
                   class="w-full px-3.5 py-2 text-xs rounded-xl bg-slate-950 border border-white/10 text-slate-200 focus:outline-none focus:border-amber-500/50 font-mono font-bold"
                   placeholder="如：200mg in 250mL NS" />
               </div>
             </div>
             <div>
-              <label class="text-slate-500 text-[10px] font-black uppercase tracking-wider font-mono flex items-center justify-between mb-1.5">
+              <label class="text-slate-500 text-2xs font-black uppercase tracking-wider font-mono flex items-center justify-between mb-1.5">
                 <span>配製 &amp; 給藥步驟（每行一步）</span>
                 <span class="text-slate-600 font-bold font-mono">{{ stepCount }} 步</span>
               </label>
@@ -318,7 +328,7 @@ const stepCount = computed(() =>
                 class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs font-mono focus:outline-none focus:border-amber-500/50 resize-none custom-scrollbar leading-relaxed" />
             </div>
             <div>
-              <label class="text-rose-400/80 text-[10px] font-black uppercase tracking-wider font-mono block mb-1.5">⚠️ 注意事項 / 警語</label>
+              <label class="text-rose-400/80 text-2xs font-black uppercase tracking-wider font-mono block mb-1.5">⚠️ 注意事項 / 警語</label>
               <textarea v-model="form.notes" rows="3"
                 placeholder="如：腎功能不全需減量；避免與 alkaline solution 混用"
                 class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-rose-900/30 text-slate-200 text-xs focus:outline-none focus:border-red-500 resize-none leading-relaxed" />

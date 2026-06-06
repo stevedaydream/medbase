@@ -5,6 +5,8 @@ import StarterKit from "@tiptap/starter-kit";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { setGlobalSyncing } from "@/composables/useCloudSync";
+import { markLocalModified, saveSyncTimestamp } from "@/composables/useSyncMonitor";
+import { useLogger } from "@/composables/useLogger";
 
 interface ShiftMemo {
   id: number;
@@ -108,6 +110,8 @@ async function confirmAdd() {
   if (addForm.value.category && activeCategory.value !== "全部") {
     activeCategory.value = addForm.value.category.trim() || "一般";
   }
+  await markLocalModified("shiftMemos");
+  pushToCloud().catch(() => {});
 }
 
 // ── 刪除 ─────────────────────────────────────────────────────
@@ -132,15 +136,19 @@ async function pushToCloud() {
   if (saveDebounce) { clearTimeout(saveDebounce); await autoSave(); }
   isSyncing.value = true; setGlobalSyncing("shiftMemos", true);
   try {
-    await fetch(cloud.gasUrl, {
+    const res = await fetch(cloud.gasUrl, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action: "saveShiftMemos", data: memos.value }),
-      mode: "no-cors",
     });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error ?? "GAS 錯誤");
     toast(`已上傳 ${memos.value.length} 筆至雲端`);
+    await saveSyncTimestamp("shiftMemos");
+    useLogger().addLog("info", `[雲端同步] push 規則備忘錄 — ${memos.value.length} 筆`, JSON.stringify({ table: "shiftMemos", action: "push", timestamp: new Date().toISOString() }));
   } catch (e) {
     toast(`上傳失敗：${(e as Error).message}`);
+    useLogger().addLog("warn", "[雲端同步] push 規則備忘錄 失敗", String(e));
   } finally { isSyncing.value = false; setGlobalSyncing("shiftMemos", false); }
 }
 
@@ -185,6 +193,8 @@ async function saveTitle() {
   const idx = memos.value.findIndex(m => m.id === activeMemo.value!.id);
   if (idx >= 0) memos.value[idx].title = titleDraft.value.trim();
   editingTitle.value = false;
+  await markLocalModified("shiftMemos");
+  pushToCloud().catch(() => {});
 }
 </script>
 
@@ -197,7 +207,7 @@ async function saveTitle() {
       <div class="px-4 py-3.5 border-b border-white/5 overflow-x-auto flex gap-1.5 shrink-0 no-scrollbar">
         <button v-for="cat in categories" :key="cat"
           @click="activeCategory = cat"
-          class="shrink-0 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wide uppercase transition-all cursor-pointer border"
+          class="shrink-0 px-3 py-1.5 rounded-full text-2xs font-bold tracking-wide uppercase transition-all cursor-pointer border"
           :class="activeCategory === cat 
             ? 'bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border-blue-500/30 text-blue-300 shadow-[0_0_10px_rgba(59,130,246,0.05)]' 
             : 'bg-slate-950/40 border-white/5 text-slate-500 hover:text-slate-300 hover:bg-slate-900/60'">
@@ -220,7 +230,7 @@ async function saveTitle() {
           
           <div class="flex-1 min-w-0">
             <p class="text-xs font-bold truncate tracking-wide" :class="activeMemo?.id === m.id ? 'text-cyan-300' : 'text-slate-200'">{{ m.title }}</p>
-            <p class="text-[9px] text-slate-500 font-medium tracking-wide uppercase mt-0.5">{{ m.category }}</p>
+            <p class="text-3xs text-slate-500 font-medium tracking-wide uppercase mt-0.5">{{ m.category }}</p>
           </div>
           <button @click.stop="deleteTarget = m"
             class="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 text-xs px-1.5 transition-all shrink-0 cursor-pointer">
@@ -273,7 +283,7 @@ async function saveTitle() {
               <span class="text-xs text-slate-600 group-hover:text-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity">✏️</span>
             </h2>
           </div>
-          <span class="text-[10px] font-bold bg-white/5 border border-white/5 text-slate-500 px-2.5 py-1 rounded-lg uppercase tracking-wider shrink-0 font-mono">{{ activeMemo.category }}</span>
+          <span class="text-2xs font-bold bg-white/5 border border-white/5 text-slate-500 px-2.5 py-1 rounded-lg uppercase tracking-wider shrink-0 font-mono">{{ activeMemo.category }}</span>
         </div>
 
         <!-- Editor Toolbar -->
@@ -288,7 +298,7 @@ async function saveTitle() {
           
           <button @click="editor.chain().focus().toggleHeading({ level: 3 }).run()"
             :class="editor.isActive('heading', { level: 3 }) ? 'bg-white/10 text-cyan-400 font-extrabold' : 'text-slate-500 hover:text-slate-300'"
-            class="p-2 rounded-lg text-[10px] font-bold transition-all cursor-pointer">H3</button>
+            class="p-2 rounded-lg text-2xs font-bold transition-all cursor-pointer">H3</button>
           
           <div class="w-px h-4 bg-white/5 mx-2" />
           
@@ -321,12 +331,12 @@ async function saveTitle() {
         <h2 class="text-slate-100 font-black text-sm uppercase tracking-wide border-b border-white/5 pb-2">✏️ 新增備忘</h2>
         <div class="space-y-3">
           <div>
-            <label class="text-[10px] font-bold text-slate-500 mb-1 block uppercase tracking-wide">分類目錄</label>
+            <label class="text-2xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">分類目錄</label>
             <input v-model="addForm.category" placeholder="例如: 輪序規則、外圍分配、注意事項"
               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-cyan-500/50" />
           </div>
           <div>
-            <label class="text-[10px] font-bold text-slate-500 mb-1 block uppercase tracking-wide">備忘標題 *</label>
+            <label class="text-2xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">備忘標題 *</label>
             <input v-model="addForm.title" placeholder="請輸入標題"
               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-cyan-500/50 font-bold"
               @keydown.enter="confirmAdd" autofocus />

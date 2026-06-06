@@ -220,7 +220,7 @@ refreshList();
         class="flex-1 py-2.5 flex flex-col items-center gap-0.5 text-xs transition-colors"
         :class="activeTab === tab.id ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/40'">
         <span class="text-base leading-none">{{ tab.icon }}</span>
-        <span class="text-[10px] leading-none">{{ tab.label }}</span>
+        <span class="text-2xs leading-none">{{ tab.label }}</span>
       </button>
     </div>
 
@@ -300,14 +300,14 @@ refreshList();
         <div v-if="physTitles.length" class="flex flex-wrap gap-1 px-2.5 py-1.5 border-b border-gray-800/60">
           <button
             @click="physTitleFilter = ''"
-            class="px-2 py-0.5 rounded-full text-[10px] transition-colors"
+            class="px-2 py-0.5 rounded-full text-2xs transition-colors"
             :class="physTitleFilter === '' ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'">
             全部
           </button>
           <button
             v-for="t in physTitles" :key="t"
             @click="physTitleFilter = physTitleFilter === t ? '' : t"
-            class="px-2 py-0.5 rounded-full text-[10px] transition-colors"
+            class="px-2 py-0.5 rounded-full text-2xs transition-colors"
             :class="physTitleFilter === t ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'">
             {{ t }}
           </button>
