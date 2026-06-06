@@ -39,3 +39,6 @@ mobile/.env
 
 # Tauri build output
 src-tauri/target/
+
+# Claude Code worktrees (temporary branches, never commit)
+.claude/worktrees/
