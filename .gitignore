@@ -42,3 +42,9 @@ src-tauri/target/
 
 # Claude Code worktrees (temporary branches, never commit)
 .claude/worktrees/
+
+# Dev/test scripts (keep locally, not tracked)
+test.py
+test2.py
+x.toString(16).padStart(2
+release.bat
