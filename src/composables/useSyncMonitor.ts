@@ -69,6 +69,7 @@ export async function saveSyncTimestamp(table: string): Promise<void> {
 /** 向 GAS 取得所有 table 的 last_updated 版本，比對本地 cloud_ts，更新 pendingTables */
 export async function checkCloudVersions(gasUrl: string): Promise<string[]> {
   if (!gasUrl) return [];
+  const { addLog } = useLogger();
   try {
     const res = await fetch(gasUrl, {
       method: "POST",
@@ -77,20 +78,43 @@ export async function checkCloudVersions(gasUrl: string): Promise<string[]> {
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json() as { ok: boolean; data?: Record<string, string>; error?: string };
-    if (!json.ok || !json.data) return [];
+    if (!json.ok || !json.data) {
+      addLog("warn", "[雲端同步] checkVersions — GAS 回傳異常", JSON.stringify(json));
+      return [];
+    }
 
+    const MANUAL_ONLY = new Set(["ahk", "sets"]);
     const pending: string[] = [];
+    const manualPending: string[] = [];
+
     for (const table of Object.keys(SYNC_TABLE_META)) {
       const remoteTs = json.data[`${table}_last_updated`];
       if (!remoteTs) continue;
       const localTs = await getLocalCloudTs(table);
       if (!localTs || remoteTs > localTs) {
-        pending.push(table);
+        if (MANUAL_ONLY.has(table)) manualPending.push(table);
+        else pending.push(table);
       }
     }
     pendingTables.value = pending;
-    return pending;
-  } catch {
+
+    const allPending = [...pending, ...manualPending];
+    if (allPending.length === 0) {
+      addLog("info", "[雲端同步] 版本檢查完成 — 所有表格已是最新");
+    } else {
+      const autoLabels   = pending.map(t => SYNC_TABLE_META[t]?.label ?? t);
+      const manualLabels = manualPending.map(t => SYNC_TABLE_META[t]?.label ?? t);
+      const parts: string[] = [];
+      if (autoLabels.length)   parts.push(`待自動更新：${autoLabels.join("、")}`);
+      if (manualLabels.length) parts.push(`待手動更新：${manualLabels.join("、")}`);
+      addLog("info", `[雲端同步] 版本檢查完成 — ${parts.join("；")}`, JSON.stringify({ pending, manualPending }));
+    }
+    for (const table of manualPending) {
+      addLog("info", `[雲端同步] ${SYNC_TABLE_META[table]?.label ?? table} 雲端有更新，請至對應頁面手動還原`);
+    }
+    return allPending;
+  } catch (e) {
+    addLog("warn", "[雲端同步] checkVersions 失敗", String(e));
     return [];
   }
 }

@@ -408,9 +408,9 @@ function doPost(e) {
       // ── 備份 AHK 腳本（桌機端推送） ──────────────────────────────
       case 'saveAhkScripts': {
         let sh = ss.getSheetByName('AhkScripts') || ss.insertSheet('AhkScripts');
-        const hd = ['id','name','file_path','description','content'];
+        const hd = ['id','name','file_path','description','content','updated_at'];
         const rw = (p.scripts||[]).map(r => [
-          r.id, r.name||'', r.file_path||'', r.description||'', r.content||''
+          r.id, r.name||'', r.file_path||'', r.description||'', r.content||'', r.updated_at||''
         ]);
         sh.clearContents();
         sh.getRange(1,1,1,hd.length).setValues([hd]);
@@ -425,7 +425,7 @@ function doPost(e) {
         if (!sh || sh.getLastRow() < 2) return json({ ok: true, scripts: [] });
         const scripts = sh.getDataRange().getValues().slice(1).filter(r => r[0]).map(r => ({
           id: Number(r[0]), name: String(r[1]||''), file_path: String(r[2]||''),
-          description: String(r[3]||''), content: String(r[4]||'')
+          description: String(r[3]||''), content: String(r[4]||''), updated_at: String(r[5]||'')
         }));
         return json({ ok: true, scripts });
       }

@@ -45,6 +45,41 @@ const cloud = useCloudSettings();
 onMounted(() => cloud.load());
 const isSyncing = ref(false);
 
+// ── AHK Diff Modal ─────────────────────────────────────────────────────
+interface AhkDiffItem {
+  id: number;
+  name: string;
+  targetPath: string;
+  description: string;
+  localContent: string;
+  cloudContent: string;
+  cloudTs: string;
+  selected: boolean;
+}
+const diffModalOpen = ref(false);
+const diffItems     = ref<AhkDiffItem[]>([]);
+
+async function applySelectedDiffs() {
+  const db = await getDb();
+  let written = 0;
+  for (const item of diffItems.value) {
+    if (!item.selected) continue;
+    try {
+      await writeTextFile(item.targetPath, item.cloudContent);
+      await db.execute(
+        `INSERT OR REPLACE INTO ahk_scripts (id, name, file_path, description, updated_at) VALUES (?, ?, ?, ?, ?)`,
+        [item.id, item.name, item.targetPath, item.description, item.cloudTs || new Date().toISOString()]
+      );
+      written++;
+    } catch (e) {
+      console.error("[AHK diff apply] failed:", item.name, e);
+    }
+  }
+  diffModalOpen.value = false;
+  await loadAll();
+  showToast(`已套用 ${written} 個腳本更新`);
+}
+
 const scriptForm = ref({ name: "", file_path: "", description: "" });
 const showDeleteConfirm = ref(false);
 const groupForm = ref({ name: "", description: "" });
@@ -369,11 +404,11 @@ async function pushToCloud() {
   if (!cloud.gasUrl) { showToast("請先設定 GAS Web App URL"); return; }
   isSyncing.value = true; setGlobalSyncing("ahk", true);
   try {
-    const payload: { id: number; name: string; file_path: string; description: string; content: string }[] = [];
+    const payload: { id: number; name: string; file_path: string; description: string; content: string; updated_at: string }[] = [];
     for (const s of scripts.value) {
       let content = "";
       try { content = await readTextFile(s.file_path); } catch { /* 讀不到就帶空字串 */ }
-      payload.push({ id: s.id, name: s.name, file_path: s.file_path, description: s.description ?? "", content });
+      payload.push({ id: s.id, name: s.name, file_path: s.file_path, description: s.description ?? "", content, updated_at: s.updated_at ?? "" });
     }
     const res = await fetch(cloud.gasUrl, {
       method: "POST",
@@ -407,57 +442,79 @@ async function pullFromCloud() {
     if (!cloudScripts.length) { showToast("雲端無腳本資料"); return; }
 
     const db = await getDb();
-    let written = 0, skipped = 0, remapped = 0;
+    const localMap = new Map(scripts.value.map(s => [s.id, s]));
 
-    // 預設資料夾：文件/MedBase/ahk/
     const docDir = await documentDir();
     const ahkDir = await join(docDir, "MedBase", "ahk");
+
+    const toShowDiff: AhkDiffItem[] = [];
+    const localNewerNames: string[] = [];
+    let skipped = 0, remapped = 0;
 
     for (const cs of cloudScripts) {
       let targetPath = cs.file_path;
 
-      // 若原始路徑在本機不存在，改放到預設資料夾
+      // 路徑不存在，改放預設資料夾
       const pathOk = cs.file_path ? await exists(cs.file_path).catch(() => false) : false;
       if (!pathOk) {
-        try {
-          await mkdir(ahkDir, { recursive: true });
-        } catch (e) {
-          console.error("[AHK restore] mkdir failed:", ahkDir, e);
+        try { await mkdir(ahkDir, { recursive: true }); } catch (e) {
           throw new Error(`無法建立資料夾 ${ahkDir}：${e instanceof Error ? e.message : String(e)}`);
         }
         const filename = (cs.file_path?.split(/[\\/]/).pop()) || `script_${cs.id}.ahk`;
         const candidate = await join(ahkDir, filename);
-        const conflict  = await exists(candidate).catch(() => false);
-        targetPath = conflict ? await join(ahkDir, `${cs.id}_${filename}`) : candidate;
+        targetPath = await exists(candidate).catch(() => false)
+          ? await join(ahkDir, `${cs.id}_${filename}`)
+          : candidate;
         remapped++;
-        console.log("[AHK restore] remapped:", cs.file_path, "→", targetPath);
       }
 
-      // 寫入檔案（內容不同才覆寫）
-      try {
-        let local = "";
-        try { local = await readTextFile(targetPath); } catch { /* 不存在視為空 */ }
-        if (local !== cs.content) {
-          await writeTextFile(targetPath, cs.content);
-          written++;
-        } else {
-          skipped++;
-        }
-      } catch (e) {
-        console.error("[AHK restore] write failed:", targetPath, e);
+      // 讀本地檔案內容
+      let localContent = "";
+      try { localContent = await readTextFile(targetPath); } catch { /* 不存在視為空 */ }
+
+      if (localContent === cs.content) {
+        // 內容相同，僅確保 DB 路徑正確
+        await db.execute(
+          `INSERT OR REPLACE INTO ahk_scripts (id, name, file_path, description, updated_at) VALUES (?, ?, ?, ?, ?)`,
+          [cs.id, cs.name, targetPath, cs.description ?? "", cs.updated_at || localMap.get(cs.id)?.updated_at || ""]
+        );
         skipped++;
+        continue;
       }
 
-      // 更新 DB 紀錄（file_path 用本機實際路徑）
-      await db.execute(
-        `INSERT OR REPLACE INTO ahk_scripts (id, name, file_path, description, updated_at)
-         VALUES (?, ?, ?, ?, datetime('now'))`,
-        [cs.id, cs.name, targetPath, cs.description ?? ""]
-      );
+      // 內容不同，比對時間戳
+      const localTs = localMap.get(cs.id)?.updated_at ?? "";
+      const cloudTs = cs.updated_at ?? "";
+
+      if (!localContent || cloudTs > localTs) {
+        // 本地無內容，或雲端較新 → 加入 diff 確認清單
+        toShowDiff.push({
+          id: cs.id, name: cs.name, targetPath,
+          description: cs.description ?? "",
+          localContent, cloudContent: cs.content,
+          cloudTs, selected: true,
+        });
+      } else {
+        // 本地較新 → toast 提示，略過
+        localNewerNames.push(cs.name);
+      }
     }
-    await loadAll();
-    const remapNote = remapped > 0 ? `，${remapped} 個已對應至 文件/MedBase/ahk/` : "";
-    showToast(`已還原：更新 ${written} 個，略過 ${skipped} 個${remapNote}`);
+
+    if (localNewerNames.length > 0) {
+      showToast(`本地版本較新，已略過：${localNewerNames.join("、")}`);
+    }
+    const parts: string[] = [];
+    if (skipped > 0)  parts.push(`${skipped} 個已是最新`);
+    if (remapped > 0) parts.push(`${remapped} 個路徑已重新對應`);
+
+    if (toShowDiff.length > 0) {
+      diffItems.value = toShowDiff;
+      diffModalOpen.value = true;
+      if (parts.length) showToast(parts.join("，"));
+    } else {
+      await loadAll();
+      showToast(parts.length ? parts.join("，") : "所有腳本皆已是最新");
+    }
   } catch (e) { showError(`還原失敗：${(e as Error).message}`, e); }
   finally { isSyncing.value = false; setGlobalSyncing("ahk", false); }
 }
@@ -1372,6 +1429,84 @@ function insertBuilderToScript() {
                 </button>
               </div>
 
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- AHK Diff Modal -->
+    <Teleport to="body">
+      <div v-if="diffModalOpen"
+        class="fixed inset-0 z-[9000] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm"
+        @click.self="diffModalOpen = false">
+        <div class="bg-slate-900 border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          style="width: 940px; max-width: 96vw; max-height: 88vh">
+
+          <!-- Header -->
+          <div class="flex items-center gap-3 px-6 py-4 border-b border-white/5 bg-slate-950/40 shrink-0">
+            <span class="text-amber-400 text-sm">⚡</span>
+            <h3 class="text-xs font-black uppercase tracking-widest font-mono text-amber-400">雲端 AHK 版本較新</h3>
+            <span class="text-2xs text-slate-500 font-medium">以下腳本雲端版本較本地新，請確認是否套用</span>
+            <label class="ml-auto flex items-center gap-1.5 text-2xs text-slate-400 cursor-pointer select-none">
+              <input type="checkbox"
+                :checked="diffItems.every(i => i.selected)"
+                :indeterminate="diffItems.some(i => i.selected) && !diffItems.every(i => i.selected)"
+                @change="(e) => diffItems.forEach(i => i.selected = (e.target as HTMLInputElement).checked)"
+                class="cursor-pointer" />
+              全選
+            </label>
+            <button @click="diffModalOpen = false" class="ml-3 text-slate-500 hover:text-white text-xl leading-none cursor-pointer transition-colors">×</button>
+          </div>
+
+          <!-- Script list -->
+          <div class="flex-1 overflow-y-auto divide-y divide-white/[0.04]">
+            <div v-for="item in diffItems" :key="item.id" class="p-5">
+              <!-- Script header -->
+              <div class="flex items-center gap-3 mb-3">
+                <input type="checkbox" v-model="item.selected" class="cursor-pointer shrink-0" />
+                <span class="text-xs font-bold text-slate-200">{{ item.name }}</span>
+                <span class="text-2xs text-slate-500 font-mono truncate">{{ item.targetPath }}</span>
+                <span v-if="!item.localContent"
+                  class="shrink-0 text-3xs font-bold px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-full">
+                  新檔案
+                </span>
+              </div>
+              <!-- Content diff -->
+              <div class="grid grid-cols-2 gap-3">
+                <div class="flex flex-col gap-1">
+                  <p class="text-2xs font-black text-slate-500 uppercase tracking-wider font-mono">本地版本</p>
+                  <pre class="text-2xs text-slate-400 bg-slate-950/60 border border-white/5 rounded-xl px-3 py-2.5
+                               max-h-52 overflow-y-auto font-mono leading-relaxed whitespace-pre-wrap custom-scrollbar">{{
+                    item.localContent || '（檔案不存在）'
+                  }}</pre>
+                </div>
+                <div class="flex flex-col gap-1">
+                  <p class="text-2xs font-black text-emerald-500 uppercase tracking-wider font-mono">雲端版本</p>
+                  <pre class="text-2xs text-slate-200 bg-emerald-950/20 border border-emerald-500/20 rounded-xl px-3 py-2.5
+                               max-h-52 overflow-y-auto font-mono leading-relaxed whitespace-pre-wrap custom-scrollbar">{{
+                    item.cloudContent
+                  }}</pre>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div class="px-6 py-4 border-t border-white/5 bg-slate-950/20 shrink-0 flex items-center justify-between">
+            <span class="text-2xs text-slate-500 font-mono">
+              已選 {{ diffItems.filter(i => i.selected).length }} / {{ diffItems.length }} 個腳本
+            </span>
+            <div class="flex gap-3">
+              <button @click="diffModalOpen = false"
+                class="text-xs px-4 py-2 rounded-xl border border-white/10 text-slate-400 hover:text-slate-200 cursor-pointer transition-colors">
+                全部略過
+              </button>
+              <button @click="applySelectedDiffs"
+                :disabled="diffItems.filter(i => i.selected).length === 0"
+                class="text-xs px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white font-bold cursor-pointer transition-colors">
+                套用選取 ({{ diffItems.filter(i => i.selected).length }})
+              </button>
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 import { useEventListener } from "@vueuse/core";
 import { useRoute } from "vue-router";
-import { useActiveSyncBanners } from "@/composables/useCloudSync";
+import { useActiveSyncBanners, setGlobalSyncing } from "@/composables/useCloudSync";
 import {
   pendingTables,
   checkCloudVersions,
@@ -58,6 +58,8 @@ async function syncPendingTables() {
   const conflictLabels: string[] = [];
 
   for (const table of tables) {
+    if (table === "ahk" || table === "sets") continue; // 手動同步表，不碰時間戳
+    setGlobalSyncing(table, true);
     try {
       const conflict = await hasConflict(table);
       const cloudRows = await fetchCloudTable(table, cloud.gasUrl);
@@ -87,6 +89,7 @@ async function syncPendingTables() {
       logPullResult(table, cloudRows.length, 0);
       pendingTables.value = pendingTables.value.filter(t => t !== table);
     } catch { /* 單筆失敗不阻斷其餘 */ }
+    finally { setGlobalSyncing(table, false); }
   }
 
   if (syncedLabels.length > 0) {
@@ -122,6 +125,11 @@ async function applyCloudData(table: string, rows: Record<string, unknown>[]): P
     );
   }
 }
+
+// ── pendingTables 有值時自動拉取（輪詢 / 啟動檢查皆適用）───────────────
+watch(pendingTables, async (tables) => {
+  if (tables.length > 0 && cloud.gasUrl) await syncPendingTables();
+});
 
 // ── 設定頁「立即完整同步」觸發 ──────────────────────────────────────────
 watch(syncRequest, async (val) => {
@@ -188,6 +196,7 @@ onMounted(async () => {
   useLogger().initClickTracking(() => route.path);
   startXlsxWatchFromSettings().catch(() => {/* 找不到路徑，靜默跳過 */});
   startPolling(() => cloud.gasUrl);
+  if (cloud.gasUrl) checkCloudVersions(cloud.gasUrl).catch(() => {});
   await startScheduleTimer();
 });
 

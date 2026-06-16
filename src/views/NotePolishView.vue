@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted, watch, nextTick } from "vue";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
 
@@ -362,10 +362,11 @@ async function pushTemplatesToCloud() {
       system_prompt: t.format_key === activeKey.value ? editingPrompt.value  : t.system_prompt,
       example:       t.format_key === activeKey.value ? editingExample.value : t.example,
     }));
+    const payload = { profile: activeProfile.value, templates: snapshot };
     const res = await fetch(cloud.gasUrl, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "saveConfig", key: "note_templates_json", value: JSON.stringify(snapshot) }),
+      body: JSON.stringify({ action: "saveConfig", key: "note_templates_json", value: JSON.stringify(payload) }),
     });
     const json = await res.json();
     if (!json.ok) throw new Error(json.error ?? "備份失敗");
@@ -374,6 +375,73 @@ async function pushTemplatesToCloud() {
     showToast(`備份失敗：${(e as Error).message}`);
   } finally {
     templateSyncing.value = false;
+  }
+}
+
+// ── Chat ──────────────────────────────────────────────────────────────
+const chatMode      = ref(false);
+interface ChatMsg   { role: "user" | "model"; text: string }
+const chatMessages  = ref<ChatMsg[]>([]);
+const chatInput     = ref("");
+const chatStreaming  = ref(false);
+const streamingText = ref("");
+const chatScrollRef = ref<HTMLElement | null>(null);
+
+watch([chatMessages, streamingText], async () => {
+  await nextTick();
+  if (chatScrollRef.value) chatScrollRef.value.scrollTop = chatScrollRef.value.scrollHeight;
+}, { deep: true });
+
+async function sendChat() {
+  const text = chatInput.value.trim();
+  if (!text || chatStreaming.value || !apiKey.value) return;
+  chatMessages.value.push({ role: "user", text });
+  chatInput.value = "";
+  chatStreaming.value = true;
+  streamingText.value = "";
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel.value}:streamGenerateContent?key=${apiKey.value}&alt=sse`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: chatMessages.value.map(m => ({ role: m.role, parts: [{ text: m.text }] })),
+          generationConfig: { temperature: 0.7, maxOutputTokens: 8192 },
+        }),
+      }
+    );
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({})) as { error?: { message?: string } };
+      if (res.status === 429) throw new Error("請求頻率超限（429），請稍候後再試");
+      throw new Error(errBody?.error?.message ?? `HTTP ${res.status}`);
+    }
+    const reader  = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "", fullText = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const jsonStr = line.slice(6).trim();
+        if (!jsonStr) continue;
+        try {
+          const chunk = JSON.parse(jsonStr);
+          const chunkText = chunk.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+          if (chunkText) { fullText += chunkText; streamingText.value = fullText; }
+        } catch { /* 略過非 JSON 行 */ }
+      }
+    }
+    if (fullText) chatMessages.value.push({ role: "model", text: fullText });
+  } catch (e) {
+    showToast(`傳送失敗：${(e as Error).message}`);
+  } finally {
+    chatStreaming.value = false;
+    streamingText.value = "";
   }
 }
 
@@ -389,18 +457,28 @@ async function pullTemplatesFromCloud() {
     const json = await res.json();
     if (!json.ok) throw new Error(json.error ?? "拉取失敗");
     if (!json.value) { showToast("雲端尚無備份"); return; }
-    const cloudTpls: NoteTemplate[] = JSON.parse(json.value);
+
+    const parsed = JSON.parse(json.value);
+    // 新格式：{ profile, templates }；舊格式：直接是陣列
+    const cloudProfile: string = Array.isArray(parsed) ? activeProfile.value : (parsed.profile ?? activeProfile.value);
+    const cloudTpls: NoteTemplate[] = Array.isArray(parsed) ? parsed : parsed.templates;
+
     const db = await getDb();
     for (const ct of cloudTpls) {
       await db.execute(
-        "UPDATE note_templates SET system_prompt=?, example=? WHERE format_key=? AND profile=?",
-        [ct.system_prompt, ct.example, ct.format_key, activeProfile.value]
+        `INSERT OR REPLACE INTO note_templates (format_key, profile, format_label, system_prompt, example)
+         VALUES (?, ?, ?, ?, ?)`,
+        [ct.format_key, cloudProfile, ct.format_label, ct.system_prompt, ct.example]
       );
-      const idx = templates.value.findIndex(t => t.format_key === ct.format_key);
-      if (idx >= 0) {
-        templates.value[idx] = { ...templates.value[idx], system_prompt: ct.system_prompt, example: ct.example };
-      }
     }
+
+    // 若 profile 不在本地清單，加入下拉選單
+    if (!profiles.value.includes(cloudProfile)) {
+      profiles.value = [...profiles.value, cloudProfile];
+    }
+
+    await switchProfile(cloudProfile);
+
     const cur = activeTemplate.value;
     if (cur) {
       editingPrompt.value  = cur.system_prompt;
@@ -408,7 +486,7 @@ async function pullTemplatesFromCloud() {
       savedPrompt.value    = cur.system_prompt;
       savedExample.value   = cur.example;
     }
-    showToast(`已從雲端載入 ${cloudTpls.length} 個格式 → 設定檔「${displayProfile(activeProfile.value)}」`);
+    showToast(`已從雲端載入 ${cloudTpls.length} 個格式 → 設定檔「${displayProfile(cloudProfile)}」`);
   } catch (e) {
     showToast(`載入失敗：${(e as Error).message}`);
   } finally {
@@ -424,12 +502,20 @@ async function pullTemplatesFromCloud() {
     <div class="flex items-center gap-1.5 px-6 py-3 border-b border-white/5 bg-slate-950 shrink-0 overflow-x-auto no-scrollbar">
       <button
         v-for="t in templates" :key="t.format_key"
-        @click="activeKey = t.format_key"
+        @click="chatMode = false; activeKey = t.format_key"
         class="shrink-0 px-3.5 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer"
-        :class="activeKey === t.format_key
+        :class="activeKey === t.format_key && !chatMode
           ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-200 shadow-[0_0_12px_rgba(99,102,241,0.08)]'
           : 'bg-slate-900/40 border-white/5 text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'"
       >{{ t.format_label }}</button>
+
+      <button
+        @click="chatMode = true"
+        class="shrink-0 px-3.5 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer"
+        :class="chatMode
+          ? 'bg-violet-600/20 border-violet-500/40 text-violet-200 shadow-[0_0_12px_rgba(139,92,246,0.08)]'
+          : 'bg-slate-900/40 border-white/5 text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'"
+      >💬 聊天</button>
 
       <div class="ml-auto shrink-0">
         <button
@@ -441,7 +527,7 @@ async function pullTemplatesFromCloud() {
     </div>
 
     <!-- ── 格式設定（內嵌編輯器）───────────────────────────────────── -->
-    <div class="border-b border-white/5 shrink-0">
+    <div v-if="!chatMode" class="border-b border-white/5 shrink-0">
 
       <!-- Header -->
       <div class="flex items-center gap-2 px-6 py-2 bg-slate-950/30 flex-wrap">
@@ -564,7 +650,7 @@ async function pullTemplatesFromCloud() {
     </div>
 
     <!-- ── 病人資訊列 ───────────────────────────────────────────────── -->
-    <div class="flex items-center gap-4 px-6 py-2.5 border-b border-white/5 bg-slate-900/20 shrink-0">
+    <div v-if="!chatMode" class="flex items-center gap-4 px-6 py-2.5 border-b border-white/5 bg-slate-900/20 shrink-0">
       <span class="text-2xs text-slate-500 font-black uppercase tracking-widest font-mono shrink-0">病人資料:</span>
       <div class="flex items-center gap-2">
         <input v-model="patientId" placeholder="病歷號"
@@ -580,7 +666,7 @@ async function pullTemplatesFromCloud() {
     </div>
 
     <!-- ── 輸入區 ───────────────────────────────────────────────────── -->
-    <div class="flex flex-col border-b border-white/5 overflow-hidden p-4 pb-2" style="flex: 1 1 0">
+    <div v-if="!chatMode" class="flex flex-col border-b border-white/5 overflow-hidden p-4 pb-2" style="flex: 1 1 0">
       <div class="flex items-center px-2 pb-2 shrink-0">
         <span class="text-2xs font-black text-slate-500 uppercase tracking-widest font-mono">病歷草稿</span>
         <button v-if="inputText" @click="inputText = ''"
@@ -598,7 +684,7 @@ async function pullTemplatesFromCloud() {
     </div>
 
     <!-- ── 操作列 ───────────────────────────────────────────────────── -->
-    <div class="flex items-center gap-3 px-6 py-3 bg-slate-950 border-b border-white/5 shrink-0 flex-wrap">
+    <div v-if="!chatMode" class="flex items-center gap-3 px-6 py-3 bg-slate-950 border-b border-white/5 shrink-0 flex-wrap">
       <button
         @click="generate"
         :disabled="isGenerating || !inputText.trim() || !activeTemplate || !apiKey"
@@ -650,7 +736,7 @@ async function pullTemplatesFromCloud() {
     </div>
 
     <!-- ── 輸出區 ───────────────────────────────────────────────────── -->
-    <div class="flex flex-col p-4 pt-2 overflow-hidden" style="flex: 1 1 0">
+    <div v-if="!chatMode" class="flex flex-col p-4 pt-2 overflow-hidden" style="flex: 1 1 0">
       <div class="flex items-center px-2 pb-2 shrink-0">
         <span class="text-2xs font-black text-slate-500 uppercase tracking-widest font-mono">整理結果</span>
       </div>
@@ -658,6 +744,85 @@ async function pullTemplatesFromCloud() {
         <pre v-if="outputText" class="text-xs text-slate-200 whitespace-pre-wrap font-mono leading-relaxed select-all">{{ outputText }}</pre>
         <div v-else class="flex items-center justify-center h-full text-slate-600 text-xs font-bold italic py-12">
           點擊「開始 AI 整理」後，結果將顯示於此
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 聊天區 ────────────────────────────────────────────────────── -->
+    <div v-if="chatMode" class="flex flex-col flex-1 min-h-0">
+
+      <!-- 訊息列表 -->
+      <div ref="chatScrollRef" class="flex-1 overflow-y-auto px-6 py-5 space-y-4 custom-scrollbar">
+        <div v-if="!chatMessages.length && !chatStreaming"
+          class="flex items-center justify-center h-full text-slate-600 text-xs font-bold italic">
+          開始對話，模型：{{ MODELS.find(m => m.id === selectedModel)?.label ?? selectedModel }}
+        </div>
+
+        <div v-for="(msg, i) in chatMessages" :key="i"
+          class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
+          <div class="max-w-[78%] rounded-2xl px-4 py-3 text-xs leading-relaxed"
+            :class="msg.role === 'user'
+              ? 'bg-indigo-600/20 border border-indigo-500/30 text-slate-200'
+              : 'bg-slate-900/60 border border-white/[0.06] text-slate-200'">
+            <pre class="whitespace-pre-wrap font-sans leading-relaxed">{{ msg.text }}</pre>
+          </div>
+        </div>
+
+        <!-- Streaming bubble -->
+        <div v-if="chatStreaming" class="flex justify-start">
+          <div class="max-w-[78%] rounded-2xl px-4 py-3 text-xs bg-slate-900/60 border border-white/[0.06] text-slate-200">
+            <pre v-if="streamingText" class="whitespace-pre-wrap font-sans leading-relaxed">{{ streamingText }}<span class="animate-pulse text-violet-400">▍</span></pre>
+            <span v-else class="flex items-center gap-1.5 text-slate-500">
+              <span class="inline-block w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style="animation-delay:0ms"/>
+              <span class="inline-block w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style="animation-delay:150ms"/>
+              <span class="inline-block w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style="animation-delay:300ms"/>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 輸入列 -->
+      <div class="shrink-0 px-5 py-4 border-t border-white/5 bg-slate-950/40">
+        <div v-if="!apiKey" class="mb-2 text-2xs text-amber-400 font-bold flex items-center gap-1">
+          <span>⚠️</span> 請先至設定頁填入 Gemini API Key
+        </div>
+        <div class="flex gap-3 items-end">
+          <textarea
+            v-model="chatInput"
+            @keydown.enter.exact.prevent="sendChat"
+            placeholder="輸入訊息… (Enter 傳送，Shift+Enter 換行)"
+            rows="3"
+            :disabled="chatStreaming"
+            class="flex-1 resize-none text-xs bg-slate-950/60 border border-white/10 rounded-2xl px-4 py-3
+                   text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-violet-500/40
+                   font-mono leading-relaxed custom-scrollbar disabled:opacity-50 transition-colors"
+          />
+          <div class="flex flex-col gap-2 shrink-0">
+            <button @click="sendChat"
+              :disabled="!chatInput.trim() || chatStreaming || !apiKey"
+              class="px-4 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white
+                     text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap">
+              {{ chatStreaming ? '…' : '傳送' }}
+            </button>
+            <button @click="chatMessages = []; streamingText = ''"
+              :disabled="!chatMessages.length || chatStreaming"
+              class="px-4 py-2 border border-white/10 text-slate-500 hover:text-slate-200
+                     text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-30 whitespace-nowrap">
+              清除
+            </button>
+          </div>
+        </div>
+        <!-- Model selector -->
+        <div class="flex items-center gap-2 mt-2">
+          <span class="text-2xs text-slate-600 font-mono">模型:</span>
+          <div class="relative">
+            <select v-model="selectedModel" @change="onModelChange"
+              class="text-2xs pl-2.5 pr-7 py-1 bg-slate-900 border border-white/10 rounded-lg text-slate-400
+                     focus:outline-none cursor-pointer appearance-none font-bold">
+              <option v-for="m in MODELS" :key="m.id" :value="m.id">{{ m.label }}</option>
+            </select>
+            <span class="absolute right-2 top-1.5 text-3xs text-slate-500 pointer-events-none">▼</span>
+          </div>
         </div>
       </div>
     </div>
