@@ -2,6 +2,11 @@
 import { ref, computed, onMounted, watch, nextTick } from "vue";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
+import DocxComposer from "@/components/DocxComposer.vue";
+
+// 頁面模式：病歷潤飾 / 聊天 / 病例討論 docx / 公假心得 docx
+type ViewMode = "polish" | "chat" | "case" | "leave";
+const mode = ref<ViewMode>("polish");
 
 interface NoteTemplate {
   format_key: string;
@@ -379,7 +384,6 @@ async function pushTemplatesToCloud() {
 }
 
 // ── Chat ──────────────────────────────────────────────────────────────
-const chatMode      = ref(false);
 interface ChatMsg   { role: "user" | "model"; text: string }
 const chatMessages  = ref<ChatMsg[]>([]);
 const chatInput     = ref("");
@@ -502,20 +506,38 @@ async function pullTemplatesFromCloud() {
     <div class="flex items-center gap-1.5 px-6 py-3 border-b border-white/5 bg-slate-950 shrink-0 overflow-x-auto no-scrollbar">
       <button
         v-for="t in templates" :key="t.format_key"
-        @click="chatMode = false; activeKey = t.format_key"
+        @click="mode = 'polish'; activeKey = t.format_key"
         class="shrink-0 px-3.5 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer"
-        :class="activeKey === t.format_key && !chatMode
+        :class="activeKey === t.format_key && mode === 'polish'
           ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-200 shadow-[0_0_12px_rgba(99,102,241,0.08)]'
           : 'bg-slate-900/40 border-white/5 text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'"
       >{{ t.format_label }}</button>
 
       <button
-        @click="chatMode = true"
+        @click="mode = 'chat'"
         class="shrink-0 px-3.5 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer"
-        :class="chatMode
+        :class="mode === 'chat'
           ? 'bg-violet-600/20 border-violet-500/40 text-violet-200 shadow-[0_0_12px_rgba(139,92,246,0.08)]'
           : 'bg-slate-900/40 border-white/5 text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'"
       >💬 聊天</button>
+
+      <span class="text-white/10 shrink-0 select-none px-1">|</span>
+
+      <button
+        @click="mode = 'case'"
+        class="shrink-0 px-3.5 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer"
+        :class="mode === 'case'
+          ? 'bg-teal-600/20 border-teal-500/40 text-teal-200 shadow-[0_0_12px_rgba(20,184,166,0.08)]'
+          : 'bg-slate-900/40 border-white/5 text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'"
+      >📋 病例討論</button>
+
+      <button
+        @click="mode = 'leave'"
+        class="shrink-0 px-3.5 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer"
+        :class="mode === 'leave'
+          ? 'bg-teal-600/20 border-teal-500/40 text-teal-200 shadow-[0_0_12px_rgba(20,184,166,0.08)]'
+          : 'bg-slate-900/40 border-white/5 text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'"
+      >📝 公假心得</button>
 
       <div class="ml-auto shrink-0">
         <button
@@ -527,7 +549,7 @@ async function pullTemplatesFromCloud() {
     </div>
 
     <!-- ── 格式設定（內嵌編輯器）───────────────────────────────────── -->
-    <div v-if="!chatMode" class="border-b border-white/5 shrink-0">
+    <div v-if="mode === 'polish'" class="border-b border-white/5 shrink-0">
 
       <!-- Header -->
       <div class="flex items-center gap-2 px-6 py-2 bg-slate-950/30 flex-wrap">
@@ -650,7 +672,7 @@ async function pullTemplatesFromCloud() {
     </div>
 
     <!-- ── 病人資訊列 ───────────────────────────────────────────────── -->
-    <div v-if="!chatMode" class="flex items-center gap-4 px-6 py-2.5 border-b border-white/5 bg-slate-900/20 shrink-0">
+    <div v-if="mode === 'polish'" class="flex items-center gap-4 px-6 py-2.5 border-b border-white/5 bg-slate-900/20 shrink-0">
       <span class="text-2xs text-slate-500 font-black uppercase tracking-widest font-mono shrink-0">病人資料:</span>
       <div class="flex items-center gap-2">
         <input v-model="patientId" placeholder="病歷號"
@@ -666,7 +688,7 @@ async function pullTemplatesFromCloud() {
     </div>
 
     <!-- ── 輸入區 ───────────────────────────────────────────────────── -->
-    <div v-if="!chatMode" class="flex flex-col border-b border-white/5 overflow-hidden p-4 pb-2" style="flex: 1 1 0">
+    <div v-if="mode === 'polish'" class="flex flex-col border-b border-white/5 overflow-hidden p-4 pb-2" style="flex: 1 1 0">
       <div class="flex items-center px-2 pb-2 shrink-0">
         <span class="text-2xs font-black text-slate-500 uppercase tracking-widest font-mono">病歷草稿</span>
         <button v-if="inputText" @click="inputText = ''"
@@ -684,7 +706,7 @@ async function pullTemplatesFromCloud() {
     </div>
 
     <!-- ── 操作列 ───────────────────────────────────────────────────── -->
-    <div v-if="!chatMode" class="flex items-center gap-3 px-6 py-3 bg-slate-950 border-b border-white/5 shrink-0 flex-wrap">
+    <div v-if="mode === 'polish'" class="flex items-center gap-3 px-6 py-3 bg-slate-950 border-b border-white/5 shrink-0 flex-wrap">
       <button
         @click="generate"
         :disabled="isGenerating || !inputText.trim() || !activeTemplate || !apiKey"
@@ -736,7 +758,7 @@ async function pullTemplatesFromCloud() {
     </div>
 
     <!-- ── 輸出區 ───────────────────────────────────────────────────── -->
-    <div v-if="!chatMode" class="flex flex-col p-4 pt-2 overflow-hidden" style="flex: 1 1 0">
+    <div v-if="mode === 'polish'" class="flex flex-col p-4 pt-2 overflow-hidden" style="flex: 1 1 0">
       <div class="flex items-center px-2 pb-2 shrink-0">
         <span class="text-2xs font-black text-slate-500 uppercase tracking-widest font-mono">整理結果</span>
       </div>
@@ -748,8 +770,18 @@ async function pullTemplatesFromCloud() {
       </div>
     </div>
 
+    <!-- ── docx 產生器（病例討論 / 公假心得）─────────────────────────── -->
+    <DocxComposer
+      v-if="mode === 'case' || mode === 'leave'"
+      :key="mode"
+      :template="mode"
+      :api-key="apiKey"
+      :model="selectedModel"
+      @toast="showToast"
+    />
+
     <!-- ── 聊天區 ────────────────────────────────────────────────────── -->
-    <div v-if="chatMode" class="flex flex-col flex-1 min-h-0">
+    <div v-if="mode === 'chat'" class="flex flex-col flex-1 min-h-0">
 
       <!-- 訊息列表 -->
       <div ref="chatScrollRef" class="flex-1 overflow-y-auto px-6 py-5 space-y-4 custom-scrollbar">

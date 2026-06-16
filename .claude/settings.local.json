@@ -66,7 +66,15 @@
       "Bash(git tag *)",
       "Bash(git push *)",
       "Bash(xargs sed -i -e 's/text-\\\\[10px\\\\]/text-2xs/g' -e 's/text-\\\\[9px\\\\]/text-3xs/g' -e 's/text-\\\\[11px\\\\]/text-\\\\[0.6875rem\\\\]/g' -e 's/text-\\\\[8px\\\\]/text-\\\\[0.5rem\\\\]/g' -e 's/text-\\\\[7px\\\\]/text-\\\\[0.4375rem\\\\]/g')",
-      "Bash(git rm *)"
-    ]
+      "Bash(git rm *)",
+      "PowerShell(npm install *)",
+      "PowerShell(node -e \"console.log\\('docx', require\\('docx/package.json'\\).version\\); console.log\\('fflate', require\\('fflate/package.json'\\).version\\)\")",
+      "PowerShell(npx vue-tsc --noEmit 2>&1 | Select-Object -First 60)",
+      "PowerShell(npm run *)",
+      "PowerShell(npx vite build 2>&1 | Select-Object -Last 25)",
+      "Skill(update-config)",
+      "PowerShell(try { Get-Content \".claude\\\\settings.local.json\" -Raw | ConvertFrom-Json | Out-Null; \"JSON 有效，defaultMode = auto\" } catch { \"JSON 錯誤: $_\" })"
+    ],
+    "defaultMode": "auto"
   }
 }
