@@ -2,7 +2,7 @@
 import { ref, watch, onMounted, onUnmounted } from "vue";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
-import { useUiSettings, FONT_SIZE_LABELS, type FontSize } from "@/stores/uiSettings";
+import { useUiSettings, FONT_SIZE_LABELS, THEME_LABELS, type FontSize, type Theme } from "@/stores/uiSettings";
 import { checkCloudVersions, requestImmediateSync } from "@/composables/useSyncMonitor";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
@@ -13,6 +13,7 @@ onMounted(() => cloud.load());
 
 const ui = useUiSettings();
 const FONT_SIZES: FontSize[] = ["sm", "md", "lg", "xl"];
+const THEMES: Theme[] = ["light", "dark", "system"];
 
 // ── Sheet Prefix（從 DB 載入，獨立存）─────────────────────────────────
 const sheetPrefix = ref("Schedule_");
@@ -434,6 +435,24 @@ async function pullSettingsFromCloud() {
           >{{ FONT_SIZE_LABELS[size] }}</button>
         </div>
         <p class="text-xs text-slate-500 font-medium">調整系統側邊欄、卡片標題及主要內容面板的全域文字尺寸。</p>
+      </div>
+
+      <div class="flex items-center gap-6">
+        <p class="text-xs text-slate-400 font-bold w-16 shrink-0">介面主題</p>
+        <div class="flex gap-1.5">
+          <button
+            v-for="t in THEMES" :key="t"
+            @click="ui.theme = t"
+            class="px-4 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer"
+            :class="ui.theme === t
+              ? 'bg-indigo-600 border-indigo-500/30 text-white shadow-lg shadow-indigo-500/10'
+              : 'bg-slate-800 border-white/5 text-slate-400 hover:bg-slate-700 hover:text-slate-200'"
+          >{{ THEME_LABELS[t] }}</button>
+        </div>
+        <p class="text-xs text-slate-500 font-medium">
+          「跟隨系統」會採用 Windows 的深淺色設定（它本身已有日夜排程）。
+          <span class="text-amber-500/80">畫面遷移至新色彩系統前，切換暫時不會有視覺變化。</span>
+        </p>
       </div>
     </section>
 

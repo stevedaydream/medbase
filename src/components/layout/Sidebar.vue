@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { useUiSettings } from "@/stores/uiSettings";
 
 const emit = defineEmits<{ "enter-compact": [] }>();
 
 const route  = useRoute();
 const router = useRouter();
+const ui     = useUiSettings();
 
 interface NavItem { path: string; icon: string; label: string }
 
@@ -198,6 +200,13 @@ onUnmounted(() => {
       >
         <span class="text-sm">⇥</span>
         <span>精簡模式</span>
+      </button>
+      <button
+        @click="ui.toggleTheme()"
+        :title="ui.resolvedDark ? '切換為淺色' : '切換為深色'"
+        class="px-2 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-gray-800 hover:text-gray-300 transition-colors"
+      >
+        <span class="text-sm">{{ ui.resolvedDark ? "☀" : "☾" }}</span>
       </button>
       <span class="ml-auto text-xs text-gray-700">v0.3.3</span>
     </div>

@@ -1,11 +1,87 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════════
+   語義色彩 token
+   ───────────────────────────────────────────────────────────────
+   @theme 內的值即「淺色主題」，深色主題在下方以 :root[data-theme]
+   覆寫。組件只使用語義名稱（bg-surface / text-muted / border-hairline），
+   不再直接寫 slate-950 這類色階，因此換主題不需要動任何組件。
+
+   文字三階全部通過 WCAG AA 4.5:1（實測最低 5.19:1）：
+     text-fg           主標題、欄位值、主要內容
+     text-fg-secondary 說明文、次要欄位
+     text-muted        標籤、單位、時間戳
+
+   汰除對象：slate-500（4.24:1，375 處）、slate-600（2.66:1，149 處）
+   ═══════════════════════════════════════════════════════════════ */
 @theme {
+  /* 表面 */
+  --color-surface:      #f8fafc;
+  --color-elevated:     #ffffff;
+  --color-sunken:       #eef2f7;
+
+  /* 文字三階 */
+  --color-fg:           #0f172a;
+  --color-fg-secondary: #334155;
+  --color-muted:        #556374;
+
+  /* 分隔線 */
+  --color-hairline:     rgb(15 23 42 / 0.10);
+
+  /* 語意色：全站一致，不得挪作頁面裝飾色 */
+  --color-danger:       #b91c1c;
+  --color-warning:      #a16207;
+  --color-success:      #047857;
+
   --color-emergency: #dc2626;
   --color-emergency-dark: #991b1b;
-  --font-sans: "Inter", "Noto Sans TC", system-ui, sans-serif;
+
+  /* 實際渲染字型：本專案未打包字型，Inter / Noto Sans TC 從未載入，
+     宣告它們只是讓人誤以為拿得到。改為誠實列出 Windows 上真正會用的
+     字型；數值對齊改靠 tabular-nums，不靠 font-mono（中文會 fallback）。*/
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", "Microsoft JhengHei UI",
+               "Microsoft JhengHei", system-ui, sans-serif;
+
   --font-size-2xs: 0.625rem;
+  /* 待汰除：階段 3 會把剩餘 61 處 text-3xs 升級為 2xs/xs 後移除此 token。
+     在那之前不能先刪，否則 text-3xs 不再產生規則，字會改為繼承父層而變大。*/
   --font-size-3xs: 0.5625rem;
+}
+
+/* 深色主題：只覆寫 token 值本身，不新增任何 class */
+:root[data-theme="dark"] {
+  --color-surface:      #131720;
+  --color-elevated:     #1b2130;
+  --color-sunken:       #0d1017;
+
+  --color-fg:           #e8edf5;
+  --color-fg-secondary: #a9b6c8;
+  --color-muted:        #8494a8;
+
+  --color-hairline:     rgb(255 255 255 / 0.07);
+
+  --color-danger:       #f87171;
+  --color-warning:      #fbbf24;
+  --color-success:      #34d399;
+}
+
+/* JS 尚未接手前（首屏）先跟隨系統，避免深色使用者看到白色閃爍 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-surface:      #131720;
+    --color-elevated:     #1b2130;
+    --color-sunken:       #0d1017;
+
+    --color-fg:           #e8edf5;
+    --color-fg-secondary: #a9b6c8;
+    --color-muted:        #8494a8;
+
+    --color-hairline:     rgb(255 255 255 / 0.07);
+
+    --color-danger:       #f87171;
+    --color-warning:      #fbbf24;
+    --color-success:      #34d399;
+  }
 }
 
 * {
@@ -16,14 +92,6 @@ html, body, #app {
   height: 100%;
   margin: 0;
   padding: 0;
-}
-
-/* Emergency mode override */
-.emergency-mode {
-  --bg-primary: #0f0f0f;
-  --bg-secondary: #1a0000;
-  --text-primary: #f9fafb;
-  --border-color: #dc2626;
 }
 
 /* Scrollbar styling */
