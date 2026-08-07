@@ -103,35 +103,19 @@ async function seedIfEmpty(db: Database) {
     );
   }
 
-  // ⑥ 病歷潤飾格式範本（首次建立）
+  // ⑥ 病歷潤飾格式範本（首次建立 or 遷移到 profile 架構）
   const ntRows = await db.select<{ c: number }[]>("SELECT COUNT(*) as c FROM note_templates");
   if (ntRows[0].c === 0) {
     for (const t of seedNoteTemplates) {
       await db.execute(
-        "INSERT OR IGNORE INTO note_templates (format_key, format_label, system_prompt, example) VALUES (?,?,?,?)",
-        [t.format_key, t.format_label, t.system_prompt, t.example]
+        "INSERT OR IGNORE INTO note_templates (format_key, profile, format_label, system_prompt, example) VALUES (?,?,?,?,?)",
+        [t.format_key, 'default', t.format_label, t.system_prompt, t.example]
       );
     }
   }
 }
 
 async function initSchema(db: Database) {
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS medications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      generic_name TEXT,
-      synonyms TEXT,          -- JSON array
-      category TEXT,
-      route TEXT,             -- IV / PO / IM / SC
-      dose TEXT,
-      iv_rate TEXT,
-      warnings TEXT,          -- JSON array (防呆紅字)
-      notes TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-  `);
-
   await db.execute(`
     CREATE TABLE IF NOT EXISTS prescriptions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -238,7 +222,6 @@ async function initSchema(db: Database) {
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_items_purpose    ON items(purpose);`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_items_name_zh    ON items(name_zh);`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_items_code       ON items(hospital_code);`);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_medications_name ON medications(name);`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_item_depts_code  ON item_depts(hospital_code);`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_sets_physician   ON sets(physician_id);`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_sets_dept        ON sets(department_id);`);
@@ -392,22 +375,6 @@ async function initSchema(db: Database) {
     );
   `);
 
-  // ── ICD 診斷碼查詢（ICD-9 / ICD-10）────────────────────────
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS icd_codes (
-      code           TEXT PRIMARY KEY,
-      version        TEXT NOT NULL DEFAULT 'ICD10',  -- 'ICD9' | 'ICD10'
-      description_zh TEXT NOT NULL DEFAULT '',
-      description_en TEXT NOT NULL DEFAULT '',
-      category       TEXT NOT NULL DEFAULT ''
-    );
-  `);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_icd_version ON icd_codes(version);`);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_icd_desczh  ON icd_codes(description_zh);`);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_icd_ver_code ON icd_codes(version, code);`);
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_icd_ver_zh   ON icd_codes(version, description_zh);`);
-  try { await db.execute(`ALTER TABLE icd_codes ADD COLUMN is_starred INTEGER NOT NULL DEFAULT 0`); } catch { /* 已存在 */ }
-  await db.execute(`CREATE INDEX IF NOT EXISTS idx_icd_starred ON icd_codes(version, is_starred);`);
 
   // ── 上班規則備忘錄 ─────────────────────────────────────────
   await db.execute(`
@@ -475,15 +442,38 @@ async function initSchema(db: Database) {
   await db.execute(`UPDATE physicians SET updated_at = datetime('now','localtime') WHERE updated_at IS NULL`);
   await db.execute(`UPDATE contacts   SET updated_at = datetime('now','localtime') WHERE updated_at IS NULL`);
 
-  // ── 病歷潤飾格式範本 ──────────────────────────────────────────
+  // ── 病歷潤飾格式範本（v2：加入 profile 欄位，複合主鍵）────────
   await db.execute(`
     CREATE TABLE IF NOT EXISTS note_templates (
-      format_key    TEXT PRIMARY KEY,
+      format_key    TEXT NOT NULL,
+      profile       TEXT NOT NULL DEFAULT 'default',
       format_label  TEXT NOT NULL,
       system_prompt TEXT NOT NULL DEFAULT '',
-      example       TEXT NOT NULL DEFAULT ''
+      example       TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY (format_key, profile)
     );
   `);
+  // 舊版（format_key 為單一 PK）遷移至 v2 複合主鍵
+  try {
+    await db.select("SELECT profile FROM note_templates LIMIT 1");
+  } catch {
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS note_templates_v2 (
+        format_key    TEXT NOT NULL,
+        profile       TEXT NOT NULL DEFAULT 'default',
+        format_label  TEXT NOT NULL,
+        system_prompt TEXT NOT NULL DEFAULT '',
+        example       TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (format_key, profile)
+      )
+    `);
+    await db.execute(`
+      INSERT OR IGNORE INTO note_templates_v2 (format_key, profile, format_label, system_prompt, example)
+      SELECT format_key, 'default', format_label, system_prompt, example FROM note_templates
+    `);
+    await db.execute(`DROP TABLE note_templates`);
+    await db.execute(`ALTER TABLE note_templates_v2 RENAME TO note_templates`);
+  }
 
   // ── 病歷潤飾歷史記錄 ──────────────────────────────────────────
   await db.execute(`

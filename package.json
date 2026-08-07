@@ -1,7 +1,7 @@
 {
   "name": "medbase",
   "private": true,
-  "version": "0.2.6",
+  "version": "0.3.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -23,10 +23,12 @@
     "@tiptap/starter-kit": "^3.20.5",
     "@tiptap/vue-3": "^3.20.5",
     "@vueuse/core": "^14.2.1",
+    "docxtemplater": "^3.68.7",
+    "fflate": "^0.8.3",
     "pinia": "^3.0.4",
+    "pizzip": "^3.2.0",
     "qrcode": "^1.5.4",
     "tailwindcss": "^4.2.2",
-    "tauri": "^0.15.0",
     "vue": "^3.5.13",
     "vue-router": "^4.6.4",
     "xlsx": "^0.18.5"

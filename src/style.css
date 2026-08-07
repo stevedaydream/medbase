@@ -4,6 +4,8 @@
   --color-emergency: #dc2626;
   --color-emergency-dark: #991b1b;
   --font-sans: "Inter", "Noto Sans TC", system-ui, sans-serif;
+  --font-size-2xs: 0.625rem;
+  --font-size-3xs: 0.5625rem;
 }
 
 * {

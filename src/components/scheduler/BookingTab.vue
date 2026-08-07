@@ -276,7 +276,7 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
             <!-- green dot / clear button -->
             <button v-if="hasAnyChoice(member.code)"
               @click="clearPersonDraft(member.code, $event)"
-              class="w-3 h-3 rounded-full flex-shrink-0 flex items-center justify-center text-[9px] font-bold leading-none transition-colors"
+              class="w-3 h-3 rounded-full flex-shrink-0 flex items-center justify-center text-3xs font-bold leading-none transition-colors"
               :class="activeCodes.has(member.code)
                 ? 'bg-emerald-400 text-emerald-900 hover:bg-red-500 hover:text-white'
                 : 'bg-emerald-700 text-emerald-200 hover:bg-red-700 hover:text-white'"

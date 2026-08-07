@@ -33,10 +33,8 @@ onMounted(async () => {
   try {
     const db = await getDb();
 
-    const [meds, rxs, diseases, exams, surgeries, protos, items, physicians, sets] =
+    const [rxs, diseases, exams, surgeries, protos, items, physicians, sets] =
       await Promise.all([
-        db.select<{ name: string; route: string; category: string }[]>(
-          "SELECT name, route, category FROM medications"),
         db.select<{ name: string; category: string }[]>(
           "SELECT name, category FROM prescriptions"),
         db.select<{ name: string; icd10: string }[]>(
@@ -58,7 +56,6 @@ onMounted(async () => {
       ]);
 
     _searchCache = [
-      ...meds.map((m) => ({ type: "藥物", label: m.name, sub: [m.route, m.category].filter(Boolean).join(" · "), route: "/medications" })),
       ...rxs.map((m) => ({ type: "處方", label: m.name, sub: m.category ?? "", route: "/prescriptions" })),
       ...diseases.map((m) => ({ type: "疾病", label: m.name, sub: m.icd10 ?? "", route: "/disease" })),
       ...exams.map((m) => ({ type: "檢查", label: m.name, sub: m.category ?? "", route: "/examination" })),
@@ -124,7 +121,6 @@ async function copyAndClose(code: string, e: MouseEvent) {
 }
 
 const typeColors: Record<string, string> = {
-  "藥物": "bg-blue-900/60 text-blue-300",
   "處方": "bg-green-900/60 text-green-300",
   "疾病": "bg-amber-900/60 text-amber-300",
   "檢查": "bg-purple-900/60 text-purple-300",
