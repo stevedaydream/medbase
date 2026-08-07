@@ -561,7 +561,7 @@ async function pullTemplatesFromCloud() {
         >
           <span class="text-slate-500 text-2xs inline-block transition-transform duration-200"
             :class="templateEditorOpen ? 'rotate-90' : ''">▶</span>
-          <span class="text-2xs font-black text-slate-500 uppercase tracking-widest group-hover:text-slate-300 transition-colors">
+          <span class="text-2xs font-black text-slate-500 group-hover:text-slate-300 transition-colors">
             格式設定
           </span>
         </button>
@@ -644,7 +644,7 @@ async function pullTemplatesFromCloud() {
       <Transition name="editor-slide">
         <div v-if="templateEditorOpen" class="px-6 pb-4 pt-2 grid grid-cols-2 gap-4">
           <div class="flex flex-col gap-1.5">
-            <label class="text-2xs font-black text-slate-500 uppercase tracking-wider font-mono">
+            <label class="text-2xs font-black text-slate-500">
               System Prompt <span class="normal-case font-normal text-slate-600">— AI 角色說明與整理準則</span>
             </label>
             <textarea
@@ -656,7 +656,7 @@ async function pullTemplatesFromCloud() {
             />
           </div>
           <div class="flex flex-col gap-1.5">
-            <label class="text-2xs font-black text-slate-500 uppercase tracking-wider">
+            <label class="text-2xs font-black text-slate-500">
               範例輸出樣板 <span class="normal-case font-normal text-slate-600">— 格式越具體效果越好</span>
             </label>
             <textarea
@@ -673,7 +673,7 @@ async function pullTemplatesFromCloud() {
 
     <!-- ── 病人資訊列 ───────────────────────────────────────────────── -->
     <div v-if="mode === 'polish'" class="flex items-center gap-4 px-6 py-2.5 border-b border-white/5 bg-slate-900/20 shrink-0">
-      <span class="text-2xs text-slate-500 font-black uppercase tracking-widest shrink-0">病人資料:</span>
+      <span class="text-2xs text-slate-500 font-black shrink-0">病人資料:</span>
       <div class="flex items-center gap-2">
         <input v-model="patientId" placeholder="病歷號"
           class="w-32 text-xs px-3 py-1.5 bg-slate-950/60 border border-white/10 rounded-xl text-slate-200
@@ -690,7 +690,7 @@ async function pullTemplatesFromCloud() {
     <!-- ── 輸入區 ───────────────────────────────────────────────────── -->
     <div v-if="mode === 'polish'" class="flex flex-col border-b border-white/5 overflow-hidden p-4 pb-2" style="flex: 1 1 0">
       <div class="flex items-center px-2 pb-2 shrink-0">
-        <span class="text-2xs font-black text-slate-500 uppercase tracking-widest">病歷草稿</span>
+        <span class="text-2xs font-black text-slate-500">病歷草稿</span>
         <button v-if="inputText" @click="inputText = ''"
           class="ml-auto text-xs font-bold text-slate-500 hover:text-slate-300 transition-colors cursor-pointer">
           清除內容
@@ -760,7 +760,7 @@ async function pullTemplatesFromCloud() {
     <!-- ── 輸出區 ───────────────────────────────────────────────────── -->
     <div v-if="mode === 'polish'" class="flex flex-col p-4 pt-2 overflow-hidden" style="flex: 1 1 0">
       <div class="flex items-center px-2 pb-2 shrink-0">
-        <span class="text-2xs font-black text-slate-500 uppercase tracking-widest">整理結果</span>
+        <span class="text-2xs font-black text-slate-500">整理結果</span>
       </div>
       <div class="flex-1 overflow-y-auto bg-slate-950/50 border border-white/5 rounded-2xl px-5 py-4 custom-scrollbar">
         <pre v-if="outputText" class="text-xs text-slate-200 whitespace-pre-wrap font-mono leading-relaxed select-all">{{ outputText }}</pre>
@@ -853,7 +853,7 @@ async function pullTemplatesFromCloud() {
                      focus:outline-none cursor-pointer appearance-none font-bold">
               <option v-for="m in MODELS" :key="m.id" :value="m.id">{{ m.label }}</option>
             </select>
-            <span class="absolute right-2 top-1.5 text-3xs text-slate-500 pointer-events-none">▼</span>
+            <span class="absolute right-2 top-1.5 text-2xs text-slate-500 pointer-events-none">▼</span>
           </div>
         </div>
       </div>
@@ -867,7 +867,7 @@ async function pullTemplatesFromCloud() {
         <div class="bg-slate-900 border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-slate-100"
           style="width: 760px; max-width: 92vw; max-height: 80vh">
           <div class="flex items-center gap-3 px-5 py-4 border-b border-white/5 bg-slate-950/30 shrink-0">
-            <h3 class="text-xs font-black uppercase tracking-widest text-slate-200">歷史記錄</h3>
+            <h3 class="text-xs font-black text-slate-200">歷史記錄</h3>
             <input v-model="historySearch" placeholder="搜尋病歷號、姓名、床號…"
               class="ml-4 flex-1 text-xs px-3.5 py-1.5 bg-slate-950/80 border border-white/10 rounded-xl
                      text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50 font-bold" />
@@ -881,7 +881,7 @@ async function pullTemplatesFromCloud() {
             </div>
             <table v-else class="w-full text-xs border-collapse">
               <thead class="sticky top-0 bg-slate-900 z-10 border-b border-white/5">
-                <tr class="text-slate-400 text-2xs font-black uppercase tracking-widest font-mono">
+                <tr class="text-slate-400 text-2xs font-black">
                   <th class="text-left px-5 py-3.5 font-bold">時間</th>
                   <th class="text-left px-4 py-3.5 font-bold">病歷號</th>
                   <th class="text-left px-4 py-3.5 font-bold">姓名</th>

@@ -321,7 +321,7 @@ const fio2Result = computed(() => {
             <!-- Inputs -->
             <div class="space-y-4">
               <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">實測鈣 (mg/dL)</label>
+                <label class="block text-xs font-semibold text-slate-400 mb-1.5">實測鈣 (mg/dL)</label>
                 <div class="relative">
                   <input
                     v-model.number="ca_total"
@@ -335,7 +335,7 @@ const fio2Result = computed(() => {
               </div>
 
               <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">血清白蛋白 (g/dL)</label>
+                <label class="block text-xs font-semibold text-slate-400 mb-1.5">血清白蛋白 (g/dL)</label>
                 <div class="relative">
                   <input
                     v-model.number="ca_albumin"
@@ -355,7 +355,7 @@ const fio2Result = computed(() => {
                 class="rounded-2xl border p-6 bg-slate-900/40 backdrop-blur-md shadow-lg transition-all duration-500"
                 :class="caStatus?.bg + ' ' + (correctedCa < 8.5 ? 'border-sky-500/30' : correctedCa > 10.5 ? 'border-rose-500/30' : 'border-emerald-500/30')"
               >
-                <span class="text-xs uppercase font-bold tracking-widest text-slate-500">計算結果</span>
+                <span class="text-xs font-bold text-slate-500">計算結果</span>
                 <div class="flex items-baseline gap-2 mt-2">
                   <span class="text-5xl font-extrabold text-white tracking-tight font-mono">{{ correctedCa.toFixed(2) }}</span>
                   <span class="text-xs text-slate-400 font-mono">mg/dL</span>
@@ -377,7 +377,7 @@ const fio2Result = computed(() => {
           </div>
 
           <div class="max-w-2xl bg-white/[0.02] border border-white/5 rounded-xl p-4 text-[0.6875rem] text-slate-500 space-y-1.5">
-            <p class="font-semibold text-slate-400 uppercase tracking-wider mb-1">臨床備忘</p>
+            <p class="font-semibold text-slate-400 mb-1">臨床備忘</p>
             <p>• 血中大約有 40-50% 的鈣離子是與白蛋白結合。當低白蛋白血症 (Albumin &lt; 4.0 g/dL) 發生時，測得的總鈣量會呈現偽性偏低，因此需要此公式校正。</p>
             <p>• 若臨床情況複雜（如酸鹼平衡失調、腎功能衰竭），強烈建議直接抽血量測 **游離鈣 (Ionized Calcium)** 最為精準。</p>
           </div>
@@ -399,7 +399,7 @@ const fio2Result = computed(() => {
             <div class="space-y-4">
               <div class="grid grid-cols-3 gap-3">
                 <div>
-                  <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">pH 值</label>
+                  <label class="block text-xs font-semibold text-slate-400 mb-1.5">pH 值</label>
                   <input
                     v-model.number="abg_ph"
                     type="number"
@@ -430,7 +430,7 @@ const fio2Result = computed(() => {
 
               <div class="grid grid-cols-2 gap-4">
                 <div>
-                  <label class="block text-xs font-semibold text-slate-400 mb-1.5 tracking-wide uppercase">PaO₂ (mmHg) <span class="text-slate-600 font-normal">選填</span></label>
+                  <label class="block text-xs font-semibold text-slate-400 mb-1.5">PaO₂ (mmHg) <span class="text-slate-600 font-normal">選填</span></label>
                   <input
                     v-model.number="abg_pao2"
                     type="number"
@@ -439,7 +439,7 @@ const fio2Result = computed(() => {
                   />
                 </div>
                 <div>
-                  <label class="block text-xs font-semibold text-slate-400 mb-1.5 tracking-wide uppercase">FiO₂ (%) <span class="text-slate-600 font-normal">選填</span></label>
+                  <label class="block text-xs font-semibold text-slate-400 mb-1.5">FiO₂ (%) <span class="text-slate-600 font-normal">選填</span></label>
                   <input
                     v-model.number="abg_fio2"
                     type="number"
@@ -452,14 +452,14 @@ const fio2Result = computed(() => {
               <!-- Quick normal values -->
               <div class="bg-white/[0.01] border border-white/5 rounded-2xl p-4 text-2xs text-slate-500 grid grid-cols-2 gap-3 font-mono leading-relaxed">
                 <div>
-                  <p class="font-bold text-slate-400 mb-1 tracking-wider uppercase">生理正常值參考</p>
+                  <p class="font-bold text-slate-400 mb-1">生理正常值參考</p>
                   <div>pH: 7.35 – 7.45</div>
                   <div>PaCO₂: 35 – 45 mmHg</div>
                   <div>HCO₃⁻: 22 – 26 mEq/L</div>
                   <div>PaO₂: 80 – 100 mmHg</div>
                 </div>
                 <div>
-                  <p class="font-bold text-slate-400 mb-1 tracking-wider uppercase">代償係數提示</p>
+                  <p class="font-bold text-slate-400 mb-1">代償係數提示</p>
                   <div>代謝性酸 (Winter): 1.5×HCO₃+8±2</div>
                   <div>呼吸性酸 (急性): △HCO₃=△CO₂×0.1</div>
                   <div>呼吸性酸 (慢性): △HCO₃=△CO₂×0.35</div>
@@ -470,7 +470,7 @@ const fio2Result = computed(() => {
             <!-- Result Column -->
             <div class="flex flex-col justify-start">
               <div v-if="abgResult" class="rounded-2xl border border-white/10 bg-slate-900/40 backdrop-blur-md p-6 shadow-xl space-y-4">
-                <span class="text-xs uppercase font-bold tracking-widest text-slate-500">判讀分析序列</span>
+                <span class="text-xs font-bold text-slate-500">判讀分析序列</span>
                 <div class="space-y-3 font-mono text-sm leading-relaxed">
                   <div
                     v-for="(line, i) in abgResult"
@@ -507,7 +507,7 @@ const fio2Result = computed(() => {
             <div class="space-y-4">
               <div class="grid grid-cols-2 gap-4">
                 <div>
-                  <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">目前血糖 (BG)</label>
+                  <label class="block text-xs font-semibold text-slate-400 mb-1.5">目前血糖 (BG)</label>
                   <div class="relative">
                     <input
                       v-model.number="glu_bg"
@@ -519,7 +519,7 @@ const fio2Result = computed(() => {
                   </div>
                 </div>
                 <div>
-                  <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">目標血糖</label>
+                  <label class="block text-xs font-semibold text-slate-400 mb-1.5">目標血糖</label>
                   <div class="relative">
                     <input
                       v-model.number="glu_target"
@@ -533,7 +533,7 @@ const fio2Result = computed(() => {
               </div>
 
               <div class="border-t border-white/5 pt-4">
-                <p class="text-xs font-semibold text-slate-400 mb-3 tracking-wide uppercase">胰島素敏感度 (ISF) 計算基準 <span class="text-slate-600 font-normal">擇一</span></p>
+                <p class="text-xs font-semibold text-slate-400 mb-3">胰島素敏感度 (ISF) 計算基準 <span class="text-slate-600 font-normal">擇一</span></p>
                 <div class="grid grid-cols-2 gap-4">
                   <div>
                     <label class="block text-[0.6875rem] text-slate-500 mb-1 font-medium">每日胰島素總劑量 (TDD)</label>
@@ -544,7 +544,7 @@ const fio2Result = computed(() => {
                         placeholder="例：40"
                         class="w-full text-xs px-3.5 py-2.5 bg-slate-900/50 border border-white/10 rounded-lg text-slate-200 outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-slate-600 transition-all font-mono"
                       />
-                      <span class="absolute right-3 top-3 text-3xs text-slate-600 font-mono">Units</span>
+                      <span class="absolute right-3 top-3 text-2xs text-slate-600 font-mono">Units</span>
                     </div>
                   </div>
                   <div>
@@ -556,7 +556,7 @@ const fio2Result = computed(() => {
                         placeholder="例：42"
                         class="w-full text-xs px-3.5 py-2.5 bg-slate-900/50 border border-white/10 rounded-lg text-slate-200 outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-slate-600 transition-all font-mono"
                       />
-                      <span class="absolute right-3 top-3 text-3xs text-slate-600 font-mono">mg/dL/U</span>
+                      <span class="absolute right-3 top-3 text-2xs text-slate-600 font-mono">mg/dL/U</span>
                     </div>
                   </div>
                 </div>
@@ -566,7 +566,7 @@ const fio2Result = computed(() => {
             <!-- Result -->
             <div class="flex flex-col justify-center">
               <div v-if="insulinResult" class="rounded-2xl border border-white/10 p-6 bg-slate-900/40 backdrop-blur-md shadow-xl transition-all">
-                <span class="text-xs uppercase font-bold tracking-widest text-slate-500">建議校正劑量</span>
+                <span class="text-xs font-bold text-slate-500">建議校正劑量</span>
                 
                 <div v-if="Number(glu_bg) < 70" class="mt-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-start gap-2.5">
                   <span class="text-lg">⚠️</span>
@@ -603,7 +603,7 @@ const fio2Result = computed(() => {
           </div>
 
           <div class="max-w-2xl bg-white/[0.02] border border-white/5 rounded-xl p-4 text-[0.6875rem] text-slate-500 space-y-1 border-t border-white/5 mt-4">
-            <p class="font-semibold text-slate-400 uppercase tracking-wider mb-1">注意事項</p>
+            <p class="font-semibold text-slate-400 mb-1">注意事項</p>
             <p>• 一般病房住院患者餐前血糖控制目標建議為 140–180 mg/dL，重症病房 (ICU) 同樣建議維持在 140–180 mg/dL。</p>
             <p>• 本試算之校正劑量已四捨五入至最接近的 0.5 單位 (Unit)，臨床醫囑開立仍需依患者個別胰島素抗性與臨床現狀進行細微調整。</p>
           </div>
@@ -625,7 +625,7 @@ const fio2Result = computed(() => {
             <div class="space-y-4">
               <div class="grid grid-cols-3 gap-3">
                 <div>
-                  <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">體重 (kg)</label>
+                  <label class="block text-xs font-semibold text-slate-400 mb-1.5">體重 (kg)</label>
                   <input
                     v-model.number="nut_weight"
                     type="number"
@@ -635,7 +635,7 @@ const fio2Result = computed(() => {
                   />
                 </div>
                 <div>
-                  <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">身高 (cm)</label>
+                  <label class="block text-xs font-semibold text-slate-400 mb-1.5">身高 (cm)</label>
                   <input
                     v-model.number="nut_height"
                     type="number"
@@ -644,7 +644,7 @@ const fio2Result = computed(() => {
                   />
                 </div>
                 <div>
-                  <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">年齡 (歲)</label>
+                  <label class="block text-xs font-semibold text-slate-400 mb-1.5">年齡 (歲)</label>
                   <input
                     v-model.number="nut_age"
                     type="number"
@@ -656,7 +656,7 @@ const fio2Result = computed(() => {
 
               <div class="grid grid-cols-3 gap-3">
                 <div>
-                  <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">生理性別</label>
+                  <label class="block text-xs font-semibold text-slate-400 mb-1.5">生理性別</label>
                   <div class="flex gap-1">
                     <button
                       @click="nut_gender = 'M'"
@@ -672,7 +672,7 @@ const fio2Result = computed(() => {
                 </div>
 
                 <div class="col-span-2">
-                  <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">壓力係數 (Stress Factor)</label>
+                  <label class="block text-xs font-semibold text-slate-400 mb-1.5">壓力係數 (Stress Factor)</label>
                   <select
                     v-model.number="nut_stress"
                     class="w-full text-xs px-3.5 py-3.5 bg-slate-900/80 border border-white/10 rounded-xl text-slate-200 outline-none focus:border-cyan-500/50 transition-all"
@@ -683,7 +683,7 @@ const fio2Result = computed(() => {
               </div>
 
               <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">蛋白質給予基準</label>
+                <label class="block text-xs font-semibold text-slate-400 mb-1.5">蛋白質給予基準</label>
                 <select
                   v-model.number="nut_protein"
                   class="w-full text-xs px-3.5 py-3.5 bg-slate-900/80 border border-white/10 rounded-xl text-slate-200 outline-none focus:border-cyan-500/50 transition-all"
@@ -698,7 +698,7 @@ const fio2Result = computed(() => {
               <div v-if="nutResult" class="space-y-4">
                 <!-- TDEE Card -->
                 <div class="rounded-2xl border border-cyan-500/10 bg-gradient-to-br from-cyan-500/10 to-teal-500/5 p-6 shadow-xl relative overflow-hidden">
-                  <span class="text-xs uppercase font-bold tracking-widest text-slate-500">每日總耗能 (TDEE)</span>
+                  <span class="text-xs font-bold text-slate-500">每日總耗能 (TDEE)</span>
                   <div class="flex items-baseline gap-2 mt-2">
                     <span class="text-4xl font-extrabold text-white tracking-tight font-mono">{{ nutResult.tdee }}</span>
                     <span class="text-xs text-slate-400">kcal / 每日</span>
@@ -709,31 +709,31 @@ const fio2Result = computed(() => {
                 <!-- Detail Grid -->
                 <div class="grid grid-cols-2 gap-3">
                   <div class="rounded-xl border border-white/5 bg-slate-900/30 p-4">
-                    <p class="text-2xs uppercase font-bold tracking-wider text-slate-500">蛋白質目標</p>
+                    <p class="text-2xs font-bold text-slate-500">蛋白質目標</p>
                     <p class="text-2xl font-bold text-cyan-300 font-mono mt-1">{{ nutResult.protein }} <span class="text-xs font-normal text-slate-500">g</span></p>
-                    <p class="text-3xs text-slate-600 font-mono mt-1">{{ nut_protein }} g/kg × {{ nut_weight }} kg</p>
+                    <p class="text-2xs text-slate-600 font-mono mt-1">{{ nut_protein }} g/kg × {{ nut_weight }} kg</p>
                   </div>
 
                   <div class="rounded-xl border border-white/5 bg-slate-900/30 p-4">
-                    <p class="text-2xs uppercase font-bold tracking-wider text-slate-500">醣/脂分配估算</p>
+                    <p class="text-2xs font-bold text-slate-500">醣/脂分配估算</p>
                     <p class="text-base font-bold text-slate-200 font-mono mt-1.5">{{ nutResult.carb }}g <span class="text-xs text-slate-500">/ {{ nutResult.fat }}g</span></p>
-                    <p class="text-3xs text-slate-600 mt-1">碳水40% / 脂肪30%</p>
+                    <p class="text-xs text-slate-600 mt-1">碳水40% / 脂肪30%</p>
                   </div>
 
                   <div class="rounded-xl border border-white/5 bg-slate-900/30 p-4">
-                    <p class="text-2xs uppercase font-bold tracking-wider text-slate-500">BMI / 標準體重 (IBW)</p>
+                    <p class="text-2xs font-bold text-slate-500">BMI / 標準體重 (IBW)</p>
                     <p class="text-xl font-bold font-mono mt-1" :class="Number(nutResult.bmi) < 18.5 ? 'text-sky-400' : Number(nutResult.bmi) > 24 ? 'text-rose-400' : 'text-emerald-400'">
                       {{ nutResult.bmi }}
                     </p>
-                    <p class="text-3xs text-slate-600 mt-1">理想體重 ≈ {{ nutResult.ibw }} kg</p>
+                    <p class="text-xs text-slate-600 mt-1">理想體重 ≈ {{ nutResult.ibw }} kg</p>
                   </div>
 
                   <div class="rounded-xl border border-white/5 bg-slate-900/30 p-4">
-                    <p class="text-2xs uppercase font-bold tracking-wider text-slate-500">快速熱量區間</p>
+                    <p class="text-2xs font-bold text-slate-500">快速熱量區間</p>
                     <p class="text-sm font-bold text-slate-300 font-mono mt-2">
                       {{ Math.round(Number(nut_weight) * 25) }} – {{ Math.round(Number(nut_weight) * 30) }} <span class="text-xs font-normal">kcal</span>
                     </p>
-                    <p class="text-3xs text-slate-600 mt-1">依 25–30 kcal/kg/d 粗估</p>
+                    <p class="text-xs text-slate-600 mt-1">依 25–30 kcal/kg/d 粗估</p>
                   </div>
                 </div>
               </div>
@@ -759,7 +759,7 @@ const fio2Result = computed(() => {
 
           <!-- Modern Device Selector Cards -->
           <div>
-            <label class="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wide">選擇氧氣給予裝置</label>
+            <label class="block text-xs font-bold text-slate-400 mb-2">選擇氧氣給予裝置</label>
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
               <button
                 v-for="(label, key) in deviceLabels"
@@ -780,7 +780,7 @@ const fio2Result = computed(() => {
             <div class="space-y-4">
               <!-- Venturi specifics -->
               <div v-if="o2_device === 'venturi'" class="bg-white/[0.01] border border-white/5 rounded-2xl p-4 space-y-3">
-                <label class="block text-[0.6875rem] font-semibold text-slate-400 uppercase tracking-wide">選擇文氏面罩 (Venturi) 設定點</label>
+                <label class="block text-[0.6875rem] font-semibold text-slate-400">選擇文氏面罩 (Venturi) 設定點</label>
                 <div class="grid grid-cols-6 gap-1">
                   <button
                     v-for="v in venturiOptions"
@@ -799,7 +799,7 @@ const fio2Result = computed(() => {
 
               <!-- HFNC specifics -->
               <div v-if="o2_device === 'hfnc'">
-                <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">高流量氧氣濃度 FiO₂ (%)</label>
+                <label class="block text-xs font-semibold text-slate-400 mb-1.5">高流量氧氣濃度 FiO₂ (%)</label>
                 <div class="relative">
                   <input
                     v-model.number="o2_hfnc_fio2"
@@ -815,7 +815,7 @@ const fio2Result = computed(() => {
 
               <!-- General Flow -->
               <div v-if="o2_device !== 'venturi'">
-                <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">
+                <label class="block text-xs font-semibold text-slate-400 mb-1.5">
                   {{ o2_device === 'hfnc' ? '流量設定 (L/min) ' : '氧氣流量 (L/min)' }}
                   <span v-if="o2_device === 'hfnc'" class="text-slate-600 font-normal">選填</span>
                 </label>
@@ -833,7 +833,7 @@ const fio2Result = computed(() => {
 
               <!-- PaO2 input -->
               <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wide">動脈氧分壓 PaO₂ (mmHg) <span class="text-slate-600 font-normal">選填</span></label>
+                <label class="block text-xs font-semibold text-slate-400 mb-1.5">動脈氧分壓 PaO₂ (mmHg) <span class="text-slate-600 font-normal">選填</span></label>
                 <div class="relative">
                   <input
                     v-model.number="o2_pao2"
@@ -850,7 +850,7 @@ const fio2Result = computed(() => {
             <div class="flex flex-col">
               <div v-if="fio2Result" class="rounded-2xl border border-white/10 bg-slate-900/40 p-6 shadow-xl space-y-4">
                 <div>
-                  <span class="text-xs uppercase font-bold tracking-widest text-slate-500">估算吸入氧濃度</span>
+                  <span class="text-xs font-bold text-slate-500">估算吸入氧濃度</span>
                   <div class="flex items-baseline gap-2 mt-1">
                     <span class="text-5xl font-extrabold text-white tracking-tight font-mono">{{ fio2Result.fio2 }}</span>
                     <span class="text-lg text-slate-400 font-mono">% FiO₂</span>
@@ -859,7 +859,7 @@ const fio2Result = computed(() => {
                 </div>
 
                 <div v-if="fio2Result.pf !== null" class="pt-4 border-t border-white/5 space-y-1.5">
-                  <span class="text-xs uppercase font-bold tracking-widest text-slate-500 block">氧合指數 (P/F ratio)</span>
+                  <span class="text-xs font-bold text-slate-500 block">氧合指數 (P/F ratio)</span>
                   <div class="flex items-baseline gap-2">
                     <span
                       class="text-3xl font-extrabold font-mono tracking-tight"
@@ -887,10 +887,10 @@ const fio2Result = computed(() => {
 
           <!-- Quick table reference -->
           <div class="bg-white/[0.01] border border-white/5 rounded-2xl p-5 space-y-3 max-w-xl">
-            <p class="text-xs font-bold text-slate-300 uppercase tracking-wide">氧氣裝置估算對照表 (Quick Reference)</p>
+            <p class="text-xs font-bold text-slate-300">氧氣裝置估算對照表 (Quick Reference)</p>
             <table class="w-full text-[0.6875rem] text-slate-500 border-collapse">
               <thead>
-                <tr class="text-slate-400 border-b border-white/5 text-left font-mono">
+                <tr class="text-slate-400 border-b border-white/5 text-left">
                   <th class="pb-2 font-semibold">給氧裝置</th>
                   <th class="pb-2 font-semibold">建議流量流速</th>
                   <th class="pb-2 font-semibold">估計 FiO₂ 範圍</th>

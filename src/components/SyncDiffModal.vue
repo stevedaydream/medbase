@@ -190,7 +190,7 @@ function confirmMerge() {
             <!-- Conflict fields preview -->
             <div class="grid grid-cols-2 gap-2 text-[0.6875rem]">
               <div class="space-y-1">
-                <p class="text-blue-400 font-bold text-2xs uppercase">本地</p>
+                <p class="text-blue-400 font-bold text-2xs">本地</p>
                 <template v-for="k in row.conflictKeys" :key="k">
                   <div class="rounded px-2 py-1"
                     :class="row.local?.[k] !== row.cloud?.[k] ? 'bg-blue-900/30' : ''">
@@ -200,7 +200,7 @@ function confirmMerge() {
                 </template>
               </div>
               <div class="space-y-1">
-                <p class="text-amber-400 font-bold text-2xs uppercase">雲端</p>
+                <p class="text-amber-400 font-bold text-2xs">雲端</p>
                 <template v-for="k in row.conflictKeys" :key="k">
                   <div class="rounded px-2 py-1"
                     :class="row.local?.[k] !== row.cloud?.[k] ? 'bg-amber-900/30' : ''">

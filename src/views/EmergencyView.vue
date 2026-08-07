@@ -155,7 +155,7 @@ function exportRecord() {
         <span class="text-rose-500 animate-pulse text-lg">🚨</span>
         <div>
           <p class="text-xs font-bold text-rose-500 uppercase tracking-widest">Emergency Protocols</p>
-          <p class="text-3xs text-slate-500 font-mono tracking-tight">CRITICAL PATHWAY MONITOR</p>
+          <p class="text-2xs text-slate-500 font-mono tracking-tight">CRITICAL PATHWAY MONITOR</p>
         </div>
       </div>
       
@@ -206,7 +206,7 @@ function exportRecord() {
         <div class="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20 relative overflow-hidden shadow-inner">
           <!-- Subtle warning pattern backdrop -->
           <div class="absolute inset-0 opacity-[0.02] pointer-events-none bg-[linear-gradient(45deg,#f59e0b_25%,transparent_25%,transparent_50%,#f59e0b_50%,#f59e0b_75%,transparent_75%,transparent)] bg-[length:24px_24px]" />
-          <p class="text-amber-400 text-xs font-bold uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+          <p class="text-amber-400 text-xs font-bold mb-2.5 flex items-center gap-1.5">
             <span>⚠️</span> 啟動時機 / 臨床指徵 (Triggers)
           </p>
           <div class="flex flex-wrap gap-2.5 relative z-10">
@@ -222,7 +222,7 @@ function exportRecord() {
           <!-- Immediate actions Checklist -->
           <div class="rounded-2xl bg-slate-900/40 border border-white/5 p-5 space-y-4">
             <div class="border-b border-white/5 pb-2.5 flex justify-between items-center">
-              <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">立即處置步驟 (Checklist)</span>
+              <span class="text-xs font-bold text-slate-300">立即處置步驟 (Checklist)</span>
               <span class="text-2xs text-slate-500 font-mono">
                 {{ checkedActions.size }} / {{ parseJson(selected.immediate_actions).length }} 已處理
               </span>
@@ -259,7 +259,7 @@ function exportRecord() {
             <!-- Critical meds -->
             <div class="rounded-2xl bg-slate-900/40 border border-white/5 p-5 space-y-4">
               <div class="border-b border-white/5 pb-2.5">
-                <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">關鍵急救用藥 (Critical Meds)</span>
+                <span class="text-xs font-bold text-slate-300">關鍵急救用藥 (Critical Meds)</span>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div
@@ -284,7 +284,7 @@ function exportRecord() {
             <!-- Timers Widget -->
             <div v-if="timerStates.length" class="rounded-2xl bg-slate-900/40 border border-white/5 p-5 space-y-4">
               <div class="border-b border-white/5 pb-2.5">
-                <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">程序監控計時器 (Timers)</span>
+                <span class="text-xs font-bold text-slate-300">程序監控計時器 (Timers)</span>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div
@@ -326,7 +326,7 @@ function exportRecord() {
             <!-- Contacts -->
             <div v-if="parseJson(selected.contacts).length" class="rounded-2xl bg-slate-900/40 border border-white/5 p-5 space-y-4">
               <div class="border-b border-white/5 pb-2.5">
-                <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">緊急通報聯絡 (Hotlines)</span>
+                <span class="text-xs font-bold text-slate-300">緊急通報聯絡 (Hotlines)</span>
               </div>
               <div class="space-y-2">
                 <div

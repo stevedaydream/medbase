@@ -42,10 +42,10 @@
   --font-sans: "Segoe UI Variable Text", "Segoe UI", "Microsoft JhengHei UI",
                "Microsoft JhengHei", system-ui, sans-serif;
 
+  /* 2xs（預設 18px 根字級下約 11.3px）僅供 badge、計數、純數值使用。
+     一切要閱讀的句子下限為 xs —— 中文筆畫密度遠高於拉丁，11px 以下
+     會糊成一團。原本的 3xs（約 10.1px）已於階段 3 全數汰除。*/
   --font-size-2xs: 0.625rem;
-  /* 待汰除：階段 3 會把剩餘 61 處 text-3xs 升級為 2xs/xs 後移除此 token。
-     在那之前不能先刪，否則 text-3xs 不再產生規則，字會改為繼承父層而變大。*/
-  --font-size-3xs: 0.5625rem;
 }
 
 /* 深色主題：只覆寫 token 值本身，不新增任何 class */

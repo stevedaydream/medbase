@@ -230,7 +230,7 @@ async function saveTitle() {
           
           <div class="flex-1 min-w-0">
             <p class="text-xs font-bold truncate tracking-wide" :class="activeMemo?.id === m.id ? 'text-cyan-300' : 'text-slate-200'">{{ m.title }}</p>
-            <p class="text-3xs text-slate-500 font-medium tracking-wide uppercase mt-0.5">{{ m.category }}</p>
+            <p class="text-2xs text-slate-500 font-medium tracking-wide uppercase mt-0.5">{{ m.category }}</p>
           </div>
           <button @click.stop="deleteTarget = m"
             class="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 text-xs px-1.5 transition-all shrink-0 cursor-pointer">
@@ -328,15 +328,15 @@ async function saveTitle() {
   <Teleport to="body">
     <div v-if="showAddModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" @click.self="showAddModal = false">
       <div class="bg-slate-900 border border-white/10 rounded-2xl shadow-2xl w-[400px] max-w-[90vw] p-6 space-y-4">
-        <h2 class="text-slate-100 font-black text-sm uppercase tracking-wide border-b border-white/5 pb-2">✏️ 新增備忘</h2>
+        <h2 class="text-slate-100 font-black text-sm border-b border-white/5 pb-2">✏️ 新增備忘</h2>
         <div class="space-y-3">
           <div>
-            <label class="text-2xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">分類目錄</label>
+            <label class="text-2xs font-bold text-slate-500 mb-1 block">分類目錄</label>
             <input v-model="addForm.category" placeholder="例如: 輪序規則、外圍分配、注意事項"
               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-cyan-500/50" />
           </div>
           <div>
-            <label class="text-2xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">備忘標題 *</label>
+            <label class="text-2xs font-bold text-slate-500 mb-1 block">備忘標題 *</label>
             <input v-model="addForm.title" placeholder="請輸入標題"
               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-cyan-500/50 font-bold"
               @keydown.enter="confirmAdd" autofocus />

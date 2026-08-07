@@ -415,13 +415,13 @@ async function pullSettingsFromCloud() {
     <div class="flex items-center justify-between border-b border-white/5 pb-4">
       <div class="flex items-center gap-3">
         <span class="text-xl">⚙️</span>
-        <h1 class="text-sm font-black text-slate-200 tracking-wider uppercase">系統整合與設定</h1>
+        <h1 class="text-sm font-black text-slate-200">系統整合與設定</h1>
       </div>
     </div>
 
     <!-- ── 外觀設定 ───────────────────────────────────────────────── -->
     <section class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 p-5 shadow-xl space-y-4">
-      <h2 class="text-xs font-black text-slate-500 uppercase tracking-widest">外觀與字型控制 (Appearance)</h2>
+      <h2 class="text-xs font-black text-slate-500">外觀與字型控制 (Appearance)</h2>
       <div class="flex items-center gap-6">
         <p class="text-xs text-slate-400 font-bold w-16 shrink-0">介面字體</p>
         <div class="flex gap-1.5">
@@ -467,9 +467,9 @@ async function pullSettingsFromCloud() {
 
     <section v-if="adminUnlocked" class="space-y-4">
       <div class="flex items-center justify-between">
-        <h2 class="flex items-center gap-2.5 text-xs font-black text-slate-400 uppercase tracking-widest font-mono">
+        <h2 class="flex items-center gap-2.5 text-xs font-black text-slate-400">
           <span>⚙️</span> 班表資料串接與後端設定
-          <span class="text-3xs font-bold uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 shadow-[0_0_10px_rgba(245,158,11,0.05)]">管理員模式</span>
+          <span class="text-2xs font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 shadow-[0_0_10px_rgba(245,158,11,0.05)]">管理員模式</span>
         </h2>
         <button @click="adminUnlocked = false" class="text-2xs text-slate-500 hover:text-slate-300 font-bold cursor-pointer">🔒 鎖定設定</button>
       </div>
@@ -477,27 +477,27 @@ async function pullSettingsFromCloud() {
       <div class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 p-6 shadow-xl space-y-4">
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-2xs font-bold text-slate-500 uppercase mb-1">主試算表 ID (Google Spreadsheet ID)</label>
+            <label class="block text-2xs font-bold text-slate-500 mb-1">主試算表 ID (Google Spreadsheet ID)</label>
             <input v-model="cloud.spreadsheetId" placeholder="請輸入試算表 ID..."
               class="w-full text-xs px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 font-mono outline-none focus:border-indigo-500/50" />
           </div>
           <div>
-            <label class="block text-2xs font-bold text-slate-500 uppercase mb-1">Google API Key (金鑰憑證)</label>
+            <label class="block text-2xs font-bold text-slate-500 mb-1">Google API Key (金鑰憑證)</label>
             <input v-model="cloud.apiKey" type="password" placeholder="請輸入 API Key..."
               class="w-full text-xs px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 font-mono outline-none focus:border-indigo-500/50" />
           </div>
           <div>
-            <label class="block text-2xs font-bold text-slate-500 uppercase mb-1">GAS Web App URL (回寫閘道連結)</label>
+            <label class="block text-2xs font-bold text-slate-500 mb-1">GAS Web App URL (回寫閘道連結)</label>
             <input v-model="cloud.gasUrl" placeholder="https://script.google.com/macros/s/.../exec"
               class="w-full text-xs px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 font-mono outline-none focus:border-indigo-500/50" />
           </div>
           <div>
-            <label class="block text-2xs font-bold text-slate-500 uppercase mb-1">班表 Sheet 分頁前綴</label>
+            <label class="block text-2xs font-bold text-slate-500 mb-1">班表 Sheet 分頁前綴</label>
             <input v-model="sheetPrefix" placeholder="Schedule_"
               class="w-full text-xs px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 font-mono outline-none focus:border-indigo-500/50" />
           </div>
           <div class="col-span-2">
-            <label class="block text-2xs font-bold text-slate-500 uppercase mb-1">獨立班表試算表 ID（留空則寫入上方主試算表）</label>
+            <label class="block text-2xs font-bold text-slate-500 mb-1">獨立班表試算表 ID（留空則寫入上方主試算表）</label>
             <input v-model="cloud.scheduleSpreadsheetId" placeholder="選填：指定寫入專屬的月度班表 Excel 檔案"
               class="w-full text-xs px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 font-mono outline-none focus:border-indigo-500/50" />
             <p class="text-2xs text-slate-500 mt-1 font-medium">指定後，排班系統將自動將 <span class="font-mono text-slate-400">Schedule_YYYYMM</span> 分頁寫入此處；請確保 GAS URL 的 Google 帳號擁有編輯權限。</p>
@@ -656,16 +656,16 @@ async function pullSettingsFromCloud() {
 
     <!-- ── AI 設定 ────────────────────────────────────────────────── -->
     <section class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 p-5 shadow-xl space-y-4">
-      <h2 class="text-xs font-black text-slate-500 uppercase tracking-widest">人工智慧輔助設定 (AI Integrations)</h2>
+      <h2 class="text-xs font-black text-slate-500">人工智慧輔助設定 (AI Integrations)</h2>
       <div class="p-5 bg-slate-950 rounded-2xl border border-white/5 space-y-4">
         <div class="flex items-center gap-2.5">
           <p class="text-xs text-slate-300 font-bold">Gemini API Access Token</p>
           <span v-if="geminiKeySet"
-            class="text-3xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.05)]">
+            class="text-2xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.05)]">
             授權有效 ✓
           </span>
           <span v-else
-            class="text-3xs font-bold px-2 py-0.5 rounded-full bg-slate-800 border border-white/5 text-slate-500">
+            class="text-2xs font-bold px-2 py-0.5 rounded-full bg-slate-800 border border-white/5 text-slate-500">
             尚未填寫
           </span>
         </div>
@@ -692,12 +692,12 @@ async function pullSettingsFromCloud() {
 
     <!-- ── 版本與更新 ──────────────────────────────────────────────── -->
     <section class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 p-5 shadow-xl space-y-5">
-      <h2 class="text-xs font-black text-slate-500 uppercase tracking-widest">系統更新與發佈日誌 (Version control)</h2>
+      <h2 class="text-xs font-black text-slate-500">系統更新與發佈日誌 (Version control)</h2>
 
       <!-- 目前版本 + 檢查按鈕 -->
       <div class="flex items-center gap-6 p-5 bg-slate-950 rounded-2xl border border-white/5 shadow-md">
         <div class="flex-1">
-          <p class="text-2xs font-bold text-slate-500 uppercase tracking-wider mb-1">目前安裝版本</p>
+          <p class="text-2xs font-bold text-slate-500 mb-1">目前安裝版本</p>
           <p class="text-2xl font-black text-slate-200 font-mono tracking-wider">v{{ APP_VERSION }}</p>
         </div>
         <div class="flex flex-col items-end gap-1.5 shrink-0">
@@ -714,7 +714,7 @@ async function pullSettingsFromCloud() {
         class="p-5 bg-emerald-500/[0.03] border border-emerald-500/20 rounded-2xl space-y-4 shadow-[0_0_20px_rgba(16,185,129,0.02)]">
         <div class="flex items-center justify-between border-b border-emerald-500/10 pb-3">
           <div>
-            <p class="text-xs text-emerald-400 font-black tracking-wider uppercase">⚡ 偵測到新版本發佈: v{{ updateVersion }}</p>
+            <p class="text-xs text-emerald-400 font-black">⚡ 偵測到新版本發佈: v{{ updateVersion }}</p>
           </div>
           <button @click="installUpdate" :disabled="updateDownloading"
             class="text-xs px-4 py-2 bg-emerald-600 border border-emerald-500/30 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl font-bold cursor-pointer shadow-lg shadow-emerald-500/10">
@@ -757,7 +757,7 @@ async function pullSettingsFromCloud() {
               </span>
               <span class="text-2xs text-slate-500 font-mono font-bold">{{ entry.date }}</span>
               <span v-if="entry.version === APP_VERSION"
-                class="text-3xs font-bold px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.05)]">
+                class="text-2xs font-bold px-2 py-0.5 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.05)]">
                 目前安裝版本
               </span>
             </div>
@@ -769,7 +769,7 @@ async function pullSettingsFromCloud() {
 
     <!-- ── 雲端同步排程 ────────────────────────────────────────────── -->
     <section class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 p-5 shadow-xl space-y-4">
-      <h2 class="text-xs font-black text-slate-500 uppercase tracking-widest">雲端自動同步排程 (Sync Schedule)</h2>
+      <h2 class="text-xs font-black text-slate-500">雲端自動同步排程 (Sync Schedule)</h2>
 
       <!-- 固定時段 -->
       <div class="space-y-3">

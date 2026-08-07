@@ -119,7 +119,7 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
           ←
         </button>
         <div>
-          <h2 class="text-sm font-black text-slate-200 uppercase tracking-widest">ACP 套組模板管理</h2>
+          <h2 class="text-sm font-black text-slate-200">ACP 套組模板管理</h2>
           <p class="text-2xs text-slate-500 font-bold uppercase tracking-wider font-mono mt-0.5">Configure ACP sets and clinical checklist items</p>
         </div>
       </div>
@@ -129,7 +129,7 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
     <div class="grid grid-cols-12 gap-6 flex-1 overflow-hidden">
       <!-- 1. Sets Selection (Sidebar) -->
       <aside class="col-span-4 bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 p-5 flex flex-col overflow-hidden shadow-xl">
-        <h3 class="text-xs font-black text-indigo-400 uppercase tracking-widest mb-4">1. 選擇或建立評估套組</h3>
+        <h3 class="text-xs font-black text-indigo-400 mb-4">1. 選擇或建立評估套組</h3>
         
         <div class="flex gap-2 mb-4 shrink-0">
           <input v-model="setFormName" 
@@ -172,8 +172,8 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
 
         <div class="flex-1 flex flex-col overflow-hidden">
           <div class="flex items-center gap-2 mb-4 shrink-0">
-            <span class="text-2xs font-black text-slate-500 uppercase tracking-widest">目前類別 /</span>
-            <h4 class="text-xs font-black text-slate-300 uppercase tracking-widest">管理「{{ tabs.find(t=>t.key===activeTab)?.label }}」項目細項</h4>
+            <span class="text-2xs font-black text-slate-500">目前類別 /</span>
+            <h4 class="text-xs font-black text-slate-300">管理「{{ tabs.find(t=>t.key===activeTab)?.label }}」項目細項</h4>
           </div>
           
           <div class="flex gap-2 mb-4 shrink-0">
@@ -234,7 +234,7 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
       <!-- Empty Set State -->
       <section v-else class="col-span-8 flex flex-col items-center justify-center border border-dashed border-white/5 rounded-2xl text-slate-500 bg-slate-900/10">
         <span class="text-5xl mb-4 animate-bounce">👈</span>
-        <p class="text-xs font-black tracking-widest uppercase">請先選擇左側評估套組以管理醫囑</p>
+        <p class="text-xs font-black">請先選擇左側評估套組以管理醫囑</p>
       </section>
     </div>
   </div>

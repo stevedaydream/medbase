@@ -159,7 +159,7 @@ function isDifferentSession(idx: number): boolean {
             <!-- 時間 -->
             <span class="shrink-0 text-gray-600 mt-0.5 w-[62px]">{{ entry.time }}</span>
             <!-- Level badge -->
-            <span class="shrink-0 rounded px-1 py-0.5 text-3xs leading-none mt-0.5 w-[42px] text-center"
+            <span class="shrink-0 rounded px-1 py-0.5 text-2xs leading-none mt-0.5 w-[42px] text-center"
               :class="levelClass[entry.level]">
               {{ entry.level === 'action' ? 'CLICK' : entry.level.toUpperCase() }}
             </span>
@@ -190,7 +190,7 @@ function isDifferentSession(idx: number): boolean {
         <!-- Session 分隔線 -->
         <div v-if="isDifferentSession(idx)" class="flex items-center gap-2 px-3 py-1 bg-gray-900/60">
           <div class="flex-1 h-px bg-gray-800"></div>
-          <span class="text-3xs text-gray-700 shrink-0">session {{ filtered[idx+1]?.session }}</span>
+          <span class="text-2xs text-gray-700 shrink-0">session {{ filtered[idx+1]?.session }}</span>
           <div class="flex-1 h-px bg-gray-800"></div>
         </div>
       </template>

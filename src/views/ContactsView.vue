@@ -333,7 +333,7 @@ async function doDelete() {
         <!-- Section divider label -->
         <div class="flex items-center gap-2.5">
           <span class="text-2xs font-bold text-slate-500 uppercase tracking-widest">{{ cat }}</span>
-          <span class="text-3xs text-slate-600 font-mono border border-white/5 px-2 py-0.5 rounded-md bg-white/[0.01]">{{ items.length }}</span>
+          <span class="text-2xs text-slate-600 font-mono border border-white/5 px-2 py-0.5 rounded-md bg-white/[0.01]">{{ items.length }}</span>
           <div class="flex-1 border-t border-white/5"></div>
         </div>
 
@@ -382,32 +382,32 @@ async function doDelete() {
       <div class="w-full max-w-sm bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
         <!-- Header -->
         <div class="flex items-center justify-between px-5 py-4 border-b border-white/5">
-          <h3 class="text-slate-100 font-black text-xs uppercase tracking-wider">{{ modalMode === "add" ? "✨ 新增" : "⚙️ 編輯" }}分機資料</h3>
+          <h3 class="text-slate-100 font-black text-xs">{{ modalMode === "add" ? "✨ 新增" : "⚙️ 編輯" }}分機資料</h3>
           <button @click="showModal = false" class="text-slate-500 hover:text-slate-300 text-xl leading-none cursor-pointer">×</button>
         </div>
         
         <!-- Form -->
         <div class="px-5 py-4 space-y-3.5">
           <div>
-            <label class="text-2xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">名稱 *</label>
+            <label class="text-2xs font-bold text-slate-500 mb-1 block">名稱 *</label>
             <input v-model="form.label" autofocus
               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-cyan-500/50"
               placeholder="護理站、值班室、藥局…" />
           </div>
           <div>
-            <label class="text-2xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">分機號碼 *</label>
+            <label class="text-2xs font-bold text-slate-500 mb-1 block">分機號碼 *</label>
             <input v-model="form.ext"
               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs font-mono focus:outline-none focus:border-cyan-500/50"
               placeholder="12345" />
           </div>
           <div>
-            <label class="text-2xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">類別分類</label>
+            <label class="text-2xs font-bold text-slate-500 mb-1 block">類別分類</label>
             <input v-model="form.category"
               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-cyan-500/50"
               placeholder="常用分機" />
           </div>
           <div>
-            <label class="text-2xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">備註說明</label>
+            <label class="text-2xs font-bold text-slate-500 mb-1 block">備註說明</label>
             <input v-model="form.notes"
               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-cyan-500/50"
               placeholder="選填說明" />

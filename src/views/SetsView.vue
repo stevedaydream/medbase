@@ -595,7 +595,7 @@ async function doDelete() {
           <div class="px-2 pt-2.5 pb-1.5 flex items-center gap-2 sticky top-0 bg-slate-950/20 backdrop-blur-sm z-[2]">
             <span class="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse shrink-0"></span>
             <span class="text-xs font-black text-slate-200 tracking-wide truncate flex-1">{{ group.name }}</span>
-            <span class="text-3xs font-mono font-bold text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-white/5">{{ group.items.length }}</span>
+            <span class="text-2xs font-mono font-bold text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded border border-white/5">{{ group.items.length }}</span>
           </div>
           <!-- 套組項目 -->
           <div class="space-y-1 mt-1 pl-3.5 border-l border-white/5">
@@ -683,7 +683,7 @@ async function doDelete() {
         <div class="flex-1 overflow-auto custom-scrollbar">
           <table class="w-full text-xs border-collapse">
             <thead class="sticky top-0 bg-slate-900 border-b border-white/5 z-10">
-              <tr class="text-slate-400 text-2xs font-black uppercase tracking-widest font-mono">
+              <tr class="text-slate-400 text-2xs font-black">
                 <th class="text-left px-5 py-4 font-bold">院內碼</th>
                 <th class="text-left px-5 py-4 font-bold">品名</th>
                 <th class="text-center px-4 py-4 font-bold w-28">數量</th>
@@ -758,13 +758,13 @@ async function doDelete() {
       @click.self="showSetModal = false">
       <div class="w-full max-w-md bg-slate-900 border border-white/10 shadow-2xl rounded-2xl overflow-hidden text-slate-100">
         <div class="flex items-center justify-between px-5 py-4 border-b border-white/5 bg-slate-950/30">
-          <h3 class="text-xs font-black uppercase tracking-widest text-slate-200">{{ setModalMode === "add" ? "新增套組" : "編輯套組" }}</h3>
+          <h3 class="text-xs font-black text-slate-200">{{ setModalMode === "add" ? "新增套組" : "編輯套組" }}</h3>
           <button @click="showSetModal = false" class="text-slate-500 hover:text-white text-xl leading-none cursor-pointer">×</button>
         </div>
         <div class="px-5 py-4 space-y-4">
           <!-- 醫師 -->
           <div>
-            <label class="text-2xs font-black text-slate-500 uppercase tracking-wider mb-1.5 block">主治醫師</label>
+            <label class="text-2xs font-black text-slate-500 mb-1.5 block">主治醫師</label>
             <div class="relative">
               <select v-model="setForm.physician_id" @change="updateSetName"
                 class="w-full pl-3 pr-8 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-bold appearance-none cursor-pointer">
@@ -780,24 +780,24 @@ async function doDelete() {
                   </option>
                 </optgroup>
               </select>
-              <span class="absolute right-3 top-2.5 text-3xs text-slate-500 pointer-events-none">▼</span>
+              <span class="absolute right-3 top-2.5 text-2xs text-slate-500 pointer-events-none">▼</span>
             </div>
           </div>
           <!-- 術式 -->
           <div>
-            <label class="text-2xs font-black text-slate-500 uppercase tracking-wider mb-1.5 block">術式名稱</label>
+            <label class="text-2xs font-black text-slate-500 mb-1.5 block">術式名稱</label>
             <input v-model="setForm.surgery_type" @input="updateSetName" placeholder="如 TKR / THR / 肩關節鏡…"
               class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
           </div>
           <!-- 套組名稱 -->
           <div>
-            <label class="text-2xs font-black text-slate-500 uppercase tracking-wider mb-1.5 block">套組顯示名稱 *</label>
+            <label class="text-2xs font-black text-slate-500 mb-1.5 block">套組顯示名稱 *</label>
             <input v-model="setForm.name" placeholder="系統自動產生，或手動覆寫"
               class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
           </div>
           <!-- 備註 -->
           <div>
-            <label class="text-2xs font-black text-slate-500 uppercase tracking-wider mb-1.5 block">備註說明</label>
+            <label class="text-2xs font-black text-slate-500 mb-1.5 block">備註說明</label>
             <input v-model="setForm.notes" placeholder="其他配製或備註"
               class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
           </div>
@@ -817,13 +817,13 @@ async function doDelete() {
       @click.self="showAddItem = false">
       <div class="w-full max-w-md bg-slate-900 border border-white/10 shadow-2xl rounded-2xl overflow-hidden text-slate-100">
         <div class="flex items-center justify-between px-5 py-4 border-b border-white/5 bg-slate-950/30">
-          <h3 class="text-xs font-black uppercase tracking-widest text-slate-200">加入品項</h3>
+          <h3 class="text-xs font-black text-slate-200">加入品項</h3>
           <button @click="showAddItem = false" class="text-slate-500 hover:text-white text-xl leading-none cursor-pointer">×</button>
         </div>
         <div class="px-5 py-4 space-y-4">
           <!-- 品項搜尋 -->
           <div class="relative">
-            <label class="text-2xs font-black text-slate-500 uppercase tracking-wider mb-1.5 block">搜尋品項（院內碼 / 中文 / 英文）</label>
+            <label class="text-2xs font-black text-slate-500 mb-1.5 block">搜尋品項（院內碼 / 中文 / 英文）</label>
             <input v-model="itemSearch" placeholder="請輸入院內碼或自費品名搜尋…"
               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
             <!-- 建議下拉 -->
@@ -849,7 +849,7 @@ async function doDelete() {
           <!-- 數量 + PRN -->
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="text-2xs font-black text-slate-500 uppercase tracking-wider mb-1.5 block">數量</label>
+              <label class="text-2xs font-black text-slate-500 mb-1.5 block">數量</label>
               <input v-model.number="itemForm.quantity" type="number" min="1"
                 class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-mono font-bold" />
             </div>
@@ -863,7 +863,7 @@ async function doDelete() {
           </div>
           <!-- 備註 -->
           <div>
-            <label class="text-2xs font-black text-slate-500 uppercase tracking-wider mb-1.5 block">備註說明</label>
+            <label class="text-2xs font-black text-slate-500 mb-1.5 block">備註說明</label>
             <input v-model="itemForm.notes" placeholder="e.g. 特殊指名才使用 / 次要選擇…"
               class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
           </div>
@@ -886,7 +886,7 @@ async function doDelete() {
       class="fixed inset-0 z-[9000] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm"
       @click.self="showOverwriteConfirm = false">
       <div class="w-full max-w-sm bg-slate-900 border border-amber-900/30 shadow-2xl p-6 rounded-2xl space-y-4 text-slate-100">
-        <h3 class="text-amber-400 font-black text-xs uppercase tracking-widest font-mono flex items-center gap-1.5">
+        <h3 class="text-amber-400 font-black text-xs flex items-center gap-1.5">
           <span>⚠️</span> 覆蓋上傳確認
         </h3>
         <p class="text-xs text-slate-300 leading-normal">

@@ -347,7 +347,7 @@ async function saveForm() {
             <div class="flex items-center gap-4">
               <span class="text-lg">📞</span>
               <div>
-                <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">院內聯絡分機</p>
+                <p class="text-xs font-bold text-slate-500">院內聯絡分機</p>
                 <p class="text-3xl font-mono font-black text-cyan-400 mt-1 tracking-widest">{{ selected.ext }}</p>
               </div>
             </div>
@@ -360,7 +360,7 @@ async function saveForm() {
             <!-- HIS -->
             <div class="rounded-2xl border border-white/5 bg-slate-900/30 p-5 space-y-4">
               <div class="border-b border-white/5 pb-2.5 flex justify-between items-center">
-                <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">HIS 系統登入資料</span>
+                <span class="text-xs font-bold text-slate-400">HIS 系統登入資料</span>
                 <span class="text-2xs font-mono text-slate-600">HIS CREDENTIALS</span>
               </div>
               <div class="space-y-3 font-mono text-sm">
@@ -381,7 +381,7 @@ async function saveForm() {
 
           <!-- Notes -->
           <div v-if="selected.notes" class="p-5 rounded-2xl bg-slate-900/30 border border-white/5">
-            <p class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">備註說明 / 排班偏好</p>
+            <p class="text-xs font-bold text-slate-500 mb-2">備註說明 / 排班偏好</p>
             <p class="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap font-sans">{{ selected.notes }}</p>
           </div>
         </div>
@@ -405,36 +405,36 @@ async function saveForm() {
     <!-- Add / Edit modal -->
     <div v-if="showAddModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" @click.self="showAddModal = false">
       <div class="bg-slate-900 border border-white/10 rounded-2xl shadow-2xl w-[440px] max-w-[95vw] p-6 space-y-4 overflow-y-auto max-h-[90vh]">
-        <h2 class="text-slate-100 font-black text-sm uppercase tracking-wider border-b border-white/5 pb-2">
+        <h2 class="text-slate-100 font-black text-sm border-b border-white/5 pb-2">
           {{ editTarget ? '⚙️ 編輯醫師基本檔案' : '✨ 新增醫師基本檔案' }}
         </h2>
         <div class="grid grid-cols-2 gap-4">
           <div class="col-span-2">
-            <label class="text-xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">醫師姓名 *</label>
+            <label class="text-xs font-bold text-slate-500 mb-1 block">醫師姓名 *</label>
             <input v-model="form.name" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-sm focus:outline-none focus:border-cyan-500/50 font-bold" autofocus />
           </div>
           <div>
-            <label class="text-xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">專科別</label>
+            <label class="text-xs font-bold text-slate-500 mb-1 block">專科別</label>
             <input v-model="form.department" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-sm focus:outline-none focus:border-cyan-500/50" />
           </div>
           <div>
-            <label class="text-xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">臨床職稱</label>
+            <label class="text-xs font-bold text-slate-500 mb-1 block">臨床職稱</label>
             <input v-model="form.title" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-sm focus:outline-none focus:border-cyan-500/50" />
           </div>
           <div class="col-span-2">
-            <label class="text-xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">聯絡分機</label>
+            <label class="text-xs font-bold text-slate-500 mb-1 block">聯絡分機</label>
             <input v-model="form.ext" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-sm font-mono focus:outline-none focus:border-cyan-500/50" placeholder="e.g. 5123" />
           </div>
           <div>
-            <label class="text-xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">HIS 系統帳號</label>
+            <label class="text-xs font-bold text-slate-500 mb-1 block">HIS 系統帳號</label>
             <input v-model="form.his_account" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-sm font-mono focus:outline-none focus:border-cyan-500/50" />
           </div>
           <div>
-            <label class="text-xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">HIS 系統密碼</label>
+            <label class="text-xs font-bold text-slate-500 mb-1 block">HIS 系統密碼</label>
             <input v-model="form.his_password" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-sm font-mono focus:outline-none focus:border-cyan-500/50" />
           </div>
           <div class="col-span-2">
-            <label class="text-xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">備註說明 / 排班偏好</label>
+            <label class="text-xs font-bold text-slate-500 mb-1 block">備註說明 / 排班偏好</label>
             <input v-model="form.notes" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-sm focus:outline-none focus:border-cyan-500/50" />
           </div>
         </div>

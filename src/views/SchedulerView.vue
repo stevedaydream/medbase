@@ -1834,9 +1834,9 @@ async function createTemplate() {
     <div class="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-slate-900/30 backdrop-blur-md flex-shrink-0">
       <div class="flex items-center gap-3">
         <span class="text-xl">📅</span>
-        <h1 class="text-sm font-black text-slate-200 tracking-wider uppercase">排班控制面板</h1>
+        <h1 class="text-sm font-black text-slate-200">排班控制面板</h1>
         <span v-if="activeTab === 'schedule'"
-          class="text-3xs px-2.5 py-0.5 rounded-full font-bold tracking-wider uppercase border"
+          class="text-2xs px-2.5 py-0.5 rounded-full font-bold border"
           :class="scheduleStatus === 'published'
             ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.05)]'
             : 'bg-slate-800 border-white/5 text-slate-400'">
@@ -1854,7 +1854,7 @@ async function createTemplate() {
       <div class="flex items-center gap-3.5">
         <div class="text-2xs text-slate-500 font-medium">
           <span class="text-slate-300 font-bold">{{ session.name }}</span>
-          <span class="ml-1 px-1.5 py-0.5 rounded bg-white/5 text-3xs border border-white/5 text-slate-500 uppercase tracking-wide font-mono">{{ ROLE_LABELS[session.role] ?? session.role }}</span>
+          <span class="ml-1 px-1.5 py-0.5 rounded bg-white/5 text-2xs border border-white/5 text-slate-500 uppercase tracking-wide font-mono">{{ ROLE_LABELS[session.role] ?? session.role }}</span>
         </div>
         <button @click="session = null"
           class="text-2xs font-bold px-2.5 py-1.5 text-slate-400 hover:text-slate-200 bg-white/5 hover:bg-white/10 rounded-xl transition-all cursor-pointer">
@@ -1884,7 +1884,7 @@ async function createTemplate() {
         <div class="flex items-center justify-between px-6 py-3 border-b border-white/5">
           <div class="flex items-center gap-4">
             <button @click="qShowPanel = !qShowPanel"
-              class="text-xs font-bold text-slate-400 flex items-center gap-1.5 hover:text-slate-200 transition-colors cursor-pointer uppercase tracking-wider">
+              class="text-xs font-bold text-slate-400 flex items-center gap-1.5 hover:text-slate-200 transition-colors cursor-pointer">
               <span>{{ qShowPanel ? '▾' : '▸' }}</span>
               <span>月分排班配額試算 (Quota Calculator)</span>
             </button>
@@ -1931,7 +1931,7 @@ async function createTemplate() {
         <div v-if="qShowPanel" class="px-6 py-4 space-y-4">
           <!-- Monthly totals -->
           <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-medium">
-            <span class="text-2xs font-bold text-slate-500 uppercase tracking-widest">本月份總計預估值</span>
+            <span class="text-2xs font-bold text-slate-500">本月份總計預估值</span>
             <span v-for="f in QUOTA_FIELDS" :key="f" class="border border-white/5 bg-slate-950/40 rounded-lg px-2.5 py-1 flex items-center gap-1.5 font-mono">
               <span class="text-slate-600 font-bold">{{ f }}</span>
               <span class="text-slate-200 font-bold"
@@ -1950,7 +1950,7 @@ async function createTemplate() {
             <table class="text-xs border-collapse w-full">
               <thead>
                 <tr class="text-slate-500 border-b border-white/5 bg-slate-900/30">
-                  <th class="text-left px-4 py-2 font-bold uppercase tracking-wider w-36">工作人員</th>
+                  <th class="text-left px-4 py-2 font-bold w-36">工作人員</th>
                   <th v-for="f in QUOTA_FIELDS" :key="f" class="px-4 py-2 text-center font-mono font-bold uppercase tracking-wider">{{ f }}</th>
                 </tr>
               </thead>
@@ -2070,11 +2070,11 @@ async function createTemplate() {
           <table class="w-full text-xs">
             <thead>
               <tr class="bg-slate-900/60 text-slate-500 border-b border-white/5">
-                <th class="px-4 py-3 text-left font-bold uppercase tracking-wider w-36">員工編號 (帳號)</th>
-                <th class="px-4 py-3 text-left font-bold uppercase tracking-wider w-28">班表代號</th>
-                <th class="px-4 py-3 text-left font-bold uppercase tracking-wider">真實姓名</th>
-                <th class="px-4 py-3 text-left font-bold uppercase tracking-wider w-36">系統權限角色</th>
-                <th class="px-4 py-3 text-left font-bold uppercase tracking-wider w-24">系統密碼</th>
+                <th class="px-4 py-3 text-left font-bold w-36">員工編號 (帳號)</th>
+                <th class="px-4 py-3 text-left font-bold w-28">班表代號</th>
+                <th class="px-4 py-3 text-left font-bold">真實姓名</th>
+                <th class="px-4 py-3 text-left font-bold w-36">系統權限角色</th>
+                <th class="px-4 py-3 text-left font-bold w-24">系統密碼</th>
                 <th class="px-4 py-3 w-10"></th>
               </tr>
             </thead>
@@ -2164,7 +2164,7 @@ async function createTemplate() {
       <div class="max-w-5xl mx-auto space-y-6">
         <!-- 本地 XLSX 路徑 -->
         <div class="bg-white/[0.01] border border-white/5 rounded-2xl p-5 space-y-3.5 shadow-md">
-          <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest">Excel 報表本地路徑</label>
+          <label class="block text-xs font-bold text-slate-400">Excel 報表本地路徑</label>
           <div class="flex gap-2">
             <input :value="effectiveXlsxPath || '尚未設定本地路徑'" readonly
               class="flex-1 text-xs px-3 py-2.5 bg-slate-950 border border-white/10 rounded-xl text-slate-500 font-mono" />
@@ -2177,7 +2177,7 @@ async function createTemplate() {
         <!-- Shift Editor -->
         <div class="bg-white/[0.01] border border-white/5 rounded-2xl p-5 space-y-4 shadow-md">
           <div class="flex items-center justify-between border-b border-white/5 pb-2.5 flex-wrap gap-2">
-            <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">系統班別定義與規則</p>
+            <p class="text-xs font-bold text-slate-400">系統班別定義與規則</p>
             <div class="flex gap-1.5">
               <button @click="pullShiftsFromCloud" :disabled="isSyncingShifts"
                 class="text-2xs font-bold px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-300 rounded-xl hover:bg-blue-500/20 disabled:opacity-40 transition-colors cursor-pointer"
@@ -2209,7 +2209,7 @@ async function createTemplate() {
                 title="點擊切換顏色" />
               <!-- Off variant selector -->
               <button @click="shift.offVariant = !shift.offVariant; saveShifts()"
-                class="text-3xs font-bold px-2 py-1 rounded-lg border transition-all cursor-pointer"
+                class="text-xs font-bold px-2 py-1 rounded-lg border transition-all cursor-pointer"
                 :class="shift.offVariant
                   ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
                   : 'bg-slate-950 border-white/5 text-slate-600 hover:text-slate-400'"
@@ -2218,7 +2218,7 @@ async function createTemplate() {
               </button>
               <!-- Target expanded indicator -->
               <button @click="expandedShiftIdx = expandedShiftIdx === si ? null : si"
-                class="text-3xs font-bold px-2 py-1 rounded-lg border transition-all cursor-pointer"
+                class="text-xs font-bold px-2 py-1 rounded-lg border transition-all cursor-pointer"
                 :class="expandedShiftIdx === si
                   ? 'bg-blue-500/10 border-blue-500/30 text-blue-300'
                   : hasPerDayTargets(shift)
@@ -2244,7 +2244,7 @@ async function createTemplate() {
 
           <!-- Daily staffing summary -->
           <div v-if="staffingSummary.some(r => r.entries.length)" class="mt-4 p-4 rounded-xl bg-slate-950/50 border border-white/5 space-y-2">
-            <p class="text-3xs font-bold text-slate-500 uppercase tracking-widest mb-1">每日預計出勤配置總計</p>
+            <p class="text-xs font-bold text-slate-500 mb-1">每日預計出勤配置總計</p>
             <div class="flex flex-wrap gap-x-6 gap-y-2">
               <div v-for="row in staffingSummary" :key="row.key"
                 class="flex items-center gap-2 text-xs">
@@ -2274,7 +2274,7 @@ async function createTemplate() {
                   <span class="text-xs font-bold text-slate-400">{{ dt.label }}</span>
                   <div class="flex items-center gap-1.5">
                     <button @click="toggleTargetMode(expandedShiftIdx!, dt.key)"
-                      class="text-3xs font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer"
+                      class="text-xs font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer"
                       :class="isDerived(expandedShift.targets?.[dt.key])
                         ? 'bg-purple-500/10 border-purple-500/30 text-purple-300'
                         : expandedShift.targets?.[dt.key] !== undefined
@@ -2323,7 +2323,7 @@ async function createTemplate() {
         <!-- Rotation Pool Cloud Sync -->
         <div class="bg-white/[0.01] border border-white/5 rounded-2xl p-5 space-y-4 shadow-md">
           <div class="flex items-center justify-between border-b border-white/5 pb-2.5 flex-wrap gap-2">
-            <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">輪序池設定與雲端備份</p>
+            <p class="text-xs font-bold text-slate-400">輪序池設定與雲端備份</p>
             <div class="flex gap-1.5">
               <button @click="pullPoolsFromCloud" :disabled="isSyncingPools"
                 class="text-2xs font-bold px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-300 rounded-xl hover:bg-blue-500/20 disabled:opacity-40 transition-colors cursor-pointer"
@@ -2355,7 +2355,7 @@ async function createTemplate() {
         <div class="bg-white/[0.01] border border-white/5 rounded-2xl p-5 space-y-4 shadow-md">
           <div class="flex items-center justify-between border-b border-white/5 pb-2.5 flex-wrap gap-2">
             <div class="flex items-center gap-2">
-              <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">國定假日管理</p>
+              <p class="text-xs font-bold text-slate-400">國定假日管理</p>
               <span class="text-2xs text-slate-500 border border-white/5 rounded px-2 py-0.5 bg-white/[0.01] font-bold">
                 {{ currentYear }} 年・國定假日 {{ holidayList.filter(h => h.date.startsWith(String(currentYear)) && effectiveType(h) === 'holiday').length }} 天 / 共 {{ holidayList.filter(h => h.date.startsWith(String(currentYear))).length }} 筆記錄
               </span>
@@ -2491,7 +2491,7 @@ async function createTemplate() {
               v-for="member in staff.filter(s => !scheduleData.some(r => r.name === s.name))"
               :key="member.code"
               @click="addRowFromStaff(member); showAddRow = false"
-              class="text-3xs font-bold px-2 py-1 bg-slate-950 hover:bg-cyan-500/10 border border-white/5 hover:border-cyan-500/30 text-slate-400 hover:text-cyan-300 rounded-lg transition-colors cursor-pointer">
+              class="text-2xs font-bold px-2 py-1 bg-slate-950 hover:bg-cyan-500/10 border border-white/5 hover:border-cyan-500/30 text-slate-400 hover:text-cyan-300 rounded-lg transition-colors cursor-pointer">
               <span class="font-mono text-slate-600 mr-1">{{ member.code }}</span>{{ member.name }}
             </button>
           </div>
@@ -2512,11 +2512,11 @@ async function createTemplate() {
       </div>
 
       <!-- Sheet name tag -->
-      <span class="ml-auto text-3xs text-slate-600 uppercase tracking-wider">{{ sheetName }}</span>
+      <span class="ml-auto text-2xs text-slate-600 uppercase tracking-wider">{{ sheetName }}</span>
     </div>
 
     <!-- ── Data Status Bar ───────────────────────────────────────── -->
-    <div class="flex items-center gap-3 px-6 py-1.5 border-b border-white/5 bg-slate-950/60 text-3xs font-bold tracking-wide uppercase text-slate-500 flex-shrink-0">
+    <div class="flex items-center gap-3 px-6 py-1.5 border-b border-white/5 bg-slate-950/60 text-2xs font-bold tracking-wide uppercase text-slate-500 flex-shrink-0">
       <!-- Sync light indicator -->
       <span v-if="isDirty" class="flex items-center gap-1.5 text-amber-500">
         <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"></span>
@@ -2559,7 +2559,7 @@ async function createTemplate() {
       <!-- Zoom indicator -->
       <div v-if="scheduleZoom !== 1"
         @dblclick="scheduleZoom = 1"
-        class="absolute bottom-4 right-4 z-35 text-3xs font-bold font-mono bg-slate-900/90 text-slate-400 border border-white/5 px-2.5 py-1 rounded-xl shadow-lg cursor-pointer select-none"
+        class="absolute bottom-4 right-4 z-35 text-2xs font-bold font-mono bg-slate-900/90 text-slate-400 border border-white/5 px-2.5 py-1 rounded-xl shadow-lg cursor-pointer select-none"
         title="Ctrl+滾輪可縮放比例 | 雙擊重置">
         ZOOM: {{ Math.round(scheduleZoom * 100) }}%
       </div>
@@ -2583,7 +2583,7 @@ async function createTemplate() {
         <thead>
           <!-- Date header row -->
           <tr class="sticky top-0 z-20 border-b border-white/10">
-            <th class="sticky left-0 z-30 bg-slate-900 border-r border-white/10 px-4 py-2.5 text-left font-bold text-slate-400 min-w-[8rem] uppercase tracking-wider">
+            <th class="sticky left-0 z-30 bg-slate-900 border-r border-white/10 px-4 py-2.5 text-left font-bold text-slate-400 min-w-[8rem]">
               姓名 / 人員
             </th>
             <th
@@ -2620,7 +2620,7 @@ async function createTemplate() {
               ]"
             >{{ DOW[day.dow] }}</th>
             <th v-for="(shift, si) in shifts" :key="shift.code"
-              class="bg-slate-900 py-1 text-center text-slate-600 font-mono text-3xs"
+              class="bg-slate-900 py-1 text-center text-slate-600 font-mono text-2xs"
               :class="si === 0 ? 'border-l border-white/5' : ''">—</th>
             <th class="bg-slate-900 py-1"></th>
           </tr>
@@ -2695,7 +2695,7 @@ async function createTemplate() {
                 {{ countForShift(row, shift) || '—' }}
               </span>
               <template v-if="quotaTarget(row, shift) !== undefined">
-                <span class="text-slate-600 font-mono text-3xs">/{{ quotaTarget(row, shift) }}</span>
+                <span class="text-slate-600 font-mono text-2xs">/{{ quotaTarget(row, shift) }}</span>
                 <span v-if="quotaStatus(row, shift) === 'met'"   class="text-emerald-400 text-2xs ml-0.5">✓</span>
                 <span v-else-if="quotaStatus(row, shift) === 'under'" class="text-amber-500 text-2xs ml-0.5">↓</span>
                 <span v-else-if="quotaStatus(row, shift) === 'over'"  class="text-rose-400 text-2xs ml-0.5">↑</span>
@@ -2713,7 +2713,7 @@ async function createTemplate() {
 
           <!-- Summary row: daily shift configurations -->
           <tr class="sticky bottom-0 z-15 bg-slate-900 border-t border-white/10 shadow-[0_-2px_10px_rgba(0,0,0,0.3)]">
-            <td class="sticky left-0 z-20 bg-slate-900 px-4 py-2.5 text-xs text-slate-500 font-bold border-r border-white/10 uppercase tracking-wider">
+            <td class="sticky left-0 z-20 bg-slate-900 px-4 py-2.5 text-xs text-slate-500 font-bold border-r border-white/10">
               每日出勤數
             </td>
             <td v-for="day in dayLabels" :key="day.d"
