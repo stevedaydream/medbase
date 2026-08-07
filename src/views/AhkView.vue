@@ -358,7 +358,7 @@ async function generatePassAhk() {
   const result = await buildPassAhkContent();
   if (!result) { showToast("通訊錄中無帳號資料"); return; }
 
-  const { content, hisCount, phsCount } = result;
+  const { content, hisCount } = result;
 
   const path = (await saveDialog({
     title: "儲存 pass.ahk",
@@ -382,7 +382,7 @@ async function generatePassAhk() {
       [
         "pass.ahk（自動產生）",
         path,
-        `MedBase 通訊錄 · HIS ${hisCount} 筆 · PHS ${phsCount} 筆`,
+        `MedBase 通訊錄 · HIS ${hisCount} 筆`,
       ]
     );
     await setPassAhkPath(path);
@@ -392,7 +392,7 @@ async function generatePassAhk() {
     if (created) await selectScript(created);
 
     if (ahkExePath.value) await triggerReload(path);
-    else showToast(`已產生 ${hisCount + phsCount} 筆帳密熱字串`);
+    else showToast(`已產生 ${hisCount} 筆帳密熱字串`);
   } catch (e) {
     showError(`產生失敗：${(e as Error).message}`, e);
   }

@@ -45,8 +45,8 @@ async function seedIfEmpty(db: Database) {
     if (rows[0].c === 0) {
       for (const p of seedPhysicians) {
         await db.execute(
-          "INSERT INTO physicians (name, department, title, ext, his_account, his_password, phs_account, phs_password, notes) VALUES (?,?,?,?,?,?,?,?,?)",
-          [p.name, p.department, p.title, p.ext, p.his_account, p.his_password, p.phs_account, p.phs_password, p.notes]
+          "INSERT INTO physicians (name, department, title, ext, his_account, his_password, notes) VALUES (?,?,?,?,?,?,?)",
+          [p.name, p.department, p.title, p.ext, p.his_account, p.his_password, p.notes]
         );
       }
       console.log("[seed] imported", seedPhysicians.length, "physicians");

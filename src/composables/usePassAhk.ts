@@ -6,30 +6,25 @@ interface PhysicianRow {
   name: string;
   his_account: string | null;
   his_password: string | null;
-  phs_account: string | null;
-  phs_password: string | null;
 }
 
 export interface PassAhkResult {
   content: string;
   hisCount: number;
-  phsCount: number;
 }
 
 export async function buildPassAhkContent(): Promise<PassAhkResult | null> {
   const db = await getDb();
   const physicians = await db.select<PhysicianRow[]>(
-    `SELECT name, his_account, his_password, phs_account, phs_password
+    `SELECT name, his_account, his_password
      FROM physicians
-     WHERE (his_account IS NOT NULL AND his_account != '')
-        OR (phs_account IS NOT NULL AND phs_account != '')
+     WHERE his_account IS NOT NULL AND his_account != ''
      ORDER BY name`
   );
   if (!physicians.length) return null;
 
   const now = new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei" });
-  const his = physicians.filter(p => p.his_account);
-  const phs = physicians.filter(p => p.phs_account);
+  const his = physicians;
 
   const lines: string[] = [
     "#Requires AutoHotkey v2",
@@ -39,7 +34,6 @@ export async function buildPassAhkContent(): Promise<PassAhkResult | null> {
     ";  pass.ahk — MedBase 自動產生的帳密熱字串",
     `;  產生時間：${now}`,
     ";  觸發格式：輸入 .<帳號> 自動展開為 帳號 {Tab} 密碼",
-    ";  PHS 帳號前加 p，例如 .p帳號",
     "; ═══════════════════════════════════════════════════════",
     "",
   ];
@@ -59,23 +53,7 @@ export async function buildPassAhkContent(): Promise<PassAhkResult | null> {
     }
   }
 
-  if (phs.length) {
-    lines.push("; ── PHS 帳密（前綴 p）" + "─".repeat(36));
-    for (const p of phs) {
-      if (!p.phs_account) continue;
-      lines.push(`; ${p.name}`);
-      lines.push(`:*:.p${p.phs_account}::`);
-      lines.push(`{`);
-      lines.push(`    SendText "${p.phs_account}"`);
-      lines.push(`    Send "{Tab}"`);
-      if (p.phs_password) lines.push(`    SendText "${p.phs_password}"`);
-      lines.push(`    Send "{Enter}"`);
-      lines.push(`}`);
-      lines.push("");
-    }
-  }
-
-  return { content: lines.join("\n"), hisCount: his.length, phsCount: phs.length };
+  return { content: lines.join("\n"), hisCount: his.length };
 }
 
 export async function getPassAhkPath(): Promise<string | null> {

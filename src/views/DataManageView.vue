@@ -18,10 +18,9 @@ import {
   exportToXlsx,
   importFromXlsx,
   unbind as xlsxUnbind,
-  autoCloudSync,
 } from "@/composables/useXlsxSync";
-import { autoUpdatePassAhk } from "@/composables/usePassAhk";
 import { markLocalModified, pushTableToCloud } from "@/composables/useSyncMonitor";
+import { upsertPhysician, removePhysician } from "@/composables/usePhysicians";
 
 // ── 型別定義 ────────────────────────────────────────────────────
 interface Item {
@@ -32,7 +31,7 @@ interface Item {
 interface Physician {
   id: number; name: string; department: string | null; title: string | null;
   ext: string | null; his_account: string | null; his_password: string | null;
-  phs_account: string | null; phs_password: string | null; notes: string | null;
+  notes: string | null;
 }
 interface Protocol {
   id: number; name: string; triggers: string; immediate_actions: string;
@@ -312,17 +311,17 @@ async function handleXlsx(e: Event) {
         if (isNum(r.id)) {
           await dbWrite(
             `INSERT OR REPLACE INTO physicians
-             (id,name,department,title,ext,his_account,his_password,phs_account,phs_password,notes)
-             VALUES (?,?,?,?,?,?,?,?,?,?)`,
+             (id,name,department,title,ext,his_account,his_password,notes)
+             VALUES (?,?,?,?,?,?,?,?)`,
             [r.id, r.name, n(r.department), n(r.title), n(r.ext),
-             n(r.his_account), n(r.his_password), n(r.phs_account), n(r.phs_password), n(r.notes)]);
+             n(r.his_account), n(r.his_password), n(r.notes)]);
         } else {
           await dbWrite(
             `INSERT INTO physicians
-             (name,department,title,ext,his_account,his_password,phs_account,phs_password,notes)
-             VALUES (?,?,?,?,?,?,?,?,?)`,
+             (name,department,title,ext,his_account,his_password,notes)
+             VALUES (?,?,?,?,?,?,?)`,
             [r.name, n(r.department), n(r.title), n(r.ext),
-             n(r.his_account), n(r.his_password), n(r.phs_account), n(r.phs_password), n(r.notes)]);
+             n(r.his_account), n(r.his_password), n(r.notes)]);
         }
         ok++; tick();
       }
@@ -915,62 +914,29 @@ async function deleteItem(row: Item) {
 
 // ── CRUD：physicians ─────────────────────────────────────────────
 async function savePhysician() {
-  const f  = physForm.value;
+  const f = physForm.value;
   if (!f.name?.trim()) return;
-  if (modalMode.value === "add") {
-    await dbWrite(
-      `INSERT INTO physicians (name,department,title,ext,his_account,his_password,phs_account,phs_password,notes)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
-      [f.name, f.department||null, f.title||null, f.ext||null,
-       f.his_account||null, f.his_password||null,
-       f.phs_account||null, f.phs_password||null, f.notes||null]);
-  } else {
-    await dbWrite(
-      `UPDATE physicians SET name=?,department=?,title=?,ext=?,his_account=?,his_password=?,
-       phs_account=?,phs_password=?,notes=?,updated_at=datetime('now','localtime') WHERE id=?`,
-      [f.name, f.department||null, f.title||null, f.ext||null,
-       f.his_account||null, f.his_password||null,
-       f.phs_account||null, f.phs_password||null, f.notes||null, f.id]);
-  }
+  const { ahkMessage } = await upsertPhysician(
+    modalMode.value === "add" ? { ...f, id: undefined } : f
+  );
   closeModal();
   await loadAll();
-  const syncMsg = await autoUpdatePassAhk();
-  if (syncMsg) showToast("success", syncMsg);
-  if (xlsxSyncPathRef.value) { exportToXlsx(); autoCloudSync(); }
-  await markLocalModified("physicians");
-  const gasUrlP = useCloudSettings().gasUrl;
-  if (gasUrlP) {
-    const db2 = await getDb();
-    const allPhys = await db2.select("SELECT * FROM physicians");
-    pushTableToCloud("physicians", gasUrlP, { action: "savePhysicians", data: allPhys }, (allPhys as any[]).length).catch(() => {});
-  }
+  if (ahkMessage) showToast("success", ahkMessage);
 }
+
 async function saveInlinePhys() {
-  const f  = editBuf.value;
-  await dbWrite(
-    `UPDATE physicians SET name=?,department=?,title=?,ext=?,his_account=?,his_password=?,
-     phs_account=?,phs_password=?,notes=?,updated_at=datetime('now','localtime') WHERE id=?`,
-    [f.name, f.department||null, f.title||null, f.ext||null,
-     f.his_account||null, f.his_password||null,
-     f.phs_account||null, f.phs_password||null, f.notes||null, f.id]);
+  const { ahkMessage } = await upsertPhysician(editBuf.value);
   editingPhysId.value = null;
   editBuf.value = {};
   await loadAll();
-  const syncMsg = await autoUpdatePassAhk();
-  if (syncMsg) showToast("success", syncMsg);
-  if (xlsxSyncPathRef.value) { exportToXlsx(); autoCloudSync(); }
-  await markLocalModified("physicians");
-  const gasUrlP = useCloudSettings().gasUrl;
-  if (gasUrlP) {
-    const db2 = await getDb();
-    const allPhys = await db2.select("SELECT * FROM physicians");
-    pushTableToCloud("physicians", gasUrlP, { action: "savePhysicians", data: allPhys }, (allPhys as any[]).length).catch(() => {});
-  }
+  if (ahkMessage) showToast("success", ahkMessage);
 }
 
 async function deletePhysician(row: Physician) {
-  await dbWrite("DELETE FROM physicians WHERE id=?", [row.id]);
+  // 刪除同樣要跑副作用：把此人的帳密從磁碟上的 pass.ahk 移除，並標記同步
+  const { ahkMessage } = await removePhysician(row.id);
   await loadAll();
+  if (ahkMessage) showToast("success", ahkMessage);
 }
 
 // ── 確認刪除 ─────────────────────────────────────────────────────
@@ -1017,7 +983,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
     </div>
 
     <!-- ── 右側內容 ─────────────────────────────────── -->
-    <div class="flex flex-col flex-1 overflow-hidden bg-slate-900/10">
+    <div class="flex flex-col flex-1 min-w-0 overflow-hidden bg-slate-900/10">
 
       <!-- Header -->
       <div v-if="activeTab !== 'backup'" class="flex items-center gap-3 px-6 py-4 border-b border-white/5 bg-slate-900/20 backdrop-blur-sm shrink-0">
@@ -1075,7 +1041,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
 
       <!-- ── 自費品項 表格 ─────────────────────────── -->
       <div v-if="activeTab === 'items'" class="flex-1 overflow-auto px-6 py-4">
-        <div class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 shadow-2xl overflow-hidden">
+        <div class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 shadow-2xl overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="border-b border-white/10 bg-slate-900/50 text-slate-400 text-2xs font-bold tracking-wider uppercase font-mono">
@@ -1123,7 +1089,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
 
       <!-- ── 通訊錄 表格 ───────────────────────── -->
       <div v-if="activeTab === 'physicians'" class="flex-1 overflow-auto px-6 py-4">
-        <div class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 shadow-2xl overflow-hidden">
+        <div class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 shadow-2xl overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="border-b border-white/10 bg-slate-900/50 text-slate-400 text-2xs font-bold tracking-wider uppercase font-mono">
@@ -1783,16 +1749,6 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               <div>
                 <label class="text-2xs font-bold text-slate-600 mb-1 block">HIS 醫療系統密碼</label>
                 <input v-model="physForm.his_password" type="password"
-                  class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-200 text-xs font-mono focus:outline-none focus:border-indigo-500/50" />
-              </div>
-              <div>
-                <label class="text-2xs font-bold text-slate-600 mb-1 block">PHS 通訊系統帳號</label>
-                <input v-model="physForm.phs_account"
-                  class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-200 text-xs font-mono focus:outline-none focus:border-indigo-500/50" />
-              </div>
-              <div>
-                <label class="text-2xs font-bold text-slate-600 mb-1 block">PHS 通訊系統密碼</label>
-                <input v-model="physForm.phs_password" type="password"
                   class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/5 text-slate-200 text-xs font-mono focus:outline-none focus:border-indigo-500/50" />
               </div>
             </div>

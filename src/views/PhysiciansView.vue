@@ -1,17 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { useRouter } from "vue-router";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
-import { autoUpdatePassAhk } from "@/composables/usePassAhk";
 import { setGlobalSyncing } from "@/composables/useCloudSync";
-import { exportToXlsx, autoCloudSync, xlsxPath } from "@/composables/useXlsxSync";
-import { markLocalModified, saveSyncTimestamp } from "@/composables/useSyncMonitor";
+import { saveSyncTimestamp } from "@/composables/useSyncMonitor";
+import { upsertPhysician, removePhysician } from "@/composables/usePhysicians";
 import { useLogger } from "@/composables/useLogger";
 
-interface Physician { id: number; name: string; department: string; title: string; ext: string; his_account: string; his_password: string; phs_account: string; phs_password: string; notes: string; }
+interface Physician { id: number; name: string; department: string; title: string; ext: string; his_account: string; his_password: string; notes: string; }
 
-const router = useRouter();
 const physicians = ref<Physician[]>([]);
 const search = ref("");
 const deptFilter  = ref("");
@@ -157,14 +154,14 @@ async function pullFromCloud() {
       );
       if (existing.length) {
         await db.execute(
-          `UPDATE physicians SET department=?, title=?, ext=?, his_account=?, his_password=?, phs_account=?, phs_password=?, notes=? WHERE id=?`,
-          [r.department, r.title, r.ext ?? null, r.his_account, r.his_password, r.phs_account, r.phs_password, r.notes, existing[0].id]
+          `UPDATE physicians SET department=?, title=?, ext=?, his_account=?, his_password=?, notes=? WHERE id=?`,
+          [r.department, r.title, r.ext ?? null, r.his_account, r.his_password, r.notes, existing[0].id]
         );
         updated++;
       } else {
         await db.execute(
-          `INSERT INTO physicians (name, department, title, ext, his_account, his_password, phs_account, phs_password, notes) VALUES (?,?,?,?,?,?,?,?,?)`,
-          [r.name, r.department, r.title, r.ext ?? null, r.his_account, r.his_password, r.phs_account, r.phs_password, r.notes]
+          `INSERT INTO physicians (name, department, title, ext, his_account, his_password, notes) VALUES (?,?,?,?,?,?,?)`,
+          [r.name, r.department, r.title, r.ext ?? null, r.his_account, r.his_password, r.notes]
         );
         inserted++;
       }
@@ -191,58 +188,40 @@ function showToast(msg: string) {
 
 async function doDelete() {
   if (!deleteTarget.value) return;
-  const db = await getDb();
-  // 先解除套組對此醫師的 FK 參照，避免 FOREIGN KEY constraint failed (code 787)
-  await db.execute("UPDATE sets SET physician_id = NULL WHERE physician_id = ?", [deleteTarget.value.id]);
-  await db.execute("DELETE FROM physicians WHERE id=?", [deleteTarget.value.id]);
-  if (selected.value?.id === deleteTarget.value.id) selected.value = null;
+  const removedId = deleteTarget.value.id;
+  const { ahkMessage } = await removePhysician(removedId);
+  if (selected.value?.id === removedId) selected.value = null;
   deleteTarget.value = null;
   await load();
-  showToast("已刪除");
-  const syncMsg = await autoUpdatePassAhk();
-  if (syncMsg) showToast(syncMsg);
-  if (xlsxPath.value) { exportToXlsx(); autoCloudSync(); }
+  showToast(ahkMessage ?? "已刪除");
 }
 
 function openAdd() {
   editTarget.value = null;
-  form.value = { name: "", department: "", title: "主治醫師", ext: "", his_account: "", his_password: "", phs_account: "", phs_password: "", notes: "" };
+  form.value = { name: "", department: "", title: "主治醫師", ext: "", his_account: "", his_password: "", notes: "" };
   showAddModal.value = true;
 }
 
+// 就地編輯：過去這裡是 router.push 到 /data 開 modal，而本頁 saveForm 的
+// UPDATE 分支因為 editTarget 從未被指派而成為死碼。改為直接開本頁 modal。
 function openEdit(p: Physician) {
-  router.push({ path: "/data", query: { tab: "physicians", editId: p.id.toString() } });
+  editTarget.value = p;
+  form.value = { ...p };
+  showAddModal.value = true;
 }
 
 async function saveForm() {
   if (!form.value.name?.trim()) return;
-  const db = await getDb();
-  if (editTarget.value) {
-    await db.execute(
-      "UPDATE physicians SET name=?,department=?,title=?,ext=?,his_account=?,his_password=?,phs_account=?,phs_password=?,notes=?,updated_at=datetime('now','localtime') WHERE id=?",
-      [form.value.name, form.value.department||null, form.value.title||null, form.value.ext||null,
-       form.value.his_account||null, form.value.his_password||null, form.value.phs_account||null,
-       form.value.phs_password||null, form.value.notes||null, editTarget.value.id]
-    );
-  } else {
-    await db.execute(
-      "INSERT INTO physicians (name,department,title,ext,his_account,his_password,phs_account,phs_password,notes,updated_at) VALUES (?,?,?,?,?,?,?,?,?,datetime('now','localtime'))",
-      [form.value.name, form.value.department||null, form.value.title||null, form.value.ext||null,
-       form.value.his_account||null, form.value.his_password||null, form.value.phs_account||null,
-       form.value.phs_password||null, form.value.notes||null]
-    );
-  }
   const isEdit = !!editTarget.value;
+  const { ahkMessage } = await upsertPhysician({
+    ...form.value,
+    id: editTarget.value?.id,
+  });
   const editedId = editTarget.value?.id;
   showAddModal.value = false;
   await load();
   if (editedId) selected.value = physicians.value.find(p => p.id === editedId) ?? selected.value;
-  showToast(isEdit ? "已更新" : "已新增");
-  const syncMsg = await autoUpdatePassAhk();
-  if (syncMsg) showToast(syncMsg);
-  if (xlsxPath.value) { exportToXlsx(); autoCloudSync(); }
-  await markLocalModified("physicians");
-  overwriteCloud().catch(() => {});
+  showToast(ahkMessage ?? (isEdit ? "已更新" : "已新增"));
 }
 </script>
 
@@ -398,25 +377,6 @@ async function saveForm() {
               </div>
             </div>
 
-            <!-- PHS -->
-            <div class="rounded-2xl border border-white/5 bg-slate-900/30 p-5 space-y-4">
-              <div class="border-b border-white/5 pb-2.5 flex justify-between items-center">
-                <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">PHS 系統登入資料</span>
-                <span class="text-2xs font-mono text-slate-600">PHS CREDENTIALS</span>
-              </div>
-              <div class="space-y-3 font-mono text-sm">
-                <div class="flex items-center justify-between p-3 bg-slate-950/60 rounded-xl border border-white/[0.02]">
-                  <span class="text-slate-500 w-12">帳號</span>
-                  <span class="text-slate-200 font-bold flex-1 select-all truncate ml-2">{{ selected.phs_account || '—' }}</span>
-                  <button v-if="selected.phs_account" @click="copy(selected.phs_account)" class="text-slate-600 hover:text-cyan-400 text-xs pl-2 cursor-pointer">📋</button>
-                </div>
-                <div class="flex items-center justify-between p-3 bg-slate-950/60 rounded-xl border border-white/[0.02]">
-                  <span class="text-slate-500 w-12">密碼</span>
-                  <span class="text-slate-200 font-bold flex-1 select-all truncate ml-2">{{ selected.phs_password || '—' }}</span>
-                  <button v-if="selected.phs_password" @click="copy(selected.phs_password)" class="text-slate-600 hover:text-cyan-400 text-xs pl-2 cursor-pointer">📋</button>
-                </div>
-              </div>
-            </div>
           </div>
 
           <!-- Notes -->
@@ -472,14 +432,6 @@ async function saveForm() {
           <div>
             <label class="text-xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">HIS 系統密碼</label>
             <input v-model="form.his_password" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-sm font-mono focus:outline-none focus:border-cyan-500/50" />
-          </div>
-          <div>
-            <label class="text-xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">PHS 系統帳號</label>
-            <input v-model="form.phs_account" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-sm font-mono focus:outline-none focus:border-cyan-500/50" />
-          </div>
-          <div>
-            <label class="text-xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">PHS 系統密碼</label>
-            <input v-model="form.phs_password" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-sm font-mono focus:outline-none focus:border-cyan-500/50" />
           </div>
           <div class="col-span-2">
             <label class="text-xs font-bold text-slate-500 mb-1 block uppercase tracking-wide">備註說明 / 排班偏好</label>

@@ -5,8 +5,6 @@ export interface SeedPhysician {
   ext: string | null;
   his_account: string | null;
   his_password: string | null;
-  phs_account: string | null;
-  phs_password: string | null;
   notes: string | null;
 }
 
@@ -21,7 +19,7 @@ export interface SeedContact {
 // 每次全新安裝（physicians 表為空時）自動匯入
 export const seedPhysicians: SeedPhysician[] = [
   // 範例：
-  // { name: "王大明", department: "一般外科", title: "主治醫師", ext: "1234", his_account: "wang", his_password: "pw123", phs_account: "", phs_password: "", notes: null },
+  // { name: "王大明", department: "一般外科", title: "主治醫師", ext: "1234", his_account: "wang", his_password: "pw123", notes: null },
 ];
 
 // ── 常用分機預設資料 ────────────────────────────────────────────────

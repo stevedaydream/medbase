@@ -2,7 +2,7 @@
  * 雙軌同步 v2：本地 .xlsx ↔ SQLite ↔ GAS 雲端
  *
  * 改動：
- *   - 全欄位同步（含 title, phs_account, phs_password, notes）
+ *   - 全欄位同步（含 title, notes）
  *   - 彈性 header 偵測（不依賴固定欄位順序）
  *   - export 改為單欄命名格式（舊雙欄仍可 import）
  *   - autoCloudSync 改 merge 模式，移除 no-cors
@@ -68,8 +68,6 @@ function detectPhysHmap(headers: string[]): Record<string, number> {
     ["ext",          /公務機|分機|ext/i],
     ["his_account",  /HIS帳號|his_account/i],
     ["his_password", /HIS密碼|his_password/i],
-    ["phs_account",  /PHS帳號|phs_account/i],
-    ["phs_password", /PHS密碼|phs_password/i],
     ["title",        /^職稱$|^title$/i],
     ["department",   /科別|部門|department/i],
     ["notes",        /^備註$|^notes$/i],
@@ -162,8 +160,6 @@ export async function importFromXlsx(): Promise<void> {
             ext:          get(ws, r, "ext")          || null,
             his_account:  get(ws, r, "his_account")   || null,
             his_password: get(ws, r, "his_password")  || null,
-            phs_account:  get(ws, r, "phs_account")   || null,
-            phs_password: get(ws, r, "phs_password")  || null,
             title:        get(ws, r, "title")         || null,
             department:   dept,
             notes:        get(ws, r, "notes")         || null,
@@ -181,19 +177,19 @@ export async function importFromXlsx(): Promise<void> {
           if (existing.length && isNewer) {
             await db.execute(
               `UPDATE physicians
-               SET ext=?,his_account=?,his_password=?,phs_account=?,phs_password=?,
+               SET ext=?,his_account=?,his_password=?,
                    title=?,department=?,notes=?,updated_at=?
                WHERE id=?`,
-              [row.ext, row.his_account, row.his_password, row.phs_account, row.phs_password,
+              [row.ext, row.his_account, row.his_password,
                row.title, row.department, row.notes, row.updated_at, existing[0].id]
             );
           } else if (!existing.length) {
             await db.execute(
               `INSERT INTO physicians
-               (name,ext,his_account,his_password,phs_account,phs_password,title,department,notes,updated_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?)`,
-              [row.name, row.ext, row.his_account, row.his_password, row.phs_account,
-               row.phs_password, row.title, row.department, row.notes, row.updated_at]
+               (name,ext,his_account,his_password,title,department,notes,updated_at)
+               VALUES (?,?,?,?,?,?,?,?)`,
+              [row.name, row.ext, row.his_account, row.his_password,
+               row.title, row.department, row.notes, row.updated_at]
             );
           }
         }
@@ -271,25 +267,23 @@ export async function exportToXlsx(): Promise<void> {
       const rows = await db.select<{
         name: string; ext: string | null;
         his_account: string | null; his_password: string | null;
-        phs_account: string | null; phs_password: string | null;
         title: string | null; department: string | null;
         notes: string | null; updated_at: string | null;
       }[]>(
-        `SELECT name,ext,his_account,his_password,phs_account,phs_password,
+        `SELECT name,ext,his_account,his_password,
                 title,department,notes,updated_at
          FROM physicians ORDER BY department, name`
       );
-      const headers = ["姓名","分機","HIS帳號","HIS密碼","PHS帳號","PHS密碼","職稱","科別","備註","updated_at"];
+      const headers = ["姓名","分機","HIS帳號","HIS密碼","職稱","科別","備註","updated_at"];
       const data = rows.map(p => [
         p.name,          p.ext ?? "",
         p.his_account ?? "", p.his_password ?? "",
-        p.phs_account ?? "", p.phs_password ?? "",
         p.title ?? "",   p.department ?? "",
         p.notes ?? "",   p.updated_at ?? "",
       ]);
       const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
-      // 帳密欄設純文字格式防前導零消失
-      [3, 4, 5, 6].forEach(col => {
+      // 分機與帳密欄設純文字格式防前導零消失
+      [1, 2, 3].forEach(col => {
         for (let r = 1; r <= data.length; r++) {
           const addr = XLSX.utils.encode_cell({ r, c: col });
           if (ws[addr]) ws[addr].z = "@";
