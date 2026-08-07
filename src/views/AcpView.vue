@@ -112,7 +112,7 @@ const tabs = [
       <div class="flex-1 flex flex-col overflow-hidden">
         <div class="flex items-center gap-2 mb-6 border-b border-white/5 pb-4">
           <span class="text-lg">📋</span>
-          <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest font-mono">ACP 臨床評估套組</h3>
+          <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">ACP 臨床評估套組</h3>
         </div>
         
         <div class="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
@@ -148,7 +148,7 @@ const tabs = [
           <!-- Total Score Card -->
           <div class="col-span-4 bg-slate-900/60 border border-white/5 rounded-2xl p-5 flex flex-col justify-center items-center relative overflow-hidden group shadow-lg">
             <div class="absolute -right-8 -top-8 w-24 h-24 rounded-full bg-indigo-500/5 blur-2xl group-hover:scale-150 transition-all duration-700"></div>
-            <p class="text-2xs font-black text-slate-500 uppercase tracking-widest font-mono mb-2">總完成率 (Overall Completion)</p>
+            <p class="text-2xs font-black text-slate-500 uppercase tracking-widest mb-2">總完成率 (Overall Completion)</p>
             <p class="text-4xl font-black font-mono tracking-tight drop-shadow-[0_0_15px_rgba(245,158,11,0.1)] transition-colors" 
                :class="Number(totalStats.rate) >= 80 ? 'text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.15)]' : 'text-amber-400'">
               {{ totalStats.rate }}<span class="text-lg font-bold ml-0.5">%</span>
@@ -179,7 +179,7 @@ const tabs = [
               </div>
               <div class="flex justify-between items-end mt-2">
                 <div class="space-y-1">
-                  <p class="text-3xs font-black text-slate-500 uppercase tracking-widest font-mono">已/未/NA</p>
+                  <p class="text-3xs font-black text-slate-500 uppercase tracking-widest">已/未/NA</p>
                   <p class="text-xs font-mono font-bold text-slate-300">
                     {{ t.key === 'general' ? `${generalStats.prescribed} / ${generalStats.unprescribed} / ${generalStats.na}` : 
                        t.key === 'medication' ? `${medicationStats.prescribed} / ${medicationStats.unprescribed} / ${medicationStats.na}` : 

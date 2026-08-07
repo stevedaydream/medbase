@@ -954,7 +954,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
     <!-- ── 左側 Tab 列 ──────────────────────────────── -->
     <div class="flex flex-col w-48 shrink-0 border-r border-white/5 bg-slate-900/40 backdrop-blur-md py-4 gap-1 px-3">
       <div class="px-3 pb-3 mb-2 border-b border-white/5">
-        <span class="text-2xs font-black text-slate-500 uppercase tracking-widest font-mono">資料庫管理</span>
+        <span class="text-2xs font-black text-slate-500 uppercase tracking-widest">資料庫管理</span>
       </div>
       <button
         v-for="tab in tabs" :key="tab.key"
@@ -1017,7 +1017,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
       <Transition name="slide-down">
         <div v-if="importResults"
           class="flex items-center gap-4 px-6 py-2.5 bg-indigo-500/5 border-b border-indigo-500/10 shrink-0 text-xs">
-          <span class="text-indigo-400 font-bold font-mono uppercase tracking-wider text-2xs">匯入結果</span>
+          <span class="text-indigo-400 font-bold uppercase tracking-wider text-2xs">匯入結果</span>
           <span v-for="r in importResults" :key="r.sheet"
             class="flex items-center gap-1 text-slate-300 font-medium">
             <span class="text-emerald-400 font-mono font-bold">+{{ r.upserted }}</span>
@@ -1205,7 +1205,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             <!-- Triggers (Neon Amber) -->
             <div class="bg-slate-900/40 border border-amber-500/10 rounded-2xl p-5 shadow-sm">
               <div class="flex items-center justify-between mb-4 border-b border-amber-500/10 pb-2">
-                <span class="text-xs font-black text-amber-400 uppercase tracking-widest font-mono">▲ 1. 觸發情境 (Triggers)</span>
+                <span class="text-xs font-black text-amber-400 uppercase tracking-widest">▲ 1. 觸發情境 (Triggers)</span>
                 <button @click="protocolForm.triggers.push('')"
                   class="text-2xs font-bold bg-amber-500/10 border border-amber-500/20 text-amber-300 px-2 py-1 rounded-lg hover:bg-amber-500/20 transition-all cursor-pointer"
                 >＋ 新增條件</button>
@@ -1226,7 +1226,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             <!-- Immediate actions (Neon Red) -->
             <div class="bg-slate-900/40 border border-rose-500/10 rounded-2xl p-5 shadow-sm">
               <div class="flex items-center justify-between mb-4 border-b border-rose-500/10 pb-2">
-                <span class="text-xs font-black text-rose-400 uppercase tracking-widest font-mono">⚡ 2. 立即處置 (Immediate Actions)</span>
+                <span class="text-xs font-black text-rose-400 uppercase tracking-widest">⚡ 2. 立即處置 (Immediate Actions)</span>
                 <button @click="protocolForm.immediate_actions.push('')"
                   class="text-2xs font-bold bg-rose-500/10 border border-rose-500/20 text-rose-300 px-2 py-1 rounded-lg hover:bg-rose-500/20 transition-all cursor-pointer"
                 >＋ 新增處置</button>
@@ -1248,7 +1248,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             <!-- Critical meds (Neon Blue) -->
             <div class="bg-slate-900/40 border border-indigo-500/10 rounded-2xl p-5 shadow-sm">
               <div class="flex items-center justify-between mb-4 border-b border-indigo-500/10 pb-2">
-                <span class="text-xs font-black text-indigo-400 uppercase tracking-widest font-mono">💊 3. 關鍵藥物 (Critical Medications)</span>
+                <span class="text-xs font-black text-indigo-400 uppercase tracking-widest">💊 3. 關鍵藥物 (Critical Medications)</span>
                 <button @click="protocolForm.critical_meds.push({ name:'', dose:'', color:'blue' })"
                   class="text-2xs font-bold bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 px-2 py-1 rounded-lg hover:bg-indigo-500/20 transition-all cursor-pointer"
                 >＋ 新增藥物</button>
@@ -1282,7 +1282,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             <!-- Timers (Neon Green) -->
             <div class="bg-slate-900/40 border border-emerald-500/10 rounded-2xl p-5 shadow-sm">
               <div class="flex items-center justify-between mb-4 border-b border-emerald-500/10 pb-2">
-                <span class="text-xs font-black text-emerald-400 uppercase tracking-widest font-mono">⏱ 4. 循環計時器 (Timers)</span>
+                <span class="text-xs font-black text-emerald-400 uppercase tracking-widest">⏱ 4. 循環計時器 (Timers)</span>
                 <button @click="protocolForm.timers.push({ label:'', seconds: 120 })"
                   class="text-2xs font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 px-2 py-1 rounded-lg hover:bg-emerald-500/20 transition-all cursor-pointer"
                 >＋ 新增計時</button>
@@ -1308,7 +1308,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             <!-- Contacts (Neon Purple) -->
             <div class="bg-slate-900/40 border border-violet-500/10 rounded-2xl p-5 shadow-sm">
               <div class="flex items-center justify-between mb-4 border-b border-violet-500/10 pb-2">
-                <span class="text-xs font-black text-violet-400 uppercase tracking-widest font-mono">📞 5. 緊急通報分機 (Contacts)</span>
+                <span class="text-xs font-black text-violet-400 uppercase tracking-widest">📞 5. 緊急通報分機 (Contacts)</span>
                 <button @click="protocolForm.contacts.push({ label:'', ext:'' })"
                   class="text-2xs font-bold bg-violet-500/10 border border-violet-500/20 text-violet-300 px-2 py-1 rounded-lg hover:bg-violet-500/20 transition-all cursor-pointer"
                 >＋ 新增聯絡</button>
@@ -1331,7 +1331,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
 
             <!-- Notes -->
             <div class="bg-slate-900/30 border border-white/5 rounded-2xl p-5">
-              <label class="text-2xs font-black text-slate-400 uppercase tracking-widest font-mono mb-2 block">備註資訊</label>
+              <label class="text-2xs font-black text-slate-400 uppercase tracking-widest mb-2 block">備註資訊</label>
               <textarea v-model="protocolForm.notes" rows="4"
                 class="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-white/5 focus:border-white/20 text-slate-200 text-xs font-medium focus:outline-none resize-none leading-relaxed transition-all"
                 placeholder="其他背景知識、藥物稀釋配方、診斷排除指引等資訊…" />
@@ -1463,12 +1463,12 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
 
           <!-- 步驟 2：預覽確認 -->
           <div v-if="importPreview" class="space-y-4 border-t border-white/5 pt-4">
-            <p class="text-xs font-black text-amber-400 uppercase tracking-widest font-mono">⚠️ 匯入資料預覽確認</p>
+            <p class="text-xs font-black text-amber-400 uppercase tracking-widest">⚠️ 匯入資料預覽確認</p>
             <div class="grid grid-cols-3 gap-2">
               <div v-for="row in importPreview" :key="row.table"
                 class="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/5 text-xs font-semibold">
                 <span class="text-slate-300">{{ row.label }}</span>
-                <span class="font-mono text-emerald-400 font-bold">{{ row.rows }} 筆</span>
+                <span class="text-emerald-400 font-bold">{{ row.rows }} 筆</span>
               </div>
             </div>
             <p class="text-[0.6875rem] text-slate-500 leading-relaxed">
@@ -1501,7 +1501,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             <h3 class="font-bold text-slate-200 text-sm">通訊錄雙軌即時同步 (.xlsx)</h3>
           </div>
           <p class="text-xs text-slate-400 leading-relaxed">
-            將此程式通訊錄資料庫與本地指定之 <code class="font-mono text-indigo-300 bg-slate-950 px-1.5 py-0.5 rounded text-2xs border border-white/5">通訊錄.xlsx</code> 連結。對程式做出的任何通訊錄修改會同步回寫該 Excel；若 Excel 檔遭外部程式修改，MedBase 亦會自動偵測並重載，並即時推送 GAS 雲端表單以維持同步。
+            將此程式通訊錄資料庫與本地指定之 <code class="text-indigo-300 bg-slate-950 px-1.5 py-0.5 rounded text-2xs border border-white/5">通訊錄.xlsx</code> 連結。對程式做出的任何通訊錄修改會同步回寫該 Excel；若 Excel 檔遭外部程式修改，MedBase 亦會自動偵測並重載，並即時推送 GAS 雲端表單以維持同步。
           </p>
 
           <!-- 未綁定 -->
@@ -1525,7 +1525,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             <div class="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-slate-950 border border-white/5 text-xs">
               <span class="text-emerald-400 animate-pulse mt-0.5">●</span>
               <div class="space-y-1">
-                <div class="text-slate-500 font-bold uppercase tracking-wider text-3xs font-mono">即時監控路徑</div>
+                <div class="text-slate-500 font-bold uppercase tracking-wider text-3xs">即時監控路徑</div>
                 <div class="text-slate-200 font-mono break-all font-bold text-[0.6875rem]">{{ xlsxSyncPath }}</div>
               </div>
             </div>

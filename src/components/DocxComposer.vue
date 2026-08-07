@@ -244,7 +244,7 @@ async function exportDocx() {
 
     <!-- ── Metadata 表單 ──────────────────────────────────────── -->
     <section>
-      <h3 class="text-2xs font-black text-slate-500 uppercase tracking-widest font-mono mb-2.5">
+      <h3 class="text-2xs font-black text-slate-500 uppercase tracking-widest mb-2.5">
         表單資料 — {{ tpl.heading }}
       </h3>
       <div class="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3">
@@ -303,7 +303,7 @@ async function exportDocx() {
     <!-- ── 來源輸入 ──────────────────────────────────────────── -->
     <section>
       <div class="flex items-center gap-3 mb-2.5">
-        <h3 class="text-2xs font-black text-slate-500 uppercase tracking-widest font-mono">來源資料</h3>
+        <h3 class="text-2xs font-black text-slate-500 uppercase tracking-widest">來源資料</h3>
         <button @click="fileInput?.click()"
           class="text-2xs font-bold px-3 py-1.5 rounded-xl border border-white/10 bg-slate-900/40 text-slate-300
                  hover:text-indigo-300 hover:border-indigo-500/30 transition-all cursor-pointer">
@@ -336,9 +336,7 @@ async function exportDocx() {
         v-model="manualText"
         placeholder="（選填）在此貼上補充文字、口頭補充說明或重點…"
         rows="3"
-        class="w-full resize-y text-xs bg-slate-950/50 border border-white/5 focus:border-indigo-500/30 rounded-2xl p-3.5
-               placeholder:text-slate-700 focus:outline-none font-mono leading-relaxed text-slate-200
-               custom-scrollbar transition-all" />
+        class="w-full resize-y text-xs bg-slate-950/50 border border-white/5 focus:border-indigo-500/30 rounded-2xl p-3.5 placeholder:text-slate-700 focus:outline-none leading-relaxed text-slate-200 custom-scrollbar transition-all" />
 
       <div class="mt-3">
         <button @click="generate"
@@ -357,7 +355,7 @@ async function exportDocx() {
 
     <!-- ── 結構化區塊（可編輯）──────────────────────────────── -->
     <section>
-      <h3 class="text-2xs font-black text-slate-500 uppercase tracking-widest font-mono mb-2.5">結構化內容（可微調）</h3>
+      <h3 class="text-2xs font-black text-slate-500 uppercase tracking-widest mb-2.5">結構化內容（可微調）</h3>
       <div class="space-y-3">
         <div v-for="b in tpl.blocks" :key="b.key" class="flex flex-col gap-1.5">
           <label class="text-2xs font-bold text-indigo-300">{{ b.label }}</label>

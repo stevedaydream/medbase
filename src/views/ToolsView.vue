@@ -582,7 +582,7 @@ const fio2Result = computed(() => {
                       <span class="text-5xl font-extrabold text-cyan-400 font-mono tracking-tight">{{ insulinResult.dose }}</span>
                       <span class="text-xs text-slate-400 font-mono">Units</span>
                     </div>
-                    <p class="text-xs font-semibold text-slate-300 mt-1 font-mono">速效胰島素 (Rapid-acting insulin)</p>
+                    <p class="text-xs font-semibold text-slate-300 mt-1">速效胰島素 (Rapid-acting insulin)</p>
                   </div>
                   <div v-else class="mt-3 flex items-center gap-2 text-emerald-400 font-semibold text-sm">
                     <span>✓</span> 血糖達標，不需追加速效胰島素。
@@ -701,9 +701,9 @@ const fio2Result = computed(() => {
                   <span class="text-xs uppercase font-bold tracking-widest text-slate-500">每日總耗能 (TDEE)</span>
                   <div class="flex items-baseline gap-2 mt-2">
                     <span class="text-4xl font-extrabold text-white tracking-tight font-mono">{{ nutResult.tdee }}</span>
-                    <span class="text-xs text-slate-400 font-mono">kcal / 每日</span>
+                    <span class="text-xs text-slate-400">kcal / 每日</span>
                   </div>
-                  <div class="text-2xs text-slate-500 mt-1 font-mono">基礎代謝率 (BMR): {{ nutResult.bmr }} kcal</div>
+                  <div class="text-2xs text-slate-500 mt-1">基礎代謝率 (BMR): {{ nutResult.bmr }} kcal</div>
                 </div>
 
                 <!-- Detail Grid -->
@@ -725,7 +725,7 @@ const fio2Result = computed(() => {
                     <p class="text-xl font-bold font-mono mt-1" :class="Number(nutResult.bmi) < 18.5 ? 'text-sky-400' : Number(nutResult.bmi) > 24 ? 'text-rose-400' : 'text-emerald-400'">
                       {{ nutResult.bmi }}
                     </p>
-                    <p class="text-3xs text-slate-600 font-mono mt-1">理想體重 ≈ {{ nutResult.ibw }} kg</p>
+                    <p class="text-3xs text-slate-600 mt-1">理想體重 ≈ {{ nutResult.ibw }} kg</p>
                   </div>
 
                   <div class="rounded-xl border border-white/5 bg-slate-900/30 p-4">
@@ -900,8 +900,8 @@ const fio2Result = computed(() => {
                 <tr class="hover:bg-white/[0.01] transition-colors"><td class="py-2.5 font-medium text-slate-300">鼻導管 (Nasal Cannula)</td><td class="font-mono">1 – 6 L/min</td><td class="font-mono">24% – 44%</td></tr>
                 <tr class="hover:bg-white/[0.01] transition-colors"><td class="py-2.5 font-medium text-slate-300">一般面罩 (Simple Face Mask)</td><td class="font-mono">5 – 10 L/min</td><td class="font-mono">40% – 60%</td></tr>
                 <tr class="hover:bg-white/[0.01] transition-colors"><td class="py-2.5 font-medium text-slate-300">不重吸入面罩 (Non-rebreathing)</td><td class="font-mono">10 – 15 L/min</td><td class="font-mono">80% – 95%</td></tr>
-                <tr class="hover:bg-white/[0.01] transition-colors"><td class="py-2.5 font-medium text-slate-300">文氏面罩 (Venturi Mask)</td><td class="font-mono">依設定 (可調)</td><td class="font-mono">24% – 60% (較為精準)</td></tr>
-                <tr class="hover:bg-white/[0.01] transition-colors"><td class="py-2.5 font-medium text-slate-300">高流量鼻導管 (HFNC)</td><td class="font-mono">20 – 60 L/min</td><td class="font-mono">21% – 100% (直接設定)</td></tr>
+                <tr class="hover:bg-white/[0.01] transition-colors"><td class="py-2.5 font-medium text-slate-300">文氏面罩 (Venturi Mask)</td><td class="">依設定 (可調)</td><td class="">24% – 60% (較為精準)</td></tr>
+                <tr class="hover:bg-white/[0.01] transition-colors"><td class="py-2.5 font-medium text-slate-300">高流量鼻導管 (HFNC)</td><td class="font-mono">20 – 60 L/min</td><td class="">21% – 100% (直接設定)</td></tr>
               </tbody>
             </table>
           </div>

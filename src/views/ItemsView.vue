@@ -681,7 +681,7 @@ async function pullSurgeryTypesFromCloud() {
       <!-- 已選篩選 Chips ──────────────────────────────────── -->
       <Transition name="slide-down">
         <div v-if="activeFilterChips.length > 0" class="flex flex-wrap gap-2 items-center border-t border-white/5 pt-3">
-          <span class="text-2xs font-black text-slate-500 uppercase tracking-widest font-mono shrink-0">篩選項目:</span>
+          <span class="text-2xs font-black text-slate-500 uppercase tracking-widest shrink-0">篩選項目:</span>
           <span
             v-for="chip in activeFilterChips" :key="`${chip.mode}-${chip.key}`"
             class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border"
@@ -734,7 +734,7 @@ async function pullSurgeryTypesFromCloud() {
             class="border-b border-white/[0.03] hover:bg-slate-900/40 transition-colors"
           >
             <td
-              class="px-5 py-3.5 font-mono text-xs cursor-pointer select-none transition-colors"
+              class="px-5 py-3.5 text-xs cursor-pointer select-none transition-colors"
               :class="copiedCode === m.hospital_code ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-teal-400'"
               :title="'複製 ' + m.hospital_code"
               @click="copyCode(m.hospital_code)"
@@ -778,7 +778,7 @@ async function pullSurgeryTypesFromCloud() {
         <!-- Modal Header -->
         <div class="flex items-center justify-between px-5 py-4 border-b border-white/5 shrink-0 bg-slate-950/30">
           <div class="flex items-center gap-3">
-            <h3 class="text-xs font-black uppercase tracking-widest font-mono text-slate-200">管理手術術式</h3>
+            <h3 class="text-xs font-black uppercase tracking-widest text-slate-200">管理手術術式</h3>
             <div class="flex items-center gap-1.5">
               <button @click="pullSurgeryTypesFromCloud" :disabled="isSurgSyncing"
                 class="text-2xs font-bold px-3 py-1.5 rounded-lg border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 disabled:opacity-40 transition-colors cursor-pointer">
@@ -870,7 +870,7 @@ async function pullSurgeryTypesFromCloud() {
               <div class="px-5 py-3.5 border-b border-white/5 flex items-center gap-3 shrink-0 flex-wrap bg-slate-950/10">
                 <span class="text-xs text-slate-200 font-black tracking-wider truncate">{{ mgmtSelected?.name }}</span>
                 <span v-if="mgmtSelected?.dept" class="text-3xs font-mono bg-violet-500/10 border border-violet-500/30 text-violet-400 px-2 py-0.5 rounded-full font-bold">{{ mgmtSelected.dept }}</span>
-                <span class="text-2xs font-mono font-bold text-slate-500 bg-slate-950 px-2 py-0.5 rounded border border-white/5">已關聯 {{ mgmtSelCodes.size }} 品項</span>
+                <span class="text-2xs font-bold text-slate-500 bg-slate-950 px-2 py-0.5 rounded border border-white/5">已關聯 {{ mgmtSelCodes.size }} 品項</span>
                 
                 <label class="ml-auto flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none font-bold">
                   <input type="checkbox" v-model="mgmtOnlyLinked" class="accent-violet-500 w-3.5 h-3.5 rounded" />

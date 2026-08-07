@@ -325,7 +325,7 @@ async function doDelete() {
       <div v-if="filtered.length === 0" class="text-center py-20 rounded-2xl border border-dashed border-white/5 bg-slate-900/10">
         <div class="text-4xl mb-3 opacity-20">📞</div>
         <p class="text-slate-500 text-xs font-medium uppercase tracking-wider">No contacts found</p>
-        <p class="text-slate-600 text-2xs font-mono mt-1">Press "+ 新增分機" to create a new directory record</p>
+        <p class="text-slate-600 text-2xs mt-1">Press "+ 新增分機" to create a new directory record</p>
       </div>
 
       <!-- Categories dossier -->
@@ -429,7 +429,7 @@ async function doDelete() {
     >
       <div class="w-full max-w-xs bg-slate-900 border border-white/10 rounded-2xl shadow-2xl p-5 text-center">
         <p class="text-slate-200 text-sm font-semibold mb-1">確定刪除此分機紀錄？</p>
-        <p class="text-xs text-slate-500 font-mono mb-6">「{{ deleteTarget?.label }}」{{ deleteTarget?.ext }}</p>
+        <p class="text-xs text-slate-500 mb-6">「{{ deleteTarget?.label }}」{{ deleteTarget?.ext }}</p>
         <div class="flex gap-2.5 justify-center">
           <button @click="showConfirm = false" class="px-4 py-2 text-xs font-bold bg-slate-800 border border-white/5 text-slate-400 rounded-xl hover:bg-slate-700 hover:text-slate-200">取消</button>
           <button @click="doDelete" class="px-4 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white rounded-xl shadow-lg shadow-rose-500/10">確認刪除</button>

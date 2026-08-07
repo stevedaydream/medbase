@@ -2038,7 +2038,7 @@ async function createTemplate() {
         <!-- Toolbar -->
         <div class="flex items-center gap-3 flex-wrap">
           <span class="text-sm font-black text-slate-200 tracking-wider">排班工作人員名單</span>
-          <span class="text-2xs text-slate-500 font-mono border border-white/5 rounded px-2 py-0.5 bg-white/[0.01]">{{ staff.length }} 人</span>
+          <span class="text-2xs text-slate-500 border border-white/5 rounded px-2 py-0.5 bg-white/[0.01]">{{ staff.length }} 人</span>
           <div class="flex-1"></div>
           <button @click="pullStaffFromCloud" :disabled="isStaffLoading"
             class="text-2xs font-bold px-3 py-2 bg-blue-500/10 border border-blue-500/20 text-blue-300 rounded-xl disabled:opacity-40 cursor-pointer transition-all">
@@ -2310,7 +2310,7 @@ async function createTemplate() {
                     </label>
                   </div>
                   <div v-if="(expandedShift.targets?.[dt.key] as any)?.subtract?.length"
-                    class="text-2xs font-bold text-purple-400 font-mono mt-2.5">
+                    class="text-2xs font-bold text-purple-400 mt-2.5">
                     = 總人數 - {{ (expandedShift.targets?.[dt.key] as any).subtract.join(' - ') }}
                   </div>
                 </template>
@@ -2356,7 +2356,7 @@ async function createTemplate() {
           <div class="flex items-center justify-between border-b border-white/5 pb-2.5 flex-wrap gap-2">
             <div class="flex items-center gap-2">
               <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">國定假日管理</p>
-              <span class="text-2xs text-slate-500 font-mono border border-white/5 rounded px-2 py-0.5 bg-white/[0.01] font-bold">
+              <span class="text-2xs text-slate-500 border border-white/5 rounded px-2 py-0.5 bg-white/[0.01] font-bold">
                 {{ currentYear }} 年・國定假日 {{ holidayList.filter(h => h.date.startsWith(String(currentYear)) && effectiveType(h) === 'holiday').length }} 天 / 共 {{ holidayList.filter(h => h.date.startsWith(String(currentYear))).length }} 筆記錄
               </span>
             </div>
@@ -2512,7 +2512,7 @@ async function createTemplate() {
       </div>
 
       <!-- Sheet name tag -->
-      <span class="ml-auto text-3xs text-slate-600 font-mono uppercase tracking-wider">{{ sheetName }}</span>
+      <span class="ml-auto text-3xs text-slate-600 uppercase tracking-wider">{{ sheetName }}</span>
     </div>
 
     <!-- ── Data Status Bar ───────────────────────────────────────── -->
@@ -2713,7 +2713,7 @@ async function createTemplate() {
 
           <!-- Summary row: daily shift configurations -->
           <tr class="sticky bottom-0 z-15 bg-slate-900 border-t border-white/10 shadow-[0_-2px_10px_rgba(0,0,0,0.3)]">
-            <td class="sticky left-0 z-20 bg-slate-900 px-4 py-2.5 text-xs text-slate-500 font-bold border-r border-white/10 uppercase tracking-wider font-mono">
+            <td class="sticky left-0 z-20 bg-slate-900 px-4 py-2.5 text-xs text-slate-500 font-bold border-r border-white/10 uppercase tracking-wider">
               每日出勤數
             </td>
             <td v-for="day in dayLabels" :key="day.d"

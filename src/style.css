@@ -88,6 +88,13 @@
   box-sizing: border-box;
 }
 
+/* 數值等寬對齊：原本靠 font-mono，但中文會 fallback 成中文字型而失效，
+   且同一行內字寬不一致。改用 tabular-nums —— 只讓「數字」等寬，中文與
+   拉丁文字維持比例字型的可讀性。表格欄位因此能整齊對齊。*/
+table {
+  font-variant-numeric: tabular-nums;
+}
+
 html, body, #app {
   height: 100%;
   margin: 0;

@@ -421,7 +421,7 @@ async function pullSettingsFromCloud() {
 
     <!-- ── 外觀設定 ───────────────────────────────────────────────── -->
     <section class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 p-5 shadow-xl space-y-4">
-      <h2 class="text-xs font-black text-slate-500 uppercase tracking-widest font-mono">外觀與字型控制 (Appearance)</h2>
+      <h2 class="text-xs font-black text-slate-500 uppercase tracking-widest">外觀與字型控制 (Appearance)</h2>
       <div class="flex items-center gap-6">
         <p class="text-xs text-slate-400 font-bold w-16 shrink-0">介面字體</p>
         <div class="flex gap-1.5">
@@ -656,7 +656,7 @@ async function pullSettingsFromCloud() {
 
     <!-- ── AI 設定 ────────────────────────────────────────────────── -->
     <section class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 p-5 shadow-xl space-y-4">
-      <h2 class="text-xs font-black text-slate-500 uppercase tracking-widest font-mono">人工智慧輔助設定 (AI Integrations)</h2>
+      <h2 class="text-xs font-black text-slate-500 uppercase tracking-widest">人工智慧輔助設定 (AI Integrations)</h2>
       <div class="p-5 bg-slate-950 rounded-2xl border border-white/5 space-y-4">
         <div class="flex items-center gap-2.5">
           <p class="text-xs text-slate-300 font-bold">Gemini API Access Token</p>
@@ -692,12 +692,12 @@ async function pullSettingsFromCloud() {
 
     <!-- ── 版本與更新 ──────────────────────────────────────────────── -->
     <section class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 p-5 shadow-xl space-y-5">
-      <h2 class="text-xs font-black text-slate-500 uppercase tracking-widest font-mono">系統更新與發佈日誌 (Version control)</h2>
+      <h2 class="text-xs font-black text-slate-500 uppercase tracking-widest">系統更新與發佈日誌 (Version control)</h2>
 
       <!-- 目前版本 + 檢查按鈕 -->
       <div class="flex items-center gap-6 p-5 bg-slate-950 rounded-2xl border border-white/5 shadow-md">
         <div class="flex-1">
-          <p class="text-2xs font-bold text-slate-500 uppercase tracking-wider font-mono mb-1">目前安裝版本</p>
+          <p class="text-2xs font-bold text-slate-500 uppercase tracking-wider mb-1">目前安裝版本</p>
           <p class="text-2xl font-black text-slate-200 font-mono tracking-wider">v{{ APP_VERSION }}</p>
         </div>
         <div class="flex flex-col items-end gap-1.5 shrink-0">
@@ -714,7 +714,7 @@ async function pullSettingsFromCloud() {
         class="p-5 bg-emerald-500/[0.03] border border-emerald-500/20 rounded-2xl space-y-4 shadow-[0_0_20px_rgba(16,185,129,0.02)]">
         <div class="flex items-center justify-between border-b border-emerald-500/10 pb-3">
           <div>
-            <p class="text-xs text-emerald-400 font-black tracking-wider uppercase font-mono">⚡ 偵測到新版本發佈: v{{ updateVersion }}</p>
+            <p class="text-xs text-emerald-400 font-black tracking-wider uppercase">⚡ 偵測到新版本發佈: v{{ updateVersion }}</p>
           </div>
           <button @click="installUpdate" :disabled="updateDownloading"
             class="text-xs px-4 py-2 bg-emerald-600 border border-emerald-500/30 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl font-bold cursor-pointer shadow-lg shadow-emerald-500/10">
@@ -728,7 +728,7 @@ async function pullSettingsFromCloud() {
       <div class="space-y-4">
         <div class="flex items-center gap-3 border-b border-white/5 pb-2">
           <p class="text-xs font-bold text-slate-300">GitHub Releases 發佈歷史紀錄</p>
-          <span v-if="changelogFetchedAt" class="text-2xs text-slate-500 font-mono">上次同步：{{ changelogFetchedAt }}</span>
+          <span v-if="changelogFetchedAt" class="text-2xs text-slate-500">上次同步：{{ changelogFetchedAt }}</span>
           <button @click="fetchChangelog" :disabled="changelogLoading"
             class="ml-auto text-2xs font-bold px-3 py-1.5 border border-white/5 bg-slate-800 text-slate-400 hover:text-slate-200 rounded-lg cursor-pointer transition-all">
             {{ changelogLoading ? '正在擷取…' : '↻ 從雲端同步日誌' }}
@@ -769,7 +769,7 @@ async function pullSettingsFromCloud() {
 
     <!-- ── 雲端同步排程 ────────────────────────────────────────────── -->
     <section class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 p-5 shadow-xl space-y-4">
-      <h2 class="text-xs font-black text-slate-500 uppercase tracking-widest font-mono">雲端自動同步排程 (Sync Schedule)</h2>
+      <h2 class="text-xs font-black text-slate-500 uppercase tracking-widest">雲端自動同步排程 (Sync Schedule)</h2>
 
       <!-- 固定時段 -->
       <div class="space-y-3">

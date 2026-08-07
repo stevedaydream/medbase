@@ -329,7 +329,7 @@ onMounted(() => { scrollToActive() })
             : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'"
         >
           <div class="font-medium">{{ pool.label }}</div>
-          <div class="text-gray-600 font-mono mt-0.5">{{ pool.poolName }}
+          <div class="text-gray-600 mt-0.5">{{ pool.poolName }}
             <span v-if="pool.order.length" class="text-gray-700">・{{ pool.order.length }}人</span>
           </div>
         </button>
@@ -345,7 +345,7 @@ onMounted(() => { scrollToActive() })
           <input v-model="newPoolLabel" placeholder="名稱（週六白班）"
             class="w-full text-xs px-2 py-1 bg-gray-800 border border-gray-700 rounded text-gray-200 outline-none focus:border-blue-500" />
           <input v-model="newPoolName" placeholder="ID（如 satD2）" maxlength="10"
-            class="w-full text-xs px-2 py-1 bg-gray-800 border border-gray-700 rounded text-gray-200 font-mono outline-none focus:border-blue-500" />
+            class="w-full text-xs px-2 py-1 bg-gray-800 border border-gray-700 rounded text-gray-200 outline-none focus:border-blue-500" />
           <div class="flex gap-1">
             <button @click="addPool" class="flex-1 text-xs py-1 bg-blue-700 hover:bg-blue-600 text-white rounded">新增</button>
             <button @click="showNewPool = false" class="text-xs px-2 text-gray-600 hover:text-gray-400">✕</button>
@@ -369,7 +369,7 @@ onMounted(() => { scrollToActive() })
         <!-- Pool header row -->
         <div class="flex items-center gap-3 flex-wrap">
           <h3 class="text-sm font-semibold text-white">{{ selected.label }}</h3>
-          <span class="text-xs text-gray-600 font-mono">{{ selected.poolName }}</span>
+          <span class="text-xs text-gray-600">{{ selected.poolName }}</span>
 
           <!-- Shift code selector -->
           <div class="flex items-center gap-1.5 ml-2">
@@ -596,7 +596,7 @@ onMounted(() => { scrollToActive() })
                     <span v-if="ei === 0">{{ DOW_ZH[row.dow] }}</span>
                   </td>
                   <td class="px-3 py-1.5 text-gray-500">
-                    <span class="font-mono">{{ entry.pool.poolName }}</span>
+                    <span class="">{{ entry.pool.poolName }}</span>
                     <span v-if="entry.pool.quota > 1" class="text-gray-700">×{{ entry.pool.quota }}</span>
                   </td>
                   <td class="px-3 py-1.5">

@@ -219,7 +219,7 @@ async function pullFromCloud() {
     <div class="flex-1 rounded-2xl bg-slate-900/40 backdrop-blur-md border border-white/5 p-6 overflow-y-auto flex flex-col shadow-xl">
       <div v-if="!selected" class="flex-1 flex flex-col items-center justify-center gap-3 text-slate-500 py-12">
         <span class="text-4xl animate-pulse">🦠</span>
-        <p class="text-xs font-black uppercase tracking-widest font-mono">請選擇疾病，或點擊 ＋ 新增</p>
+        <p class="text-xs font-black uppercase tracking-widest">請選擇疾病，或點擊 ＋ 新增</p>
         <span class="text-2xs text-center text-slate-600 max-w-xs mt-1 leading-relaxed">
           收錄入院需開哪些 Labs / 影像、需會診科別與流程、常規醫囑。
         </span>
@@ -267,7 +267,7 @@ async function pullFromCloud() {
         <div class="flex-1 flex flex-col min-h-0 space-y-4">
           <!-- Workup -->
           <div v-if="activeTab === 'workup'" class="bg-slate-950/40 border border-white/5 rounded-2xl p-5 flex flex-col flex-1 overflow-hidden shadow-inner">
-            <p class="text-2xs font-black text-slate-500 uppercase tracking-widest font-mono mb-4">入院需開 Labs / 影像</p>
+            <p class="text-2xs font-black text-slate-500 uppercase tracking-widest mb-4">入院需開 Labs / 影像</p>
             <div class="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
               <div v-for="(o, i) in parse(selected.workup)" :key="i"
                 class="flex items-start gap-3 text-slate-300 text-xs font-mono bg-slate-950/60 border border-white/[0.03] rounded-xl px-4 py-3 hover:border-white/10 transition-colors">
@@ -282,7 +282,7 @@ async function pullFromCloud() {
 
           <!-- 會診流程 -->
           <div v-if="activeTab === 'consult'" class="bg-slate-950/40 border border-white/5 rounded-2xl p-5 flex flex-col flex-1 overflow-hidden shadow-inner">
-            <p class="text-2xs font-black text-slate-500 uppercase tracking-widest font-mono mb-4">會診科別與流程說明</p>
+            <p class="text-2xs font-black text-slate-500 uppercase tracking-widest mb-4">會診科別與流程說明</p>
             <div class="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
               <div v-if="selected.consult_flow" class="space-y-3">
                 <div v-for="(line, i) in (selected.consult_flow ?? '').split('\n').filter(l => l.trim())" :key="i"
@@ -301,7 +301,7 @@ async function pullFromCloud() {
 
           <!-- 常規醫囑 -->
           <div v-if="activeTab === 'orders'" class="bg-slate-950/40 border border-white/5 rounded-2xl p-5 flex flex-col flex-1 overflow-hidden shadow-inner">
-            <p class="text-2xs font-black text-slate-500 uppercase tracking-widest font-mono mb-4">常規入院醫囑參考</p>
+            <p class="text-2xs font-black text-slate-500 uppercase tracking-widest mb-4">常規入院醫囑參考</p>
             <div class="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
               <div v-for="(o, i) in parse(selected.treatment_orders)" :key="i"
                 class="flex items-start gap-3 text-slate-300 text-xs font-mono bg-slate-950/60 border border-white/[0.03] rounded-xl px-4 py-3 hover:border-white/10 transition-colors">
@@ -316,7 +316,7 @@ async function pullFromCloud() {
 
           <!-- 備註 -->
           <div v-if="selected.notes" class="bg-slate-950/30 border border-white/5 rounded-2xl p-4 shrink-0 shadow-md">
-            <p class="text-3xs font-black text-slate-500 uppercase tracking-widest font-mono mb-2">備註說明 / 注意事項</p>
+            <p class="text-3xs font-black text-slate-500 uppercase tracking-widest mb-2">備註說明 / 注意事項</p>
             <p class="text-slate-300 text-xs leading-relaxed whitespace-pre-line font-bold">{{ selected.notes }}</p>
           </div>
         </div>
@@ -330,7 +330,7 @@ async function pullFromCloud() {
         @click.self="showModal = false">
         <div class="w-full max-w-2xl bg-slate-900 border border-white/10 rounded-2xl shadow-2xl flex flex-col max-h-[92vh] text-slate-100 overflow-hidden">
           <div class="flex items-center justify-between px-5 py-4 border-b border-white/5 shrink-0 bg-slate-950/30">
-            <h3 class="text-xs font-black uppercase tracking-widest font-mono text-slate-200">
+            <h3 class="text-xs font-black uppercase tracking-widest text-slate-200">
               {{ modalMode === "add" ? "新增疾病入院流程" : "編輯疾病入院流程" }}
             </h3>
             <button @click="showModal = false" class="text-slate-500 hover:text-slate-200 text-xl leading-none cursor-pointer">×</button>
@@ -339,7 +339,7 @@ async function pullFromCloud() {
           <div class="overflow-y-auto px-6 py-5 space-y-4 flex-1 custom-scrollbar">
             <div class="flex gap-4">
               <div class="flex-1">
-                <label class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">疾病 / 入院診斷 <span class="text-rose-400">*</span></label>
+                <label class="text-slate-500 text-2xs font-black uppercase tracking-widest block mb-1.5">疾病 / 入院診斷 <span class="text-rose-400">*</span></label>
                 <input v-model="form.name"
                   class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs outline-none focus:border-emerald-500/50 font-bold"
                   placeholder="如：急性闌尾炎、膽管炎、腸阻塞" />
@@ -351,7 +351,7 @@ async function pullFromCloud() {
                   placeholder="如：K37" />
               </div>
               <div class="w-32">
-                <label class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">科別</label>
+                <label class="text-slate-500 text-2xs font-black uppercase tracking-widest block mb-1.5">科別</label>
                 <input v-model="form.category"
                   class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs outline-none focus:border-emerald-500/50 font-bold"
                   placeholder="一般外科" />
@@ -361,13 +361,13 @@ async function pullFromCloud() {
             <!-- Workup + 常規醫囑 並排 -->
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">入院 Workup（每行一筆）</label>
+                <label class="text-slate-500 text-2xs font-black uppercase tracking-widest block mb-1.5">入院 Workup（每行一筆）</label>
                 <textarea v-model="form.workup" rows="10"
                   placeholder="CBC+DC&#10;BMP&#10;LFT, amylase, lipase&#10;CXR&#10;Abdominal CT with contrast&#10;…"
                   class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs font-mono outline-none focus:border-emerald-500/50 resize-none custom-scrollbar font-medium" />
               </div>
               <div>
-                <label class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">常規醫囑（每行一筆）</label>
+                <label class="text-slate-500 text-2xs font-black uppercase tracking-widest block mb-1.5">常規醫囑（每行一筆）</label>
                 <textarea v-model="form.treatment_orders" rows="10"
                   placeholder="NPO&#10;IV access, NS 1L bolus&#10;Morphine 2mg IV prn pain&#10;…"
                   class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs font-mono outline-none focus:border-emerald-500/50 resize-none custom-scrollbar font-medium" />
@@ -376,14 +376,14 @@ async function pullFromCloud() {
 
             <!-- 會診流程 -->
             <div>
-              <label class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">會診流程（每行一步）</label>
+              <label class="text-slate-500 text-2xs font-black uppercase tracking-widest block mb-1.5">會診流程（每行一步）</label>
               <textarea v-model="form.consult_flow" rows="4"
                 placeholder="1. 先電話通知 Anesthesia 評估手術風險&#10;2. 視 CT 結果決定是否需要 IR 介入&#10;3. 若 Bilirubin > 5，加會 GI/ERCP&#10;…"
                 class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs outline-none focus:border-emerald-500/50 resize-none custom-scrollbar font-medium" />
             </div>
 
             <div>
-              <label class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">備註</label>
+              <label class="text-slate-500 text-2xs font-black uppercase tracking-widest block mb-1.5">備註</label>
               <textarea v-model="form.notes" rows="2"
                 class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs outline-none focus:border-emerald-500/50 resize-none custom-scrollbar font-medium" />
             </div>
