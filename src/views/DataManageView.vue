@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 import { getDb, closeDb, dbWrite } from "@/db";
 import * as XLSX from "xlsx";
 import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -52,7 +52,6 @@ type Tab = "items" | "physicians" | "emergency" | "backup";
 const activeTab   = ref<Tab>("items");
 const search      = ref("");
 const route       = useRoute();
-const router      = useRouter();
 
 // ── 雙軌同步 UI（橋接 useXlsxSync 單例狀態）────────────────────────
 const xlsxSyncPath   = xlsxSyncPathRef;
@@ -754,18 +753,9 @@ async function loadAll() {
   physicians.value = await db.select<Physician[]>("SELECT * FROM physicians ORDER BY department, name");
   protocols.value  = await db.select<Protocol[]>("SELECT * FROM emergency_protocols ORDER BY name");
 
-  // ── 跳轉編輯處理 ──────────────────────────
+  // 由外部指定要開啟的分頁（?tab=）
   if (route.query.tab) {
     activeTab.value = route.query.tab as Tab;
-    if (route.query.editId && route.query.tab === "physicians") {
-      const pId = parseInt(route.query.editId as string);
-      const found = physicians.value.find(p => p.id === pId);
-      if (found) {
-        openEdit(found);
-        // 清除 query 參數以防重新加載時重複彈窗
-        router.replace({ path: "/data" });
-      }
-    }
   }
 }
 onMounted(loadAll);
@@ -1041,7 +1031,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
 
       <!-- ── 自費品項 表格 ─────────────────────────── -->
       <div v-if="activeTab === 'items'" class="flex-1 overflow-auto px-6 py-4">
-        <div class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 shadow-2xl overflow-x-auto">
+        <div class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 shadow-2xl overflow-hidden w-max min-w-full">
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="border-b border-white/10 bg-slate-900/50 text-slate-400 text-2xs font-bold tracking-wider uppercase font-mono">
@@ -1089,7 +1079,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
 
       <!-- ── 通訊錄 表格 ───────────────────────── -->
       <div v-if="activeTab === 'physicians'" class="flex-1 overflow-auto px-6 py-4">
-        <div class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 shadow-2xl overflow-x-auto">
+        <div class="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5 shadow-2xl overflow-hidden w-max min-w-full">
           <table class="w-full text-left border-collapse">
             <thead>
               <tr class="border-b border-white/10 bg-slate-900/50 text-slate-400 text-2xs font-bold tracking-wider uppercase font-mono">
