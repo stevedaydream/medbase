@@ -248,7 +248,7 @@ refreshList();
           @click="copyText(item.hospital_code, `item-${item.hospital_code}`)"
           class="flex items-center gap-2 px-3 py-2 border-b border-hairline cursor-pointer hover:bg-elevated/40 transition-colors">
           <span class="font-mono text-xs shrink-0 px-1.5 py-0.5 rounded"
-            :class="copiedKey === `item-${item.hospital_code}` ? 'bg-green-800 text-green-200' : 'bg-elevated text-blue-300'">
+            :class="copiedKey === `item-${item.hospital_code}` ? 'bg-success text-accent' : 'bg-elevated text-accent'">
             {{ copiedKey === `item-${item.hospital_code}` ? '✓' : item.hospital_code }}
           </span>
           <span class="text-sm text-fg truncate">{{ item.name_zh || item.name_en }}</span>
@@ -274,7 +274,7 @@ refreshList();
               class="text-muted hover:text-fg text-sm">←</button>
             <span class="text-sm text-fg font-medium flex-1 truncate">{{ activeSet.name }}</span>
             <button @click="copyAllCodes"
-              class="text-xs px-2 py-0.5 rounded bg-blue-800/60 text-blue-300 hover:bg-blue-700/60 shrink-0">
+              class="text-xs px-2 py-0.5 rounded bg-accent/60 text-accent hover:bg-accent/60 shrink-0">
               {{ copiedKey === 'all-codes' ? '✓ 已複製' : '全選複製' }}
             </button>
           </div>
@@ -283,7 +283,7 @@ refreshList();
             @click="copyText(si.hospital_code, `si-${si.id}`)"
             class="flex items-center gap-2 px-3 py-2 border-b border-hairline cursor-pointer hover:bg-elevated/40 transition-colors">
             <span class="font-mono text-xs shrink-0 px-1.5 py-0.5 rounded"
-              :class="copiedKey === `si-${si.id}` ? 'bg-green-800 text-green-200' : 'bg-elevated text-blue-300'">
+              :class="copiedKey === `si-${si.id}` ? 'bg-success text-accent' : 'bg-elevated text-accent'">
               {{ copiedKey === `si-${si.id}` ? '✓' : si.hospital_code }}
             </span>
             <div class="flex-1 min-w-0">
@@ -323,12 +323,12 @@ refreshList();
           <div class="flex gap-2 mt-1">
             <button v-if="p.ext" @click="copyText(p.ext, `ext-${p.id}`)"
               class="text-xs px-2 py-0.5 rounded transition-colors"
-              :class="copiedKey === `ext-${p.id}` ? 'bg-green-800 text-green-200' : 'bg-elevated text-fg-secondary hover:bg-raised'">
+              :class="copiedKey === `ext-${p.id}` ? 'bg-success text-accent' : 'bg-elevated text-fg-secondary hover:bg-raised'">
               {{ copiedKey === `ext-${p.id}` ? '✓ 已複製' : `📞 ${p.ext}` }}
             </button>
             <button v-if="p.his_account" @click="copyText(p.his_account, `his-${p.id}`)"
               class="text-xs px-2 py-0.5 rounded transition-colors"
-              :class="copiedKey === `his-${p.id}` ? 'bg-green-800 text-green-200' : 'bg-elevated text-fg-secondary hover:bg-raised'">
+              :class="copiedKey === `his-${p.id}` ? 'bg-success text-accent' : 'bg-elevated text-fg-secondary hover:bg-raised'">
               {{ copiedKey === `his-${p.id}` ? '✓ 已複製' : `HIS: ${p.his_account}` }}
             </button>
           </div>
