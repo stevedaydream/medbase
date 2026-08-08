@@ -69,6 +69,17 @@ function missingAccountNotice(f: PhysicianForm, base: string | null): string | n
   return base;
 }
 
+/**
+ * 批次寫入（雲端拉取、XLSX 匯入、備份還原）之後重建 pass.ahk 並 Reload。
+ *
+ * 刻意不走 afterWrite()：那會 markLocalModified 並把整份資料推回雲端，
+ * 但這些情境的資料正是剛從雲端／檔案拉進來的 —— 推回去不只多餘，還可能
+ * 覆蓋掉別人在這段期間存進雲端的內容。此處只做本機端的 pass.ahk 重建。
+ */
+export async function refreshPassAhk(): Promise<string | null> {
+  return await autoUpdatePassAhk();
+}
+
 /** 新增（無 id）或更新（有 id）一筆醫師資料 */
 export async function upsertPhysician(f: PhysicianForm): Promise<WriteResult> {
   const name = f.name?.trim();

@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { setGlobalSyncing } from "@/composables/useCloudSync";
 import { saveSyncTimestamp } from "@/composables/useSyncMonitor";
-import { upsertPhysician, removePhysician } from "@/composables/usePhysicians";
+import { upsertPhysician, removePhysician, refreshPassAhk } from "@/composables/usePhysicians";
 import { useLogger } from "@/composables/useLogger";
 
 interface Physician { id: number; name: string; department: string; title: string; ext: string; his_account: string; his_password: string; notes: string; }
@@ -167,7 +167,10 @@ async function pullFromCloud() {
       }
     }
     await load();
-    showToast(`拉取完成：新增 ${inserted} 筆，更新 ${updated} 筆`);
+    // 拉下來的資料可能含新的／異動的 HIS 帳密，pass.ahk 必須跟著重建
+    const ahkMessage = await refreshPassAhk();
+    const summary = `拉取完成：新增 ${inserted} 筆，更新 ${updated} 筆`;
+    showToast(ahkMessage ? `${summary}｜${ahkMessage}` : summary);
   } catch (err) {
     showToast(`拉取失敗：${(err as Error).message}`);
   } finally {

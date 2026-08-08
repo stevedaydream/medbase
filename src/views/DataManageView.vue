@@ -20,7 +20,7 @@ import {
   unbind as xlsxUnbind,
 } from "@/composables/useXlsxSync";
 import { markLocalModified, pushTableToCloud } from "@/composables/useSyncMonitor";
-import { upsertPhysician, removePhysician } from "@/composables/usePhysicians";
+import { upsertPhysician, removePhysician, refreshPassAhk } from "@/composables/usePhysicians";
 
 // ── 型別定義 ────────────────────────────────────────────────────
 interface Item {
@@ -329,7 +329,9 @@ async function handleXlsx(e: Event) {
 
     importResults.value = results;
     await loadAll();
-    showToast("success", "匯入完成！");
+    // physicians sheet 可能帶入新的 HIS 帳密
+    const ahkMessage = await refreshPassAhk();
+    showToast("success", ahkMessage ? `匯入完成！｜${ahkMessage}` : "匯入完成！");
   } catch (err: any) {
     showToast("error", `匯入失敗：${err?.message ?? err}`);
   } finally {
@@ -682,7 +684,11 @@ async function confirmFullImport() {
     }
     await loadAll();
     await useCloudSettings().reload();
-    showToast("success", `匯入完成！共更新 ${total} 筆資料。`);
+    // 還原可能整批換掉 physicians 的 HIS 帳密，pass.ahk 必須跟著重建
+    const ahkMessage = await refreshPassAhk();
+    showToast("success", ahkMessage
+      ? `匯入完成！共更新 ${total} 筆資料。｜${ahkMessage}`
+      : `匯入完成！共更新 ${total} 筆資料。`);
     importPreview.value = null;
     pendingImportData.value = null;
   } catch (err: any) {
