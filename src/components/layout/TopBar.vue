@@ -7,9 +7,9 @@ const emit = defineEmits<{ openSearch: [] }>();
 </script>
 
 <template>
-  <header class="flex items-center justify-between h-12 px-5 border-b shrink-0 bg-gray-950 border-gray-800">
+  <header class="flex items-center justify-between h-12 px-5 border-b shrink-0 bg-sunken border-hairline">
     <!-- Page title -->
-    <h1 class="text-sm font-medium text-gray-200">
+    <h1 class="text-sm font-medium text-fg">
       {{ route.meta.title as string ?? 'MedBase' }}
     </h1>
 
@@ -17,10 +17,10 @@ const emit = defineEmits<{ openSearch: [] }>();
       <!-- Omnibar hint -->
       <button
         @click="emit('openSearch')"
-        class="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs bg-gray-800 text-gray-400 hover:bg-gray-700 transition-colors cursor-pointer"
+        class="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs bg-elevated text-fg-secondary hover:bg-raised transition-colors cursor-pointer"
       >
         <span>🔍 全域搜尋</span>
-        <kbd class="font-mono px-1 py-0.5 rounded text-xs bg-gray-700">Ctrl K</kbd>
+        <kbd class="font-mono px-1 py-0.5 rounded text-xs bg-raised">Ctrl K</kbd>
       </button>
     </div>
   </header>
