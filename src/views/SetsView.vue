@@ -563,16 +563,16 @@ async function doDelete() {
 </script>
 
 <template>
-  <div class="flex gap-6 h-full p-1 overflow-hidden">
+  <div class="accent-violet flex gap-6 h-full p-1 overflow-hidden">
 
     <!-- ── 左：套組列表 ──────────────────────────── -->
-    <div class="flex flex-col w-80 shrink-0 bg-sunken/40 backdrop-blur-md border border-hairline rounded-2xl p-4 shadow-xl overflow-hidden">
+    <div class="flex flex-col w-80 shrink-0 bg-sunken border border-hairline rounded-2xl p-4 shadow-xl overflow-hidden">
       <!-- 搜尋 + 新增 -->
       <div class="flex gap-2 mb-3 shrink-0">
         <input v-model="searchSet" placeholder="搜尋套組…"
-          class="flex-1 px-3 py-2 text-xs rounded-xl bg-sunken/60 border border-hairline text-fg placeholder-muted focus:outline-none focus:border-violet-500/50 focus:shadow-[0_0_12px_rgba(139,92,246,0.15)] transition-all font-bold" />
+          class="flex-1 px-3 py-2 text-xs rounded-xl bg-sunken border border-hairline text-fg placeholder-muted focus:outline-none focus:border-accent/50 focus:shadow-[0_0_12px_rgba(139,92,246,0.15)] transition-all font-bold" />
         <button @click="openAddSet"
-          class="w-9 h-9 rounded-xl bg-violet-600 border border-violet-500/30 text-white text-lg font-black hover:bg-violet-500 active:scale-95 transition-all flex items-center justify-center cursor-pointer shrink-0"
+          class="w-9 h-9 rounded-xl bg-violet-600 border border-accent/30 text-white text-lg font-black hover:bg-violet-500 active:scale-95 transition-all flex items-center justify-center cursor-pointer shrink-0"
           title="新增套組">＋</button>
       </div>
 
@@ -583,7 +583,7 @@ async function doDelete() {
           {{ isSyncing ? '…' : '↓ 雲端同步' }}
         </button>
         <button @click="pushToCloud" :disabled="isSyncing"
-          class="flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl bg-elevated/40 border border-hairline text-fg-secondary text-xs font-black hover:text-fg disabled:opacity-40 active:scale-95 transition-all cursor-pointer">
+          class="flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl bg-elevated border border-hairline text-fg-secondary text-xs font-black hover:text-fg disabled:opacity-40 active:scale-95 transition-all cursor-pointer">
           {{ isSyncing ? '…' : '↑ 上傳' }}
         </button>
       </div>
@@ -604,14 +604,14 @@ async function doDelete() {
               @click="selectSet(s)"
               class="group w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all cursor-pointer"
               :class="activeSet?.id === s.id
-                ? 'bg-violet-600/20 border-violet-500/40 text-violet-100 shadow-[0_0_12px_rgba(139,92,246,0.08)]'
-                : 'bg-sunken/10 border-hairline text-fg-secondary hover:text-fg hover:bg-surface/40 hover:border-hairline'"
+                ? 'bg-accent/20 border-accent/40 text-accent shadow-[0_0_12px_rgba(139,92,246,0.08)]'
+                : 'bg-sunken border-hairline text-fg-secondary hover:text-fg hover:bg-surface/40 hover:border-hairline'"
             >
               <span class="text-xs font-bold truncate flex-1 min-w-0">{{ s.surgery_type || s.name }}</span>
               <button
                 @click.stop="deleteTarget = { type: 'set', row: s }"
-                class="opacity-0 group-hover:opacity-100 hover:text-rose-400 px-1 transition-opacity shrink-0 cursor-pointer text-sm leading-none"
-                :class="activeSet?.id === s.id ? 'text-violet-300' : 'text-muted'"
+                class="opacity-0 group-hover:opacity-100 hover:text-danger px-1 transition-opacity shrink-0 cursor-pointer text-sm leading-none"
+                :class="activeSet?.id === s.id ? 'text-accent' : 'text-muted'"
                 title="刪除套組"
               >×</button>
             </div>
@@ -624,7 +624,7 @@ async function doDelete() {
     </div>
 
     <!-- ── 右：套組內容 ─────────────────────────── -->
-    <div class="flex flex-col flex-1 bg-surface/50 backdrop-blur-md border border-hairline rounded-2xl overflow-hidden shadow-2xl min-w-0">
+    <div class="flex flex-col flex-1 bg-surface border border-hairline rounded-2xl overflow-hidden shadow-2xl min-w-0">
 
       <!-- 空白提示 -->
       <div v-if="!activeSet" class="flex-1 flex flex-col items-center justify-center text-muted gap-3 py-16">
@@ -634,7 +634,7 @@ async function doDelete() {
 
       <template v-else>
         <!-- 套組 Header -->
-        <div class="flex items-start justify-between p-6 border-b border-hairline shrink-0 bg-sunken/20">
+        <div class="flex items-start justify-between p-6 border-b border-hairline shrink-0 bg-sunken">
           <div class="min-w-0 flex-1 mr-4">
             <div class="flex items-center gap-2">
               <template v-if="renamingSet">
@@ -655,7 +655,7 @@ async function doDelete() {
             </div>
             <div class="flex items-center gap-2.5 mt-2 flex-wrap">
               <span v-if="activeSet.phys_name" class="text-2xs font-bold bg-surface border border-hairline text-fg-secondary px-2 py-0.5 rounded-full">👨‍⚕️ {{ activeSet.phys_name }}</span>
-              <span v-if="activeSet.surgery_type" class="text-2xs font-bold bg-violet-500/10 border border-violet-500/20 text-violet-400 px-2 py-0.5 rounded-full">🔪 {{ activeSet.surgery_type }}</span>
+              <span v-if="activeSet.surgery_type" class="text-2xs font-bold bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 rounded-full">🔪 {{ activeSet.surgery_type }}</span>
               <span v-if="activeSet.notes" class="text-2xs text-muted italic max-w-sm truncate">{{ activeSet.notes }}</span>
             </div>
           </div>
@@ -665,7 +665,7 @@ async function doDelete() {
               {{ setItems.filter(i => i.is_optional).length }} PRN
             </span>
             <button @click="showOverwriteConfirm = true"
-              class="px-3.5 py-2 rounded-xl bg-amber-800/30 border border-amber-600/30 text-amber-400 text-xs font-bold hover:bg-amber-800/40 hover:text-amber-300 transition-all cursor-pointer">
+              class="px-3.5 py-2 rounded-xl bg-warning/30 border border-warning/30 text-warning text-xs font-bold hover:bg-warning/40 hover:text-warning transition-all cursor-pointer">
               ↑ 覆蓋上傳
             </button>
             <button @click="openEditSet(activeSet)"
@@ -673,7 +673,7 @@ async function doDelete() {
               編輯套組
             </button>
             <button @click="openAddItem"
-              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-600 border border-violet-500/30 text-white text-xs font-black hover:bg-violet-500 active:scale-95 transition-all cursor-pointer">
+              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-600 border border-accent/30 text-white text-xs font-black hover:bg-violet-500 active:scale-95 transition-all cursor-pointer">
               ＋ 加入品項
             </button>
           </div>
@@ -720,18 +720,18 @@ async function doDelete() {
                 <td class="px-4 py-3 text-center">
                   <button @click="toggleOptional(si)"
                     class="w-10 h-5 rounded-full transition-all relative border border-hairline cursor-pointer"
-                    :class="si.is_optional ? 'bg-amber-600/30 border-amber-500/40 shadow-inner' : 'bg-sunken/60'">
+                    :class="si.is_optional ? 'bg-warning/30 border-warning/40 shadow-inner' : 'bg-sunken'">
                     <span class="absolute top-0.5 w-3.5 h-3.5 rounded-full bg-fg-secondary transition-all shadow-md"
-                      :class="si.is_optional ? 'right-0.5 bg-amber-400 shadow-amber-500/50' : 'left-0.5 bg-muted'"></span>
+                      :class="si.is_optional ? 'right-0.5 bg-amber-400 shadow-warning/50' : 'left-0.5 bg-muted'"></span>
                   </button>
                 </td>
                 <td class="px-5 py-3 text-right font-mono text-xs font-bold"
-                  :class="si.is_optional ? 'text-muted' : 'text-emerald-400'">
+                  :class="si.is_optional ? 'text-muted' : 'text-success'">
                   {{ si.price ? `$${si.price.toLocaleString()}` : "—" }}
                 </td>
                 <td class="px-5 py-3 text-muted text-xs">{{ si.notes || "—" }}</td>
                 <td class="px-4 py-3 text-center">
-                  <button @click="removeItem(si)" class="text-muted hover:text-rose-400 transition-colors text-sm cursor-pointer shrink-0">×</button>
+                  <button @click="removeItem(si)" class="text-muted hover:text-danger transition-colors text-sm cursor-pointer shrink-0">×</button>
                 </td>
               </tr>
             </tbody>
@@ -740,10 +740,10 @@ async function doDelete() {
 
         <!-- 底部：小計 -->
         <div v-if="setItems.length > 0"
-          class="flex items-center justify-end gap-5 px-6 py-4.5 border-t border-hairline bg-sunken/20 text-2xs font-bold font-mono text-muted shrink-0">
+          class="flex items-center justify-end gap-5 px-6 py-4.5 border-t border-hairline bg-sunken text-2xs font-bold font-mono text-muted shrink-0">
           <span>必用 {{ setItems.filter(i=>!i.is_optional).length }} 項</span>
           <span class="text-muted">PRN {{ setItems.filter(i=>i.is_optional).length }} 項（未計費）</span>
-          <span class="text-xs text-emerald-400 font-black tracking-wide bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-lg">
+          <span class="text-xs text-success font-black tracking-wide bg-success/10 border border-success/20 px-3 py-1 rounded-lg">
             合計 ${{ setTotal.toLocaleString() }}
           </span>
         </div>
@@ -757,7 +757,7 @@ async function doDelete() {
       class="fixed inset-0 z-[9000] flex items-center justify-center p-4 bg-sunken/60 backdrop-blur-sm"
       @click.self="showSetModal = false">
       <div class="w-full max-w-md bg-surface border border-hairline shadow-2xl rounded-2xl overflow-hidden text-fg">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-hairline bg-sunken/30">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-hairline bg-sunken">
           <h3 class="text-xs font-black text-fg">{{ setModalMode === "add" ? "新增套組" : "編輯套組" }}</h3>
           <button @click="showSetModal = false" class="text-muted hover:text-fg text-xl leading-none cursor-pointer">×</button>
         </div>
@@ -767,7 +767,7 @@ async function doDelete() {
             <label class="text-2xs font-black text-muted mb-1.5 block">主治醫師</label>
             <div class="relative">
               <select v-model="setForm.physician_id" @change="updateSetName"
-                class="w-full pl-3 pr-8 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs focus:outline-none focus:border-violet-500/50 font-bold appearance-none cursor-pointer">
+                class="w-full pl-3 pr-8 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs focus:outline-none focus:border-accent/50 font-bold appearance-none cursor-pointer">
                 <option :value="null">— 未指定醫師 —</option>
                 <optgroup label="VS 主治醫師">
                   <option v-for="p in physicians.filter(p=>p.is_vs)" :key="p.id" :value="p.id">
@@ -787,24 +787,24 @@ async function doDelete() {
           <div>
             <label class="text-2xs font-black text-muted mb-1.5 block">術式名稱</label>
             <input v-model="setForm.surgery_type" @input="updateSetName" placeholder="如 TKR / THR / 肩關節鏡…"
-              class="w-full px-3.5 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
+              class="w-full px-3.5 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50 font-bold" />
           </div>
           <!-- 套組名稱 -->
           <div>
             <label class="text-2xs font-black text-muted mb-1.5 block">套組顯示名稱 *</label>
             <input v-model="setForm.name" placeholder="系統自動產生，或手動覆寫"
-              class="w-full px-3.5 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
+              class="w-full px-3.5 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50 font-bold" />
           </div>
           <!-- 備註 -->
           <div>
             <label class="text-2xs font-black text-muted mb-1.5 block">備註說明</label>
             <input v-model="setForm.notes" placeholder="其他配製或備註"
-              class="w-full px-3.5 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
+              class="w-full px-3.5 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50 font-bold" />
           </div>
         </div>
-        <div class="flex justify-end gap-2.5 px-5 py-4 border-t border-hairline bg-sunken/20 shrink-0">
+        <div class="flex justify-end gap-2.5 px-5 py-4 border-t border-hairline bg-sunken shrink-0">
           <button @click="showSetModal = false" class="px-4 py-2 text-xs font-bold bg-elevated text-fg-secondary hover:text-fg hover:bg-raised rounded-xl transition-all cursor-pointer">取消</button>
-          <button @click="saveSet" :disabled="!setForm.name?.trim()" class="px-5 py-2 text-xs font-black bg-violet-600 hover:bg-violet-500 border border-violet-500/30 text-white rounded-xl transition-all disabled:opacity-40 cursor-pointer">儲存套組</button>
+          <button @click="saveSet" :disabled="!setForm.name?.trim()" class="px-5 py-2 text-xs font-black bg-violet-600 hover:bg-violet-500 border border-accent/30 text-white rounded-xl transition-all disabled:opacity-40 cursor-pointer">儲存套組</button>
         </div>
       </div>
     </div>
@@ -816,7 +816,7 @@ async function doDelete() {
       class="fixed inset-0 z-[9000] flex items-center justify-center p-4 bg-sunken/60 backdrop-blur-sm"
       @click.self="showAddItem = false">
       <div class="w-full max-w-md bg-surface border border-hairline shadow-2xl rounded-2xl overflow-hidden text-fg">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-hairline bg-sunken/30">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-hairline bg-sunken">
           <h3 class="text-xs font-black text-fg">加入品項</h3>
           <button @click="showAddItem = false" class="text-muted hover:text-fg text-xl leading-none cursor-pointer">×</button>
         </div>
@@ -825,7 +825,7 @@ async function doDelete() {
           <div class="relative">
             <label class="text-2xs font-black text-muted mb-1.5 block">搜尋品項（院內碼 / 中文 / 英文）</label>
             <input v-model="itemSearch" placeholder="請輸入院內碼或自費品名搜尋…"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
+              class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50 font-bold" />
             <!-- 建議下拉 -->
             <div v-if="suggestions.length > 0"
               class="absolute z-10 w-full mt-1.5 bg-sunken border border-hairline rounded-xl shadow-2xl overflow-hidden max-h-56 overflow-y-auto custom-scrollbar">
@@ -835,15 +835,15 @@ async function doDelete() {
                 class="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-surface transition-colors border-b border-hairline cursor-pointer">
                 <span class="font-mono text-xs text-fg-secondary w-20 shrink-0 font-bold">{{ s.hospital_code }}</span>
                 <span class="text-fg text-xs truncate flex-1 font-bold">{{ s.name_zh || s.name_en }}</span>
-                <span class="text-emerald-400 font-mono text-xs shrink-0 font-bold">
+                <span class="text-success font-mono text-xs shrink-0 font-bold">
                   {{ s.price ? `$${s.price.toLocaleString()}` : "" }}
                 </span>
               </button>
             </div>
           </div>
           <!-- 院內碼（選完後顯示） -->
-          <div v-if="itemForm.hospital_code" class="flex items-center gap-2 px-3 py-2 rounded-xl bg-violet-950/20 border border-violet-500/30 shadow-inner">
-            <span class="font-mono text-xs text-violet-400 font-bold">{{ itemForm.hospital_code }}</span>
+          <div v-if="itemForm.hospital_code" class="flex items-center gap-2 px-3 py-2 rounded-xl bg-accent/20 border border-accent/30 shadow-inner">
+            <span class="font-mono text-xs text-accent font-bold">{{ itemForm.hospital_code }}</span>
             <button @click="itemForm.hospital_code=''; itemSearch=''" class="ml-auto text-muted hover:text-fg-secondary cursor-pointer">×</button>
           </div>
           <!-- 數量 + PRN -->
@@ -851,7 +851,7 @@ async function doDelete() {
             <div>
               <label class="text-2xs font-black text-muted mb-1.5 block">數量</label>
               <input v-model.number="itemForm.quantity" type="number" min="1"
-                class="w-full px-3.5 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-violet-500/50 font-mono font-bold" />
+                class="w-full px-3.5 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50 font-mono font-bold" />
             </div>
             <div class="flex flex-col justify-end">
               <label class="flex items-center gap-2 cursor-pointer pb-2 select-none">
@@ -865,14 +865,14 @@ async function doDelete() {
           <div>
             <label class="text-2xs font-black text-muted mb-1.5 block">備註說明</label>
             <input v-model="itemForm.notes" placeholder="e.g. 特殊指名才使用 / 次要選擇…"
-              class="w-full px-3.5 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-violet-500/50 font-bold" />
+              class="w-full px-3.5 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50 font-bold" />
           </div>
         </div>
-        <div class="flex justify-end gap-2.5 px-5 py-4 border-t border-hairline bg-sunken/20 shrink-0">
+        <div class="flex justify-end gap-2.5 px-5 py-4 border-t border-hairline bg-sunken shrink-0">
           <button @click="showAddItem = false" class="px-4 py-2 text-xs font-bold bg-elevated text-fg-secondary hover:text-fg hover:bg-raised rounded-xl transition-all cursor-pointer">取消</button>
           <button @click="addItem"
             :disabled="!itemForm.hospital_code"
-            class="px-5 py-2 text-xs font-black bg-violet-600 hover:bg-violet-500 border border-violet-500/30 text-white rounded-xl transition-all disabled:opacity-40 cursor-pointer">
+            class="px-5 py-2 text-xs font-black bg-violet-600 hover:bg-violet-500 border border-accent/30 text-white rounded-xl transition-all disabled:opacity-40 cursor-pointer">
             確認加入
           </button>
         </div>
@@ -885,13 +885,13 @@ async function doDelete() {
     <div v-if="showOverwriteConfirm"
       class="fixed inset-0 z-[9000] flex items-center justify-center p-4 bg-sunken/60 backdrop-blur-sm"
       @click.self="showOverwriteConfirm = false">
-      <div class="w-full max-w-sm bg-surface border border-amber-900/30 shadow-2xl p-6 rounded-2xl space-y-4 text-fg">
-        <h3 class="text-amber-400 font-black text-xs flex items-center gap-1.5">
+      <div class="w-full max-w-sm bg-surface border border-warning/30 shadow-2xl p-6 rounded-2xl space-y-4 text-fg">
+        <h3 class="text-warning font-black text-xs flex items-center gap-1.5">
           <span>⚠️</span> 覆蓋上傳確認
         </h3>
         <p class="text-xs text-fg-secondary leading-normal">
           將以本機的
-          <span class="text-amber-300 font-bold">「{{ activeSet?.name }}」</span>
+          <span class="text-warning font-bold">「{{ activeSet?.name }}」</span>
           強行覆蓋雲端上的同名套組及其所有品項。<br/>
           <span class="text-muted block mt-1">注意：其他人的套組不受影響，但此動作將完全覆寫雲端上對應的套組內容。</span>
         </p>
@@ -899,7 +899,7 @@ async function doDelete() {
           <button @click="showOverwriteConfirm = false"
             class="px-4 py-2 text-xs font-bold bg-elevated text-fg-secondary hover:text-fg hover:bg-raised border border-hairline rounded-xl cursor-pointer">取消</button>
           <button @click="overwriteSetToCloud" :disabled="isSyncing"
-            class="px-5 py-2 text-xs font-black bg-amber-600 hover:bg-amber-500 border border-amber-500/30 text-white rounded-xl disabled:opacity-40 cursor-pointer">
+            class="px-5 py-2 text-xs font-black bg-amber-600 hover:bg-amber-500 border border-warning/30 text-white rounded-xl disabled:opacity-40 cursor-pointer">
             {{ isSyncing ? '同步中…' : '確定覆蓋上傳' }}
           </button>
         </div>
@@ -919,7 +919,7 @@ async function doDelete() {
           <button @click="deleteTarget = null"
             class="px-5 py-2 rounded-xl text-xs font-bold bg-elevated text-fg-secondary hover:text-fg hover:bg-raised border border-hairline cursor-pointer">取消</button>
           <button @click="doDelete"
-            class="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 border border-rose-500/30 text-white text-xs font-black cursor-pointer">確認刪除</button>
+            class="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 border border-danger/30 text-white text-xs font-black cursor-pointer">確認刪除</button>
         </div>
       </div>
     </div>
