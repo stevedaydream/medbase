@@ -77,7 +77,7 @@ async function login() {
         </div>
 
         <!-- Error -->
-        <p v-if="error" class="text-xs text-red-400">{{ error }}</p>
+        <p v-if="error" class="text-xs text-accent">{{ error }}</p>
 
         <!-- Submit -->
         <button
