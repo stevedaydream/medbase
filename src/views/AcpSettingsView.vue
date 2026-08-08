@@ -110,12 +110,12 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
 </script>
 
 <template>
-  <div class="p-6 h-full flex flex-col space-y-6 bg-sunken text-fg select-none">
+  <div class="accent-teal p-6 h-full flex flex-col space-y-6 bg-sunken text-fg select-none">
     <!-- Header -->
     <div class="flex items-center justify-between border-b border-hairline pb-4 shrink-0">
       <div class="flex items-center gap-3">
         <button @click="router.back()" 
-                class="flex items-center justify-center w-8 h-8 rounded-xl border border-hairline bg-surface/60 hover:bg-elevated text-fg-secondary hover:text-fg transition-all active:scale-95 cursor-pointer">
+                class="flex items-center justify-center w-8 h-8 rounded-xl border border-hairline bg-surface hover:bg-elevated text-fg-secondary hover:text-fg transition-all active:scale-95 cursor-pointer">
           ←
         </button>
         <div>
@@ -128,16 +128,16 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
     <!-- Grid Layout -->
     <div class="grid grid-cols-12 gap-6 flex-1 overflow-hidden">
       <!-- 1. Sets Selection (Sidebar) -->
-      <aside class="col-span-4 bg-surface/40 backdrop-blur-md rounded-2xl border border-hairline p-5 flex flex-col overflow-hidden shadow-xl">
-        <h3 class="text-xs font-black text-indigo-400 mb-4">1. 選擇或建立評估套組</h3>
+      <aside class="col-span-4 bg-surface rounded-2xl border border-hairline p-5 flex flex-col overflow-hidden shadow-xl">
+        <h3 class="text-xs font-black text-accent mb-4">1. 選擇或建立評估套組</h3>
         
         <div class="flex gap-2 mb-4 shrink-0">
           <input v-model="setFormName" 
                  @keyup.enter="saveSet"
                  placeholder="套組名稱 (如: 攝護腺肥大)..." 
-                 class="flex-1 bg-sunken border border-hairline rounded-xl px-3 py-2 text-xs text-fg outline-none focus:border-indigo-500/50 placeholder:text-muted font-bold" />
+                 class="flex-1 bg-sunken border border-hairline rounded-xl px-3 py-2 text-xs text-fg outline-none focus:border-accent/50 placeholder:text-muted font-bold" />
           <button @click="saveSet" 
-                  class="bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 text-white px-4 rounded-xl text-xs font-bold transition-all active:scale-95 shadow-lg shadow-indigo-600/10 cursor-pointer">
+                  class="bg-indigo-600 hover:bg-indigo-500 border border-accent/30 text-white px-4 rounded-xl text-xs font-bold transition-all active:scale-95 shadow-lg shadow-accent/10 cursor-pointer">
             建立
           </button>
         </div>
@@ -147,8 +147,8 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
                @click="selectSet(s.id)"
                class="p-4 rounded-xl border cursor-pointer transition-all font-bold text-xs flex items-center justify-between group"
                :class="selectedSetId === s.id 
-                 ? 'bg-indigo-600/20 border-indigo-500/50 text-white shadow-lg' 
-                 : 'bg-sunken/40 border-hairline text-fg-secondary hover:border-hairline hover:text-fg hover:bg-surface/30'">
+                 ? 'bg-accent/20 border-accent/50 text-white shadow-lg' 
+                 : 'bg-sunken border-hairline text-fg-secondary hover:border-hairline hover:text-fg hover:bg-surface/30'">
             <span class="truncate">{{ s.name }}</span>
             <span v-if="selectedSetId === s.id" class="w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)] shrink-0"></span>
           </div>
@@ -156,14 +156,14 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
       </aside>
 
       <!-- 2. Items Management (Main Area) -->
-      <section v-if="selectedSetId" class="col-span-8 bg-surface/40 backdrop-blur-md rounded-2xl border border-hairline p-5 flex flex-col overflow-hidden shadow-xl">
+      <section v-if="selectedSetId" class="col-span-8 bg-surface rounded-2xl border border-hairline p-5 flex flex-col overflow-hidden shadow-xl">
         <!-- Tabs -->
-        <nav class="flex gap-1 p-1 bg-sunken/60 rounded-xl border border-hairline mb-6 shrink-0 shadow-inner">
+        <nav class="flex gap-1 p-1 bg-sunken rounded-xl border border-hairline mb-6 shrink-0 shadow-inner">
           <button v-for="tab in tabs" :key="tab.key"
                   @click="switchTab(tab.key)"
                   class="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-black transition-all cursor-pointer"
                   :class="activeTab === tab.key 
-                    ? 'bg-elevated text-indigo-400 shadow border border-hairline' 
+                    ? 'bg-elevated text-accent shadow border border-hairline' 
                     : 'text-muted hover:text-fg-secondary'">
             <span>{{ tab.icon }}</span>
             <span>{{ tab.label }}</span>
@@ -180,9 +180,9 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
             <input v-model="itemFormName" 
                    @keyup.enter="saveItem" 
                    placeholder="輸入醫囑項目名稱..." 
-                   class="flex-1 bg-sunken border border-hairline rounded-xl px-3 py-2 text-xs text-fg outline-none focus:border-emerald-500/50 placeholder:text-muted font-bold" />
+                   class="flex-1 bg-sunken border border-hairline rounded-xl px-3 py-2 text-xs text-fg outline-none focus:border-success/50 placeholder:text-muted font-bold" />
             <button @click="saveItem" 
-                    class="bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/30 text-white px-5 rounded-xl text-xs font-bold transition-all active:scale-95 shadow-lg shadow-emerald-600/10 cursor-pointer">
+                    class="bg-emerald-600 hover:bg-emerald-500 border border-success/30 text-white px-5 rounded-xl text-xs font-bold transition-all active:scale-95 shadow-lg shadow-success/10 cursor-pointer">
               新增細項
             </button>
           </div>
@@ -190,12 +190,12 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
           <!-- Items List -->
           <div class="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
             <div v-for="item in items" :key="item.id" 
-                 class="flex items-center justify-between gap-3 p-3.5 border border-hairline bg-sunken/20 hover:bg-surface/40 rounded-xl transition-all group">
+                 class="flex items-center justify-between gap-3 p-3.5 border border-hairline bg-sunken hover:bg-surface/40 rounded-xl transition-all group">
               
               <div v-if="editingItemId === item.id" class="flex-1 flex gap-2">
                 <input v-model="editingItemName" 
                        @keyup.enter="updateItem" 
-                       class="flex-1 bg-sunken border border-indigo-500/50 rounded-lg px-3 py-1.5 text-xs text-fg outline-none" 
+                       class="flex-1 bg-sunken border border-accent/50 rounded-lg px-3 py-1.5 text-xs text-fg outline-none" 
                        autofocus />
                 <button @click="updateItem" 
                         class="text-2xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-bold cursor-pointer transition-colors">
@@ -211,12 +211,12 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
                 <span class="flex-1 text-fg-secondary text-xs font-bold leading-relaxed truncate">{{ item.name }}</span>
                 <div class="opacity-0 group-hover:opacity-100 flex gap-1 shrink-0 transition-opacity">
                   <button @click="editingItemId = item.id; editingItemName = item.name" 
-                          class="w-7 h-7 flex items-center justify-center hover:bg-elevated rounded-lg text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
+                          class="w-7 h-7 flex items-center justify-center hover:bg-elevated rounded-lg text-accent hover:text-accent transition-colors cursor-pointer"
                           title="編輯項目">
                     ✏️
                   </button>
                   <button @click="deleteItem(item.id)" 
-                          class="w-7 h-7 flex items-center justify-center hover:bg-rose-950/40 rounded-lg text-rose-500 hover:text-rose-400 transition-colors cursor-pointer"
+                          class="w-7 h-7 flex items-center justify-center hover:bg-danger/40 rounded-lg text-rose-500 hover:text-danger transition-colors cursor-pointer"
                           title="刪除項目">
                     🗑️
                   </button>
@@ -232,7 +232,7 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
       </section>
       
       <!-- Empty Set State -->
-      <section v-else class="col-span-8 flex flex-col items-center justify-center border border-dashed border-hairline rounded-2xl text-muted bg-surface/10">
+      <section v-else class="col-span-8 flex flex-col items-center justify-center border border-dashed border-hairline rounded-2xl text-muted bg-surface">
         <span class="text-5xl mb-4 animate-bounce">👈</span>
         <p class="text-xs font-black">請先選擇左側評估套組以管理醫囑</p>
       </section>
