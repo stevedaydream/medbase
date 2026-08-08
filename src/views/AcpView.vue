@@ -106,9 +106,9 @@ const tabs = [
 </script>
 
 <template>
-  <div class="flex h-full overflow-hidden bg-sunken text-fg select-none">
+  <div class="accent-teal flex h-full overflow-hidden bg-sunken text-fg select-none">
     <!-- Left Sidebar: Sets -->
-    <aside class="w-64 border-r border-hairline bg-surface/40 backdrop-blur-md p-5 flex flex-col justify-between shrink-0">
+    <aside class="w-64 border-r border-hairline bg-surface p-5 flex flex-col justify-between shrink-0">
       <div class="flex-1 flex flex-col overflow-hidden">
         <div class="flex items-center gap-2 mb-6 border-b border-hairline pb-4">
           <span class="text-lg">📋</span>
@@ -120,8 +120,8 @@ const tabs = [
                   @click="selectSet(s.id)"
                   class="w-full text-left px-4 py-3 rounded-xl transition-all border font-bold text-xs relative group flex items-center justify-between cursor-pointer"
                   :class="selectedSetId === s.id 
-                    ? 'bg-indigo-600/20 border-indigo-500/50 text-white shadow-[0_0_15px_rgba(99,102,241,0.1)]' 
-                    : 'bg-sunken/40 border-hairline text-fg-secondary hover:border-hairline hover:text-fg hover:bg-surface/30'">
+                    ? 'bg-accent/20 border-accent/50 text-white shadow-[0_0_15px_rgba(99,102,241,0.1)]' 
+                    : 'bg-sunken border-hairline text-fg-secondary hover:border-hairline hover:text-fg hover:bg-surface/30'">
             <span class="truncate">{{ s.name }}</span>
             <span v-if="selectedSetId === s.id" class="w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)] shrink-0"></span>
           </button>
@@ -130,7 +130,7 @@ const tabs = [
       
       <div class="pt-4 border-t border-hairline mt-4 shrink-0">
         <router-link to="/acp/settings" 
-                     class="group flex items-center justify-between px-4 py-3 rounded-xl border border-hairline bg-sunken/40 hover:border-indigo-500/30 hover:bg-indigo-500/10 text-xs font-bold text-fg-secondary hover:text-indigo-400 transition-all">
+                     class="group flex items-center justify-between px-4 py-3 rounded-xl border border-hairline bg-sunken hover:border-accent/30 hover:bg-accent/10 text-xs font-bold text-fg-secondary hover:text-accent transition-all">
           <span class="flex items-center gap-2">
             <span class="group-hover:rotate-45 transition-transform duration-300">⚙️</span> 
             <span>管理評估模板</span>
@@ -141,16 +141,16 @@ const tabs = [
     </aside>
 
     <!-- Main Content -->
-    <div class="flex-1 flex flex-col overflow-hidden bg-sunken/30">
+    <div class="flex-1 flex flex-col overflow-hidden bg-sunken">
       <!-- 1. Global Dashboard -->
-      <header class="p-6 bg-surface/30 border-b border-hairline shrink-0 backdrop-blur-sm">
+      <header class="p-6 bg-surface border-b border-hairline shrink-0">
         <div class="max-w-6xl mx-auto grid grid-cols-12 gap-4">
           <!-- Total Score Card -->
-          <div class="col-span-4 bg-surface/60 border border-hairline rounded-2xl p-5 flex flex-col justify-center items-center relative overflow-hidden group shadow-lg">
-            <div class="absolute -right-8 -top-8 w-24 h-24 rounded-full bg-indigo-500/5 blur-2xl group-hover:scale-150 transition-all duration-700"></div>
+          <div class="col-span-4 bg-surface border border-hairline rounded-2xl p-5 flex flex-col justify-center items-center relative overflow-hidden group shadow-lg">
+            <div class="absolute -right-8 -top-8 w-24 h-24 rounded-full bg-accent/5 blur-2xl group-hover:scale-150 transition-all duration-700"></div>
             <p class="text-2xs font-black text-muted mb-2">總完成率 (Overall Completion)</p>
             <p class="text-4xl font-black font-mono tracking-tight drop-shadow-[0_0_15px_rgba(245,158,11,0.1)] transition-colors" 
-               :class="Number(totalStats.rate) >= 80 ? 'text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.15)]' : 'text-amber-400'">
+               :class="Number(totalStats.rate) >= 80 ? 'text-success drop-shadow-[0_0_15px_rgba(52,211,153,0.15)]' : 'text-warning'">
               {{ totalStats.rate }}<span class="text-lg font-bold ml-0.5">%</span>
             </p>
             <div class="mt-3 flex gap-3 text-[0.6875rem] font-mono text-fg-secondary border-t border-hairline pt-2 w-full justify-center">
@@ -164,9 +164,9 @@ const tabs = [
           <div class="col-span-8 grid grid-cols-3 gap-3">
             <div v-for="t in tabs" :key="t.key" 
                  @click="activeTab = t.key"
-                 class="bg-surface/40 hover:bg-surface/60 border rounded-2xl p-4 flex flex-col justify-between cursor-pointer transition-all shadow-md group relative animate-fade-in"
+                 class="bg-surface hover:bg-surface/60 border rounded-2xl p-4 flex flex-col justify-between cursor-pointer transition-all shadow-md group relative animate-fade-in"
                  :class="activeTab === t.key 
-                   ? 'border-indigo-500/40 shadow-[0_0_20px_rgba(99,102,241,0.05)] bg-surface/70' 
+                   ? 'border-accent/40 shadow-[0_0_20px_rgba(99,102,241,0.05)] bg-surface' 
                    : 'border-hairline hover:border-hairline'">
               <div class="flex justify-between items-center mb-2">
                 <span class="text-xs font-bold text-fg-secondary flex items-center gap-1.5">
@@ -187,7 +187,7 @@ const tabs = [
                   </p>
                 </div>
                 <button @click.stop="saveRecord" v-if="t.key === 'procedure'" 
-                        class="px-3 py-1.5 rounded-xl text-2xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 transition-all shadow-lg shadow-indigo-600/10 hover:shadow-indigo-500/20 active:scale-95 flex items-center gap-1 cursor-pointer">
+                        class="px-3 py-1.5 rounded-xl text-2xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 border border-accent/30 transition-all shadow-lg shadow-accent/10 hover:shadow-accent/20 active:scale-95 flex items-center gap-1 cursor-pointer">
                   <span>💾</span>
                   <span>儲存</span>
                 </button>
@@ -199,12 +199,12 @@ const tabs = [
 
       <!-- 2. Tabs Switcher -->
       <nav class="px-6 py-4 shrink-0">
-        <div class="max-w-6xl mx-auto flex gap-1 p-1 bg-surface/60 backdrop-blur-md rounded-2xl border border-hairline shadow-inner">
+        <div class="max-w-6xl mx-auto flex gap-1 p-1 bg-surface rounded-2xl border border-hairline shadow-inner">
           <button v-for="tab in tabs" :key="tab.key"
                   @click="activeTab = tab.key"
                   class="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-black transition-all duration-200 cursor-pointer"
                   :class="activeTab === tab.key 
-                    ? 'bg-elevated text-indigo-400 shadow-lg border border-hairline' 
+                    ? 'bg-elevated text-accent shadow-lg border border-hairline' 
                     : 'text-muted hover:text-fg-secondary hover:bg-elevated/30'">
             <span class="text-base">{{ tab.icon }}</span>
             <span class="tracking-wider">{{ tab.label }}</span>
@@ -216,7 +216,7 @@ const tabs = [
       <div class="flex-1 overflow-y-auto px-6 pb-6 custom-scrollbar">
         <div class="max-w-6xl mx-auto">
           <!-- Empty State -->
-          <div v-if="currentTabItems.length === 0" class="flex flex-col items-center justify-center h-64 text-muted bg-surface/20 border border-dashed border-hairline rounded-3xl p-6 italic">
+          <div v-if="currentTabItems.length === 0" class="flex flex-col items-center justify-center h-64 text-muted bg-surface border border-dashed border-hairline rounded-3xl p-6 italic">
             <span class="text-3xl mb-3 opacity-50">📂</span>
             <p class="text-xs font-medium">此類別尚未設定醫囑項目</p>
           </div>
@@ -224,10 +224,10 @@ const tabs = [
           <!-- Items List -->
           <div v-else class="space-y-2.5">
             <div v-for="item in currentTabItems" :key="item.id" 
-                 class="bg-surface/40 border border-hairline rounded-2xl p-4 flex items-center justify-between gap-4 transition-all hover:bg-surface/60 hover:border-hairline shadow-sm"
+                 class="bg-surface border border-hairline rounded-2xl p-4 flex items-center justify-between gap-4 transition-all hover:bg-surface/60 hover:border-hairline shadow-sm"
                  :class="{
-                   'border-emerald-500/20 bg-emerald-500/[0.02] shadow-[inset_0_0_12px_rgba(16,185,129,0.01)]': evalStates[item.id]?.status === 'prescribed',
-                   'border-amber-500/20 bg-amber-500/[0.02] shadow-[inset_0_0_12px_rgba(245,158,11,0.01)]': evalStates[item.id]?.status === 'na'
+                   'border-success/20 bg-success/[0.02] shadow-[inset_0_0_12px_rgba(16,185,129,0.01)]': evalStates[item.id]?.status === 'prescribed',
+                   'border-warning/20 bg-warning/[0.02] shadow-[inset_0_0_12px_rgba(245,158,11,0.01)]': evalStates[item.id]?.status === 'na'
                  }">
               
               <div class="flex-1 min-w-0 flex items-center gap-3">
@@ -241,11 +241,11 @@ const tabs = [
               </div>
 
               <!-- Status Buttons -->
-              <div class="flex bg-sunken/80 p-1 rounded-xl border border-hairline shrink-0 shadow-inner">
+              <div class="flex bg-sunken p-1 rounded-xl border border-hairline shrink-0 shadow-inner">
                 <button @click="evalStates[item.id].status = 'prescribed'" 
                         class="px-4 py-1.5 rounded-lg text-2xs font-black transition-all cursor-pointer"
                         :class="evalStates[item.id]?.status === 'prescribed' 
-                          ? 'bg-emerald-600 border border-emerald-500/20 text-white shadow-lg shadow-emerald-500/10' 
+                          ? 'bg-emerald-600 border border-success/20 text-white shadow-lg shadow-success/10' 
                           : 'text-muted hover:text-fg-secondary'">
                   已開
                 </button>
@@ -259,7 +259,7 @@ const tabs = [
                 <button @click="evalStates[item.id].status = 'na'" 
                         class="px-4 py-1.5 rounded-lg text-2xs font-black uppercase tracking-wider transition-all cursor-pointer"
                         :class="evalStates[item.id]?.status === 'na' 
-                          ? 'bg-amber-600 border border-amber-500/20 text-white shadow-lg shadow-amber-500/10' 
+                          ? 'bg-amber-600 border border-warning/20 text-white shadow-lg shadow-warning/10' 
                           : 'text-muted hover:text-fg-secondary'">
                   N/A
                 </button>
