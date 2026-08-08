@@ -949,10 +949,10 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
 </script>
 
 <template>
-  <div class="flex h-full gap-0 overflow-hidden bg-sunken/20 text-fg select-none">
+  <div class="accent-indigo flex h-full gap-0 overflow-hidden bg-sunken text-fg select-none">
 
     <!-- ── 左側 Tab 列 ──────────────────────────────── -->
-    <div class="flex flex-col w-48 shrink-0 border-r border-hairline bg-surface/40 backdrop-blur-md py-4 gap-1 px-3">
+    <div class="flex flex-col w-48 shrink-0 border-r border-hairline bg-surface py-4 gap-1 px-3">
       <div class="px-3 pb-3 mb-2 border-b border-hairline">
         <span class="text-2xs font-black text-muted">資料庫管理</span>
       </div>
@@ -961,7 +961,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         @click="activeTab = tab.key"
         class="flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all text-left cursor-pointer"
         :class="activeTab === tab.key
-          ? 'bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 shadow-[0_0_15px_rgba(99,102,241,0.08)]'
+          ? 'bg-accent/10 border border-accent/30 text-accent shadow-[0_0_15px_rgba(99,102,241,0.08)]'
           : 'text-fg-secondary hover:bg-overlay/[0.02] border border-transparent hover:text-fg'"
       >
         <span class="flex items-center gap-2">
@@ -973,15 +973,15 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
     </div>
 
     <!-- ── 右側內容 ─────────────────────────────────── -->
-    <div class="flex flex-col flex-1 min-w-0 overflow-hidden bg-surface/10">
+    <div class="flex flex-col flex-1 min-w-0 overflow-hidden bg-surface">
 
       <!-- Header -->
-      <div v-if="activeTab !== 'backup'" class="flex items-center gap-3 px-6 py-4 border-b border-hairline bg-surface/20 backdrop-blur-sm shrink-0">
+      <div v-if="activeTab !== 'backup'" class="flex items-center gap-3 px-6 py-4 border-b border-hairline bg-surface shrink-0">
         <div class="relative flex-1">
           <input
             v-model="search"
             :placeholder="`搜尋${tabs.find(t=>t.key===activeTab)?.label}…`"
-            class="w-full px-4 py-2 bg-sunken border border-hairline text-fg focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 placeholder-muted text-xs font-medium rounded-xl transition-all outline-none"
+            class="w-full px-4 py-2 bg-sunken border border-hairline text-fg focus:border-accent/50 focus:ring-1 focus:ring-accent/30 placeholder-muted text-xs font-medium rounded-xl transition-all outline-none"
           />
           <span v-if="search" @click="search = ''" class="absolute right-3 top-2.5 text-xs text-muted hover:text-fg-secondary cursor-pointer">✕</span>
         </div>
@@ -991,7 +991,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
           :class="importing ? 'cursor-wait opacity-80' : ''"
         >
           <div v-if="importing"
-            class="absolute inset-0 bg-indigo-500/20 transition-all duration-200"
+            class="absolute inset-0 bg-accent/20 transition-all duration-200"
             :style="{ width: importProgress + '%' }"
           ></div>
           <span class="relative text-sm leading-none">{{ importing ? "⏳" : "📥" }}</span>
@@ -1007,7 +1007,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         </button>
         <button
           @click="openAdd"
-          class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 border border-indigo-500/30 text-white hover:bg-indigo-500 text-xs font-bold transition-all shrink-0 cursor-pointer shadow-[0_4px_12px_rgba(99,102,241,0.15)]"
+          class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 border border-accent/30 text-white hover:bg-indigo-500 text-xs font-bold transition-all shrink-0 cursor-pointer shadow-[0_4px_12px_rgba(99,102,241,0.15)]"
         >
           <span>＋</span> 新增
         </button>
@@ -1016,11 +1016,11 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
       <!-- 匯入結果摘要 -->
       <Transition name="slide-down">
         <div v-if="importResults"
-          class="flex items-center gap-4 px-6 py-2.5 bg-indigo-500/5 border-b border-indigo-500/10 shrink-0 text-xs">
-          <span class="text-indigo-400 font-bold text-2xs">匯入結果</span>
+          class="flex items-center gap-4 px-6 py-2.5 bg-accent/5 border-b border-accent/10 shrink-0 text-xs">
+          <span class="text-accent font-bold text-2xs">匯入結果</span>
           <span v-for="r in importResults" :key="r.sheet"
             class="flex items-center gap-1 text-fg-secondary font-medium">
-            <span class="text-emerald-400 font-mono font-bold">+{{ r.upserted }}</span>
+            <span class="text-success font-mono font-bold">+{{ r.upserted }}</span>
             <span class="text-fg-secondary">{{ r.sheet }}</span>
             <span v-if="r.skipped" class="text-muted">（略過 {{ r.skipped }}）</span>
             <span class="text-muted last:hidden">·</span>
@@ -1031,10 +1031,10 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
 
       <!-- ── 自費品項 表格 ─────────────────────────── -->
       <div v-if="activeTab === 'items'" class="flex-1 overflow-auto px-6 py-4">
-        <div class="bg-surface/40 backdrop-blur-md rounded-2xl border border-hairline shadow-2xl overflow-hidden w-max min-w-full">
+        <div class="bg-surface rounded-2xl border border-hairline shadow-2xl overflow-hidden w-max min-w-full">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="border-b border-hairline bg-surface/50 text-fg-secondary text-2xs font-bold">
+              <tr class="border-b border-hairline bg-surface text-fg-secondary text-2xs font-bold">
                 <th class="px-4 py-3">院內碼</th>
                 <th class="px-4 py-3">中文品名</th>
                 <th class="px-4 py-3">用途</th>
@@ -1053,22 +1053,22 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
                 <td class="px-4 py-2.5 text-fg-secondary font-mono text-xs font-semibold">{{ m.hospital_code }}</td>
                 <td class="px-4 py-2.5 text-fg text-xs font-bold">{{ m.name_zh || m.name_en || "—" }}</td>
                 <td class="px-4 py-2.5 text-xs">
-                  <span v-if="m.purpose" class="bg-teal-500/10 border border-teal-500/20 text-teal-400 px-2 py-0.5 rounded-lg text-2xs font-bold font-mono">{{ m.purpose }}</span>
+                  <span v-if="m.purpose" class="bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 rounded-lg text-2xs font-bold font-mono">{{ m.purpose }}</span>
                   <span v-else class="text-muted">—</span>
                 </td>
                 <td class="px-4 py-2.5 text-xs">
                   <div class="flex flex-wrap gap-1">
-                    <span v-for="d in m.depts" :key="d" class="bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-lg text-2xs font-bold">{{ d }}</span>
+                    <span v-for="d in m.depts" :key="d" class="bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 rounded-lg text-2xs font-bold">{{ d }}</span>
                     <span v-if="!m.depts.length" class="text-muted">—</span>
                   </div>
                 </td>
-                <td class="px-4 py-2.5 text-right text-emerald-400 font-mono text-xs font-black">
+                <td class="px-4 py-2.5 text-right text-success font-mono text-xs font-black">
                   {{ m.price ? `$${m.price.toLocaleString()}` : "—" }}</td>
                 <td class="px-4 py-2.5 text-muted text-xs font-medium">{{ m.supplier || "—" }}</td>
                 <td class="px-4 py-2.5 text-right">
                   <div class="flex gap-2.5 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button @click="openEdit(m)" class="text-xs text-indigo-400 hover:text-indigo-300 font-bold cursor-pointer">編輯</button>
-                    <button @click="confirmDelete(m)" class="text-xs text-rose-400 hover:text-rose-300 font-bold cursor-pointer">刪除</button>
+                    <button @click="openEdit(m)" class="text-xs text-accent hover:text-accent font-bold cursor-pointer">編輯</button>
+                    <button @click="confirmDelete(m)" class="text-xs text-danger hover:text-danger font-bold cursor-pointer">刪除</button>
                   </div>
                 </td>
               </tr>
@@ -1079,10 +1079,10 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
 
       <!-- ── 通訊錄 表格 ───────────────────────── -->
       <div v-if="activeTab === 'physicians'" class="flex-1 overflow-auto px-6 py-4">
-        <div class="bg-surface/40 backdrop-blur-md rounded-2xl border border-hairline shadow-2xl overflow-hidden w-max min-w-full">
+        <div class="bg-surface rounded-2xl border border-hairline shadow-2xl overflow-hidden w-max min-w-full">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="border-b border-hairline bg-surface/50 text-fg-secondary text-2xs font-bold">
+              <tr class="border-b border-hairline bg-surface text-fg-secondary text-2xs font-bold">
                 <th class="px-4 py-3">姓名</th>
                 <th class="px-4 py-3">科別</th>
                 <th class="px-4 py-3">職稱</th>
@@ -1098,47 +1098,47 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               </tr>
               <tr v-for="p in filteredPhysicians" :key="p.id"
                 class="transition-all group"
-                :class="editingPhysId === p.id ? 'bg-indigo-500/5' : 'hover:bg-overlay/[0.015]'">
+                :class="editingPhysId === p.id ? 'bg-accent/5' : 'hover:bg-overlay/[0.015]'">
 
                 <!-- 姓名 -->
                 <td class="px-4 py-2.5">
                   <input v-if="editingPhysId === p.id" v-model="editBuf.name"
-                    class="w-full min-w-[5rem] px-2 py-1 bg-sunken border border-hairline rounded-lg text-xs font-bold text-fg outline-none focus:border-indigo-500/50" />
+                    class="w-full min-w-[5rem] px-2 py-1 bg-sunken border border-hairline rounded-lg text-xs font-bold text-fg outline-none focus:border-accent/50" />
                   <span v-else class="text-fg font-bold text-xs">{{ p.name }}</span>
                 </td>
 
                 <!-- 科別 -->
                 <td class="px-4 py-2.5">
                   <input v-if="editingPhysId === p.id" v-model="editBuf.department"
-                    class="w-full min-w-[4rem] px-2 py-1 bg-sunken border border-hairline rounded-lg text-xs text-fg-secondary outline-none focus:border-indigo-500/50" />
+                    class="w-full min-w-[4rem] px-2 py-1 bg-sunken border border-hairline rounded-lg text-xs text-fg-secondary outline-none focus:border-accent/50" />
                   <span v-else class="text-fg-secondary text-xs font-semibold">{{ p.department || "—" }}</span>
                 </td>
 
                 <!-- 職稱 -->
                 <td class="px-4 py-2.5">
                   <input v-if="editingPhysId === p.id" v-model="editBuf.title"
-                    class="w-full min-w-[4rem] px-2 py-1 bg-sunken border border-hairline rounded-lg text-xs text-fg-secondary outline-none focus:border-indigo-500/50" />
+                    class="w-full min-w-[4rem] px-2 py-1 bg-sunken border border-hairline rounded-lg text-xs text-fg-secondary outline-none focus:border-accent/50" />
                   <span v-else class="text-muted text-xs font-medium">{{ p.title || "—" }}</span>
                 </td>
 
                 <!-- 分機 -->
                 <td class="px-4 py-2.5">
                   <input v-if="editingPhysId === p.id" v-model="editBuf.ext"
-                    class="w-20 px-2 py-1 bg-sunken border border-hairline rounded-lg text-xs font-mono text-fg outline-none focus:border-indigo-500/50" />
-                  <span v-else class="text-indigo-400 font-mono text-xs font-black">{{ p.ext || "—" }}</span>
+                    class="w-20 px-2 py-1 bg-sunken border border-hairline rounded-lg text-xs font-mono text-fg outline-none focus:border-accent/50" />
+                  <span v-else class="text-accent font-mono text-xs font-black">{{ p.ext || "—" }}</span>
                 </td>
 
                 <!-- HIS 帳號 -->
                 <td class="px-4 py-2.5">
                   <input v-if="editingPhysId === p.id" v-model="editBuf.his_account"
-                    class="w-24 px-2 py-1 bg-sunken border border-hairline rounded-lg text-xs font-mono text-fg-secondary outline-none focus:border-indigo-500/50" />
+                    class="w-24 px-2 py-1 bg-sunken border border-hairline rounded-lg text-xs font-mono text-fg-secondary outline-none focus:border-accent/50" />
                   <span v-else class="text-fg-secondary font-mono text-xs font-medium">{{ p.his_account || "—" }}</span>
                 </td>
 
                 <!-- HIS 密碼 -->
                 <td class="px-4 py-2.5">
                   <input v-if="editingPhysId === p.id" v-model="editBuf.his_password"
-                    class="w-24 px-2 py-1 bg-sunken border border-hairline rounded-lg text-xs font-mono text-fg-secondary outline-none focus:border-indigo-500/50" />
+                    class="w-24 px-2 py-1 bg-sunken border border-hairline rounded-lg text-xs font-mono text-fg-secondary outline-none focus:border-accent/50" />
                   <span v-else class="text-muted font-mono text-xs font-medium">{{ p.his_password || "—" }}</span>
                 </td>
 
@@ -1146,12 +1146,12 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
                 <td class="px-4 py-2.5 text-right">
                   <div class="flex gap-2.5 justify-end whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
                     <template v-if="editingPhysId === p.id">
-                      <button @click="saveInlinePhys" class="text-xs text-emerald-400 hover:text-emerald-300 font-bold cursor-pointer">儲存</button>
+                      <button @click="saveInlinePhys" class="text-xs text-success hover:text-success font-bold cursor-pointer">儲存</button>
                       <button @click="cancelEditPhys" class="text-xs text-muted hover:text-fg-secondary cursor-pointer">取消</button>
                     </template>
                     <template v-else>
-                      <button @click="startEditPhys(p)" class="text-xs text-indigo-400 hover:text-indigo-300 font-bold cursor-pointer">編輯</button>
-                      <button @click="confirmDelete(p)" class="text-xs text-rose-400 hover:text-rose-300 font-bold cursor-pointer">刪除</button>
+                      <button @click="startEditPhys(p)" class="text-xs text-accent hover:text-accent font-bold cursor-pointer">編輯</button>
+                      <button @click="confirmDelete(p)" class="text-xs text-danger hover:text-danger font-bold cursor-pointer">刪除</button>
                     </template>
                   </div>
                 </td>
@@ -1165,13 +1165,13 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
       <div v-if="activeTab === 'emergency'" class="flex-1 flex overflow-hidden">
 
         <!-- Protocol list sidebar -->
-        <div class="w-56 shrink-0 border-r border-hairline bg-sunken/20 overflow-y-auto flex flex-col">
+        <div class="w-56 shrink-0 border-r border-hairline bg-sunken overflow-y-auto flex flex-col">
           <div
             v-for="p in filteredProtocols" :key="p.id"
             @click="selectProtocol(p)"
             class="px-5 py-3.5 cursor-pointer border-b border-hairline transition-all text-left"
             :class="selectedProtocolId === p.id
-              ? 'bg-rose-500/10 text-rose-300 border-l-2 border-l-rose-500 shadow-[0_0_15px_rgba(239,68,68,0.08)]'
+              ? 'bg-danger/10 text-danger border-l-2 border-l-rose-500 shadow-[0_0_15px_rgba(239,68,68,0.08)]'
               : 'text-fg-secondary hover:bg-overlay/[0.01] hover:text-fg'"
           >
             <div class="font-bold text-xs">{{ p.name }}</div>
@@ -1182,41 +1182,41 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         </div>
 
         <!-- Editor panel -->
-        <div v-if="protocolEditorOpen" class="flex-1 overflow-y-auto bg-surface/10">
+        <div v-if="protocolEditorOpen" class="flex-1 overflow-y-auto bg-surface">
           <div class="px-8 py-6 space-y-6 max-w-4xl">
 
             <!-- Name + actions -->
-            <div class="flex items-center gap-3 bg-surface/50 backdrop-blur-md p-4 rounded-2xl border border-hairline shadow-lg">
+            <div class="flex items-center gap-3 bg-surface p-4 rounded-2xl border border-hairline shadow-lg">
               <input v-model="protocolForm.name"
-                class="flex-1 px-4 py-2 rounded-xl bg-sunken border border-hairline text-fg text-sm font-bold focus:outline-none focus:border-rose-500/50 focus:ring-1 focus:ring-rose-500/20"
+                class="flex-1 px-4 py-2 rounded-xl bg-sunken border border-hairline text-fg text-sm font-bold focus:outline-none focus:border-danger/50 focus:ring-1 focus:ring-danger/20"
                 placeholder="情境名稱（如：過敏性休克 Anaphylaxis）" />
               <button @click="saveProtocol"
-                class="px-4 py-2 rounded-xl bg-rose-600 border border-rose-500/30 hover:bg-rose-500 text-white text-xs font-bold shrink-0 cursor-pointer shadow-[0_4px_12px_rgba(239,68,68,0.15)]"
+                class="px-4 py-2 rounded-xl bg-rose-600 border border-danger/30 hover:bg-rose-500 text-white text-xs font-bold shrink-0 cursor-pointer shadow-[0_4px_12px_rgba(239,68,68,0.15)]"
               >
                 儲存
               </button>
               <button v-if="protocolForm.id" @click="deleteProtocol"
-                class="px-3 py-2 rounded-xl text-rose-500 hover:bg-rose-500/10 text-xs font-bold shrink-0 cursor-pointer transition-colors"
+                class="px-3 py-2 rounded-xl text-rose-500 hover:bg-danger/10 text-xs font-bold shrink-0 cursor-pointer transition-colors"
               >
                 刪除
               </button>
             </div>
 
             <!-- Triggers (Neon Amber) -->
-            <div class="bg-surface/40 border border-amber-500/10 rounded-2xl p-5 shadow-sm">
-              <div class="flex items-center justify-between mb-4 border-b border-amber-500/10 pb-2">
-                <span class="text-xs font-black text-amber-400">▲ 1. 觸發情境 (Triggers)</span>
+            <div class="bg-surface border border-warning/10 rounded-2xl p-5 shadow-sm">
+              <div class="flex items-center justify-between mb-4 border-b border-warning/10 pb-2">
+                <span class="text-xs font-black text-warning">▲ 1. 觸發情境 (Triggers)</span>
                 <button @click="protocolForm.triggers.push('')"
-                  class="text-2xs font-bold bg-amber-500/10 border border-amber-500/20 text-amber-300 px-2 py-1 rounded-lg hover:bg-amber-500/20 transition-all cursor-pointer"
+                  class="text-2xs font-bold bg-warning/10 border border-warning/20 text-warning px-2 py-1 rounded-lg hover:bg-warning/20 transition-all cursor-pointer"
                 >＋ 新增條件</button>
               </div>
               <div class="space-y-2">
                 <div v-for="(_, i) in protocolForm.triggers" :key="i" class="flex gap-2 items-center">
                   <input v-model="protocolForm.triggers[i]"
-                    class="flex-1 px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-amber-500/45 text-fg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-amber-500/20 transition-all"
+                    class="flex-1 px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-warning/45 text-fg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-warning/20 transition-all"
                     placeholder="例如：收縮壓 &lt; 90 mmHg 且合併心搏過速" />
                   <button @click="protocolForm.triggers.splice(i,1)"
-                    class="text-muted hover:text-rose-400 text-lg px-2 cursor-pointer transition-colors"
+                    class="text-muted hover:text-danger text-lg px-2 cursor-pointer transition-colors"
                   >✕</button>
                 </div>
                 <div v-if="!protocolForm.triggers.length" class="text-xs text-muted italic py-2">無設定觸發條件，該卡片將始終顯示。</div>
@@ -1224,21 +1224,21 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             </div>
 
             <!-- Immediate actions (Neon Red) -->
-            <div class="bg-surface/40 border border-rose-500/10 rounded-2xl p-5 shadow-sm">
-              <div class="flex items-center justify-between mb-4 border-b border-rose-500/10 pb-2">
-                <span class="text-xs font-black text-rose-400">⚡ 2. 立即處置 (Immediate Actions)</span>
+            <div class="bg-surface border border-danger/10 rounded-2xl p-5 shadow-sm">
+              <div class="flex items-center justify-between mb-4 border-b border-danger/10 pb-2">
+                <span class="text-xs font-black text-danger">⚡ 2. 立即處置 (Immediate Actions)</span>
                 <button @click="protocolForm.immediate_actions.push('')"
-                  class="text-2xs font-bold bg-rose-500/10 border border-rose-500/20 text-rose-300 px-2 py-1 rounded-lg hover:bg-rose-500/20 transition-all cursor-pointer"
+                  class="text-2xs font-bold bg-danger/10 border border-danger/20 text-danger px-2 py-1 rounded-lg hover:bg-danger/20 transition-all cursor-pointer"
                 >＋ 新增處置</button>
               </div>
               <div class="space-y-2">
                 <div v-for="(_, i) in protocolForm.immediate_actions" :key="i" class="flex gap-2 items-center">
                   <span class="text-xs text-rose-500/60 w-5 shrink-0 text-right font-mono font-bold">{{ i+1 }}.</span>
                   <input v-model="protocolForm.immediate_actions[i]"
-                    class="flex-1 px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-rose-500/45 text-fg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-rose-500/20 transition-all"
+                    class="flex-1 px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-danger/45 text-fg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-danger/20 transition-all"
                     placeholder="處置動作描述（如：建立大口徑靜脈管路、給予高流量氧氣）" />
                   <button @click="protocolForm.immediate_actions.splice(i,1)"
-                    class="text-muted hover:text-rose-400 text-lg px-2 cursor-pointer transition-colors"
+                    class="text-muted hover:text-danger text-lg px-2 cursor-pointer transition-colors"
                   >✕</button>
                 </div>
                 <div v-if="!protocolForm.immediate_actions.length" class="text-xs text-muted italic py-2">尚未新增處置步驟。</div>
@@ -1246,24 +1246,24 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             </div>
 
             <!-- Critical meds (Neon Blue) -->
-            <div class="bg-surface/40 border border-indigo-500/10 rounded-2xl p-5 shadow-sm">
-              <div class="flex items-center justify-between mb-4 border-b border-indigo-500/10 pb-2">
-                <span class="text-xs font-black text-indigo-400">💊 3. 關鍵藥物 (Critical Medications)</span>
+            <div class="bg-surface border border-accent/10 rounded-2xl p-5 shadow-sm">
+              <div class="flex items-center justify-between mb-4 border-b border-accent/10 pb-2">
+                <span class="text-xs font-black text-accent">💊 3. 關鍵藥物 (Critical Medications)</span>
                 <button @click="protocolForm.critical_meds.push({ name:'', dose:'', color:'blue' })"
-                  class="text-2xs font-bold bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 px-2 py-1 rounded-lg hover:bg-indigo-500/20 transition-all cursor-pointer"
+                  class="text-2xs font-bold bg-accent/10 border border-accent/20 text-accent px-2 py-1 rounded-lg hover:bg-accent/20 transition-all cursor-pointer"
                 >＋ 新增藥物</button>
               </div>
               <div class="space-y-2">
                 <div v-for="(med, i) in protocolForm.critical_meds" :key="i"
                   class="grid grid-cols-[1.5fr_1.5fr_1fr_auto] gap-2.5 items-center">
                   <input v-model="med.name"
-                    class="px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-indigo-500/45 text-fg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500/20 transition-all"
+                    class="px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-accent/45 text-fg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-accent/20 transition-all"
                     placeholder="藥物名稱（如：Epinephrine）" />
                   <input v-model="med.dose"
-                    class="px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-indigo-500/45 text-fg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500/20 transition-all"
+                    class="px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-accent/45 text-fg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-accent/20 transition-all"
                     placeholder="劑量及給藥途徑（如：0.3 mg IM q5-15m）" />
                   <select v-model="med.color"
-                    class="px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg-secondary text-xs font-bold focus:outline-none focus:border-indigo-500/45">
+                    class="px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg-secondary text-xs font-bold focus:outline-none focus:border-accent/45">
                     <option value="blue">🔵 藍色 (Tech)</option>
                     <option value="red">🔴 紅色 (Danger)</option>
                     <option value="green">🟢 綠色 (Safety)</option>
@@ -1272,7 +1272,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
                     <option value="orange">🟠 橙色 (Alert)</option>
                   </select>
                   <button @click="protocolForm.critical_meds.splice(i,1)"
-                    class="text-muted hover:text-rose-400 text-lg px-2 cursor-pointer transition-colors"
+                    class="text-muted hover:text-danger text-lg px-2 cursor-pointer transition-colors"
                   >✕</button>
                 </div>
                 <div v-if="!protocolForm.critical_meds.length" class="text-xs text-muted italic py-2">無設定關鍵用藥。</div>
@@ -1280,25 +1280,25 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             </div>
 
             <!-- Timers (Neon Green) -->
-            <div class="bg-surface/40 border border-emerald-500/10 rounded-2xl p-5 shadow-sm">
-              <div class="flex items-center justify-between mb-4 border-b border-emerald-500/10 pb-2">
-                <span class="text-xs font-black text-emerald-400">⏱ 4. 循環計時器 (Timers)</span>
+            <div class="bg-surface border border-success/10 rounded-2xl p-5 shadow-sm">
+              <div class="flex items-center justify-between mb-4 border-b border-success/10 pb-2">
+                <span class="text-xs font-black text-success">⏱ 4. 循環計時器 (Timers)</span>
                 <button @click="protocolForm.timers.push({ label:'', seconds: 120 })"
-                  class="text-2xs font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 px-2 py-1 rounded-lg hover:bg-emerald-500/20 transition-all cursor-pointer"
+                  class="text-2xs font-bold bg-success/10 border border-success/20 text-success px-2 py-1 rounded-lg hover:bg-success/20 transition-all cursor-pointer"
                 >＋ 新增計時</button>
               </div>
               <div class="space-y-2">
                 <div v-for="(timer, i) in protocolForm.timers" :key="i" class="flex gap-3 items-center">
                   <input v-model="timer.label"
-                    class="flex-1 px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-emerald-500/45 text-fg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500/20 transition-all"
+                    class="flex-1 px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-success/45 text-fg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-success/20 transition-all"
                     placeholder="計時事件說明（如：評估心律/CPR 週期）" />
                   <div class="flex items-center gap-1.5 shrink-0">
                     <input v-model.number="timer.seconds" type="number" min="1"
-                      class="w-20 px-3 py-2 rounded-xl bg-sunken border border-hairline focus:border-emerald-500/45 text-fg text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500/20 transition-all text-center" />
+                      class="w-20 px-3 py-2 rounded-xl bg-sunken border border-hairline focus:border-success/45 text-fg text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-success/20 transition-all text-center" />
                     <span class="text-xs text-muted font-bold">秒</span>
                   </div>
                   <button @click="protocolForm.timers.splice(i,1)"
-                    class="text-muted hover:text-rose-400 text-lg px-2 cursor-pointer transition-colors"
+                    class="text-muted hover:text-danger text-lg px-2 cursor-pointer transition-colors"
                   >✕</button>
                 </div>
                 <div v-if="!protocolForm.timers.length" class="text-xs text-muted italic py-2">無配置倒數計時器。</div>
@@ -1306,23 +1306,23 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             </div>
 
             <!-- Contacts (Neon Purple) -->
-            <div class="bg-surface/40 border border-violet-500/10 rounded-2xl p-5 shadow-sm">
-              <div class="flex items-center justify-between mb-4 border-b border-violet-500/10 pb-2">
-                <span class="text-xs font-black text-violet-400">📞 5. 緊急通報分機 (Contacts)</span>
+            <div class="bg-surface border border-accent/10 rounded-2xl p-5 shadow-sm">
+              <div class="flex items-center justify-between mb-4 border-b border-accent/10 pb-2">
+                <span class="text-xs font-black text-accent">📞 5. 緊急通報分機 (Contacts)</span>
                 <button @click="protocolForm.contacts.push({ label:'', ext:'' })"
-                  class="text-2xs font-bold bg-violet-500/10 border border-violet-500/20 text-violet-300 px-2 py-1 rounded-lg hover:bg-violet-500/20 transition-all cursor-pointer"
+                  class="text-2xs font-bold bg-accent/10 border border-accent/20 text-accent px-2 py-1 rounded-lg hover:bg-accent/20 transition-all cursor-pointer"
                 >＋ 新增聯絡</button>
               </div>
               <div class="space-y-2">
                 <div v-for="(contact, i) in protocolForm.contacts" :key="i" class="flex gap-2.5 items-center">
                   <input v-model="contact.label"
-                    class="flex-1 px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-violet-500/45 text-fg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-violet-500/20 transition-all"
+                    class="flex-1 px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-accent/45 text-fg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-accent/20 transition-all"
                     placeholder="通報目標或代碼（如：急救小組 999、ECMO 團隊）" />
                   <input v-model="contact.ext"
-                    class="w-32 px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-violet-500/45 text-fg text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-violet-500/20 transition-all text-center"
+                    class="w-32 px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-accent/45 text-fg text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-accent/20 transition-all text-center"
                     placeholder="直撥分機" />
                   <button @click="protocolForm.contacts.splice(i,1)"
-                    class="text-muted hover:text-rose-400 text-lg px-2 cursor-pointer transition-colors"
+                    class="text-muted hover:text-danger text-lg px-2 cursor-pointer transition-colors"
                   >✕</button>
                 </div>
                 <div v-if="!protocolForm.contacts.length" class="text-xs text-muted italic py-2">無設定聯絡電話。</div>
@@ -1330,7 +1330,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             </div>
 
             <!-- Notes -->
-            <div class="bg-surface/30 border border-hairline rounded-2xl p-5">
+            <div class="bg-surface border border-hairline rounded-2xl p-5">
               <label class="text-2xs font-black text-fg-secondary mb-2 block">備註資訊</label>
               <textarea v-model="protocolForm.notes" rows="4"
                 class="w-full px-4 py-2.5 rounded-xl bg-sunken border border-hairline focus:border-hairline text-fg text-xs font-medium focus:outline-none resize-none leading-relaxed transition-all"
@@ -1341,9 +1341,9 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         </div>
 
         <!-- Empty state -->
-        <div v-if="!protocolEditorOpen" class="flex-1 flex items-center justify-center bg-sunken/10">
+        <div v-if="!protocolEditorOpen" class="flex-1 flex items-center justify-center bg-sunken">
           <div class="text-center p-8 max-w-sm">
-            <div class="w-16 h-16 bg-rose-500/10 border border-rose-500/20 rounded-full flex items-center justify-center mx-auto text-2xl mb-4 shadow-[0_0_20px_rgba(239,68,68,0.08)] animate-pulse">🚨</div>
+            <div class="w-16 h-16 bg-danger/10 border border-danger/20 rounded-full flex items-center justify-center mx-auto text-2xl mb-4 shadow-[0_0_20px_rgba(239,68,68,0.08)] animate-pulse">🚨</div>
             <h4 class="text-sm font-bold text-fg-secondary mb-1">危急情境卡片編輯器</h4>
             <p class="text-xs text-muted leading-relaxed">請在左側面板選擇現有的 ACLS 情境進行編輯，或點擊右上角「新增」建立一套全新的緊急醫療監控儀表。</p>
           </div>
@@ -1355,35 +1355,35 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
       <div v-if="activeTab === 'backup'" class="flex-1 overflow-y-auto px-8 py-6 space-y-6">
 
         <!-- ① DB 整體備份 -->
-        <div class="bg-surface/40 backdrop-blur-md rounded-2xl border border-hairline p-6 shadow-xl space-y-3">
+        <div class="bg-surface rounded-2xl border border-hairline p-6 shadow-xl space-y-3">
           <div class="flex items-center gap-2">
             <span class="text-lg">🗄️</span>
             <h3 class="font-bold text-fg text-sm">資料庫實體備份 (.db 檔案)</h3>
           </div>
-          <p class="text-xs text-fg-secondary leading-relaxed">下載或載入 MedBase 的主 SQLite 資料庫檔案 <code class="font-mono text-indigo-300 bg-sunken px-1.5 py-0.5 rounded text-2xs border border-hairline">medbase.db</code>。此選項適用於完全遷移、手動硬碟備份。還原成功後，程式將自動重啟以載入新庫。</p>
+          <p class="text-xs text-fg-secondary leading-relaxed">下載或載入 MedBase 的主 SQLite 資料庫檔案 <code class="font-mono text-accent bg-sunken px-1.5 py-0.5 rounded text-2xs border border-hairline">medbase.db</code>。此選項適用於完全遷移、手動硬碟備份。還原成功後，程式將自動重啟以載入新庫。</p>
           <div class="flex gap-3 pt-2">
             <button @click="backupDb" :disabled="dbBackingUp || dbRestoring"
-              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 border border-indigo-500/30 text-white text-xs font-bold hover:bg-indigo-500 transition-all disabled:opacity-40 cursor-pointer shadow-lg shadow-indigo-500/10">
+              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 border border-accent/30 text-white text-xs font-bold hover:bg-indigo-500 transition-all disabled:opacity-40 cursor-pointer shadow-lg shadow-accent/10">
               {{ dbBackingUp ? '備份中…' : '💾 匯出資料庫主檔 (.db)' }}
             </button>
             <button @click="restoreDb" :disabled="dbBackingUp || dbRestoring"
-              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 border border-amber-500/30 text-white text-xs font-bold hover:bg-amber-500 transition-all disabled:opacity-40 cursor-pointer shadow-lg shadow-amber-500/10">
+              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 border border-warning/30 text-white text-xs font-bold hover:bg-amber-500 transition-all disabled:opacity-40 cursor-pointer shadow-lg shadow-warning/10">
               {{ dbRestoring ? '還原中…' : '📂 匯入並還原資料庫 (.db)' }}
             </button>
           </div>
         </div>
 
         <!-- ② 匯出區 -->
-        <div class="bg-surface/40 backdrop-blur-md rounded-2xl border border-hairline p-6 shadow-xl space-y-4">
+        <div class="bg-surface rounded-2xl border border-hairline p-6 shadow-xl space-y-4">
           <div class="flex items-center justify-between border-b border-hairline pb-3">
             <div class="flex items-center gap-2">
               <span class="text-lg">📤</span>
               <h3 class="font-bold text-fg text-sm">模組資料備份與匯出 (XLSX)</h3>
             </div>
             <div class="flex gap-2">
-              <button @click="selectAll"  class="text-xs text-indigo-400 hover:text-indigo-300 font-bold cursor-pointer">全選</button>
+              <button @click="selectAll"  class="text-xs text-accent hover:text-accent font-bold cursor-pointer">全選</button>
               <span class="text-muted font-mono">|</span>
-              <button @click="selectNone" class="text-xs text-rose-400 hover:text-rose-300 font-bold cursor-pointer">全消</button>
+              <button @click="selectNone" class="text-xs text-danger hover:text-danger font-bold cursor-pointer">全消</button>
             </div>
           </div>
 
@@ -1392,8 +1392,8 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               v-for="g in BACKUP_GROUPS" :key="g.key"
               class="flex items-start gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all"
               :class="selectedGroups.has(g.key)
-                ? 'border-indigo-500/30 bg-indigo-500/[0.04]'
-                : 'border-hairline bg-sunken/20 hover:border-hairline'"
+                ? 'border-accent/30 bg-accent/[0.04]'
+                : 'border-hairline bg-sunken hover:border-hairline'"
             >
               <input type="checkbox" :checked="selectedGroups.has(g.key)"
                 @change="toggleGroup(g.key)"
@@ -1401,7 +1401,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               <div class="min-w-0 flex-1">
                 <div class="flex items-center justify-between text-xs text-fg font-bold">
                   <span>{{ g.icon }} {{ g.label }}</span>
-                  <span v-if="groupCount(g) > 0" class="text-2xs font-mono font-bold bg-overlay/5 border border-hairline text-emerald-400 px-1.5 py-0.5 rounded">
+                  <span v-if="groupCount(g) > 0" class="text-2xs font-mono font-bold bg-overlay/5 border border-hairline text-success px-1.5 py-0.5 rounded">
                     {{ groupCount(g).toLocaleString() }} 筆
                   </span>
                   <span v-else-if="Object.keys(tableMetaMap).length > 0" class="text-2xs font-mono text-muted px-1 py-0.5">空</span>
@@ -1415,7 +1415,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             <button
               @click="exportSelected"
               :disabled="exportingFull || selectedGroups.size === 0"
-              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 border border-indigo-500/30 text-white text-xs font-bold hover:bg-indigo-500 transition-all disabled:opacity-40 cursor-pointer shadow-lg shadow-indigo-500/10"
+              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 border border-accent/30 text-white text-xs font-bold hover:bg-indigo-500 transition-all disabled:opacity-40 cursor-pointer shadow-lg shadow-accent/10"
             >
               {{ exportingFull ? '匯出中…' : '💾 匯出選取模組 (Excel .xlsx)' }}
             </button>
@@ -1430,7 +1430,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         </div>
 
         <!-- ② 還原區 -->
-        <div class="bg-surface/40 backdrop-blur-md rounded-2xl border border-hairline p-6 shadow-xl space-y-4">
+        <div class="bg-surface rounded-2xl border border-hairline p-6 shadow-xl space-y-4">
           <div class="flex items-center gap-2">
             <span class="text-lg">📥</span>
             <h3 class="font-bold text-fg text-sm">匯入與還原 (Excel / JSON)</h3>
@@ -1463,12 +1463,12 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
 
           <!-- 步驟 2：預覽確認 -->
           <div v-if="importPreview" class="space-y-4 border-t border-hairline pt-4">
-            <p class="text-xs font-black text-amber-400">⚠️ 匯入資料預覽確認</p>
+            <p class="text-xs font-black text-warning">⚠️ 匯入資料預覽確認</p>
             <div class="grid grid-cols-3 gap-2">
               <div v-for="row in importPreview" :key="row.table"
                 class="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-xs font-semibold">
                 <span class="text-fg-secondary">{{ row.label }}</span>
-                <span class="text-emerald-400 font-bold">{{ row.rows }} 筆</span>
+                <span class="text-success font-bold">{{ row.rows }} 筆</span>
               </div>
             </div>
             <p class="text-[0.6875rem] text-muted leading-relaxed">
@@ -1483,7 +1483,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               <button
                 @click="confirmFullImport"
                 :disabled="importingFull"
-                class="px-5 py-2 rounded-xl bg-emerald-600 border border-emerald-500/30 text-white text-xs font-bold hover:bg-emerald-500 transition-all disabled:opacity-40 cursor-pointer shadow-lg shadow-emerald-500/10"
+                class="px-5 py-2 rounded-xl bg-emerald-600 border border-success/30 text-white text-xs font-bold hover:bg-emerald-500 transition-all disabled:opacity-40 cursor-pointer shadow-lg shadow-success/10"
               >{{ importingFull ? `寫入中… ${fullImportProgress}%` : '確認寫入資料庫' }}</button>
               <button
                 @click="cancelImport"
@@ -1495,20 +1495,20 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         </div>
 
         <!-- ③ 通訊錄雙軌同步 -->
-        <div class="bg-surface/40 backdrop-blur-md rounded-2xl border border-hairline p-6 shadow-xl space-y-4">
+        <div class="bg-surface rounded-2xl border border-hairline p-6 shadow-xl space-y-4">
           <div class="flex items-center gap-2">
             <span class="text-lg">🔄</span>
             <h3 class="font-bold text-fg text-sm">通訊錄雙軌即時同步 (.xlsx)</h3>
           </div>
           <p class="text-xs text-fg-secondary leading-relaxed">
-            將此程式通訊錄資料庫與本地指定之 <code class="text-indigo-300 bg-sunken px-1.5 py-0.5 rounded text-2xs border border-hairline">通訊錄.xlsx</code> 連結。對程式做出的任何通訊錄修改會同步回寫該 Excel；若 Excel 檔遭外部程式修改，MedBase 亦會自動偵測並重載，並即時推送 GAS 雲端表單以維持同步。
+            將此程式通訊錄資料庫與本地指定之 <code class="text-accent bg-sunken px-1.5 py-0.5 rounded text-2xs border border-hairline">通訊錄.xlsx</code> 連結。對程式做出的任何通訊錄修改會同步回寫該 Excel；若 Excel 檔遭外部程式修改，MedBase 亦會自動偵測並重載，並即時推送 GAS 雲端表單以維持同步。
           </p>
 
           <!-- 未綁定 -->
           <div v-if="!xlsxSyncPath" class="flex flex-wrap gap-2.5 pt-2">
             <button
               @click="bindXlsxFile"
-              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 border border-indigo-500/30 text-white text-xs font-bold hover:bg-indigo-500 transition-all cursor-pointer shadow-lg shadow-indigo-500/10"
+              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 border border-accent/30 text-white text-xs font-bold hover:bg-indigo-500 transition-all cursor-pointer shadow-lg shadow-accent/10"
             >
               📂 連結現有 Excel 檔案
             </button>
@@ -1523,7 +1523,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
           <!-- 已綁定 -->
           <div v-else class="space-y-3 pt-2">
             <div class="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-sunken border border-hairline text-xs">
-              <span class="text-emerald-400 animate-pulse mt-0.5">●</span>
+              <span class="text-success animate-pulse mt-0.5">●</span>
               <div class="space-y-1">
                 <div class="text-muted font-bold text-xs">即時監控路徑</div>
                 <div class="text-fg font-mono break-all font-bold text-[0.6875rem]">{{ xlsxSyncPath }}</div>
@@ -1532,7 +1532,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             <div v-if="xlsxFormatSummary" class="px-4 py-2.5 rounded-xl bg-sunken border border-hairline text-xs text-fg-secondary font-medium">
               <span class="text-muted font-bold mr-1">XLSX 結構偵測:</span> {{ xlsxFormatSummary }}
             </div>
-            <div v-if="xlsxSyncStatus" class="px-4 py-2.5 rounded-xl bg-sunken/50 border border-hairline text-xs text-muted font-medium font-mono">
+            <div v-if="xlsxSyncStatus" class="px-4 py-2.5 rounded-xl bg-sunken border border-hairline text-xs text-muted font-medium font-mono">
               {{ xlsxSyncStatus }}
             </div>
             <div class="flex flex-wrap gap-2.5 pt-1">
@@ -1552,7 +1552,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               </button>
               <button
                 @click="doXlsxUnbind"
-                class="flex items-center gap-1 px-3.5 py-1.5 rounded-xl bg-rose-950/20 border border-rose-900/30 hover:border-rose-900/60 text-rose-400 text-xs font-bold hover:bg-rose-950/40 transition-all cursor-pointer"
+                class="flex items-center gap-1 px-3.5 py-1.5 rounded-xl bg-danger/20 border border-danger/30 hover:border-danger/60 text-danger text-xs font-bold hover:bg-danger/40 transition-all cursor-pointer"
               >
                 解除連結
               </button>
@@ -1561,14 +1561,14 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         </div>
 
         <!-- ④ 危險操作 (Rose-danger) -->
-        <div class="bg-rose-950/[0.04] rounded-2xl border border-rose-500/20 p-6 shadow-xl space-y-4">
-          <div class="flex items-center justify-between border-b border-rose-500/10 pb-3">
+        <div class="bg-danger/[0.04] rounded-2xl border border-danger/20 p-6 shadow-xl space-y-4">
+          <div class="flex items-center justify-between border-b border-danger/10 pb-3">
             <div class="flex items-center gap-2">
               <span class="text-lg">⚠️</span>
-              <h3 class="font-bold text-rose-400 text-sm">清除/清空資料庫內容</h3>
+              <h3 class="font-bold text-danger text-sm">清除/清空資料庫內容</h3>
             </div>
             <div class="flex gap-2">
-              <button @click="clearGroups = new Set(BACKUP_GROUPS.map(g => g.key))" class="text-xs text-rose-400/80 hover:text-rose-400 font-bold cursor-pointer">全選</button>
+              <button @click="clearGroups = new Set(BACKUP_GROUPS.map(g => g.key))" class="text-xs text-danger/80 hover:text-danger font-bold cursor-pointer">全選</button>
               <span class="text-rose-900 font-mono">|</span>
               <button @click="clearGroups = new Set()" class="text-xs text-muted hover:text-fg-secondary font-bold cursor-pointer">全消</button>
             </div>
@@ -1580,8 +1580,8 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               v-for="g in BACKUP_GROUPS" :key="g.key"
               class="flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all"
               :class="clearGroups.has(g.key)
-                ? 'border-rose-700/40 bg-rose-500/[0.04]'
-                : 'border-hairline bg-sunken/20 hover:border-rose-500/10'"
+                ? 'border-danger/40 bg-danger/[0.04]'
+                : 'border-hairline bg-sunken hover:border-danger/10'"
             >
               <input type="checkbox" :checked="clearGroups.has(g.key)"
                 @change="toggleClearGroup(g.key)"
@@ -1593,7 +1593,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
           <button
             @click="showClearConfirm = true"
             :disabled="clearGroups.size === 0"
-            class="px-5 py-2.5 rounded-xl bg-rose-900/40 border border-rose-700/30 hover:border-rose-700 text-rose-200 text-xs font-bold hover:bg-rose-950/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-rose-950/20"
+            class="px-5 py-2.5 rounded-xl bg-danger/40 border border-danger/30 hover:border-rose-700 text-danger text-xs font-bold hover:bg-danger/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-danger/20"
           >清空選取模組（{{ clearGroups.size }} 個群組）</button>
         </div>
 
@@ -1620,7 +1620,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
 
       <!-- ── 自費品項 Modal ─────────────────────── -->
       <div v-if="activeTab === 'items'"
-        class="w-full max-w-lg bg-surface/90 rounded-2xl border border-hairline shadow-2xl overflow-hidden backdrop-blur-md">
+        class="w-full max-w-lg bg-surface rounded-2xl border border-hairline shadow-2xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-hairline">
           <h3 class="font-bold text-fg text-sm">{{ modalMode === "add" ? "新增" : "編輯" }}品項</h3>
           <button @click="closeModal" class="text-muted hover:text-fg-secondary text-lg leading-none cursor-pointer">✕</button>
@@ -1630,32 +1630,32 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             <div>
               <label class="text-2xs font-bold text-muted mb-1 block">院內碼 *</label>
               <input v-model="itemForm.hospital_code" :disabled="modalMode==='edit'"
-                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono font-bold focus:outline-none focus:border-indigo-500/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono font-bold focus:outline-none focus:border-accent/50 disabled:opacity-40 disabled:cursor-not-allowed"
                 placeholder="M1A01234" />
             </div>
             <div>
               <label class="text-2xs font-bold text-muted mb-1 block">計價單位</label>
               <input v-model="itemForm.unit"
-                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-medium focus:outline-none focus:border-indigo-500/50"
+                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-medium focus:outline-none focus:border-accent/50"
                 placeholder="個 / 支 / 組" />
             </div>
           </div>
           <div>
             <label class="text-2xs font-bold text-muted mb-1 block">中文品名</label>
             <input v-model="itemForm.name_zh"
-              class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-bold focus:outline-none focus:border-indigo-500/50"
+              class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-bold focus:outline-none focus:border-accent/50"
               placeholder="請輸入中文品名..." />
           </div>
           <div>
             <label class="text-2xs font-bold text-muted mb-1 block">英文品名</label>
             <input v-model="itemForm.name_en"
-              class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-medium focus:outline-none focus:border-indigo-500/50"
+              class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-medium focus:outline-none focus:border-accent/50"
               placeholder="English Name / Description..." />
           </div>
           <div>
             <label class="text-2xs font-bold text-muted mb-1 block">耗材用途分類</label>
             <input v-model="itemForm.purpose"
-              class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-bold focus:outline-none focus:border-teal-500/50"
+              class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-bold focus:outline-none focus:border-accent/50"
               placeholder="例如：止血劑 / Mesh人工網膜 / 骨釘" />
           </div>
           <div>
@@ -1663,38 +1663,38 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             <input
               :value="(itemForm as any).depts?.join(';') ?? ''"
               @input="(itemForm as any).depts = ($event.target as HTMLInputElement).value.split(';').map((s:string)=>s.trim()).filter(Boolean)"
-              class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-bold focus:outline-none focus:border-cyan-500/50"
+              class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-bold focus:outline-none focus:border-accent/50"
               placeholder="骨科;一般外科;心臟外科" />
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class="text-2xs font-bold text-muted mb-1 block">自費金額 (NTD)</label>
               <input v-model.number="itemForm.price" type="number"
-                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono font-bold focus:outline-none focus:border-indigo-500/50"
+                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono font-bold focus:outline-none focus:border-accent/50"
                 placeholder="0" />
             </div>
             <div>
               <label class="text-2xs font-bold text-muted mb-1 block">材料廠商名稱</label>
               <input v-model="itemForm.supplier"
-                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-medium focus:outline-none focus:border-indigo-500/50"
+                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-medium focus:outline-none focus:border-accent/50"
                 placeholder="進口商或供應商" />
             </div>
           </div>
           <div>
             <label class="text-2xs font-bold text-muted mb-1 block">備註資訊</label>
             <textarea v-model="itemForm.notes" rows="2"
-              class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-medium focus:outline-none focus:border-indigo-500/50 resize-none leading-relaxed" />
+              class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-medium focus:outline-none focus:border-accent/50 resize-none leading-relaxed" />
           </div>
         </div>
-        <div class="flex justify-end gap-2 px-6 py-4 border-t border-hairline bg-surface/50">
+        <div class="flex justify-end gap-2 px-6 py-4 border-t border-hairline bg-surface">
           <button @click="closeModal" class="px-4 py-2 rounded-xl text-xs font-bold text-fg-secondary hover:text-fg hover:bg-overlay/5 cursor-pointer transition-colors">取消</button>
-          <button @click="saveItem" class="px-5 py-2 rounded-xl bg-indigo-600 border border-indigo-500/30 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer shadow-lg shadow-indigo-500/10">儲存品項</button>
+          <button @click="saveItem" class="px-5 py-2 rounded-xl bg-indigo-600 border border-accent/30 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer shadow-lg shadow-accent/10">儲存品項</button>
         </div>
       </div>
 
       <!-- ── 通訊錄 Modal ───────────────────── -->
       <div v-if="activeTab === 'physicians'"
-        class="w-full max-w-lg bg-surface/90 rounded-2xl border border-hairline shadow-2xl overflow-hidden backdrop-blur-md">
+        class="w-full max-w-lg bg-surface rounded-2xl border border-hairline shadow-2xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-hairline">
           <h3 class="font-bold text-fg text-sm">{{ modalMode === "add" ? "新增" : "編輯" }}醫師</h3>
           <button @click="closeModal" class="text-muted hover:text-fg-secondary text-lg leading-none cursor-pointer">✕</button>
@@ -1704,13 +1704,13 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             <div>
               <label class="text-2xs font-bold text-muted mb-1 block">姓名 *</label>
               <input v-model="physForm.name"
-                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-bold focus:outline-none focus:border-indigo-500/50"
+                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-bold focus:outline-none focus:border-accent/50"
                 placeholder="王大明" />
             </div>
             <div>
               <label class="text-2xs font-bold text-muted mb-1 block">所屬科別</label>
               <input v-model="physForm.department"
-                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-bold focus:outline-none focus:border-indigo-500/50"
+                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-bold focus:outline-none focus:border-accent/50"
                 placeholder="骨科 / 一般外科" />
             </div>
           </div>
@@ -1718,13 +1718,13 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             <div>
               <label class="text-2xs font-bold text-muted mb-1 block">職稱 / 職等</label>
               <input v-model="physForm.title"
-                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-bold focus:outline-none focus:border-indigo-500/50"
+                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-bold focus:outline-none focus:border-accent/50"
                 placeholder="主治醫師 / 住院醫師" />
             </div>
             <div>
               <label class="text-2xs font-bold text-muted mb-1 block">院內電話分機</label>
               <input v-model="physForm.ext"
-                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono font-bold focus:outline-none focus:border-indigo-500/50"
+                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono font-bold focus:outline-none focus:border-accent/50"
                 placeholder="1234" />
             </div>
           </div>
@@ -1734,24 +1734,24 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               <div>
                 <label class="text-2xs font-bold text-muted mb-1 block">HIS 醫療系統帳號</label>
                 <input v-model="physForm.his_account"
-                  class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono focus:outline-none focus:border-indigo-500/50" />
+                  class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono focus:outline-none focus:border-accent/50" />
               </div>
               <div>
                 <label class="text-2xs font-bold text-muted mb-1 block">HIS 醫療系統密碼</label>
                 <input v-model="physForm.his_password" type="password"
-                  class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono focus:outline-none focus:border-indigo-500/50" />
+                  class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono focus:outline-none focus:border-accent/50" />
               </div>
             </div>
           </div>
           <div>
             <label class="text-2xs font-bold text-muted mb-1 block">備註說明</label>
             <textarea v-model="physForm.notes" rows="2"
-              class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-medium focus:outline-none focus:border-indigo-500/50 resize-none leading-relaxed" />
+              class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-medium focus:outline-none focus:border-accent/50 resize-none leading-relaxed" />
           </div>
         </div>
-        <div class="flex justify-end gap-2 px-6 py-4 border-t border-hairline bg-surface/50">
+        <div class="flex justify-end gap-2 px-6 py-4 border-t border-hairline bg-surface">
           <button @click="closeModal" class="px-4 py-2 rounded-xl text-xs font-bold text-fg-secondary hover:text-fg hover:bg-overlay/5 cursor-pointer transition-colors">取消</button>
-          <button @click="savePhysician" class="px-5 py-2 rounded-xl bg-indigo-600 border border-indigo-500/30 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer shadow-lg shadow-indigo-500/10">儲存資料</button>
+          <button @click="savePhysician" class="px-5 py-2 rounded-xl bg-indigo-600 border border-accent/30 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer shadow-lg shadow-accent/10">儲存資料</button>
         </div>
       </div>
 
@@ -1763,7 +1763,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
     <div v-if="showBatchAdd"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-sunken/60 backdrop-blur-sm"
       @click.self="showBatchAdd = false">
-      <div class="w-full max-w-5xl bg-surface/90 rounded-2xl border border-hairline shadow-2xl overflow-hidden flex flex-col max-h-[85vh] backdrop-blur-md">
+      <div class="w-full max-w-5xl bg-surface rounded-2xl border border-hairline shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
 
         <!-- Header -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-hairline shrink-0">
@@ -1794,20 +1794,20 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
                 :class="row.hospital_code.trim() ? '' : 'bg-overlay/[0.002]'">
                 <td class="px-2 py-2">
                   <input v-model="row.hospital_code" placeholder="M1A01234"
-                    class="w-full px-2.5 py-1.5 bg-sunken border border-hairline focus:border-indigo-500/50 rounded-lg text-xs font-mono font-bold text-fg outline-none transition-all"
+                    class="w-full px-2.5 py-1.5 bg-sunken border border-hairline focus:border-accent/50 rounded-lg text-xs font-mono font-bold text-fg outline-none transition-all"
                     :class="!row.hospital_code.trim() && i > 0 ? 'border-dashed border-hairline' : ''" />
                 </td>
                 <td class="px-2 py-2">
                   <input v-model="row.name_zh" placeholder="耗材中文名..."
-                    class="w-full px-2.5 py-1.5 bg-sunken border border-hairline focus:border-indigo-500/50 rounded-lg text-xs text-fg outline-none transition-all" />
+                    class="w-full px-2.5 py-1.5 bg-sunken border border-hairline focus:border-accent/50 rounded-lg text-xs text-fg outline-none transition-all" />
                 </td>
                 <td class="px-2 py-2">
                   <input v-model="row.purpose" placeholder="止血棉..."
-                    class="w-full px-2.5 py-1.5 bg-sunken border border-hairline focus:border-teal-500/50 rounded-lg text-xs text-fg outline-none transition-all" />
+                    class="w-full px-2.5 py-1.5 bg-sunken border border-hairline focus:border-accent/50 rounded-lg text-xs text-fg outline-none transition-all" />
                 </td>
                 <td class="px-2 py-2">
                   <input v-model="row.deptsStr" placeholder="骨科;外科"
-                    class="w-full px-2.5 py-1.5 bg-sunken border border-hairline focus:border-cyan-500/50 rounded-lg text-xs text-fg outline-none transition-all" />
+                    class="w-full px-2.5 py-1.5 bg-sunken border border-hairline focus:border-accent/50 rounded-lg text-xs text-fg outline-none transition-all" />
                 </td>
                 <td class="px-2 py-2">
                   <input v-model="row.price" type="number" placeholder="0"
@@ -1819,7 +1819,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
                 </td>
                 <td class="px-2 py-1.5 text-center">
                   <button @click="removeBatchRow(i)" :disabled="batchRows.length === 1"
-                    class="text-muted hover:text-red-400 disabled:opacity-20 text-base leading-none">×</button>
+                    class="text-muted hover:text-accent disabled:opacity-20 text-base leading-none">×</button>
                 </td>
               </tr>
             </tbody>
@@ -1855,8 +1855,8 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
       <div v-if="toast"
         class="fixed top-4 right-4 z-[60] flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-xl text-sm font-medium"
         :class="toast.type === 'success'
-          ? 'bg-emerald-900 border border-emerald-700 text-emerald-200'
-          : 'bg-red-900 border border-red-700 text-red-200'"
+          ? 'bg-success/10 border border-emerald-700 text-success'
+          : 'bg-accent/10 border border-danger text-accent'"
       >
         <span>{{ toast.type === 'success' ? '✓' : '✕' }}</span>
         <span>{{ toast.msg }}</span>
@@ -1882,7 +1882,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             取消
           </button>
           <button @click="doDelete"
-            class="px-5 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-medium">
+            class="px-5 py-2 rounded-lg bg-danger hover:bg-danger text-white text-sm font-medium">
             確認刪除
           </button>
         </div>
@@ -1895,25 +1895,25 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
     <div v-if="showClearConfirm"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-sunken/70 backdrop-blur-sm"
       @click.self="showClearConfirm = false; clearInput = ''">
-      <div class="w-full max-w-sm bg-surface rounded-2xl border border-red-800 shadow-2xl p-6">
+      <div class="w-full max-w-sm bg-surface rounded-2xl border border-danger shadow-2xl p-6">
         <div class="text-3xl mb-3 text-center">⚠️</div>
-        <h3 class="font-semibold text-red-400 text-center mb-1">確認清空</h3>
+        <h3 class="font-semibold text-accent text-center mb-1">確認清空</h3>
         <p class="text-sm text-fg-secondary text-center mb-3">
-          以下資料將被永久刪除，此操作<span class="text-red-400 font-semibold">無法復原</span>。
+          以下資料將被永久刪除，此操作<span class="text-accent font-semibold">無法復原</span>。
         </p>
         <div class="flex flex-wrap gap-1 justify-center mb-4">
           <span v-for="g in BACKUP_GROUPS.filter(g => clearGroups.has(g.key))" :key="g.key"
-            class="px-2 py-0.5 rounded-full bg-red-900/50 text-red-300 text-xs">
+            class="px-2 py-0.5 rounded-full bg-accent/50 text-accent text-xs">
             {{ g.icon }} {{ g.label }}
           </span>
         </div>
         <p class="text-xs text-muted mb-2 text-center">
-          輸入「<span class="text-red-400 font-mono">{{ CLEAR_KEYWORD }}</span>」以確認
+          輸入「<span class="text-accent font-mono">{{ CLEAR_KEYWORD }}</span>」以確認
         </p>
         <input
           v-model="clearInput"
           :placeholder="CLEAR_KEYWORD"
-          class="w-full px-3 py-2 rounded-lg bg-elevated border border-hairline text-fg text-sm text-center focus:outline-none focus:border-red-500 mb-4"
+          class="w-full px-3 py-2 rounded-lg bg-elevated border border-hairline text-fg text-sm text-center focus:outline-none focus:border-danger mb-4"
         />
         <div class="flex gap-3">
           <button
@@ -1923,7 +1923,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
           <button
             @click="clearLocalDb"
             :disabled="clearInput !== CLEAR_KEYWORD || clearing"
-            class="flex-1 px-4 py-2 rounded-lg bg-red-700 hover:bg-red-600 text-white text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            class="flex-1 px-4 py-2 rounded-lg bg-danger hover:bg-danger text-white text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >{{ clearing ? '清空中…' : '確認清空' }}</button>
         </div>
       </div>
