@@ -421,7 +421,7 @@ onMounted(() => { scrollToActive() })
           <!-- Delete pool -->
           <button v-if="canEdit"
             @click="removePool(selectedIdx)"
-            class="text-xs text-danger hover:text-danger transition-colors">
+            class="text-xs text-danger hover:text-danger-hover transition-colors">
             刪除此池
           </button>
         </div>

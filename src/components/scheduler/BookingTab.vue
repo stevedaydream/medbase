@@ -410,7 +410,7 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
           <!-- Footer: clear all + close -->
           <div class="flex items-center justify-between pt-1 border-t border-hairline">
             <button @click="clearDay"
-              class="text-xs text-danger hover:text-danger transition-colors">
+              class="text-xs text-danger hover:text-danger-hover transition-colors">
               清除本日
             </button>
             <button @click="activeCell = null"

@@ -34,10 +34,16 @@
   --color-hairline:     rgb(15 23 42 / 0.10);
   --color-overlay:      #0f172a;
 
-  /* 語意色：全站一致，不得挪作頁面裝飾色 */
+  /* 語意色：全站一致，不得挪作頁面裝飾色。
+     -hover 必須宣告於此，Tailwind 才會生成 text-*-hover 工具類；
+     只寫在 :root 的話變數存在但 class 無效，hover 會完全沒作用。*/
   --color-danger:       #be123c;
   --color-warning:      #b45309;
   --color-success:      #047857;
+  --color-danger-hover:  #9f1239;
+  --color-warning-hover: #92400e;
+  --color-success-hover: #065f46;
+  --color-accent-hover:  #312e81;
 
   /* 頁面識別色：由各 view 根元素的 .accent-* class 指定實際色相。
      預設 indigo；深色主題用 -400 階、淺色主題用 -700 階，兩者實測
@@ -79,6 +85,35 @@
   --color-accent:       #818cf8;
 }
 
+/* 明確的 :root 預設值。@theme 內的宣告會被 Tailwind 依使用情況搖掉，
+   而 text-accent 也用在共用組件（Sidebar、OmniSearch…）與 Teleport 到
+   body 的 modal 上 —— 那些位置不在任何 .accent-* 的 DOM 範圍內，若無
+   :root 後備，var(--color-accent) 會解析失敗使 color 變成繼承，看起來
+   就是「按鈕沒有顏色」。hover 則各自往對比更高的方向再走一階。*/
+:root {
+  --color-accent:         #4338ca;
+  --color-accent-hover:   #312e81;
+  --color-danger-hover:   #9f1239;
+  --color-warning-hover:  #92400e;
+  --color-success-hover:  #065f46;
+}
+:root[data-theme="dark"] {
+  --color-accent:         #818cf8;
+  --color-accent-hover:   #c7d2fe;
+  --color-danger-hover:   #fda4af;
+  --color-warning-hover:  #fcd34d;
+  --color-success-hover:  #6ee7b7;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-accent:         #818cf8;
+    --color-accent-hover:   #c7d2fe;
+    --color-danger-hover:   #fda4af;
+    --color-warning-hover:  #fcd34d;
+    --color-success-hover:  #6ee7b7;
+  }
+}
+
 /* ── 頁面識別色分配 ────────────────────────────────────────────────
    原則：同一功能群共用一色，讓側邊欄的分組與顏色一致，切頁時能一眼
    認出自己在哪一區。語意色 rose／amber／emerald 不參與分配。
@@ -90,27 +125,27 @@
      indigo  系統            AHK・資料管理・設定
      rose    危急情境        名實相符，識別色即語意色
    ──────────────────────────────────────────────────────────────── */
-.accent-teal   { --color-accent: #0f766e; }
-.accent-violet { --color-accent: #6d28d9; }
-.accent-cyan   { --color-accent: #0e7490; }
-.accent-blue   { --color-accent: #1d4ed8; }
-.accent-indigo { --color-accent: #4338ca; }
-.accent-rose   { --color-accent: #be123c; }
+.accent-teal   { --color-accent: #0f766e; --color-accent-hover: #115e59; }
+.accent-violet { --color-accent: #6d28d9; --color-accent-hover: #5b21b6; }
+.accent-cyan   { --color-accent: #0e7490; --color-accent-hover: #155e75; }
+.accent-blue   { --color-accent: #1d4ed8; --color-accent-hover: #1e40af; }
+.accent-indigo { --color-accent: #4338ca; --color-accent-hover: #312e81; }
+.accent-rose   { --color-accent: #be123c; --color-accent-hover: #9f1239; }
 
-:root[data-theme="dark"] .accent-teal   { --color-accent: #2dd4bf; }
-:root[data-theme="dark"] .accent-violet { --color-accent: #a78bfa; }
-:root[data-theme="dark"] .accent-cyan   { --color-accent: #22d3ee; }
-:root[data-theme="dark"] .accent-blue   { --color-accent: #60a5fa; }
-:root[data-theme="dark"] .accent-indigo { --color-accent: #818cf8; }
-:root[data-theme="dark"] .accent-rose   { --color-accent: #fb7185; }
+:root[data-theme="dark"] .accent-teal   { --color-accent: #2dd4bf; --color-accent-hover: #5eead4; }
+:root[data-theme="dark"] .accent-violet { --color-accent: #a78bfa; --color-accent-hover: #c4b5fd; }
+:root[data-theme="dark"] .accent-cyan   { --color-accent: #22d3ee; --color-accent-hover: #67e8f9; }
+:root[data-theme="dark"] .accent-blue   { --color-accent: #60a5fa; --color-accent-hover: #93c5fd; }
+:root[data-theme="dark"] .accent-indigo { --color-accent: #818cf8; --color-accent-hover: #c7d2fe; }
+:root[data-theme="dark"] .accent-rose   { --color-accent: #fb7185; --color-accent-hover: #fda4af; }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .accent-teal   { --color-accent: #2dd4bf; }
-  :root:not([data-theme="light"]) .accent-violet { --color-accent: #a78bfa; }
-  :root:not([data-theme="light"]) .accent-cyan   { --color-accent: #22d3ee; }
-  :root:not([data-theme="light"]) .accent-blue   { --color-accent: #60a5fa; }
-  :root:not([data-theme="light"]) .accent-indigo { --color-accent: #818cf8; }
-  :root:not([data-theme="light"]) .accent-rose   { --color-accent: #fb7185; }
+  :root:not([data-theme="light"]) .accent-teal   { --color-accent: #2dd4bf; --color-accent-hover: #5eead4; }
+  :root:not([data-theme="light"]) .accent-violet { --color-accent: #a78bfa; --color-accent-hover: #c4b5fd; }
+  :root:not([data-theme="light"]) .accent-cyan   { --color-accent: #22d3ee; --color-accent-hover: #67e8f9; }
+  :root:not([data-theme="light"]) .accent-blue   { --color-accent: #60a5fa; --color-accent-hover: #93c5fd; }
+  :root:not([data-theme="light"]) .accent-indigo { --color-accent: #818cf8; --color-accent-hover: #c7d2fe; }
+  :root:not([data-theme="light"]) .accent-rose   { --color-accent: #fb7185; --color-accent-hover: #fda4af; }
 }
 
 /* JS 尚未接手前（首屏）先跟隨系統，避免深色使用者看到白色閃爍 */
@@ -128,7 +163,7 @@
     --color-hairline:     rgb(255 255 255 / 0.07);
     --color-overlay:      #ffffff;
 
-    --color-danger:       #f87171;
+    --color-danger:       #fb7185;
     --color-warning:      #fbbf24;
     --color-success:      #34d399;
   }

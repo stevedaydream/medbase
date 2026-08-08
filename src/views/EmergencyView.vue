@@ -337,7 +337,7 @@ function exportRecord() {
                   <span class="text-fg-secondary text-xs font-semibold">{{ c.label }}</span>
                   <button
                     @click="copy(c.ext)"
-                    class="font-mono text-xs font-bold text-danger hover:text-danger active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+                    class="font-mono text-xs font-bold text-danger hover:text-danger-hover active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
                   >
                     <span>📞</span> {{ c.ext }}
                   </button>

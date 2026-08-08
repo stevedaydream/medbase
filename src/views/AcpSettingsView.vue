@@ -211,7 +211,7 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
                 <span class="flex-1 text-fg-secondary text-xs font-bold leading-relaxed truncate">{{ item.name }}</span>
                 <div class="opacity-0 group-hover:opacity-100 flex gap-1 shrink-0 transition-opacity">
                   <button @click="editingItemId = item.id; editingItemName = item.name" 
-                          class="w-7 h-7 flex items-center justify-center hover:bg-elevated rounded-lg text-accent hover:text-accent transition-colors cursor-pointer"
+                          class="w-7 h-7 flex items-center justify-center hover:bg-elevated rounded-lg text-accent hover:text-accent-hover transition-colors cursor-pointer"
                           title="編輯項目">
                     ✏️
                   </button>

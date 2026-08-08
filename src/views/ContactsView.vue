@@ -356,7 +356,7 @@ async function doDelete() {
             <div class="mt-4 flex items-center justify-between border-t border-hairline pt-3.5">
               <button
                 @click="copyExt(c.ext)"
-                class="font-mono text-xl font-black text-accent hover:text-accent tracking-widest transition-colors flex items-center gap-1.5 cursor-pointer transform active:scale-98"
+                class="font-mono text-xl font-black text-accent hover:text-accent-hover tracking-widest transition-colors flex items-center gap-1.5 cursor-pointer transform active:scale-98"
                 title="點擊複製"
               >
                 <span>📞</span> {{ c.ext }}

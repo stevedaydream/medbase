@@ -684,7 +684,7 @@ async function pullSettingsFromCloud() {
         </div>
         <p class="text-2xs text-muted leading-relaxed font-medium">
           此 API 金鑰僅會安全儲存於本機資料庫中，用於「病歷潤飾」功能時調用 Gemini 模型。您可以免費前往
-          <a href="https://aistudio.google.com/" target="_blank" class="text-accent hover:text-accent underline font-bold">Google AI Studio</a>
+          <a href="https://aistudio.google.com/" target="_blank" class="text-accent hover:text-accent-hover underline font-bold">Google AI Studio</a>
           申請個人專屬的免費額度 API Key。
         </p>
       </div>
@@ -819,7 +819,7 @@ async function pullSettingsFromCloud() {
           {{ isCheckingVersions ? '檢查中…' : '☁ 立即檢查版本' }}
         </button>
         <button @click="triggerFullSync" :disabled="isTriggeringSync || !cloud.gasUrl"
-          class="text-xs px-4 py-2 rounded-xl border border-accent/40 text-accent hover:text-accent hover:border-accent/60 disabled:opacity-40 transition-colors font-bold cursor-pointer">
+          class="text-xs px-4 py-2 rounded-xl border border-accent/40 text-accent hover:text-accent-hover hover:border-accent/60 disabled:opacity-40 transition-colors font-bold cursor-pointer">
           {{ isTriggeringSync ? '觸發中…' : '↻ 立即完整同步' }}
         </button>
       </div>

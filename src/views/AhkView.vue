@@ -684,7 +684,7 @@ function insertBuilderToScript() {
           AutoHotkey 設定檔 CRUD · 套組管理 · 自動 Reload ·
           <button
             @click="openAhkSite"
-            class="text-accent hover:text-accent hover:underline transition-colors cursor-pointer"
+            class="text-accent hover:text-accent-hover hover:underline transition-colors cursor-pointer"
           >↗ 下載 AutoHotkey</button>
         </p>
       </div>
@@ -840,7 +840,7 @@ function insertBuilderToScript() {
               />
               <button
                 @click="pickFilePath"
-                class="text-xs px-3.5 py-1.5 bg-elevated border border-hairline hover:border-hairline text-fg hover:text-fg rounded-lg whitespace-nowrap transition-all cursor-pointer font-bold"
+                class="text-xs px-3.5 py-1.5 bg-elevated border border-hairline hover:border-hairline text-fg hover:text-accent rounded-lg whitespace-nowrap transition-all cursor-pointer font-bold"
               >
                 變更路徑
               </button>
@@ -903,7 +903,7 @@ function insertBuilderToScript() {
               <template v-else>
                 <span class="text-2xs font-black text-muted">安全驗證:</span>
                 <button @click="deleteScript(false)"
-                  class="text-2xs px-3 py-2 bg-danger/60 border border-danger/30 text-danger hover:text-danger rounded-xl font-bold transition-colors cursor-pointer">
+                  class="text-2xs px-3 py-2 bg-danger/60 border border-danger/30 text-danger hover:text-danger-hover rounded-xl font-bold transition-colors cursor-pointer">
                   僅移除 DB 紀錄
                 </button>
                 <button @click="deleteScript(true)"

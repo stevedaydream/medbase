@@ -1067,8 +1067,8 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
                 <td class="px-4 py-2.5 text-muted text-xs font-medium">{{ m.supplier || "—" }}</td>
                 <td class="px-4 py-2.5 text-right">
                   <div class="flex gap-2.5 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button @click="openEdit(m)" class="text-xs text-accent hover:text-accent font-bold cursor-pointer">編輯</button>
-                    <button @click="confirmDelete(m)" class="text-xs text-danger hover:text-danger font-bold cursor-pointer">刪除</button>
+                    <button @click="openEdit(m)" class="text-xs text-accent hover:text-accent-hover font-bold cursor-pointer">編輯</button>
+                    <button @click="confirmDelete(m)" class="text-xs text-danger hover:text-danger-hover font-bold cursor-pointer">刪除</button>
                   </div>
                 </td>
               </tr>
@@ -1146,12 +1146,12 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
                 <td class="px-4 py-2.5 text-right">
                   <div class="flex gap-2.5 justify-end whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
                     <template v-if="editingPhysId === p.id">
-                      <button @click="saveInlinePhys" class="text-xs text-success hover:text-success font-bold cursor-pointer">儲存</button>
+                      <button @click="saveInlinePhys" class="text-xs text-success hover:text-success-hover font-bold cursor-pointer">儲存</button>
                       <button @click="cancelEditPhys" class="text-xs text-muted hover:text-fg-secondary cursor-pointer">取消</button>
                     </template>
                     <template v-else>
-                      <button @click="startEditPhys(p)" class="text-xs text-accent hover:text-accent font-bold cursor-pointer">編輯</button>
-                      <button @click="confirmDelete(p)" class="text-xs text-danger hover:text-danger font-bold cursor-pointer">刪除</button>
+                      <button @click="startEditPhys(p)" class="text-xs text-accent hover:text-accent-hover font-bold cursor-pointer">編輯</button>
+                      <button @click="confirmDelete(p)" class="text-xs text-danger hover:text-danger-hover font-bold cursor-pointer">刪除</button>
                     </template>
                   </div>
                 </td>
@@ -1381,9 +1381,9 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               <h3 class="font-bold text-fg text-sm">模組資料備份與匯出 (XLSX)</h3>
             </div>
             <div class="flex gap-2">
-              <button @click="selectAll"  class="text-xs text-accent hover:text-accent font-bold cursor-pointer">全選</button>
+              <button @click="selectAll"  class="text-xs text-accent hover:text-accent-hover font-bold cursor-pointer">全選</button>
               <span class="text-muted font-mono">|</span>
-              <button @click="selectNone" class="text-xs text-danger hover:text-danger font-bold cursor-pointer">全消</button>
+              <button @click="selectNone" class="text-xs text-danger hover:text-danger-hover font-bold cursor-pointer">全消</button>
             </div>
           </div>
 

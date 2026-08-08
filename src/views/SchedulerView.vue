@@ -2403,7 +2403,7 @@ async function createTemplate() {
                   {{ h.description }}
                 </span>
                 <button @click="removeHoliday(h.date)"
-                  :class="effectiveType(h) === 'a0' || effectiveType(h) === 'b0' ? 'text-muted hover:text-fg-secondary' : effectiveType(h) === 'c0' ? 'text-amber-700 hover:text-warning' : 'text-accent hover:text-accent'"
+                  :class="effectiveType(h) === 'a0' || effectiveType(h) === 'b0' ? 'text-muted hover:text-fg-secondary' : effectiveType(h) === 'c0' ? 'text-amber-700 hover:text-warning' : 'text-accent hover:text-accent-hover'"
                   class="leading-none text-xs ml-1 cursor-pointer">✕</button>
               </span>
             </template>
