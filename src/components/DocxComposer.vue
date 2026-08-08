@@ -257,8 +257,8 @@ async function exportDocx() {
               @click="meta[f.key] = opt"
               class="flex-1 text-xs font-bold px-3 py-1.5 rounded-xl border transition-all cursor-pointer"
               :class="meta[f.key] === opt
-                ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-200'
-                : 'bg-surface/40 border-hairline text-fg-secondary hover:text-fg'">
+                ? 'bg-accent/20 border-accent/40 text-accent'
+                : 'bg-surface border-hairline text-fg-secondary hover:text-fg'">
               {{ opt }}
             </button>
           </div>
@@ -268,8 +268,8 @@ async function exportDocx() {
             <select
               v-model="meta[f.key]"
               @change="onStaffChange(f)"
-              class="w-full appearance-none text-xs pl-3 pr-8 py-1.5 bg-sunken/60 border border-hairline rounded-xl
-                     text-fg focus:outline-none focus:border-indigo-500/50 cursor-pointer font-bold">
+              class="w-full appearance-none text-xs pl-3 pr-8 py-1.5 bg-sunken border border-hairline rounded-xl
+                     text-fg focus:outline-none focus:border-accent/50 cursor-pointer font-bold">
               <option value="">— 選擇姓名 —</option>
               <option v-for="s in staffList" :key="s.employee_id || s.name" :value="s.name">
                 {{ s.name }}
@@ -282,20 +282,20 @@ async function exportDocx() {
           <input v-else-if="f.type === 'staff'"
             v-model="meta[f.key]"
             placeholder="姓名（排班名單為空）"
-            class="text-xs px-3 py-1.5 bg-sunken/60 border border-hairline rounded-xl text-fg
-                   placeholder:text-muted focus:outline-none focus:border-indigo-500/50 font-bold" />
+            class="text-xs px-3 py-1.5 bg-sunken border border-hairline rounded-xl text-fg
+                   placeholder:text-muted focus:outline-none focus:border-accent/50 font-bold" />
 
           <!-- date / time / text -->
           <input v-else
             v-model="meta[f.key]"
             :type="f.type === 'date' ? 'date' : f.type === 'time' ? 'time' : 'text'"
             :placeholder="f.placeholder ?? ''"
-            class="text-xs px-3 py-1.5 bg-sunken/60 border border-hairline rounded-xl text-fg
-                   placeholder:text-muted focus:outline-none focus:border-indigo-500/50 font-bold
+            class="text-xs px-3 py-1.5 bg-sunken border border-hairline rounded-xl text-fg
+                   placeholder:text-muted focus:outline-none focus:border-accent/50 font-bold
                    [color-scheme:dark]" />
         </div>
       </div>
-      <p v-if="leaveDays !== null" class="mt-2 text-2xs font-bold text-emerald-400">
+      <p v-if="leaveDays !== null" class="mt-2 text-2xs font-bold text-success">
         起迄共 {{ leaveDays }} 日
       </p>
     </section>
@@ -305,8 +305,8 @@ async function exportDocx() {
       <div class="flex items-center gap-3 mb-2.5">
         <h3 class="text-2xs font-black text-muted">來源資料</h3>
         <button @click="fileInput?.click()"
-          class="text-2xs font-bold px-3 py-1.5 rounded-xl border border-hairline bg-surface/40 text-fg-secondary
-                 hover:text-indigo-300 hover:border-indigo-500/30 transition-all cursor-pointer">
+          class="text-2xs font-bold px-3 py-1.5 rounded-xl border border-hairline bg-surface text-fg-secondary
+                 hover:text-accent hover:border-accent/30 transition-all cursor-pointer">
           ＋ 上傳 PDF / PPTX
         </button>
         <input ref="fileInput" type="file" accept=".pdf,.pptx" multiple class="hidden" @change="onFilesSelected" />
@@ -314,8 +314,8 @@ async function exportDocx() {
         <button @click="deidentify = !deidentify"
           class="text-2xs font-bold px-3 py-1.5 rounded-xl border transition-all cursor-pointer ml-auto"
           :class="deidentify
-            ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
-            : 'bg-surface/40 border-hairline text-muted hover:text-fg-secondary'">
+            ? 'bg-warning/15 border-warning/30 text-warning'
+            : 'bg-surface border-hairline text-muted hover:text-fg-secondary'">
           🛡 去識別化
         </button>
       </div>
@@ -323,12 +323,12 @@ async function exportDocx() {
       <!-- 已上傳檔案 -->
       <div v-if="files.length" class="flex flex-wrap gap-2 mb-2.5">
         <span v-for="(f, i) in files" :key="i"
-          class="flex items-center gap-1.5 text-2xs font-bold px-2.5 py-1 rounded-lg border border-hairline bg-surface/60 text-fg-secondary">
-          <span :class="f.kind === 'pdf' ? 'text-rose-400' : 'text-amber-400'">
+          class="flex items-center gap-1.5 text-2xs font-bold px-2.5 py-1 rounded-lg border border-hairline bg-surface text-fg-secondary">
+          <span :class="f.kind === 'pdf' ? 'text-danger' : 'text-warning'">
             {{ f.kind === 'pdf' ? '📄' : '📊' }}
           </span>
           {{ f.name }}
-          <button @click="removeFile(i)" class="text-muted hover:text-rose-400 cursor-pointer">✕</button>
+          <button @click="removeFile(i)" class="text-muted hover:text-danger cursor-pointer">✕</button>
         </span>
       </div>
 
@@ -336,20 +336,20 @@ async function exportDocx() {
         v-model="manualText"
         placeholder="（選填）在此貼上補充文字、口頭補充說明或重點…"
         rows="3"
-        class="w-full resize-y text-xs bg-sunken/50 border border-hairline focus:border-indigo-500/30 rounded-2xl p-3.5 placeholder:text-muted focus:outline-none leading-relaxed text-fg custom-scrollbar transition-all" />
+        class="w-full resize-y text-xs bg-sunken border border-hairline focus:border-accent/30 rounded-2xl p-3.5 placeholder:text-muted focus:outline-none leading-relaxed text-fg custom-scrollbar transition-all" />
 
       <div class="mt-3">
         <button @click="generate"
           :disabled="isGenerating || !hasSource || !apiKey"
           :title="!apiKey ? '請先至設定頁填入 Gemini API Key' : ''"
-          class="flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-xl bg-indigo-600 border border-indigo-500/30
+          class="flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-xl bg-indigo-600 border border-accent/30
                  hover:bg-indigo-500 text-white disabled:opacity-40 disabled:cursor-not-allowed
                  hover:shadow-[0_0_15px_rgba(99,102,241,0.25)] transition-all cursor-pointer">
           <span v-if="isGenerating" class="inline-block w-3.5 h-3.5 border-2 border-hairline border-t-white rounded-full animate-spin" />
           <span v-else>✦</span>
           {{ isGenerating ? "AI 整理中…" : "AI 整理 → 填入區塊" }}
         </button>
-        <span v-if="!apiKey" class="ml-3 text-xs text-amber-400 font-bold">⚠️ 請先至設定頁填入 Gemini API Key</span>
+        <span v-if="!apiKey" class="ml-3 text-xs text-warning font-bold">⚠️ 請先至設定頁填入 Gemini API Key</span>
       </div>
     </section>
 
@@ -358,20 +358,20 @@ async function exportDocx() {
       <h3 class="text-2xs font-black text-muted mb-2.5">結構化內容（可微調）</h3>
       <div class="space-y-3">
         <div v-for="b in tpl.blocks" :key="b.key" class="flex flex-col gap-1.5">
-          <label class="text-2xs font-bold text-indigo-300">{{ b.label }}</label>
+          <label class="text-2xs font-bold text-accent">{{ b.label }}</label>
           <textarea
             v-model="blocks[b.key]"
             rows="4"
             :placeholder="b.instruction"
-            class="resize-y text-xs bg-sunken/80 border border-hairline rounded-xl text-fg
-                   px-3.5 py-2.5 focus:outline-none focus:border-indigo-500/50 leading-relaxed
+            class="resize-y text-xs bg-sunken border border-hairline rounded-xl text-fg
+                   px-3.5 py-2.5 focus:outline-none focus:border-accent/50 leading-relaxed
                    custom-scrollbar placeholder:text-muted transition-colors" />
         </div>
       </div>
 
       <div class="mt-4">
         <button @click="exportDocx" :disabled="isExporting"
-          class="flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-xl bg-emerald-600/90 border border-emerald-500/30
+          class="flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-xl bg-success/90 border border-success/30
                  hover:bg-emerald-500 text-white disabled:opacity-40 disabled:cursor-not-allowed
                  hover:shadow-[0_0_15px_rgba(16,185,129,0.25)] transition-all cursor-pointer">
           <span v-if="isExporting" class="inline-block w-3.5 h-3.5 border-2 border-hairline border-t-white rounded-full animate-spin" />
