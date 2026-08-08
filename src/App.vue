@@ -398,7 +398,7 @@ function dismissUpdate() {
       <!-- 其他雲端同步背景 banner -->
       <Transition name="toast">
         <div v-if="activeSyncLabels.length > 0"
-          class="flex items-center gap-3 px-4 py-2 bg-violet-950/80 border-b border-violet-800/60 text-violet-200 text-xs flex-shrink-0">
+          class="flex items-center gap-3 px-4 py-2 bg-accent/80 border-b border-accent/60 text-accent text-xs flex-shrink-0">
           <span class="animate-pulse">⟳</span>
           <span>{{ activeSyncLabels.join('、') }} 雲端同步背景執行中…</span>
         </div>
@@ -429,7 +429,7 @@ function dismissUpdate() {
             <div class="text-2xl leading-none">🎉</div>
             <div>
               <p class="text-fg font-semibold text-base">發現新版本</p>
-              <p class="text-emerald-400 font-mono text-sm font-bold mt-0.5">v{{ updateVersion }}</p>
+              <p class="text-success font-mono text-sm font-bold mt-0.5">v{{ updateVersion }}</p>
             </div>
           </div>
 
