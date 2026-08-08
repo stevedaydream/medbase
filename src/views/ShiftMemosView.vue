@@ -38,7 +38,7 @@ const editor = useEditor({
   extensions: [StarterKit],
   content: "",
   editorProps: {
-    attributes: { class: "prose prose-invert prose-sm max-w-none focus:outline-none min-h-[350px] px-2 text-slate-300 font-sans" }
+    attributes: { class: "prose prose-invert prose-sm max-w-none focus:outline-none min-h-[350px] px-2 text-fg-secondary font-sans" }
   },
   onUpdate: () => {
     if (!activeMemo.value) return;
@@ -199,125 +199,125 @@ async function saveTitle() {
 </script>
 
 <template>
-  <div class="flex h-full bg-slate-950/20 rounded-2xl border border-white/5 shadow-2xl overflow-hidden">
+  <div class="flex h-full bg-sunken/20 rounded-2xl border border-hairline shadow-2xl overflow-hidden">
     <!-- Left panel -->
-    <div class="w-60 shrink-0 flex flex-col border-r border-white/5 bg-slate-900/60 backdrop-blur-xl h-full overflow-hidden">
+    <div class="w-60 shrink-0 flex flex-col border-r border-hairline bg-surface/60 backdrop-blur-xl h-full overflow-hidden">
       
       <!-- Category Tabs (Horizontal Scrollable) -->
-      <div class="px-4 py-3.5 border-b border-white/5 overflow-x-auto flex gap-1.5 shrink-0 no-scrollbar">
+      <div class="px-4 py-3.5 border-b border-hairline overflow-x-auto flex gap-1.5 shrink-0 no-scrollbar">
         <button v-for="cat in categories" :key="cat"
           @click="activeCategory = cat"
           class="shrink-0 px-3 py-1.5 rounded-full text-2xs font-bold tracking-wide uppercase transition-all cursor-pointer border"
           :class="activeCategory === cat 
             ? 'bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border-blue-500/30 text-blue-300 shadow-[0_0_10px_rgba(59,130,246,0.05)]' 
-            : 'bg-slate-950/40 border-white/5 text-slate-500 hover:text-slate-300 hover:bg-slate-900/60'">
+            : 'bg-sunken/40 border-hairline text-muted hover:text-fg-secondary hover:bg-surface/60'">
           {{ cat }}
         </button>
       </div>
 
       <!-- Memo list -->
       <div class="flex-1 overflow-y-auto px-2 py-3 space-y-1">
-        <div v-if="!filteredMemos.length" class="text-slate-600 text-xs font-mono text-center py-10">NO MEMOS FOUND</div>
+        <div v-if="!filteredMemos.length" class="text-muted text-xs font-mono text-center py-10">NO MEMOS FOUND</div>
         <div v-for="m in filteredMemos" :key="m.id"
           @click="selectMemo(m)"
           class="group flex items-start justify-between gap-2 px-3.5 py-3 rounded-xl cursor-pointer transition-all border relative overflow-hidden"
           :class="activeMemo?.id === m.id 
-            ? 'bg-slate-900/50 border-cyan-500/10 text-cyan-200 shadow-[0_0_15px_rgba(6,182,212,0.03)]' 
-            : 'bg-transparent border-transparent text-slate-400 hover:bg-white/5 hover:text-slate-200'">
+            ? 'bg-surface/50 border-cyan-500/10 text-cyan-200 shadow-[0_0_15px_rgba(6,182,212,0.03)]' 
+            : 'bg-transparent border-transparent text-fg-secondary hover:bg-overlay/5 hover:text-fg'">
           
           <!-- Selected active left indicator bar -->
           <div v-if="activeMemo?.id === m.id" class="absolute left-0 top-0 bottom-0 w-1 bg-cyan-500" />
           
           <div class="flex-1 min-w-0">
-            <p class="text-xs font-bold truncate tracking-wide" :class="activeMemo?.id === m.id ? 'text-cyan-300' : 'text-slate-200'">{{ m.title }}</p>
-            <p class="text-2xs text-slate-500 font-medium tracking-wide uppercase mt-0.5">{{ m.category }}</p>
+            <p class="text-xs font-bold truncate tracking-wide" :class="activeMemo?.id === m.id ? 'text-cyan-300' : 'text-fg'">{{ m.title }}</p>
+            <p class="text-2xs text-muted font-medium tracking-wide uppercase mt-0.5">{{ m.category }}</p>
           </div>
           <button @click.stop="deleteTarget = m"
-            class="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 text-xs px-1.5 transition-all shrink-0 cursor-pointer">
+            class="opacity-0 group-hover:opacity-100 text-muted hover:text-rose-400 text-xs px-1.5 transition-all shrink-0 cursor-pointer">
             ×
           </button>
         </div>
       </div>
 
       <!-- Sync + Add buttons -->
-      <div class="px-4 py-4 border-t border-white/5 bg-slate-950/40 shrink-0 space-y-2">
+      <div class="px-4 py-4 border-t border-hairline bg-sunken/40 shrink-0 space-y-2">
         <div class="flex gap-2">
           <button @click="pullFromCloud" :disabled="isSyncing"
             class="flex-1 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs font-bold hover:bg-blue-500/20 disabled:opacity-40 transition-all cursor-pointer">
             {{ isSyncing ? "…" : "↓ 同步" }}
           </button>
           <button @click="pushToCloud" :disabled="isSyncing"
-            class="flex-1 py-2 rounded-xl bg-slate-800 border border-white/5 text-slate-300 text-xs font-bold hover:bg-slate-700 disabled:opacity-40 transition-all cursor-pointer">
+            class="flex-1 py-2 rounded-xl bg-elevated border border-hairline text-fg-secondary text-xs font-bold hover:bg-raised disabled:opacity-40 transition-all cursor-pointer">
             {{ isSyncing ? "…" : "↑ 上傳" }}
           </button>
         </div>
         <button @click="openAdd"
-          class="w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs font-bold hover:from-blue-500 hover:to-indigo-500 transition-all shadow-lg shadow-blue-500/10 cursor-pointer">
+          class="w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-fg text-xs font-bold hover:from-blue-500 hover:to-indigo-500 transition-all shadow-lg shadow-blue-500/10 cursor-pointer">
           ＋ 新增備忘
         </button>
       </div>
     </div>
 
     <!-- Right editor panel -->
-    <div class="flex-1 flex flex-col bg-slate-950/40 backdrop-blur-md overflow-hidden">
-      <div v-if="!activeMemo" class="flex-1 flex flex-col items-center justify-center text-slate-600 text-center space-y-3">
+    <div class="flex-1 flex flex-col bg-sunken/40 backdrop-blur-md overflow-hidden">
+      <div v-if="!activeMemo" class="flex-1 flex flex-col items-center justify-center text-muted text-center space-y-3">
         <span class="text-4xl opacity-20">📝</span>
         <p class="text-xs uppercase tracking-widest font-mono">Select a memo or create a new one to begin editing</p>
       </div>
       
       <template v-else>
         <!-- Title bar -->
-        <div class="px-6 py-4 border-b border-white/5 flex items-center justify-between gap-4 shrink-0 bg-slate-900/10">
+        <div class="px-6 py-4 border-b border-hairline flex items-center justify-between gap-4 shrink-0 bg-surface/10">
           <div class="flex-1 min-w-0">
             <div v-if="editingTitle" class="flex items-center gap-2 max-w-xl">
               <input v-model="titleDraft" @keydown.enter="saveTitle" @keydown.escape="editingTitle = false"
-                class="flex-1 px-3 py-1.5 rounded-xl bg-slate-900 border border-blue-500/30 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/15"
+                class="flex-1 px-3 py-1.5 rounded-xl bg-surface border border-blue-500/30 text-fg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/15"
                 autofocus />
               <button @click="saveTitle" class="text-xs font-bold px-3 py-1.5 bg-blue-700 hover:bg-blue-600 text-white rounded-xl transition-all cursor-pointer">儲存</button>
             </div>
             <h2 v-else
-              class="text-sm font-black text-slate-100 cursor-pointer hover:text-cyan-400 transition-all flex items-center gap-1.5 group"
+              class="text-sm font-black text-fg cursor-pointer hover:text-cyan-400 transition-all flex items-center gap-1.5 group"
               @click="titleDraft = activeMemo.title; editingTitle = true"
               title="點擊編輯標題">
               {{ activeMemo.title }}
-              <span class="text-xs text-slate-600 group-hover:text-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity">✏️</span>
+              <span class="text-xs text-muted group-hover:text-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity">✏️</span>
             </h2>
           </div>
-          <span class="text-2xs font-bold bg-white/5 border border-white/5 text-slate-500 px-2.5 py-1 rounded-lg uppercase tracking-wider shrink-0 font-mono">{{ activeMemo.category }}</span>
+          <span class="text-2xs font-bold bg-overlay/5 border border-hairline text-muted px-2.5 py-1 rounded-lg uppercase tracking-wider shrink-0 font-mono">{{ activeMemo.category }}</span>
         </div>
 
         <!-- Editor Toolbar -->
-        <div v-if="editor" class="px-6 py-2 border-b border-white/5 flex items-center gap-1 shrink-0 bg-slate-900/20">
+        <div v-if="editor" class="px-6 py-2 border-b border-hairline flex items-center gap-1 shrink-0 bg-surface/20">
           <button @click="editor.chain().focus().toggleBold().run()"
-            :class="editor.isActive('bold') ? 'bg-white/10 text-cyan-400 font-extrabold' : 'text-slate-500 hover:text-slate-300'"
+            :class="editor.isActive('bold') ? 'bg-overlay/10 text-cyan-400 font-extrabold' : 'text-muted hover:text-fg-secondary'"
             class="p-2 rounded-lg text-xs font-bold transition-all cursor-pointer">B</button>
           
           <button @click="editor.chain().focus().toggleItalic().run()"
-            :class="editor.isActive('italic') ? 'bg-white/10 text-cyan-400 font-extrabold' : 'text-slate-500 hover:text-slate-300'"
+            :class="editor.isActive('italic') ? 'bg-overlay/10 text-cyan-400 font-extrabold' : 'text-muted hover:text-fg-secondary'"
             class="p-2 rounded-lg text-xs italic transition-all cursor-pointer">I</button>
           
           <button @click="editor.chain().focus().toggleHeading({ level: 3 }).run()"
-            :class="editor.isActive('heading', { level: 3 }) ? 'bg-white/10 text-cyan-400 font-extrabold' : 'text-slate-500 hover:text-slate-300'"
+            :class="editor.isActive('heading', { level: 3 }) ? 'bg-overlay/10 text-cyan-400 font-extrabold' : 'text-muted hover:text-fg-secondary'"
             class="p-2 rounded-lg text-2xs font-bold transition-all cursor-pointer">H3</button>
           
-          <div class="w-px h-4 bg-white/5 mx-2" />
+          <div class="w-px h-4 bg-overlay/5 mx-2" />
           
           <button @click="editor.chain().focus().toggleBulletList().run()"
-            :class="editor.isActive('bulletList') ? 'bg-white/10 text-cyan-400' : 'text-slate-500 hover:text-slate-300'"
+            :class="editor.isActive('bulletList') ? 'bg-overlay/10 text-cyan-400' : 'text-muted hover:text-fg-secondary'"
             class="p-2 rounded-lg text-xs transition-all cursor-pointer">•—</button>
           
           <button @click="editor.chain().focus().toggleOrderedList().run()"
-            :class="editor.isActive('orderedList') ? 'bg-white/10 text-cyan-400' : 'text-slate-500 hover:text-slate-300'"
+            :class="editor.isActive('orderedList') ? 'bg-overlay/10 text-cyan-400' : 'text-muted hover:text-fg-secondary'"
             class="p-2 rounded-lg text-xs transition-all cursor-pointer">1.</button>
           
-          <div class="w-px h-4 bg-white/5 mx-2" />
+          <div class="w-px h-4 bg-overlay/5 mx-2" />
           
           <button @click="editor.chain().focus().setHardBreak().run()"
-            class="p-2 rounded-lg text-xs text-slate-500 hover:text-slate-300 transition-all cursor-pointer">↵</button>
+            class="p-2 rounded-lg text-xs text-muted hover:text-fg-secondary transition-all cursor-pointer">↵</button>
         </div>
 
         <!-- Editor body viewport -->
-        <div class="flex-1 overflow-y-auto px-6 py-5 bg-slate-900/5">
+        <div class="flex-1 overflow-y-auto px-6 py-5 bg-surface/5">
           <EditorContent :editor="editor" />
         </div>
       </template>
@@ -326,35 +326,35 @@ async function saveTitle() {
 
   <!-- Add memo modal -->
   <Teleport to="body">
-    <div v-if="showAddModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" @click.self="showAddModal = false">
-      <div class="bg-slate-900 border border-white/10 rounded-2xl shadow-2xl w-[400px] max-w-[90vw] p-6 space-y-4">
-        <h2 class="text-slate-100 font-black text-sm border-b border-white/5 pb-2">✏️ 新增備忘</h2>
+    <div v-if="showAddModal" class="fixed inset-0 z-50 flex items-center justify-center bg-sunken/60 backdrop-blur-sm" @click.self="showAddModal = false">
+      <div class="bg-surface border border-hairline rounded-2xl shadow-2xl w-[400px] max-w-[90vw] p-6 space-y-4">
+        <h2 class="text-fg font-black text-sm border-b border-hairline pb-2">✏️ 新增備忘</h2>
         <div class="space-y-3">
           <div>
-            <label class="text-2xs font-bold text-slate-500 mb-1 block">分類目錄</label>
+            <label class="text-2xs font-bold text-muted mb-1 block">分類目錄</label>
             <input v-model="addForm.category" placeholder="例如: 輪序規則、外圍分配、注意事項"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-cyan-500/50" />
+              class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-cyan-500/50" />
           </div>
           <div>
-            <label class="text-2xs font-bold text-slate-500 mb-1 block">備忘標題 *</label>
+            <label class="text-2xs font-bold text-muted mb-1 block">備忘標題 *</label>
             <input v-model="addForm.title" placeholder="請輸入標題"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-cyan-500/50 font-bold"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-cyan-500/50 font-bold"
               @keydown.enter="confirmAdd" autofocus />
           </div>
         </div>
-        <div class="flex gap-3 justify-end pt-2 border-t border-white/5">
-          <button @click="showAddModal = false" class="px-4 py-2 text-xs font-bold bg-slate-800 border border-white/5 text-slate-400 rounded-xl hover:bg-slate-700 hover:text-slate-200">取消</button>
-          <button @click="confirmAdd" class="px-5 py-2 text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-500 hover:to-indigo-500 transition-all shadow-lg">建立備忘</button>
+        <div class="flex gap-3 justify-end pt-2 border-t border-hairline">
+          <button @click="showAddModal = false" class="px-4 py-2 text-xs font-bold bg-elevated border border-hairline text-fg-secondary rounded-xl hover:bg-raised hover:text-fg">取消</button>
+          <button @click="confirmAdd" class="px-5 py-2 text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 text-fg rounded-xl hover:from-blue-500 hover:to-indigo-500 transition-all shadow-lg">建立備忘</button>
         </div>
       </div>
     </div>
 
     <!-- Delete confirm -->
-    <div v-if="deleteTarget" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" @click.self="deleteTarget = null">
-      <div class="bg-slate-900 border border-white/10 rounded-2xl shadow-2xl w-80 p-6 space-y-4">
-        <p class="text-sm text-slate-300">確定刪除「<span class="text-rose-400 font-bold">{{ deleteTarget.title }}</span>」備忘嗎？</p>
-        <div class="flex gap-3 justify-end pt-2 border-t border-white/5">
-          <button @click="deleteTarget = null" class="px-4 py-2 text-xs font-bold bg-slate-800 border border-white/5 text-slate-400 rounded-xl hover:bg-slate-700">取消</button>
+    <div v-if="deleteTarget" class="fixed inset-0 z-50 flex items-center justify-center bg-sunken/60 backdrop-blur-sm" @click.self="deleteTarget = null">
+      <div class="bg-surface border border-hairline rounded-2xl shadow-2xl w-80 p-6 space-y-4">
+        <p class="text-sm text-fg-secondary">確定刪除「<span class="text-rose-400 font-bold">{{ deleteTarget.title }}</span>」備忘嗎？</p>
+        <div class="flex gap-3 justify-end pt-2 border-t border-hairline">
+          <button @click="deleteTarget = null" class="px-4 py-2 text-xs font-bold bg-elevated border border-hairline text-fg-secondary rounded-xl hover:bg-raised">取消</button>
           <button @click="doDelete" class="px-4 py-2 text-xs font-bold bg-rose-600 text-white rounded-xl hover:bg-rose-500">確認刪除</button>
         </div>
       </div>
@@ -362,7 +362,7 @@ async function saveTitle() {
 
     <!-- Toast -->
     <Transition name="toast">
-      <div v-if="toastMsg" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2.5 bg-slate-900 border border-white/10 text-slate-200 text-xs font-bold rounded-xl shadow-2xl z-[9999] pointer-events-none">
+      <div v-if="toastMsg" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2.5 bg-surface border border-hairline text-fg text-xs font-bold rounded-xl shadow-2xl z-[9999] pointer-events-none">
         {{ toastMsg }}
       </div>
     </Transition>
