@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { setGlobalSyncing } from "@/composables/useCloudSync";
 import { saveSyncTimestamp } from "@/composables/useSyncMonitor";
-import { upsertPhysician, removePhysician, refreshPassAhk } from "@/composables/usePhysicians";
+import { upsertPhysician, removePhysician, refreshPassAhk, pullPhysiciansFromCloud } from "@/composables/usePhysicians";
 import { useLogger } from "@/composables/useLogger";
 
 interface Physician { id: number; name: string; department: string; title: string; ext: string; his_account: string; his_password: string; notes: string; }
@@ -136,36 +136,7 @@ async function pullFromCloud() {
   if (!cloud.gasUrl) { showToast("請先在排班設定填入 GAS Web App URL"); return; }
   syncing.value = true; setGlobalSyncing("physicians", true);
   try {
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "getPhysicians" }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error);
-    let rows: Omit<Physician, "id">[] = json.data;
-    if (!rows.length) { showToast("雲端無資料"); return; }
-
-    const db = await getDb();
-    let inserted = 0, updated = 0;
-    for (const r of rows) {
-      const existing = await db.select<{ id: number }[]>(
-        "SELECT id FROM physicians WHERE name = ?", [r.name]
-      );
-      if (existing.length) {
-        await db.execute(
-          `UPDATE physicians SET department=?, title=?, ext=?, his_account=?, his_password=?, notes=? WHERE id=?`,
-          [r.department, r.title, r.ext ?? null, r.his_account, r.his_password, r.notes, existing[0].id]
-        );
-        updated++;
-      } else {
-        await db.execute(
-          `INSERT INTO physicians (name, department, title, ext, his_account, his_password, notes) VALUES (?,?,?,?,?,?,?)`,
-          [r.name, r.department, r.title, r.ext ?? null, r.his_account, r.his_password, r.notes]
-        );
-        inserted++;
-      }
-    }
+    const { inserted, updated } = await pullPhysiciansFromCloud(cloud.gasUrl);
     await load();
     // 拉下來的資料可能含新的／異動的 HIS 帳密，pass.ahk 必須跟著重建
     const ahkMessage = await refreshPassAhk();

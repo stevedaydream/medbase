@@ -11,6 +11,7 @@ import { setGlobalSyncing } from "@/composables/useCloudSync";
 import { markLocalModified, saveSyncTimestamp } from "@/composables/useSyncMonitor";
 import { useLogger } from "@/composables/useLogger";
 import { buildPassAhkContent, getPassAhkPath, setPassAhkPath } from "@/composables/usePassAhk";
+import { pullPhysiciansFromCloud } from "@/composables/usePhysicians";
 
 interface AhkScript {
   id: number;
@@ -36,6 +37,7 @@ const scriptContent = ref("");
 const groupScriptIds = ref<number[]>([]);
 const ahkExePath = ref("");
 const passAhkPath = ref<string | null>(null);
+const isRefreshingPass = ref(false);
 const showSettings = ref(false);
 const search = ref("");
 const toast = ref("");
@@ -353,6 +355,49 @@ async function saveExePath(path: string) {
 }
 
 // ── 從通訊錄產生 pass.ahk ────────────────────────────
+
+/**
+ * pass.ahk 一鍵刷新：拉取通訊錄 → 重新產生帳密 → 寫檔 → Reload。
+ *
+ * 平時的自動同步刻意不 Reload（會撞上使用者在 HIS 打字，見 usePassAhk），
+ * 這裡是使用者主動觸發、時機安全，所以是唯一會 Reload 的路徑。
+ */
+async function refreshPassAhkNow() {
+  if (!passAhkPath.value) { showToast("尚未指定帳密腳本"); return; }
+  if (!cloud.gasUrl) { showToast("請先設定 GAS Web App URL"); return; }
+
+  isRefreshingPass.value = true;
+  try {
+    const { inserted, updated } = await pullPhysiciansFromCloud(cloud.gasUrl);
+
+    const result = await buildPassAhkContent();
+    if (!result) { showToast("通訊錄中無帳號資料"); return; }
+
+    const path = passAhkPath.value;
+    await writeTextFile(path, result.content);
+
+    const db = await getDb();
+    await db.execute(
+      `UPDATE ahk_scripts SET updated_at = datetime('now') WHERE file_path = ?`, [path]
+    );
+    await loadAll();
+    if (selectedScript.value?.file_path === path) {
+      scriptContent.value = result.content;
+    }
+
+    const summary = `已拉取 ${inserted} 新增／${updated} 更新，產生 ${result.hisCount} 筆帳密`;
+    if (ahkExePath.value) {
+      await triggerReload(path);
+      showToast(`${summary}｜已 Reload ✓`);
+    } else {
+      showToast(`${summary}｜未設定 AHK 執行檔，未 Reload`);
+    }
+  } catch (e) {
+    showError(`刷新失敗：${(e as Error).message}`, e);
+  } finally {
+    isRefreshingPass.value = false;
+  }
+}
 
 async function generatePassAhk() {
   const result = await buildPassAhkContent();
@@ -863,9 +908,19 @@ function insertBuilderToScript() {
             >
               ⚡ 設為通訊錄連動帳密腳本
             </button>
-            <span v-else class="text-2xs font-black text-warning flex items-center gap-1 bg-warning/10 border border-warning/20 px-3 py-1.5 rounded-xl">
-              ⚡ 帳密腳本連動狀態中
-            </span>
+            <template v-else>
+              <span class="text-2xs font-black text-warning flex items-center gap-1 bg-warning/10 border border-warning/20 px-3 py-1.5 rounded-xl">
+                ⚡ 帳密腳本連動狀態中
+              </span>
+              <button
+                @click="refreshPassAhkNow"
+                :disabled="isRefreshingPass"
+                class="text-xs px-4 py-2 bg-accent/10 border border-accent/30 text-accent hover:bg-accent/20 rounded-xl transition-all cursor-pointer font-black disabled:opacity-50 disabled:cursor-not-allowed"
+                title="拉取通訊錄 → 重新產生帳密 → 儲存並 Reload"
+              >
+                {{ isRefreshingPass ? '刷新中…' : '🔄 刷新帳密' }}
+              </button>
+            </template>
           </div>
 
           <!-- Code editor -->
