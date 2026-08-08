@@ -271,19 +271,19 @@ async function doDelete() {
 </script>
 
 <template>
-  <div class="flex flex-col h-full overflow-hidden bg-slate-950/20 rounded-2xl border border-white/5 shadow-2xl">
+  <div class="flex flex-col h-full overflow-hidden bg-sunken/20 rounded-2xl border border-hairline shadow-2xl">
 
     <!-- Header / Search & Sync bar -->
-    <div class="flex items-center gap-3 px-6 py-4 border-b border-white/5 shrink-0 bg-slate-900/30 backdrop-blur-md flex-wrap md:flex-nowrap">
+    <div class="flex items-center gap-3 px-6 py-4 border-b border-hairline shrink-0 bg-surface/30 backdrop-blur-md flex-wrap md:flex-nowrap">
       <!-- Search Input -->
       <div class="relative flex-1 min-w-[200px]">
-        <span class="absolute left-3 top-3 text-slate-500 text-sm">🔍</span>
+        <span class="absolute left-3 top-3 text-muted text-sm">🔍</span>
         <input
           v-model="search"
           placeholder="搜尋分機名稱、號碼、備註…"
-          class="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-900/50 border border-white/10 text-slate-200 text-xs placeholder-slate-600 outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 transition-all font-sans"
+          class="w-full pl-9 pr-4 py-2.5 rounded-xl bg-surface/50 border border-hairline text-fg text-xs placeholder-muted outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 transition-all font-sans"
         />
-        <button v-if="search" @click="search = ''" class="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300 text-lg leading-none cursor-pointer">×</button>
+        <button v-if="search" @click="search = ''" class="absolute right-3 top-2.5 text-muted hover:text-fg-secondary text-lg leading-none cursor-pointer">×</button>
       </div>
 
       <!-- Sync actions & Add button -->
@@ -294,12 +294,12 @@ async function doDelete() {
           {{ isSyncing ? "…" : "雲端同步" }}
         </button>
         <button @click="pushToCloud" :disabled="isSyncing"
-          class="px-4 py-2.5 rounded-xl bg-slate-800 border border-white/5 text-slate-300 text-xs font-bold hover:bg-slate-700 disabled:opacity-40 transition-all cursor-pointer">
+          class="px-4 py-2.5 rounded-xl bg-elevated border border-hairline text-fg-secondary text-xs font-bold hover:bg-raised disabled:opacity-40 transition-all cursor-pointer">
           ↑ 上傳
         </button>
         <button
           @click="openAdd"
-          class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-xs font-bold hover:from-blue-500 hover:to-cyan-500 transition-all shadow-lg shadow-blue-500/10 flex items-center gap-1.5 cursor-pointer"
+          class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-fg text-xs font-bold hover:from-blue-500 hover:to-cyan-500 transition-all shadow-lg shadow-blue-500/10 flex items-center gap-1.5 cursor-pointer"
         >
           <span>＋</span> 新增分機
         </button>
@@ -307,14 +307,14 @@ async function doDelete() {
     </div>
 
     <!-- Category Filter Pill Selector -->
-    <div class="flex gap-1.5 px-6 py-3 border-b border-white/5 overflow-x-auto shrink-0 bg-slate-900/10 no-scrollbar">
+    <div class="flex gap-1.5 px-6 py-3 border-b border-hairline overflow-x-auto shrink-0 bg-surface/10 no-scrollbar">
       <button
         v-for="cat in categories" :key="cat"
         @click="catFilter = cat"
         class="px-4 py-1.5 rounded-full text-2xs font-bold tracking-wide uppercase transition-all whitespace-nowrap border cursor-pointer"
         :class="catFilter === cat
           ? 'bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border-cyan-500/30 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.05)]'
-          : 'bg-slate-950/40 border-white/5 text-slate-500 hover:text-slate-300 hover:bg-slate-900/60'"
+          : 'bg-sunken/40 border-hairline text-muted hover:text-fg-secondary hover:bg-surface/60'"
       >{{ cat }}</button>
     </div>
 
@@ -322,38 +322,38 @@ async function doDelete() {
     <div class="flex-1 overflow-y-auto px-6 py-5 space-y-6">
 
       <!-- Empty state -->
-      <div v-if="filtered.length === 0" class="text-center py-20 rounded-2xl border border-dashed border-white/5 bg-slate-900/10">
+      <div v-if="filtered.length === 0" class="text-center py-20 rounded-2xl border border-dashed border-hairline bg-surface/10">
         <div class="text-4xl mb-3 opacity-20">📞</div>
-        <p class="text-slate-500 text-xs font-medium uppercase tracking-wider">No contacts found</p>
-        <p class="text-slate-600 text-2xs mt-1">Press "+ 新增分機" to create a new directory record</p>
+        <p class="text-muted text-xs font-medium uppercase tracking-wider">No contacts found</p>
+        <p class="text-muted text-2xs mt-1">Press "+ 新增分機" to create a new directory record</p>
       </div>
 
       <!-- Categories dossier -->
       <div v-for="[cat, items] in grouped" :key="cat" class="space-y-3">
         <!-- Section divider label -->
         <div class="flex items-center gap-2.5">
-          <span class="text-2xs font-bold text-slate-500 uppercase tracking-widest">{{ cat }}</span>
-          <span class="text-2xs text-slate-600 font-mono border border-white/5 px-2 py-0.5 rounded-md bg-white/[0.01]">{{ items.length }}</span>
-          <div class="flex-1 border-t border-white/5"></div>
+          <span class="text-2xs font-bold text-muted uppercase tracking-widest">{{ cat }}</span>
+          <span class="text-2xs text-muted font-mono border border-hairline px-2 py-0.5 rounded-md bg-overlay/[0.01]">{{ items.length }}</span>
+          <div class="flex-1 border-t border-hairline"></div>
         </div>
 
         <!-- Cards grid -->
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div
             v-for="c in items" :key="c.id"
-            class="group flex flex-col justify-between bg-slate-900/30 border border-white/5 rounded-2xl p-5 hover:border-cyan-500/30 hover:bg-slate-900/50 shadow-md transition-all duration-300 relative overflow-hidden"
+            class="group flex flex-col justify-between bg-surface/30 border border-hairline rounded-2xl p-5 hover:border-cyan-500/30 hover:bg-surface/50 shadow-md transition-all duration-300 relative overflow-hidden"
           >
             <!-- Card top row -->
             <div class="flex items-start justify-between gap-3">
-              <span class="text-xs font-bold text-slate-200 tracking-wide leading-normal">{{ c.label }}</span>
+              <span class="text-xs font-bold text-fg tracking-wide leading-normal">{{ c.label }}</span>
               <div class="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all shrink-0">
-                <button @click="openEdit(c)" class="text-2xs font-bold px-2 py-1 rounded bg-slate-800 border border-white/5 text-slate-400 hover:text-cyan-400 hover:border-cyan-500/20 transition-all cursor-pointer">編輯</button>
+                <button @click="openEdit(c)" class="text-2xs font-bold px-2 py-1 rounded bg-elevated border border-hairline text-fg-secondary hover:text-cyan-400 hover:border-cyan-500/20 transition-all cursor-pointer">編輯</button>
                 <button @click="confirmDelete(c)" class="text-2xs font-bold px-2 py-1 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 transition-all cursor-pointer">刪除</button>
               </div>
             </div>
 
             <!-- Card dial row -->
-            <div class="mt-4 flex items-center justify-between border-t border-white/[0.03] pt-3.5">
+            <div class="mt-4 flex items-center justify-between border-t border-hairline pt-3.5">
               <button
                 @click="copyExt(c.ext)"
                 class="font-mono text-xl font-black text-cyan-400 hover:text-cyan-300 tracking-widest transition-colors flex items-center gap-1.5 cursor-pointer transform active:scale-98"
@@ -361,11 +361,11 @@ async function doDelete() {
               >
                 <span>📞</span> {{ c.ext }}
               </button>
-              <span class="text-[0.5rem] font-bold text-slate-600 uppercase tracking-widest pointer-events-none">COPY</span>
+              <span class="text-[0.5rem] font-bold text-muted uppercase tracking-widest pointer-events-none">COPY</span>
             </div>
 
             <!-- Notes -->
-            <p v-if="c.notes" class="mt-2.5 text-2xs text-slate-500 font-sans truncate leading-normal" :title="c.notes">{{ c.notes }}</p>
+            <p v-if="c.notes" class="mt-2.5 text-2xs text-muted font-sans truncate leading-normal" :title="c.notes">{{ c.notes }}</p>
           </div>
         </div>
       </div>
@@ -376,62 +376,62 @@ async function doDelete() {
   <!-- Add / Edit Modal -->
   <Teleport to="body">
     <div v-if="showModal"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-sunken/60 backdrop-blur-sm"
       @click.self="showModal = false"
     >
-      <div class="w-full max-w-sm bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+      <div class="w-full max-w-sm bg-surface border border-hairline rounded-2xl shadow-2xl overflow-hidden">
         <!-- Header -->
-        <div class="flex items-center justify-between px-5 py-4 border-b border-white/5">
-          <h3 class="text-slate-100 font-black text-xs">{{ modalMode === "add" ? "✨ 新增" : "⚙️ 編輯" }}分機資料</h3>
-          <button @click="showModal = false" class="text-slate-500 hover:text-slate-300 text-xl leading-none cursor-pointer">×</button>
+        <div class="flex items-center justify-between px-5 py-4 border-b border-hairline">
+          <h3 class="text-fg font-black text-xs">{{ modalMode === "add" ? "✨ 新增" : "⚙️ 編輯" }}分機資料</h3>
+          <button @click="showModal = false" class="text-muted hover:text-fg-secondary text-xl leading-none cursor-pointer">×</button>
         </div>
         
         <!-- Form -->
         <div class="px-5 py-4 space-y-3.5">
           <div>
-            <label class="text-2xs font-bold text-slate-500 mb-1 block">名稱 *</label>
+            <label class="text-2xs font-bold text-muted mb-1 block">名稱 *</label>
             <input v-model="form.label" autofocus
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-cyan-500/50"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-cyan-500/50"
               placeholder="護理站、值班室、藥局…" />
           </div>
           <div>
-            <label class="text-2xs font-bold text-slate-500 mb-1 block">分機號碼 *</label>
+            <label class="text-2xs font-bold text-muted mb-1 block">分機號碼 *</label>
             <input v-model="form.ext"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs font-mono focus:outline-none focus:border-cyan-500/50"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono focus:outline-none focus:border-cyan-500/50"
               placeholder="12345" />
           </div>
           <div>
-            <label class="text-2xs font-bold text-slate-500 mb-1 block">類別分類</label>
+            <label class="text-2xs font-bold text-muted mb-1 block">類別分類</label>
             <input v-model="form.category"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-cyan-500/50"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-cyan-500/50"
               placeholder="常用分機" />
           </div>
           <div>
-            <label class="text-2xs font-bold text-slate-500 mb-1 block">備註說明</label>
+            <label class="text-2xs font-bold text-muted mb-1 block">備註說明</label>
             <input v-model="form.notes"
-              class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs focus:outline-none focus:border-cyan-500/50"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-cyan-500/50"
               placeholder="選填說明" />
           </div>
         </div>
 
         <!-- Footer -->
-        <div class="flex justify-end gap-2.5 px-5 py-3.5 border-t border-white/5">
-          <button @click="showModal = false" class="px-4 py-2 text-xs font-bold bg-slate-800 border border-white/5 text-slate-400 rounded-xl hover:bg-slate-700 hover:text-slate-200 transition-colors">取消</button>
-          <button @click="save" class="px-5 py-2 text-xs font-bold bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl hover:from-blue-500 hover:to-cyan-500 transition-all shadow-lg">儲存記錄</button>
+        <div class="flex justify-end gap-2.5 px-5 py-3.5 border-t border-hairline">
+          <button @click="showModal = false" class="px-4 py-2 text-xs font-bold bg-elevated border border-hairline text-fg-secondary rounded-xl hover:bg-raised hover:text-fg transition-colors">取消</button>
+          <button @click="save" class="px-5 py-2 text-xs font-bold bg-gradient-to-r from-blue-600 to-cyan-600 text-fg rounded-xl hover:from-blue-500 hover:to-cyan-500 transition-all shadow-lg">儲存記錄</button>
         </div>
       </div>
     </div>
 
     <!-- Confirm delete modal -->
     <div v-if="showConfirm"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-sunken/60 backdrop-blur-sm"
       @click.self="showConfirm = false"
     >
-      <div class="w-full max-w-xs bg-slate-900 border border-white/10 rounded-2xl shadow-2xl p-5 text-center">
-        <p class="text-slate-200 text-sm font-semibold mb-1">確定刪除此分機紀錄？</p>
-        <p class="text-xs text-slate-500 mb-6">「{{ deleteTarget?.label }}」{{ deleteTarget?.ext }}</p>
+      <div class="w-full max-w-xs bg-surface border border-hairline rounded-2xl shadow-2xl p-5 text-center">
+        <p class="text-fg text-sm font-semibold mb-1">確定刪除此分機紀錄？</p>
+        <p class="text-xs text-muted mb-6">「{{ deleteTarget?.label }}」{{ deleteTarget?.ext }}</p>
         <div class="flex gap-2.5 justify-center">
-          <button @click="showConfirm = false" class="px-4 py-2 text-xs font-bold bg-slate-800 border border-white/5 text-slate-400 rounded-xl hover:bg-slate-700 hover:text-slate-200">取消</button>
+          <button @click="showConfirm = false" class="px-4 py-2 text-xs font-bold bg-elevated border border-hairline text-fg-secondary rounded-xl hover:bg-raised hover:text-fg">取消</button>
           <button @click="doDelete" class="px-4 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white rounded-xl shadow-lg shadow-rose-500/10">確認刪除</button>
         </div>
       </div>
@@ -442,7 +442,7 @@ async function doDelete() {
   <Teleport to="body">
     <Transition name="slide-up">
       <div v-if="toast"
-        class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4.5 py-2.5 bg-slate-900 border border-white/10 text-slate-200 text-xs font-bold rounded-xl shadow-2xl z-[9999] pointer-events-none">
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4.5 py-2.5 bg-surface border border-hairline text-fg text-xs font-bold rounded-xl shadow-2xl z-[9999] pointer-events-none">
         {{ toast }}
       </div>
     </Transition>
