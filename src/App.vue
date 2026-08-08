@@ -388,7 +388,7 @@ function dismissUpdate() {
   />
 
   <!-- 正常模式 -->
-  <div v-else class="flex h-screen overflow-hidden bg-gray-950">
+  <div v-else class="flex h-screen overflow-hidden bg-sunken">
     <Sidebar @enter-compact="enterCompact" />
 
     <div class="flex flex-col flex-1 overflow-hidden">
@@ -421,31 +421,31 @@ function dismissUpdate() {
     <!-- 啟動更新確認對話框 -->
     <Transition name="modal">
       <div v-if="updateDialogOpen"
-        class="fixed inset-0 z-[9000] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+        class="fixed inset-0 z-[9000] flex items-center justify-center bg-sunken/60 backdrop-blur-sm"
         @click.self="dismissUpdate">
-        <div class="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-[420px] max-w-[90vw] p-6 space-y-4">
+        <div class="bg-surface border border-hairline rounded-2xl shadow-2xl w-[420px] max-w-[90vw] p-6 space-y-4">
           <!-- Header -->
           <div class="flex items-start gap-3">
             <div class="text-2xl leading-none">🎉</div>
             <div>
-              <p class="text-white font-semibold text-base">發現新版本</p>
+              <p class="text-fg font-semibold text-base">發現新版本</p>
               <p class="text-emerald-400 font-mono text-sm font-bold mt-0.5">v{{ updateVersion }}</p>
             </div>
           </div>
 
           <!-- Release notes -->
           <pre v-if="updateNotes"
-            class="text-xs text-gray-400 whitespace-pre-wrap font-sans leading-relaxed bg-gray-800 rounded-lg p-3 max-h-48 overflow-y-auto">{{ updateNotes }}</pre>
+            class="text-xs text-fg-secondary whitespace-pre-wrap font-sans leading-relaxed bg-elevated rounded-lg p-3 max-h-48 overflow-y-auto">{{ updateNotes }}</pre>
 
           <!-- Actions -->
           <div class="flex gap-3 justify-end pt-1">
             <button @click="dismissUpdate" :disabled="updateDownloading"
-              class="text-sm px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-300 rounded-lg transition-colors">
+              class="text-sm px-4 py-2 bg-raised hover:bg-raised disabled:opacity-40 text-fg-secondary rounded-lg transition-colors">
               稍後再說
             </button>
             <button @click="installUpdate" :disabled="updateDownloading"
               class="text-sm px-5 py-2 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg font-semibold transition-colors flex items-center gap-2">
-              <span v-if="updateDownloading" class="inline-block w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <span v-if="updateDownloading" class="inline-block w-3.5 h-3.5 border-2 border-hairline border-t-white rounded-full animate-spin" />
               {{ updateDownloading ? '安裝中…' : '立即更新' }}
             </button>
           </div>
@@ -466,7 +466,7 @@ function dismissUpdate() {
     <!-- Toast -->
     <Transition name="toast">
       <div v-if="toast"
-        class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 bg-gray-700 text-white text-sm rounded-lg shadow-xl z-[9999] pointer-events-none">
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 bg-raised text-fg text-sm rounded-lg shadow-xl z-[9999] pointer-events-none">
         {{ toast }}
       </div>
     </Transition>
