@@ -35,9 +35,14 @@
   --color-overlay:      #0f172a;
 
   /* 語意色：全站一致，不得挪作頁面裝飾色 */
-  --color-danger:       #b91c1c;
-  --color-warning:      #a16207;
+  --color-danger:       #be123c;
+  --color-warning:      #b45309;
   --color-success:      #047857;
+
+  /* 頁面識別色：由各 view 根元素的 .accent-* class 指定實際色相。
+     預設 indigo；深色主題用 -400 階、淺色主題用 -700 階，兩者實測
+     皆通過 AA（最低 5.02:1）。微染底與邊框沿用 /10、/20 修飾詞。*/
+  --color-accent:       #4338ca;
 
   --color-emergency: #dc2626;
   --color-emergency-dark: #991b1b;
@@ -68,9 +73,44 @@
   --color-hairline:     rgb(255 255 255 / 0.07);
   --color-overlay:      #ffffff;
 
-  --color-danger:       #f87171;
+  --color-danger:       #fb7185;
   --color-warning:      #fbbf24;
   --color-success:      #34d399;
+  --color-accent:       #818cf8;
+}
+
+/* ── 頁面識別色分配 ────────────────────────────────────────────────
+   原則：同一功能群共用一色，讓側邊欄的分組與顏色一致，切頁時能一眼
+   認出自己在哪一區。語意色 rose／amber／emerald 不參與分配。
+
+     teal    臨床參考與評估  處方・手術・疾病・檢查・ACP
+     violet  品項與套組      自費品項・套組管理
+     cyan    人員與工具      通訊錄・常用分機・臨床工具・病歷潤飾
+     blue    排班            排班表・規則備忘錄
+     indigo  系統            AHK・資料管理・設定
+     rose    危急情境        名實相符，識別色即語意色
+   ──────────────────────────────────────────────────────────────── */
+.accent-teal   { --color-accent: #0f766e; }
+.accent-violet { --color-accent: #6d28d9; }
+.accent-cyan   { --color-accent: #0e7490; }
+.accent-blue   { --color-accent: #1d4ed8; }
+.accent-indigo { --color-accent: #4338ca; }
+.accent-rose   { --color-accent: #be123c; }
+
+:root[data-theme="dark"] .accent-teal   { --color-accent: #2dd4bf; }
+:root[data-theme="dark"] .accent-violet { --color-accent: #a78bfa; }
+:root[data-theme="dark"] .accent-cyan   { --color-accent: #22d3ee; }
+:root[data-theme="dark"] .accent-blue   { --color-accent: #60a5fa; }
+:root[data-theme="dark"] .accent-indigo { --color-accent: #818cf8; }
+:root[data-theme="dark"] .accent-rose   { --color-accent: #fb7185; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .accent-teal   { --color-accent: #2dd4bf; }
+  :root:not([data-theme="light"]) .accent-violet { --color-accent: #a78bfa; }
+  :root:not([data-theme="light"]) .accent-cyan   { --color-accent: #22d3ee; }
+  :root:not([data-theme="light"]) .accent-blue   { --color-accent: #60a5fa; }
+  :root:not([data-theme="light"]) .accent-indigo { --color-accent: #818cf8; }
+  :root:not([data-theme="light"]) .accent-rose   { --color-accent: #fb7185; }
 }
 
 /* JS 尚未接手前（首屏）先跟隨系統，避免深色使用者看到白色閃爍 */
