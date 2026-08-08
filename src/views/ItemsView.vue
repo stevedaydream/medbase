@@ -554,23 +554,23 @@ async function pullSurgeryTypesFromCloud() {
 </script>
 
 <template>
-  <div class="flex flex-col h-full gap-4 text-fg select-none bg-sunken/20">
+  <div class="accent-violet flex flex-col h-full gap-4 text-fg select-none bg-sunken">
 
     <!-- ── 搜尋列 ──────────────────────────────────────────── -->
-    <div class="flex items-center gap-3 bg-surface/40 backdrop-blur-md border border-hairline rounded-2xl p-4 shadow-lg shrink-0">
+    <div class="flex items-center gap-3 bg-surface border border-hairline rounded-2xl p-4 shadow-lg shrink-0">
       <div class="relative flex-1">
         <span class="absolute left-3.5 top-3 text-muted text-sm">🔍</span>
         <input
           v-model="searchRaw"
           placeholder="搜尋品名 / 院內碼 / 用途 / 科別 / 廠商 / 醫師 / 套組名…"
-          class="w-full pl-9 pr-4 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs placeholder-muted outline-none focus:border-teal-500/50 font-bold"
+          class="w-full pl-9 pr-4 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs placeholder-muted outline-none focus:border-accent/50 font-bold"
         />
       </div>
       <span class="text-2xs font-mono font-bold text-muted shrink-0 bg-sunken px-3 py-2 rounded-xl border border-hairline">{{ filtered.length }} / {{ items.length }} ITEMS</span>
       
       <div class="flex gap-1.5 shrink-0">
         <button @click="pullFromCloud" :disabled="isSyncing"
-          class="text-xs px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/30 text-indigo-400 hover:text-white rounded-xl font-bold transition-all cursor-pointer">
+          class="text-xs px-4 py-2 bg-accent/20 hover:bg-indigo-600 border border-accent/30 text-accent hover:text-white rounded-xl font-bold transition-all cursor-pointer">
           {{ isSyncing ? "…" : "↓ 雲端同步" }}
         </button>
         <button @click="pushToCloud" :disabled="isSyncing"
@@ -589,14 +589,14 @@ async function pullSurgeryTypesFromCloud() {
     </Transition>
 
     <!-- ── 醫師快捷 ─────────────────────────────────────────── -->
-    <div v-if="doctorsWithSets.length > 0" class="flex flex-wrap gap-2 shrink-0 bg-surface/20 p-2 rounded-2xl border border-hairline">
+    <div v-if="doctorsWithSets.length > 0" class="flex flex-wrap gap-2 shrink-0 bg-surface p-2 rounded-2xl border border-hairline">
       <button
         v-for="doc in doctorsWithSets" :key="doc.id"
         @click="selectDoctor(doc.id)"
         class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer"
         :class="activeDoctorId === doc.id
-          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/10 border border-indigo-500/30'
-          : 'bg-sunken/40 text-fg-secondary hover:text-fg border border-hairline'"
+          ? 'bg-indigo-600 text-white shadow-lg shadow-accent/10 border border-accent/30'
+          : 'bg-sunken text-fg-secondary hover:text-fg border border-hairline'"
       >
         <span>👨‍⚕️</span>
         <span>{{ doc.name }}</span>
@@ -616,8 +616,8 @@ async function pullSurgeryTypesFromCloud() {
           @click="selectSet(s.id)"
           class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer"
           :class="activeSetId === s.id
-            ? 'bg-indigo-600/30 border border-indigo-500/50 text-white'
-            : 'bg-sunken/40 text-fg-secondary hover:text-indigo-400 border border-hairline'"
+            ? 'bg-accent/30 border border-accent/50 text-white'
+            : 'bg-sunken text-fg-secondary hover:text-accent border border-hairline'"
         >
           <span>{{ s.name }}</span>
           <span v-if="activeSetId === s.id && activeSetCodes.size > 0"
@@ -629,7 +629,7 @@ async function pullSurgeryTypesFromCloud() {
     </Transition>
 
     <!-- ── 篩選維度 (L1) ─────────────────────────────────────── -->
-    <div class="space-y-3 bg-surface/40 backdrop-blur-md border border-hairline rounded-2xl p-4 shadow-lg shrink-0">
+    <div class="space-y-3 bg-surface border border-hairline rounded-2xl p-4 shadow-lg shrink-0">
       <div class="flex items-center gap-2 flex-wrap border-b border-hairline pb-3">
         <button
           v-for="mode in ([
@@ -641,8 +641,8 @@ async function pullSurgeryTypesFromCloud() {
           @click="filterMode = mode.key"
           class="px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer"
           :class="filterMode === mode.key
-            ? 'bg-elevated border border-hairline text-teal-400 shadow-inner'
-            : 'bg-sunken/40 text-muted hover:text-fg-secondary border border-hairline'"
+            ? 'bg-elevated border border-hairline text-accent shadow-inner'
+            : 'bg-sunken text-muted hover:text-fg-secondary border border-hairline'"
         >
           {{ mode.label }}
           <span v-if="mode.key === 'surgery' && surgeryTypes.length > 0"
@@ -664,15 +664,15 @@ async function pullSurgeryTypesFromCloud() {
           :class="tag.key === '__all__'
             ? (isAllActive
                 ? 'bg-elevated border border-hairline text-fg shadow-inner'
-                : 'bg-sunken/40 text-muted border border-hairline hover:text-fg-secondary')
+                : 'bg-sunken text-muted border border-hairline hover:text-fg-secondary')
             : (isActiveFilter(tag.key)
-                ? (filterMode === 'dept' ? 'bg-cyan-600/20 border-cyan-500/50 text-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.1)]' : filterMode === 'purpose' ? 'bg-teal-600/20 border-teal-500/50 text-teal-400 shadow-[0_0_12px_rgba(20,184,166,0.1)]' : 'bg-violet-600/20 border-violet-500/50 text-violet-400 shadow-[0_0_12px_rgba(139,92,246,0.1)]')
-                : 'bg-sunken/40 text-fg-secondary hover:text-fg border border-hairline')"
+                ? (filterMode === 'dept' ? 'bg-accent/20 border-accent/50 text-accent shadow-[0_0_12px_rgba(6,182,212,0.1)]' : filterMode === 'purpose' ? 'bg-accent/20 border-accent/50 text-accent shadow-[0_0_12px_rgba(20,184,166,0.1)]' : 'bg-accent/20 border-accent/50 text-accent shadow-[0_0_12px_rgba(139,92,246,0.1)]')
+                : 'bg-sunken text-fg-secondary hover:text-fg border border-hairline')"
         >
           <span>{{ tag.label }}</span>
           <span v-if="tag.sub" class="text-2xs opacity-60 font-mono font-medium">{{ tag.sub }}</span>
           <span class="rounded-full px-2 py-0.5 text-2xs font-mono font-bold"
-            :class="(tag.key !== '__all__' && isActiveFilter(tag.key)) ? 'bg-sunken/60' : 'bg-sunken text-muted'">
+            :class="(tag.key !== '__all__' && isActiveFilter(tag.key)) ? 'bg-sunken' : 'bg-sunken text-muted'">
             {{ tag.count }}
           </span>
         </button>
@@ -684,12 +684,8 @@ async function pullSurgeryTypesFromCloud() {
           <span class="text-2xs font-black text-muted shrink-0">篩選項目:</span>
           <span
             v-for="chip in activeFilterChips" :key="`${chip.mode}-${chip.key}`"
-            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border"
-            :class="{
-              'bg-cyan-600/10 border-cyan-500/20 text-cyan-400':   chip.mode === 'dept',
-              'bg-teal-600/10 border-teal-500/20 text-teal-400':   chip.mode === 'purpose',
-              'bg-violet-600/10 border-violet-500/20 text-violet-400': chip.mode === 'surgery',
-            }"
+            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border
+                   bg-accent/10 border-accent/20 text-accent"
           >
             <span class="text-2xs font-black uppercase opacity-60">{{ chip.typeLabel }}</span>
             <span>{{ chip.label }}</span>
@@ -703,7 +699,7 @@ async function pullSurgeryTypesFromCloud() {
     </div>
 
     <!-- ── 表格 ─────────────────────────────────────────────── -->
-    <div class="flex-1 rounded-2xl bg-surface/40 backdrop-blur-md border border-hairline overflow-auto min-h-0 shadow-xl custom-scrollbar">
+    <div class="flex-1 rounded-2xl bg-surface border border-hairline overflow-auto min-h-0 shadow-xl custom-scrollbar">
       <table class="w-full text-xs border-collapse">
         <thead class="sticky top-0 bg-surface z-10 border-b border-hairline">
           <tr class="text-fg-secondary text-2xs font-black">
@@ -719,7 +715,7 @@ async function pullSurgeryTypesFromCloud() {
         </thead>
         <tbody>
           <tr v-if="errMsg">
-            <td colspan="8" class="text-center text-rose-400 py-16 font-bold">{{ errMsg }}</td>
+            <td colspan="8" class="text-center text-danger py-16 font-bold">{{ errMsg }}</td>
           </tr>
           <tr v-else-if="loading">
             <td colspan="8" class="text-center text-muted py-16 italic font-bold">載入中…</td>
@@ -735,7 +731,7 @@ async function pullSurgeryTypesFromCloud() {
           >
             <td
               class="px-5 py-3.5 text-xs cursor-pointer select-none transition-colors"
-              :class="copiedCode === m.hospital_code ? 'text-emerald-400 font-bold' : 'text-fg-secondary hover:text-teal-400'"
+              :class="copiedCode === m.hospital_code ? 'text-success font-bold' : 'text-fg-secondary hover:text-accent'"
               :title="'複製 ' + m.hospital_code"
               @click="copyCode(m.hospital_code)"
             >
@@ -744,7 +740,7 @@ async function pullSurgeryTypesFromCloud() {
             <td class="px-5 py-3.5 text-fg font-bold">{{ m.name_zh || "—" }}</td>
             <td class="px-5 py-3.5 text-fg-secondary text-xs leading-normal">{{ m.name_en || "—" }}</td>
             <td class="px-5 py-3.5">
-              <span v-if="m.purpose" class="text-2xs bg-teal-500/10 border border-teal-500/30 text-teal-400 px-2 py-0.5 rounded-full font-bold">
+              <span v-if="m.purpose" class="text-2xs bg-accent/10 border border-accent/30 text-accent px-2 py-0.5 rounded-full font-bold">
                 {{ m.purpose }}
               </span>
               <span v-else class="text-muted text-xs">—</span>
@@ -752,11 +748,11 @@ async function pullSurgeryTypesFromCloud() {
             <td class="px-5 py-3.5">
               <div class="flex flex-wrap gap-1">
                 <span v-for="d in m.depts" :key="d"
-                  class="text-2xs font-bold bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full">{{ d }}</span>
+                  class="text-2xs font-bold bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 rounded-full">{{ d }}</span>
                 <span v-if="m.depts.length === 0" class="text-muted text-xs">—</span>
               </div>
             </td>
-            <td class="px-5 py-3.5 text-right text-emerald-400 font-mono font-bold">
+            <td class="px-5 py-3.5 text-right text-success font-mono font-bold">
               {{ m.price ? `$${m.price.toLocaleString()}` : "—" }}
             </td>
             <td class="px-5 py-3.5 text-fg-secondary text-xs">{{ m.unit || "—" }}</td>
@@ -776,12 +772,12 @@ async function pullSurgeryTypesFromCloud() {
       <div class="bg-surface border border-hairline rounded-2xl shadow-2xl w-[820px] max-w-[95vw] h-[640px] max-h-[90vh] flex flex-col overflow-hidden text-fg">
 
         <!-- Modal Header -->
-        <div class="flex items-center justify-between px-5 py-4 border-b border-hairline shrink-0 bg-sunken/30">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-hairline shrink-0 bg-sunken">
           <div class="flex items-center gap-3">
             <h3 class="text-xs font-black text-fg">管理手術術式</h3>
             <div class="flex items-center gap-1.5">
               <button @click="pullSurgeryTypesFromCloud" :disabled="isSurgSyncing"
-                class="text-2xs font-bold px-3 py-1.5 rounded-lg border border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10 disabled:opacity-40 transition-colors cursor-pointer">
+                class="text-2xs font-bold px-3 py-1.5 rounded-lg border border-accent/30 text-accent hover:bg-accent/10 disabled:opacity-40 transition-colors cursor-pointer">
                 {{ isSurgSyncing ? '…' : '↓ 雲端同步' }}
               </button>
               <button @click="pushSurgeryTypesToCloud" :disabled="isSurgSyncing"
@@ -795,27 +791,27 @@ async function pullSurgeryTypesFromCloud() {
         </div>
 
         <!-- Modal Body -->
-        <div class="flex flex-1 min-h-0 bg-sunken/10">
+        <div class="flex flex-1 min-h-0 bg-sunken">
 
           <!-- 左欄：術式清單 -->
           <div class="w-64 border-r border-hairline flex flex-col shrink-0">
-            <div class="p-3 border-b border-hairline shrink-0 bg-sunken/20">
+            <div class="p-3 border-b border-hairline shrink-0 bg-sunken">
               <button @click="mgmtStartAdd"
-                class="w-full text-xs px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 border border-violet-500/30 text-white transition-all font-bold cursor-pointer">
+                class="w-full text-xs px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 border border-accent/30 text-white transition-all font-bold cursor-pointer">
                 ＋ 新增術式
               </button>
             </div>
 
             <!-- 新增 / 編輯表單 -->
             <Transition name="slide-down">
-              <div v-if="mgmtShowForm" class="p-4 space-y-2 border-b border-hairline bg-surface/50 shrink-0">
+              <div v-if="mgmtShowForm" class="p-4 space-y-2 border-b border-hairline bg-surface shrink-0">
                 <input v-model="mgmtFormName" placeholder="術式名稱 *" maxlength="40"
-                  class="w-full px-3 py-2 text-xs rounded-xl bg-sunken border border-hairline text-fg focus:outline-none focus:border-violet-500/50 placeholder-muted font-bold" />
+                  class="w-full px-3 py-2 text-xs rounded-xl bg-sunken border border-hairline text-fg focus:outline-none focus:border-accent/50 placeholder-muted font-bold" />
                 <input v-model="mgmtFormDept" placeholder="科別（選填）" maxlength="20"
-                  class="w-full px-3 py-2 text-xs rounded-xl bg-sunken border border-hairline text-fg focus:outline-none focus:border-violet-500/50 placeholder-muted font-bold" />
+                  class="w-full px-3 py-2 text-xs rounded-xl bg-sunken border border-hairline text-fg focus:outline-none focus:border-accent/50 placeholder-muted font-bold" />
                 <div class="flex gap-2">
                   <button @click="mgmtSaveForm" :disabled="!mgmtFormName.trim()"
-                    class="flex-1 text-xs py-1.5 rounded-lg bg-violet-600 border border-violet-500/30 hover:bg-violet-500 disabled:opacity-40 text-white font-bold cursor-pointer">
+                    class="flex-1 text-xs py-1.5 rounded-lg bg-violet-600 border border-accent/30 hover:bg-violet-500 disabled:opacity-40 text-white font-bold cursor-pointer">
                     {{ mgmtEditId === null ? "新增" : "儲存" }}
                   </button>
                   <button @click="mgmtShowForm = false"
@@ -836,23 +832,23 @@ async function pullSurgeryTypesFromCloud() {
                 @click="mgmtSelectSurgery(st.id)"
                 class="w-full text-left px-4 py-3.5 border-b border-hairline flex items-start justify-between gap-1 transition-all group cursor-pointer"
                 :class="mgmtSelId === st.id
-                  ? 'bg-violet-600/10 border-l-2 border-violet-500 pl-3.5'
+                  ? 'bg-accent/10 border-l-2 border-violet-500 pl-3.5'
                   : 'hover:bg-surface/40'"
               >
                 <div class="min-w-0 flex-1">
                   <div class="text-xs text-fg font-bold truncate">{{ st.name }}</div>
-                  <div v-if="st.dept" class="text-2xs font-mono text-violet-400 font-bold mt-1">{{ st.dept }}</div>
+                  <div v-if="st.dept" class="text-2xs font-mono text-accent font-bold mt-1">{{ st.dept }}</div>
                 </div>
                 <div class="flex items-center gap-1 shrink-0 mt-0.5">
                   <span class="text-2xs font-mono text-muted bg-sunken px-1.5 py-0.5 rounded font-bold">
                     {{ surgeryTypeItemMap.get(st.id)?.size ?? 0 }}
                   </span>
                   <button @click.stop="mgmtStartEdit(st)"
-                    class="text-muted hover:text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity px-1 text-[0.6875rem] cursor-pointer">
+                    class="text-muted hover:text-accent opacity-0 group-hover:opacity-100 transition-opacity px-1 text-[0.6875rem] cursor-pointer">
                     ✎
                   </button>
                   <button @click.stop="mgmtDeleteSurgery(st.id)"
-                    class="text-muted hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity px-1 text-[0.6875rem] cursor-pointer">
+                    class="text-muted hover:text-danger opacity-0 group-hover:opacity-100 transition-opacity px-1 text-[0.6875rem] cursor-pointer">
                     ✕
                   </button>
                 </div>
@@ -867,9 +863,9 @@ async function pullSurgeryTypesFromCloud() {
             </div>
             <template v-else>
               <!-- 右欄 Header -->
-              <div class="px-5 py-3.5 border-b border-hairline flex items-center gap-3 shrink-0 flex-wrap bg-sunken/10">
+              <div class="px-5 py-3.5 border-b border-hairline flex items-center gap-3 shrink-0 flex-wrap bg-sunken">
                 <span class="text-xs text-fg font-black tracking-wider truncate">{{ mgmtSelected?.name }}</span>
-                <span v-if="mgmtSelected?.dept" class="text-2xs font-mono bg-violet-500/10 border border-violet-500/30 text-violet-400 px-2 py-0.5 rounded-full font-bold">{{ mgmtSelected.dept }}</span>
+                <span v-if="mgmtSelected?.dept" class="text-2xs font-mono bg-accent/10 border border-accent/30 text-accent px-2 py-0.5 rounded-full font-bold">{{ mgmtSelected.dept }}</span>
                 <span class="text-2xs font-bold text-muted bg-sunken px-2 py-0.5 rounded border border-hairline">已關聯 {{ mgmtSelCodes.size }} 品項</span>
                 
                 <label class="ml-auto flex items-center gap-1.5 text-xs text-fg-secondary cursor-pointer select-none font-bold">
@@ -879,9 +875,9 @@ async function pullSurgeryTypesFromCloud() {
               </div>
               
               <!-- 搜尋 -->
-              <div class="px-5 py-2.5 border-b border-hairline shrink-0 bg-sunken/20">
+              <div class="px-5 py-2.5 border-b border-hairline shrink-0 bg-sunken">
                 <input v-model="mgmtItemSearch" placeholder="搜尋品名 / 院內碼 / 用途…"
-                  class="w-full px-3 py-2 text-xs rounded-xl bg-sunken border border-hairline text-fg focus:outline-none focus:border-violet-500/50 placeholder-muted font-bold" />
+                  class="w-full px-3 py-2 text-xs rounded-xl bg-sunken border border-hairline text-fg focus:outline-none focus:border-accent/50 placeholder-muted font-bold" />
               </div>
               
               <!-- 品項清單 -->
@@ -900,10 +896,10 @@ async function pullSurgeryTypesFromCloud() {
                       : 'border-hairline bg-sunken'">
                     <span v-if="mgmtSelCodes.has(m.hospital_code)" class="text-fg text-2xs leading-none font-bold">✓</span>
                   </div>
-                  <span class="text-xs font-mono text-fg-secondary shrink-0 w-24 group-hover:text-violet-400 transition-colors">{{ m.hospital_code }}</span>
+                  <span class="text-xs font-mono text-fg-secondary shrink-0 w-24 group-hover:text-accent transition-colors">{{ m.hospital_code }}</span>
                   <span class="text-xs text-fg font-bold flex-1 truncate">{{ m.name_zh || m.name_en || "—" }}</span>
-                  <span v-if="m.purpose" class="text-2xs font-bold bg-teal-500/10 border border-teal-500/20 text-teal-400 px-2 py-0.5 rounded-full shrink-0 truncate max-w-[90px]">{{ m.purpose }}</span>
-                  <span v-if="m.depts.length" class="text-2xs font-bold bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full shrink-0">{{ m.depts[0] }}</span>
+                  <span v-if="m.purpose" class="text-2xs font-bold bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 rounded-full shrink-0 truncate max-w-[90px]">{{ m.purpose }}</span>
+                  <span v-if="m.depts.length" class="text-2xs font-bold bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 rounded-full shrink-0">{{ m.depts[0] }}</span>
                 </div>
               </div>
             </template>
