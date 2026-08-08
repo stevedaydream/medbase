@@ -172,15 +172,15 @@ async function pullFromCloud() {
 </script>
 
 <template>
-  <div class="flex gap-6 h-full text-fg select-none bg-sunken/20">
+  <div class="accent-teal flex gap-6 h-full text-fg select-none bg-sunken">
 
     <!-- ── 左側列表 ─────────────────────────────── -->
-    <div class="flex flex-col w-80 shrink-0 bg-surface/40 backdrop-blur-md border border-hairline rounded-2xl p-4 shadow-xl overflow-hidden">
+    <div class="flex flex-col w-80 shrink-0 bg-surface border border-hairline rounded-2xl p-4 shadow-xl overflow-hidden">
       <div class="flex gap-2 mb-3 shrink-0">
         <input v-model="search" placeholder="搜尋疾病、ICD-10…"
-          class="flex-1 px-3 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs placeholder-muted outline-none focus:border-emerald-500/50 font-bold" />
+          class="flex-1 px-3 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs placeholder-muted outline-none focus:border-success/50 font-bold" />
         <button @click="openAdd"
-          class="w-10 h-10 flex items-center justify-center rounded-xl bg-emerald-600 hover:bg-emerald-500 border border-emerald-500/30 text-white text-lg font-bold transition-all active:scale-95 shadow-lg shadow-emerald-500/10 cursor-pointer"
+          class="w-10 h-10 flex items-center justify-center rounded-xl bg-emerald-600 hover:bg-emerald-500 border border-success/30 text-white text-lg font-bold transition-all active:scale-95 shadow-lg shadow-success/10 cursor-pointer"
           title="新增疾病入院流程">＋</button>
       </div>
       
@@ -188,7 +188,7 @@ async function pullFromCloud() {
         <span class="text-muted text-2xs font-black uppercase tracking-widest font-mono">{{ filtered.length }} RECORDS</span>
         <div class="flex gap-1">
           <button @click="pullFromCloud" :disabled="isSyncing"
-            class="text-2xs font-bold px-2.5 py-1.5 rounded-lg border border-indigo-500/30 text-indigo-400 hover:border-indigo-500 hover:bg-indigo-500/10 disabled:opacity-40 transition-colors cursor-pointer">
+            class="text-2xs font-bold px-2.5 py-1.5 rounded-lg border border-accent/30 text-accent hover:border-indigo-500 hover:bg-accent/10 disabled:opacity-40 transition-colors cursor-pointer">
             {{ isSyncing ? "…" : "↓ 同步" }}
           </button>
           <button @click="pushToCloud" :disabled="isSyncing"
@@ -204,11 +204,11 @@ async function pullFromCloud() {
           @click="selected = m; activeTab = 'workup'"
           class="w-full text-left px-4 py-3 rounded-xl border transition-all cursor-pointer group"
           :class="selected?.id === m.id 
-            ? 'bg-emerald-600/20 border-emerald-500/50 text-white shadow-[0_0_15px_rgba(16,185,129,0.08)]' 
-            : 'bg-sunken/40 border-hairline text-fg-secondary hover:border-hairline hover:text-fg hover:bg-surface/30'">
+            ? 'bg-success/20 border-success/50 text-white shadow-[0_0_15px_rgba(16,185,129,0.08)]' 
+            : 'bg-sunken border-hairline text-fg-secondary hover:border-hairline hover:text-fg hover:bg-surface/30'">
           <div class="font-bold text-xs truncate">{{ m.name }}</div>
           <div class="text-2xs font-mono mt-1 flex items-center gap-1.5 opacity-65">
-            <span v-if="m.icd10" class="bg-sunken px-1.5 py-0.5 rounded text-emerald-400 font-semibold">{{ m.icd10 }}</span>
+            <span v-if="m.icd10" class="bg-sunken px-1.5 py-0.5 rounded text-success font-semibold">{{ m.icd10 }}</span>
             <span v-if="m.category" class="truncate">{{ m.category }}</span>
           </div>
         </button>
@@ -216,7 +216,7 @@ async function pullFromCloud() {
     </div>
 
     <!-- ── 右側詳情 ─────────────────────────────── -->
-    <div class="flex-1 rounded-2xl bg-surface/40 backdrop-blur-md border border-hairline p-6 overflow-y-auto flex flex-col shadow-xl">
+    <div class="flex-1 rounded-2xl bg-surface border border-hairline p-6 overflow-y-auto flex flex-col shadow-xl">
       <div v-if="!selected" class="flex-1 flex flex-col items-center justify-center gap-3 text-muted py-12">
         <span class="text-4xl animate-pulse">🦠</span>
         <p class="text-xs font-black">請選擇疾病，或點擊 ＋ 新增</p>
@@ -231,34 +231,34 @@ async function pullFromCloud() {
             <h2 class="text-base font-black text-fg tracking-wider">{{ selected.name }}</h2>
             <div class="flex items-center gap-2 mt-2 flex-wrap font-mono">
               <span v-if="selected.icd10" class="text-2xs font-bold bg-sunken border border-hairline text-fg-secondary px-2 py-0.5 rounded">{{ selected.icd10 }}</span>
-              <span v-if="selected.category" class="text-2xs font-black uppercase bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-full">{{ selected.category }}</span>
+              <span v-if="selected.category" class="text-2xs font-black uppercase bg-success/10 border border-success/30 text-success px-2 py-0.5 rounded-full">{{ selected.category }}</span>
             </div>
           </div>
           <div class="flex gap-1.5 shrink-0">
             <button @click="copyActive"
-              class="px-3.5 py-2 rounded-xl border border-hairline bg-sunken/40 hover:bg-elevated text-fg-secondary text-xs font-bold transition-all active:scale-95 cursor-pointer">📋 複製</button>
+              class="px-3.5 py-2 rounded-xl border border-hairline bg-sunken hover:bg-elevated text-fg-secondary text-xs font-bold transition-all active:scale-95 cursor-pointer">📋 複製</button>
             <button @click="openEdit"
-              class="px-3.5 py-2 rounded-xl border border-hairline bg-sunken/40 hover:bg-elevated text-fg-secondary text-xs font-bold transition-all active:scale-95 cursor-pointer">✏️ 編輯</button>
+              class="px-3.5 py-2 rounded-xl border border-hairline bg-sunken hover:bg-elevated text-fg-secondary text-xs font-bold transition-all active:scale-95 cursor-pointer">✏️ 編輯</button>
             <button @click="showDeleteConfirm = true"
-              class="px-3.5 py-2 rounded-xl border border-rose-950/30 bg-rose-950/20 hover:bg-rose-900/30 text-rose-400 text-xs font-bold transition-all active:scale-95 cursor-pointer">🗑 刪除</button>
+              class="px-3.5 py-2 rounded-xl border border-danger/30 bg-danger/20 hover:bg-danger/30 text-danger text-xs font-bold transition-all active:scale-95 cursor-pointer">🗑 刪除</button>
           </div>
         </div>
 
         <!-- 三個 Tab -->
-        <nav class="flex gap-1 p-1 bg-sunken/60 rounded-xl border border-hairline shrink-0 shadow-inner max-w-lg">
+        <nav class="flex gap-1 p-1 bg-sunken rounded-xl border border-hairline shrink-0 shadow-inner max-w-lg">
           <button @click="activeTab = 'workup'"
             class="flex-1 py-2 rounded-lg text-xs font-black transition-all cursor-pointer"
-            :class="activeTab === 'workup' ? 'bg-elevated text-emerald-400 shadow border border-hairline' : 'text-muted hover:text-fg-secondary'">
+            :class="activeTab === 'workup' ? 'bg-elevated text-success shadow border border-hairline' : 'text-muted hover:text-fg-secondary'">
             入院 Workup <span class="text-2xs font-mono opacity-70 ml-1 font-bold">({{ parse(selected.workup).length }})</span>
           </button>
           <button @click="activeTab = 'consult'"
             class="flex-1 py-2 rounded-lg text-xs font-black transition-all cursor-pointer"
-            :class="activeTab === 'consult' ? 'bg-elevated text-emerald-400 shadow border border-hairline' : 'text-muted hover:text-fg-secondary'">
+            :class="activeTab === 'consult' ? 'bg-elevated text-success shadow border border-hairline' : 'text-muted hover:text-fg-secondary'">
             會診流程
           </button>
           <button @click="activeTab = 'orders'"
             class="flex-1 py-2 rounded-lg text-xs font-black transition-all cursor-pointer"
-            :class="activeTab === 'orders' ? 'bg-elevated text-emerald-400 shadow border border-hairline' : 'text-muted hover:text-fg-secondary'">
+            :class="activeTab === 'orders' ? 'bg-elevated text-success shadow border border-hairline' : 'text-muted hover:text-fg-secondary'">
             常規醫囑 <span class="text-2xs font-mono opacity-70 ml-1 font-bold">({{ parse(selected.treatment_orders).length }})</span>
           </button>
         </nav>
@@ -266,11 +266,11 @@ async function pullFromCloud() {
         <!-- Tab Content -->
         <div class="flex-1 flex flex-col min-h-0 space-y-4">
           <!-- Workup -->
-          <div v-if="activeTab === 'workup'" class="bg-sunken/40 border border-hairline rounded-2xl p-5 flex flex-col flex-1 overflow-hidden shadow-inner">
+          <div v-if="activeTab === 'workup'" class="bg-sunken border border-hairline rounded-2xl p-5 flex flex-col flex-1 overflow-hidden shadow-inner">
             <p class="text-2xs font-black text-muted mb-4">入院需開 Labs / 影像</p>
             <div class="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
               <div v-for="(o, i) in parse(selected.workup)" :key="i"
-                class="flex items-start gap-3 text-fg-secondary text-xs font-mono bg-sunken/60 border border-hairline rounded-xl px-4 py-3 hover:border-hairline transition-colors">
+                class="flex items-start gap-3 text-fg-secondary text-xs font-mono bg-sunken border border-hairline rounded-xl px-4 py-3 hover:border-hairline transition-colors">
                 <span class="text-muted text-xs font-bold pt-0.5 w-5 shrink-0 select-none">{{ String(i + 1).padStart(2, '0') }}</span>
                 <span class="leading-relaxed">{{ o }}</span>
               </div>
@@ -281,13 +281,13 @@ async function pullFromCloud() {
           </div>
 
           <!-- 會診流程 -->
-          <div v-if="activeTab === 'consult'" class="bg-sunken/40 border border-hairline rounded-2xl p-5 flex flex-col flex-1 overflow-hidden shadow-inner">
+          <div v-if="activeTab === 'consult'" class="bg-sunken border border-hairline rounded-2xl p-5 flex flex-col flex-1 overflow-hidden shadow-inner">
             <p class="text-2xs font-black text-muted mb-4">會診科別與流程說明</p>
             <div class="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
               <div v-if="selected.consult_flow" class="space-y-3">
                 <div v-for="(line, i) in (selected.consult_flow ?? '').split('\n').filter(l => l.trim())" :key="i"
                   class="flex items-start gap-4 text-fg-secondary text-xs">
-                  <span class="shrink-0 w-6 h-6 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-2xs flex items-center justify-center font-bold font-mono mt-0.5">
+                  <span class="shrink-0 w-6 h-6 rounded-full bg-success/10 border border-success/30 text-success text-2xs flex items-center justify-center font-bold font-mono mt-0.5">
                     {{ i + 1 }}
                   </span>
                   <span class="leading-relaxed font-bold pt-0.5">{{ line }}</span>
@@ -300,11 +300,11 @@ async function pullFromCloud() {
           </div>
 
           <!-- 常規醫囑 -->
-          <div v-if="activeTab === 'orders'" class="bg-sunken/40 border border-hairline rounded-2xl p-5 flex flex-col flex-1 overflow-hidden shadow-inner">
+          <div v-if="activeTab === 'orders'" class="bg-sunken border border-hairline rounded-2xl p-5 flex flex-col flex-1 overflow-hidden shadow-inner">
             <p class="text-2xs font-black text-muted mb-4">常規入院醫囑參考</p>
             <div class="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
               <div v-for="(o, i) in parse(selected.treatment_orders)" :key="i"
-                class="flex items-start gap-3 text-fg-secondary text-xs font-mono bg-sunken/60 border border-hairline rounded-xl px-4 py-3 hover:border-hairline transition-colors">
+                class="flex items-start gap-3 text-fg-secondary text-xs font-mono bg-sunken border border-hairline rounded-xl px-4 py-3 hover:border-hairline transition-colors">
                 <span class="text-muted text-xs font-bold pt-0.5 w-5 shrink-0 select-none">{{ String(i + 1).padStart(2, '0') }}</span>
                 <span class="leading-relaxed">{{ o }}</span>
               </div>
@@ -315,7 +315,7 @@ async function pullFromCloud() {
           </div>
 
           <!-- 備註 -->
-          <div v-if="selected.notes" class="bg-sunken/30 border border-hairline rounded-2xl p-4 shrink-0 shadow-md">
+          <div v-if="selected.notes" class="bg-sunken border border-hairline rounded-2xl p-4 shrink-0 shadow-md">
             <p class="text-xs font-black text-muted mb-2">備註說明 / 注意事項</p>
             <p class="text-fg-secondary text-xs leading-relaxed whitespace-pre-line font-bold">{{ selected.notes }}</p>
           </div>
@@ -329,7 +329,7 @@ async function pullFromCloud() {
         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-sunken/60 backdrop-blur-sm"
         @click.self="showModal = false">
         <div class="w-full max-w-2xl bg-surface border border-hairline rounded-2xl shadow-2xl flex flex-col max-h-[92vh] text-fg overflow-hidden">
-          <div class="flex items-center justify-between px-5 py-4 border-b border-hairline shrink-0 bg-sunken/30">
+          <div class="flex items-center justify-between px-5 py-4 border-b border-hairline shrink-0 bg-sunken">
             <h3 class="text-xs font-black text-fg">
               {{ modalMode === "add" ? "新增疾病入院流程" : "編輯疾病入院流程" }}
             </h3>
@@ -339,21 +339,21 @@ async function pullFromCloud() {
           <div class="overflow-y-auto px-6 py-5 space-y-4 flex-1 custom-scrollbar">
             <div class="flex gap-4">
               <div class="flex-1">
-                <label class="text-muted text-2xs font-black block mb-1.5">疾病 / 入院診斷 <span class="text-rose-400">*</span></label>
+                <label class="text-muted text-2xs font-black block mb-1.5">疾病 / 入院診斷 <span class="text-danger">*</span></label>
                 <input v-model="form.name"
-                  class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-emerald-500/50 font-bold"
+                  class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-success/50 font-bold"
                   placeholder="如：急性闌尾炎、膽管炎、腸阻塞" />
               </div>
               <div class="w-32">
                 <label class="text-muted text-2xs font-black uppercase tracking-widest font-mono block mb-1.5">ICD-10</label>
                 <input v-model="form.icd10"
-                  class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs font-mono outline-none focus:border-emerald-500/50 font-bold"
+                  class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs font-mono outline-none focus:border-success/50 font-bold"
                   placeholder="如：K37" />
               </div>
               <div class="w-32">
                 <label class="text-muted text-2xs font-black block mb-1.5">科別</label>
                 <input v-model="form.category"
-                  class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-emerald-500/50 font-bold"
+                  class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-success/50 font-bold"
                   placeholder="一般外科" />
               </div>
             </div>
@@ -364,13 +364,13 @@ async function pullFromCloud() {
                 <label class="text-muted text-2xs font-black block mb-1.5">入院 Workup（每行一筆）</label>
                 <textarea v-model="form.workup" rows="10"
                   placeholder="CBC+DC&#10;BMP&#10;LFT, amylase, lipase&#10;CXR&#10;Abdominal CT with contrast&#10;…"
-                  class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs font-mono outline-none focus:border-emerald-500/50 resize-none custom-scrollbar font-medium" />
+                  class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs font-mono outline-none focus:border-success/50 resize-none custom-scrollbar font-medium" />
               </div>
               <div>
                 <label class="text-muted text-2xs font-black block mb-1.5">常規醫囑（每行一筆）</label>
                 <textarea v-model="form.treatment_orders" rows="10"
                   placeholder="NPO&#10;IV access, NS 1L bolus&#10;Morphine 2mg IV prn pain&#10;…"
-                  class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs font-mono outline-none focus:border-emerald-500/50 resize-none custom-scrollbar font-medium" />
+                  class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs font-mono outline-none focus:border-success/50 resize-none custom-scrollbar font-medium" />
               </div>
             </div>
 
@@ -379,20 +379,20 @@ async function pullFromCloud() {
               <label class="text-muted text-2xs font-black block mb-1.5">會診流程（每行一步）</label>
               <textarea v-model="form.consult_flow" rows="4"
                 placeholder="1. 先電話通知 Anesthesia 評估手術風險&#10;2. 視 CT 結果決定是否需要 IR 介入&#10;3. 若 Bilirubin > 5，加會 GI/ERCP&#10;…"
-                class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-emerald-500/50 resize-none custom-scrollbar font-medium" />
+                class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-success/50 resize-none custom-scrollbar font-medium" />
             </div>
 
             <div>
               <label class="text-muted text-2xs font-black block mb-1.5">備註</label>
               <textarea v-model="form.notes" rows="2"
-                class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-emerald-500/50 resize-none custom-scrollbar font-medium" />
+                class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-success/50 resize-none custom-scrollbar font-medium" />
             </div>
           </div>
           
-          <div class="flex justify-end gap-3 px-6 py-4 border-t border-hairline shrink-0 bg-sunken/30">
+          <div class="flex justify-end gap-3 px-6 py-4 border-t border-hairline shrink-0 bg-sunken">
             <button @click="showModal = false" class="px-4 py-2 bg-elevated hover:bg-raised text-fg-secondary text-xs font-bold rounded-xl cursor-pointer">取消</button>
             <button @click="save" :disabled="!form.name.trim()"
-              class="px-5 py-2 bg-emerald-600 border border-emerald-500/30 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-emerald-500/10 cursor-pointer">
+              class="px-5 py-2 bg-emerald-600 border border-success/30 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-success/10 cursor-pointer">
               儲存
             </button>
           </div>
