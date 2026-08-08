@@ -29,9 +29,9 @@ const correctedCa = computed(() => {
 const caStatus = computed(() => {
   const v = correctedCa.value;
   if (v === null) return null;
-  if (v < 8.5)  return { label: "低血鈣 (Hypocalcemia)",  color: "text-sky-400",  bg: "bg-sky-500/10 border-sky-500/20" };
-  if (v > 10.5) return { label: "高血鈣 (Hypercalcemia)", color: "text-rose-400",   bg: "bg-rose-500/10 border-rose-500/20"  };
-  return           { label: "正常 (Normal)",               color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" };
+  if (v < 8.5)  return { label: "低血鈣 (Hypocalcemia)",  color: "text-accent",  bg: "bg-accent/10 border-accent/20" };
+  if (v > 10.5) return { label: "高血鈣 (Hypercalcemia)", color: "text-danger",   bg: "bg-danger/10 border-danger/20"  };
+  return           { label: "正常 (Normal)",               color: "text-success", bg: "bg-success/10 border-success/20" };
 });
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -54,23 +54,23 @@ const abgResult = computed((): AbgLine[] | null => {
   const lines: AbgLine[] = [];
 
   // Step 1 — pH
-  if (pH < 7.35)      lines.push({ text: `① pH ${pH} → 酸血症 (Acidosis)`,   color: "text-rose-400 font-semibold" });
-  else if (pH > 7.45) lines.push({ text: `① pH ${pH} → 鹼血症 (Alkalosis)`,  color: "text-cyan-400 font-semibold" });
-  else                lines.push({ text: `① pH ${pH} → 正常範圍`,             color: "text-emerald-400" });
+  if (pH < 7.35)      lines.push({ text: `① pH ${pH} → 酸血症 (Acidosis)`,   color: "text-danger font-semibold" });
+  else if (pH > 7.45) lines.push({ text: `① pH ${pH} → 鹼血症 (Alkalosis)`,  color: "text-accent font-semibold" });
+  else                lines.push({ text: `① pH ${pH} → 正常範圍`,             color: "text-success" });
 
   // Step 2 — Primary disorder
   const co2Hi  = co2  > 45;  const co2Lo  = co2  < 35;
   const hco3Hi = hco3 > 26;  const hco3Lo = hco3 < 22;
 
   if (pH < 7.35) {
-    if (co2Hi && !hco3Lo)      lines.push({ text: `② PaCO₂ ${co2} mmHg ↑ → 呼吸性酸中毒`,      color: "text-amber-400" });
-    else if (hco3Lo && !co2Hi) lines.push({ text: `② HCO₃⁻ ${hco3} mEq/L ↓ → 代謝性酸中毒`,   color: "text-amber-400" });
-    else if (co2Hi && hco3Lo)  lines.push({ text: `② CO₂↑ + HCO₃⁻↓ → 混合型酸中毒`,           color: "text-rose-400 font-semibold" });
+    if (co2Hi && !hco3Lo)      lines.push({ text: `② PaCO₂ ${co2} mmHg ↑ → 呼吸性酸中毒`,      color: "text-warning" });
+    else if (hco3Lo && !co2Hi) lines.push({ text: `② HCO₃⁻ ${hco3} mEq/L ↓ → 代謝性酸中毒`,   color: "text-warning" });
+    else if (co2Hi && hco3Lo)  lines.push({ text: `② CO₂↑ + HCO₃⁻↓ → 混合型酸中毒`,           color: "text-danger font-semibold" });
     else                       lines.push({ text: `② 參數矛盾，請確認數值`,                     color: "text-yellow-400" });
   } else if (pH > 7.45) {
-    if (co2Lo && !hco3Hi)      lines.push({ text: `② PaCO₂ ${co2} mmHg ↓ → 呼吸性鹼中毒`,      color: "text-cyan-400" });
-    else if (hco3Hi && !co2Lo) lines.push({ text: `② HCO₃⁻ ${hco3} mEq/L ↑ → 代謝性鹼中毒`,   color: "text-cyan-400" });
-    else if (co2Lo && hco3Hi)  lines.push({ text: `② CO₂↓ + HCO₃⁻↑ → 混合型鹼中毒`,           color: "text-purple-400" });
+    if (co2Lo && !hco3Hi)      lines.push({ text: `② PaCO₂ ${co2} mmHg ↓ → 呼吸性鹼中毒`,      color: "text-accent" });
+    else if (hco3Hi && !co2Lo) lines.push({ text: `② HCO₃⁻ ${hco3} mEq/L ↑ → 代謝性鹼中毒`,   color: "text-accent" });
+    else if (co2Lo && hco3Hi)  lines.push({ text: `② CO₂↓ + HCO₃⁻↑ → 混合型鹼中毒`,           color: "text-accent" });
     else                       lines.push({ text: `② 參數矛盾，請確認數值`,                     color: "text-yellow-400" });
   }
 
@@ -79,27 +79,27 @@ const abgResult = computed((): AbgLine[] | null => {
     const expAcute   = (24 + (co2 - 40) * 0.1).toFixed(1);
     const expChronic = (24 + (co2 - 40) * 0.35).toFixed(1);
     lines.push({ text: `③ 預期 HCO₃⁻：${expAcute}（急性）~ ${expChronic}（慢性）`, color: "text-fg-secondary" });
-    if      (hco3 > Number(expChronic) + 2) lines.push({ text: "   ↳ HCO₃⁻ 過高 → 合併代謝性鹼中毒",    color: "text-amber-300" });
-    else if (hco3 < Number(expAcute) - 2)   lines.push({ text: "   ↳ HCO₃⁻ 過低 → 合併代謝性酸中毒",    color: "text-amber-300" });
+    if      (hco3 > Number(expChronic) + 2) lines.push({ text: "   ↳ HCO₃⁻ 過高 → 合併代謝性鹼中毒",    color: "text-warning" });
+    else if (hco3 < Number(expAcute) - 2)   lines.push({ text: "   ↳ HCO₃⁻ 過低 → 合併代謝性酸中毒",    color: "text-warning" });
     else                                     lines.push({ text: "   ↳ 代償在預期範圍內",                  color: "text-muted" });
   } else if (pH < 7.35 && hco3Lo) {
     const expCo2 = 1.5 * hco3 + 8;
     lines.push({ text: `③ Winter 公式：預期 PaCO₂ = ${(expCo2 - 2).toFixed(0)} ~ ${(expCo2 + 2).toFixed(0)} mmHg`, color: "text-fg-secondary" });
-    if      (co2 > expCo2 + 2) lines.push({ text: "   ↳ CO₂ 過高 → 合併呼吸性酸中毒", color: "text-amber-300" });
-    else if (co2 < expCo2 - 2) lines.push({ text: "   ↳ CO₂ 過低 → 合併呼吸性鹼中毒", color: "text-amber-300" });
+    if      (co2 > expCo2 + 2) lines.push({ text: "   ↳ CO₂ 過高 → 合併呼吸性酸中毒", color: "text-warning" });
+    else if (co2 < expCo2 - 2) lines.push({ text: "   ↳ CO₂ 過低 → 合併呼吸性鹼中毒", color: "text-warning" });
     else                        lines.push({ text: "   ↳ 代償在預期範圍內",             color: "text-muted" });
   } else if (pH > 7.45 && co2Lo) {
     const expA = (24 - (40 - co2) * 0.2).toFixed(1);
     const expC = (24 - (40 - co2) * 0.5).toFixed(1);
     lines.push({ text: `③ 預期 HCO₃⁻：${expC}（慢性）~ ${expA}（急性）`, color: "text-fg-secondary" });
-    if      (hco3 < Number(expC) - 2) lines.push({ text: "   ↳ HCO₃⁻ 過低 → 合併代謝性酸中毒", color: "text-amber-300" });
-    else if (hco3 > Number(expA) + 2) lines.push({ text: "   ↳ HCO₃⁻ 過高 → 合併代謝性鹼中毒", color: "text-amber-300" });
+    if      (hco3 < Number(expC) - 2) lines.push({ text: "   ↳ HCO₃⁻ 過低 → 合併代謝性酸中毒", color: "text-warning" });
+    else if (hco3 > Number(expA) + 2) lines.push({ text: "   ↳ HCO₃⁻ 過高 → 合併代謝性鹼中毒", color: "text-warning" });
     else                               lines.push({ text: "   ↳ 代償在預期範圍內",                color: "text-muted" });
   } else if (pH > 7.45 && hco3Hi) {
     const expCo2 = 0.7 * hco3 + 21;
     lines.push({ text: `③ 預期 PaCO₂：${(expCo2 - 2).toFixed(0)} ~ ${(expCo2 + 2).toFixed(0)} mmHg`, color: "text-fg-secondary" });
-    if      (co2 < expCo2 - 2) lines.push({ text: "   ↳ CO₂ 過低 → 合併呼吸性鹼中毒", color: "text-amber-300" });
-    else if (co2 > expCo2 + 2) lines.push({ text: "   ↳ CO₂ 過高 → 合併呼吸性酸中毒", color: "text-amber-300" });
+    if      (co2 < expCo2 - 2) lines.push({ text: "   ↳ CO₂ 過低 → 合併呼吸性鹼中毒", color: "text-warning" });
+    else if (co2 > expCo2 + 2) lines.push({ text: "   ↳ CO₂ 過高 → 合併呼吸性酸中毒", color: "text-warning" });
     else                        lines.push({ text: "   ↳ 代償在預期範圍內",              color: "text-muted" });
   }
 
@@ -111,8 +111,8 @@ const abgResult = computed((): AbgLine[] | null => {
     const aa   = pAlv - pao2;
     const pf   = pao2 / (fio2 / 100);
     const aaOk = aa <= 20;
-    lines.push({ text: `④ A-a 梯度：${aa.toFixed(0)} mmHg${aaOk ? "（正常）" : "（↑ 異常，考慮 V/Q mismatch 或分流）"}`, color: aaOk ? "text-fg-secondary" : "text-amber-400" });
-    const pfColor = pf >= 300 ? "text-emerald-400" : pf >= 200 ? "text-amber-400" : "text-rose-400 font-semibold";
+    lines.push({ text: `④ A-a 梯度：${aa.toFixed(0)} mmHg${aaOk ? "（正常）" : "（↑ 異常，考慮 V/Q mismatch 或分流）"}`, color: aaOk ? "text-fg-secondary" : "text-warning" });
+    const pfColor = pf >= 300 ? "text-success" : pf >= 200 ? "text-warning" : "text-danger font-semibold";
     const pfLabel = pf >= 300 ? "" : pf >= 200 ? "（中度缺氧 ARDS 標準）" : "（重度缺氧 ARDS 標準）";
     lines.push({ text: `   P/F ratio：${pf.toFixed(0)}${pfLabel}`, color: pfColor });
   }
@@ -269,10 +269,10 @@ const fio2Result = computed(() => {
 </script>
 
 <template>
-  <div class="flex h-full bg-sunken/20 rounded-2xl overflow-hidden border border-hairline shadow-2xl">
+  <div class="accent-cyan flex h-full bg-sunken rounded-2xl overflow-hidden border border-hairline shadow-2xl">
 
     <!-- ── Left: elegant tool list sidebar ──────────────────────────── -->
-    <div class="w-60 shrink-0 border-r border-hairline flex flex-col bg-surface/60 backdrop-blur-xl">
+    <div class="w-60 shrink-0 border-r border-hairline flex flex-col bg-surface">
       <div class="px-6 py-5 border-b border-hairline flex items-center gap-2.5">
         <span class="text-xl">🎛️</span>
         <div>
@@ -286,7 +286,7 @@ const fio2Result = computed(() => {
           @click="activeTool = t.id"
           class="w-full flex items-center gap-3.5 px-4 py-3.5 rounded-xl text-left transition-all duration-300 relative group overflow-hidden"
           :class="activeTool === t.id
-            ? 'bg-gradient-to-r from-cyan-500/10 to-teal-500/5 text-cyan-200 border border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.05)]'
+            ? 'bg-gradient-to-r from-accent/10 to-accent/5 text-accent border border-accent/20 shadow-[0_0_15px_rgba(6,182,212,0.05)]'
             : 'text-fg-secondary hover:text-fg hover:bg-overlay/5 border border-transparent'"
         >
           <!-- Active left indicator bar -->
@@ -297,7 +297,7 @@ const fio2Result = computed(() => {
 
           <span class="text-xl leading-none shrink-0 transition-transform duration-300 group-hover:scale-110">{{ t.icon }}</span>
           <div class="min-w-0">
-            <div class="text-xs font-bold tracking-wide uppercase transition-colors" :class="activeTool === t.id ? 'text-cyan-200' : 'text-fg-secondary'">{{ t.label }}</div>
+            <div class="text-xs font-bold tracking-wide uppercase transition-colors" :class="activeTool === t.id ? 'text-accent' : 'text-fg-secondary'">{{ t.label }}</div>
             <div class="text-2xs text-muted leading-tight mt-0.5 font-sans truncate">{{ t.sub }}</div>
           </div>
         </button>
@@ -305,14 +305,14 @@ const fio2Result = computed(() => {
     </div>
 
     <!-- ── Right: glassmorphic active tool content ──────────────────── -->
-    <div class="flex-1 overflow-y-auto bg-sunken/40 backdrop-blur-md p-8">
+    <div class="flex-1 overflow-y-auto bg-sunken p-8">
 
       <!-- ══ Tool 1: 校正鈣 ════════════════════════════════════════════ -->
       <template v-if="activeTool === 'calcium'">
         <div class="max-w-3xl space-y-6">
           <div class="border-b border-hairline pb-4">
             <h2 class="text-lg font-bold text-fg flex items-center gap-2">
-              <span class="text-cyan-400">🧪</span> 校正鈣試算 (Corrected Calcium)
+              <span class="text-accent">🧪</span> 校正鈣試算 (Corrected Calcium)
             </h2>
             <p class="text-xs text-muted mt-1 font-mono">Formula: Corrected Ca = Total Ca + 0.8 × (4.0 − Albumin)</p>
           </div>
@@ -328,7 +328,7 @@ const fio2Result = computed(() => {
                     type="number"
                     step="0.1"
                     placeholder="例：7.8"
-                    class="w-full text-sm px-4 py-3 bg-surface/50 border border-hairline rounded-xl text-fg outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-muted transition-all font-mono"
+                    class="w-full text-sm px-4 py-3 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
                   />
                   <span class="absolute right-4 top-3.5 text-xs text-muted font-mono">mg/dL</span>
                 </div>
@@ -342,7 +342,7 @@ const fio2Result = computed(() => {
                     type="number"
                     step="0.1"
                     placeholder="例：2.5"
-                    class="w-full text-sm px-4 py-3 bg-surface/50 border border-hairline rounded-xl text-fg outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-muted transition-all font-mono"
+                    class="w-full text-sm px-4 py-3 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
                   />
                   <span class="absolute right-4 top-3.5 text-xs text-muted font-mono">g/dL</span>
                 </div>
@@ -352,8 +352,8 @@ const fio2Result = computed(() => {
             <!-- Result panel -->
             <div class="flex flex-col justify-center">
               <div v-if="correctedCa !== null"
-                class="rounded-2xl border p-6 bg-surface/40 backdrop-blur-md shadow-lg transition-all duration-500"
-                :class="caStatus?.bg + ' ' + (correctedCa < 8.5 ? 'border-sky-500/30' : correctedCa > 10.5 ? 'border-rose-500/30' : 'border-emerald-500/30')"
+                class="rounded-2xl border p-6 bg-surface shadow-lg transition-all duration-500"
+                :class="caStatus?.bg + ' ' + (correctedCa < 8.5 ? 'border-accent/30' : correctedCa > 10.5 ? 'border-danger/30' : 'border-success/30')"
               >
                 <span class="text-xs font-bold text-muted">計算結果</span>
                 <div class="flex items-baseline gap-2 mt-2">
@@ -364,12 +364,12 @@ const fio2Result = computed(() => {
 
                 <div class="mt-6 space-y-1.5 border-t border-hairline pt-4 text-[0.6875rem] text-muted font-sans leading-relaxed">
                   <div class="flex justify-between"><span>正常範圍：</span><span class="font-mono text-fg-secondary">8.5 – 10.5 mg/dL</span></div>
-                  <div class="flex justify-between"><span>低血鈣風險 (&lt;7.0)：</span><span class="text-sky-300">有抽搐/痙攣風險</span></div>
-                  <div class="flex justify-between"><span>高血鈣危機 (&gt;12.0)：</span><span class="text-rose-300">心律不整/意識模糊</span></div>
+                  <div class="flex justify-between"><span>低血鈣風險 (&lt;7.0)：</span><span class="text-accent">有抽搐/痙攣風險</span></div>
+                  <div class="flex justify-between"><span>高血鈣危機 (&gt;12.0)：</span><span class="text-danger">心律不整/意識模糊</span></div>
                 </div>
               </div>
 
-              <div v-else class="h-full min-h-[180px] flex flex-col items-center justify-center rounded-2xl border border-dashed border-hairline bg-surface/10 text-muted text-xs text-center p-6">
+              <div v-else class="h-full min-h-[180px] flex flex-col items-center justify-center rounded-2xl border border-dashed border-hairline bg-surface text-muted text-xs text-center p-6">
                 <span class="text-3xl mb-3 opacity-30">🧪</span>
                 請在左側輸入實測總鈣及白蛋白數值以進行校正
               </div>
@@ -389,7 +389,7 @@ const fio2Result = computed(() => {
         <div class="max-w-3xl space-y-6">
           <div class="border-b border-hairline pb-4">
             <h2 class="text-lg font-bold text-fg flex items-center gap-2">
-              <span class="text-cyan-400">🫁</span> 動脈血氣分析判讀 (ABG Interpretator)
+              <span class="text-accent">🫁</span> 動脈血氣分析判讀 (ABG Interpretator)
             </h2>
             <p class="text-xs text-muted mt-1 font-mono">Evaluate acidosis, alkalosis, compensation and oxygenation index</p>
           </div>
@@ -405,7 +405,7 @@ const fio2Result = computed(() => {
                     type="number"
                     step="0.01"
                     placeholder="7.40"
-                    class="w-full text-sm px-3.5 py-3 bg-surface/50 border border-hairline rounded-xl text-fg outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-muted transition-all font-mono"
+                    class="w-full text-sm px-3.5 py-3 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
                   />
                 </div>
                 <div>
@@ -414,7 +414,7 @@ const fio2Result = computed(() => {
                     v-model.number="abg_co2"
                     type="number"
                     placeholder="40"
-                    class="w-full text-sm px-3.5 py-3 bg-surface/50 border border-hairline rounded-xl text-fg outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-muted transition-all font-mono"
+                    class="w-full text-sm px-3.5 py-3 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
                   />
                 </div>
                 <div>
@@ -423,7 +423,7 @@ const fio2Result = computed(() => {
                     v-model.number="abg_hco3"
                     type="number"
                     placeholder="24"
-                    class="w-full text-sm px-3.5 py-3 bg-surface/50 border border-hairline rounded-xl text-fg outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-muted transition-all font-mono"
+                    class="w-full text-sm px-3.5 py-3 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
                   />
                 </div>
               </div>
@@ -435,7 +435,7 @@ const fio2Result = computed(() => {
                     v-model.number="abg_pao2"
                     type="number"
                     placeholder="80"
-                    class="w-full text-sm px-3.5 py-3 bg-surface/50 border border-hairline rounded-xl text-fg outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-muted transition-all font-mono"
+                    class="w-full text-sm px-3.5 py-3 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
                   />
                 </div>
                 <div>
@@ -444,7 +444,7 @@ const fio2Result = computed(() => {
                     v-model.number="abg_fio2"
                     type="number"
                     placeholder="21"
-                    class="w-full text-sm px-3.5 py-3 bg-surface/50 border border-hairline rounded-xl text-fg outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-muted transition-all font-mono"
+                    class="w-full text-sm px-3.5 py-3 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
                   />
                 </div>
               </div>
@@ -469,13 +469,13 @@ const fio2Result = computed(() => {
 
             <!-- Result Column -->
             <div class="flex flex-col justify-start">
-              <div v-if="abgResult" class="rounded-2xl border border-hairline bg-surface/40 backdrop-blur-md p-6 shadow-xl space-y-4">
+              <div v-if="abgResult" class="rounded-2xl border border-hairline bg-surface p-6 shadow-xl space-y-4">
                 <span class="text-xs font-bold text-muted">判讀分析序列</span>
                 <div class="space-y-3 font-mono text-sm leading-relaxed">
                   <div
                     v-for="(line, i) in abgResult"
                     :key="i"
-                    class="flex items-start gap-2.5 p-2 rounded-lg bg-sunken/40 border border-hairline"
+                    class="flex items-start gap-2.5 p-2 rounded-lg bg-sunken border border-hairline"
                   >
                     <span class="mt-0.5 text-xs text-muted">•</span>
                     <span :class="line.color" class="whitespace-pre-wrap">{{ line.text }}</span>
@@ -483,7 +483,7 @@ const fio2Result = computed(() => {
                 </div>
               </div>
 
-              <div v-else class="h-full min-h-[220px] flex flex-col items-center justify-center rounded-2xl border border-dashed border-hairline bg-surface/10 text-muted text-xs text-center p-6">
+              <div v-else class="h-full min-h-[220px] flex flex-col items-center justify-center rounded-2xl border border-dashed border-hairline bg-surface text-muted text-xs text-center p-6">
                 <span class="text-3xl mb-3 opacity-30">🫁</span>
                 請在左側輸入 pH, PaCO₂, HCO₃⁻ 以利執行酸鹼代償分析
               </div>
@@ -497,7 +497,7 @@ const fio2Result = computed(() => {
         <div class="max-w-3xl space-y-6">
           <div class="border-b border-hairline pb-4">
             <h2 class="text-lg font-bold text-fg flex items-center gap-2">
-              <span class="text-cyan-400">🩸</span> 血糖胰島素校正試算 (Insulin Correction)
+              <span class="text-accent">🩸</span> 血糖胰島素校正試算 (Insulin Correction)
             </h2>
             <p class="text-xs text-muted mt-1 font-mono">Dose = (Current BG - Target BG) ÷ ISF | ISF ≈ 1700 ÷ TDD</p>
           </div>
@@ -513,7 +513,7 @@ const fio2Result = computed(() => {
                       v-model.number="glu_bg"
                       type="number"
                       placeholder="例：250"
-                      class="w-full text-sm px-4 py-3 bg-surface/50 border border-hairline rounded-xl text-fg outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-muted transition-all font-mono"
+                      class="w-full text-sm px-4 py-3 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
                     />
                     <span class="absolute right-4 top-3.5 text-2xs text-muted font-mono">mg/dL</span>
                   </div>
@@ -525,7 +525,7 @@ const fio2Result = computed(() => {
                       v-model.number="glu_target"
                       type="number"
                       placeholder="140"
-                      class="w-full text-sm px-4 py-3 bg-surface/50 border border-hairline rounded-xl text-fg outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-muted transition-all font-mono"
+                      class="w-full text-sm px-4 py-3 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
                     />
                     <span class="absolute right-4 top-3.5 text-2xs text-muted font-mono">mg/dL</span>
                   </div>
@@ -542,7 +542,7 @@ const fio2Result = computed(() => {
                         v-model.number="glu_tdd"
                         type="number"
                         placeholder="例：40"
-                        class="w-full text-xs px-3.5 py-2.5 bg-surface/50 border border-hairline rounded-lg text-fg outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-muted transition-all font-mono"
+                        class="w-full text-xs px-3.5 py-2.5 bg-surface border border-hairline rounded-lg text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
                       />
                       <span class="absolute right-3 top-3 text-2xs text-muted font-mono">Units</span>
                     </div>
@@ -554,7 +554,7 @@ const fio2Result = computed(() => {
                         v-model.number="glu_isf"
                         type="number"
                         placeholder="例：42"
-                        class="w-full text-xs px-3.5 py-2.5 bg-surface/50 border border-hairline rounded-lg text-fg outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-muted transition-all font-mono"
+                        class="w-full text-xs px-3.5 py-2.5 bg-surface border border-hairline rounded-lg text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
                       />
                       <span class="absolute right-3 top-3 text-2xs text-muted font-mono">mg/dL/U</span>
                     </div>
@@ -565,10 +565,10 @@ const fio2Result = computed(() => {
 
             <!-- Result -->
             <div class="flex flex-col justify-center">
-              <div v-if="insulinResult" class="rounded-2xl border border-hairline p-6 bg-surface/40 backdrop-blur-md shadow-xl transition-all">
+              <div v-if="insulinResult" class="rounded-2xl border border-hairline p-6 bg-surface shadow-xl transition-all">
                 <span class="text-xs font-bold text-muted">建議校正劑量</span>
                 
-                <div v-if="Number(glu_bg) < 70" class="mt-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-start gap-2.5">
+                <div v-if="Number(glu_bg) < 70" class="mt-4 p-4 rounded-xl bg-danger/10 border border-danger/20 text-danger flex items-start gap-2.5">
                   <span class="text-lg">⚠️</span>
                   <div class="text-xs">
                     <p class="font-bold">嚴重低血糖危險！</p>
@@ -579,12 +579,12 @@ const fio2Result = computed(() => {
                 <template v-else>
                   <div v-if="insulinResult.needCorr" class="mt-3">
                     <div class="flex items-baseline gap-2">
-                      <span class="text-5xl font-extrabold text-cyan-400 font-mono tracking-tight">{{ insulinResult.dose }}</span>
+                      <span class="text-5xl font-extrabold text-accent font-mono tracking-tight">{{ insulinResult.dose }}</span>
                       <span class="text-xs text-fg-secondary font-mono">Units</span>
                     </div>
                     <p class="text-xs font-semibold text-fg-secondary mt-1">速效胰島素 (Rapid-acting insulin)</p>
                   </div>
-                  <div v-else class="mt-3 flex items-center gap-2 text-emerald-400 font-semibold text-sm">
+                  <div v-else class="mt-3 flex items-center gap-2 text-success font-semibold text-sm">
                     <span>✓</span> 血糖達標，不需追加速效胰島素。
                   </div>
                   
@@ -595,7 +595,7 @@ const fio2Result = computed(() => {
                 </template>
               </div>
 
-              <div v-else class="h-full min-h-[180px] flex flex-col items-center justify-center rounded-2xl border border-dashed border-hairline bg-surface/10 text-muted text-xs text-center p-6">
+              <div v-else class="h-full min-h-[180px] flex flex-col items-center justify-center rounded-2xl border border-dashed border-hairline bg-surface text-muted text-xs text-center p-6">
                 <span class="text-3xl mb-3 opacity-30">🩸</span>
                 請填寫血糖值、目標血糖與敏感度計算基準 (TDD 或直接輸入 ISF)
               </div>
@@ -615,7 +615,7 @@ const fio2Result = computed(() => {
         <div class="max-w-3xl space-y-6">
           <div class="border-b border-hairline pb-4">
             <h2 class="text-lg font-bold text-fg flex items-center gap-2">
-              <span class="text-cyan-400">🥗</span> 每日營養與熱量需求評估 (Nutrition Calculator)
+              <span class="text-accent">🥗</span> 每日營養與熱量需求評估 (Nutrition Calculator)
             </h2>
             <p class="text-xs text-muted mt-1 font-mono">Harris-Benedict Equation & Activity/Stress Factors</p>
           </div>
@@ -631,7 +631,7 @@ const fio2Result = computed(() => {
                     type="number"
                     step="0.5"
                     placeholder="70"
-                    class="w-full text-sm px-3.5 py-3 bg-surface/50 border border-hairline rounded-xl text-fg outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-muted transition-all font-mono"
+                    class="w-full text-sm px-3.5 py-3 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
                   />
                 </div>
                 <div>
@@ -640,7 +640,7 @@ const fio2Result = computed(() => {
                     v-model.number="nut_height"
                     type="number"
                     placeholder="170"
-                    class="w-full text-sm px-3.5 py-3 bg-surface/50 border border-hairline rounded-xl text-fg outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-muted transition-all font-mono"
+                    class="w-full text-sm px-3.5 py-3 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
                   />
                 </div>
                 <div>
@@ -649,7 +649,7 @@ const fio2Result = computed(() => {
                     v-model.number="nut_age"
                     type="number"
                     placeholder="50"
-                    class="w-full text-sm px-3.5 py-3 bg-surface/50 border border-hairline rounded-xl text-fg outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-muted transition-all font-mono"
+                    class="w-full text-sm px-3.5 py-3 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
                   />
                 </div>
               </div>
@@ -661,12 +661,12 @@ const fio2Result = computed(() => {
                     <button
                       @click="nut_gender = 'M'"
                       class="flex-1 text-xs py-3 rounded-xl border transition-all"
-                      :class="nut_gender === 'M' ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400 font-bold' : 'bg-surface/30 border-hairline text-muted hover:text-fg-secondary'"
+                      :class="nut_gender === 'M' ? 'bg-accent/10 border-accent/30 text-accent font-bold' : 'bg-surface border-hairline text-muted hover:text-fg-secondary'"
                     >男</button>
                     <button
                       @click="nut_gender = 'F'"
                       class="flex-1 text-xs py-3 rounded-xl border transition-all"
-                      :class="nut_gender === 'F' ? 'bg-pink-500/10 border-pink-500/30 text-pink-400 font-bold' : 'bg-surface/30 border-hairline text-muted hover:text-fg-secondary'"
+                      :class="nut_gender === 'F' ? 'bg-accent/10 border-accent/30 text-accent font-bold' : 'bg-surface border-hairline text-muted hover:text-fg-secondary'"
                     >女</button>
                   </div>
                 </div>
@@ -675,7 +675,7 @@ const fio2Result = computed(() => {
                   <label class="block text-xs font-semibold text-fg-secondary mb-1.5">壓力係數 (Stress Factor)</label>
                   <select
                     v-model.number="nut_stress"
-                    class="w-full text-xs px-3.5 py-3.5 bg-surface/80 border border-hairline rounded-xl text-fg outline-none focus:border-cyan-500/50 transition-all"
+                    class="w-full text-xs px-3.5 py-3.5 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 transition-all"
                   >
                     <option v-for="o in stressOptions" :key="o.value" :value="o.value">{{ o.label }} (×{{ o.value }})</option>
                   </select>
@@ -686,7 +686,7 @@ const fio2Result = computed(() => {
                 <label class="block text-xs font-semibold text-fg-secondary mb-1.5">蛋白質給予基準</label>
                 <select
                   v-model.number="nut_protein"
-                  class="w-full text-xs px-3.5 py-3.5 bg-surface/80 border border-hairline rounded-xl text-fg outline-none focus:border-cyan-500/50 transition-all"
+                  class="w-full text-xs px-3.5 py-3.5 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 transition-all"
                 >
                   <option v-for="o in proteinOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
                 </select>
@@ -697,7 +697,7 @@ const fio2Result = computed(() => {
             <div class="flex flex-col justify-start">
               <div v-if="nutResult" class="space-y-4">
                 <!-- TDEE Card -->
-                <div class="rounded-2xl border border-cyan-500/10 bg-gradient-to-br from-cyan-500/10 to-teal-500/5 p-6 shadow-xl relative overflow-hidden">
+                <div class="rounded-2xl border border-accent/10 bg-gradient-to-br from-accent/10 to-accent/5 p-6 shadow-xl relative overflow-hidden">
                   <span class="text-xs font-bold text-muted">每日總耗能 (TDEE)</span>
                   <div class="flex items-baseline gap-2 mt-2">
                     <span class="text-4xl font-extrabold text-fg tracking-tight font-mono">{{ nutResult.tdee }}</span>
@@ -708,27 +708,27 @@ const fio2Result = computed(() => {
 
                 <!-- Detail Grid -->
                 <div class="grid grid-cols-2 gap-3">
-                  <div class="rounded-xl border border-hairline bg-surface/30 p-4">
+                  <div class="rounded-xl border border-hairline bg-surface p-4">
                     <p class="text-2xs font-bold text-muted">蛋白質目標</p>
-                    <p class="text-2xl font-bold text-cyan-300 font-mono mt-1">{{ nutResult.protein }} <span class="text-xs font-normal text-muted">g</span></p>
+                    <p class="text-2xl font-bold text-accent font-mono mt-1">{{ nutResult.protein }} <span class="text-xs font-normal text-muted">g</span></p>
                     <p class="text-2xs text-muted font-mono mt-1">{{ nut_protein }} g/kg × {{ nut_weight }} kg</p>
                   </div>
 
-                  <div class="rounded-xl border border-hairline bg-surface/30 p-4">
+                  <div class="rounded-xl border border-hairline bg-surface p-4">
                     <p class="text-2xs font-bold text-muted">醣/脂分配估算</p>
                     <p class="text-base font-bold text-fg font-mono mt-1.5">{{ nutResult.carb }}g <span class="text-xs text-muted">/ {{ nutResult.fat }}g</span></p>
                     <p class="text-xs text-muted mt-1">碳水40% / 脂肪30%</p>
                   </div>
 
-                  <div class="rounded-xl border border-hairline bg-surface/30 p-4">
+                  <div class="rounded-xl border border-hairline bg-surface p-4">
                     <p class="text-2xs font-bold text-muted">BMI / 標準體重 (IBW)</p>
-                    <p class="text-xl font-bold font-mono mt-1" :class="Number(nutResult.bmi) < 18.5 ? 'text-sky-400' : Number(nutResult.bmi) > 24 ? 'text-rose-400' : 'text-emerald-400'">
+                    <p class="text-xl font-bold font-mono mt-1" :class="Number(nutResult.bmi) < 18.5 ? 'text-accent' : Number(nutResult.bmi) > 24 ? 'text-danger' : 'text-success'">
                       {{ nutResult.bmi }}
                     </p>
                     <p class="text-xs text-muted mt-1">理想體重 ≈ {{ nutResult.ibw }} kg</p>
                   </div>
 
-                  <div class="rounded-xl border border-hairline bg-surface/30 p-4">
+                  <div class="rounded-xl border border-hairline bg-surface p-4">
                     <p class="text-2xs font-bold text-muted">快速熱量區間</p>
                     <p class="text-sm font-bold text-fg-secondary font-mono mt-2">
                       {{ Math.round(Number(nut_weight) * 25) }} – {{ Math.round(Number(nut_weight) * 30) }} <span class="text-xs font-normal">kcal</span>
@@ -738,7 +738,7 @@ const fio2Result = computed(() => {
                 </div>
               </div>
 
-              <div v-else class="h-full min-h-[200px] flex flex-col items-center justify-center rounded-2xl border border-dashed border-hairline bg-surface/10 text-muted text-xs text-center p-6">
+              <div v-else class="h-full min-h-[200px] flex flex-col items-center justify-center rounded-2xl border border-dashed border-hairline bg-surface text-muted text-xs text-center p-6">
                 <span class="text-3xl mb-3 opacity-30">🥗</span>
                 請在左側輸入患者的身高、體重與年齡，以計算每日營養配比
               </div>
@@ -752,7 +752,7 @@ const fio2Result = computed(() => {
         <div class="max-w-3xl space-y-6">
           <div class="border-b border-hairline pb-4">
             <h2 class="text-lg font-bold text-fg flex items-center gap-2">
-              <span class="text-cyan-400">💨</span> 氧氣裝置吸入氧濃度 (FiO₂) 換算與 P/F 比值
+              <span class="text-accent">💨</span> 氧氣裝置吸入氧濃度 (FiO₂) 換算與 P/F 比值
             </h2>
             <p class="text-xs text-muted mt-1 font-mono">Estimate fraction of inspired oxygen based on device and oxygen flow rate</p>
           </div>
@@ -767,8 +767,8 @@ const fio2Result = computed(() => {
                 @click="o2_device = key as O2Device; o2_flow = ''"
                 class="px-3.5 py-3 rounded-xl border text-xs font-bold transition-all"
                 :class="o2_device === key
-                  ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.05)]'
-                  : 'bg-surface/30 border-hairline text-fg-secondary hover:text-fg hover:bg-surface/50'"
+                  ? 'bg-accent/10 border-accent/30 text-accent shadow-[0_0_10px_rgba(6,182,212,0.05)]'
+                  : 'bg-surface border-hairline text-fg-secondary hover:text-fg hover:bg-surface/50'"
               >
                 {{ label }}
               </button>
@@ -788,8 +788,8 @@ const fio2Result = computed(() => {
                     @click="o2_venturi = v"
                     class="py-2 text-xs font-mono font-bold rounded-lg border transition-all"
                     :class="o2_venturi === v
-                      ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400'
-                      : 'bg-surface/50 border-hairline text-muted hover:text-fg-secondary'"
+                      ? 'bg-accent/10 border-accent/30 text-accent'
+                      : 'bg-surface border-hairline text-muted hover:text-fg-secondary'"
                   >
                     {{ v }}%
                   </button>
@@ -807,7 +807,7 @@ const fio2Result = computed(() => {
                     min="21"
                     max="100"
                     placeholder="40"
-                    class="w-full text-sm px-4 py-3 bg-surface/50 border border-hairline rounded-xl text-fg outline-none focus:border-cyan-500/50 placeholder-muted transition-all font-mono"
+                    class="w-full text-sm px-4 py-3 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 placeholder-muted transition-all font-mono"
                   />
                   <span class="absolute right-4 top-3.5 text-xs text-muted font-mono">%</span>
                 </div>
@@ -825,7 +825,7 @@ const fio2Result = computed(() => {
                     type="number"
                     step="1"
                     :placeholder="o2_device === 'nc' ? '建議 1–6' : o2_device === 'hfnc' ? '建議 20–60' : '建議 5–15'"
-                    class="w-full text-sm px-4 py-3 bg-surface/50 border border-hairline rounded-xl text-fg outline-none focus:border-cyan-500/50 placeholder-muted transition-all font-mono"
+                    class="w-full text-sm px-4 py-3 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 placeholder-muted transition-all font-mono"
                   />
                   <span class="absolute right-4 top-3.5 text-xs text-muted font-mono">L/min</span>
                 </div>
@@ -839,7 +839,7 @@ const fio2Result = computed(() => {
                     v-model.number="o2_pao2"
                     type="number"
                     placeholder="輸入後自動試算 P/F ratio"
-                    class="w-full text-sm px-4 py-3 bg-surface/50 border border-hairline rounded-xl text-fg outline-none focus:border-cyan-500/50 placeholder-muted transition-all font-mono"
+                    class="w-full text-sm px-4 py-3 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 placeholder-muted transition-all font-mono"
                   />
                   <span class="absolute right-4 top-3.5 text-xs text-muted font-mono">mmHg</span>
                 </div>
@@ -848,7 +848,7 @@ const fio2Result = computed(() => {
 
             <!-- Result Box -->
             <div class="flex flex-col">
-              <div v-if="fio2Result" class="rounded-2xl border border-hairline bg-surface/40 p-6 shadow-xl space-y-4">
+              <div v-if="fio2Result" class="rounded-2xl border border-hairline bg-surface p-6 shadow-xl space-y-4">
                 <div>
                   <span class="text-xs font-bold text-muted">估算吸入氧濃度</span>
                   <div class="flex items-baseline gap-2 mt-1">
@@ -863,7 +863,7 @@ const fio2Result = computed(() => {
                   <div class="flex items-baseline gap-2">
                     <span
                       class="text-3xl font-extrabold font-mono tracking-tight"
-                      :class="fio2Result.pf >= 300 ? 'text-emerald-400' : fio2Result.pf >= 200 ? 'text-amber-400' : 'text-rose-400'"
+                      :class="fio2Result.pf >= 300 ? 'text-success' : fio2Result.pf >= 200 ? 'text-warning' : 'text-danger'"
                     >
                       {{ fio2Result.pf }}
                     </span>
@@ -871,14 +871,14 @@ const fio2Result = computed(() => {
                   </div>
                   <p
                     class="text-xs font-bold"
-                    :class="fio2Result.pf >= 300 ? 'text-emerald-400' : fio2Result.pf >= 200 ? 'text-amber-400' : 'text-rose-400'"
+                    :class="fio2Result.pf >= 300 ? 'text-success' : fio2Result.pf >= 200 ? 'text-warning' : 'text-danger'"
                   >
                     {{ fio2Result.pfLabel }}
                   </p>
                 </div>
               </div>
 
-              <div v-else class="h-full min-h-[180px] flex flex-col items-center justify-center rounded-2xl border border-dashed border-hairline bg-surface/10 text-muted text-xs text-center p-6">
+              <div v-else class="h-full min-h-[180px] flex flex-col items-center justify-center rounded-2xl border border-dashed border-hairline bg-surface text-muted text-xs text-center p-6">
                 <span class="text-3xl mb-3 opacity-30">💨</span>
                 請選擇適當的給氧裝置並輸入流量，以估計 FiO₂ 氧濃度
               </div>
