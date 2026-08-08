@@ -1066,7 +1066,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
                   {{ m.price ? `$${m.price.toLocaleString()}` : "—" }}</td>
                 <td class="px-4 py-2.5 text-muted text-xs font-medium">{{ m.supplier || "—" }}</td>
                 <td class="px-4 py-2.5 text-right">
-                  <div class="flex gap-2.5 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div class="flex gap-2.5 justify-end transition-opacity">
                     <button @click="openEdit(m)" class="text-xs text-accent hover:text-accent-hover font-bold cursor-pointer">編輯</button>
                     <button @click="confirmDelete(m)" class="text-xs text-danger hover:text-danger-hover font-bold cursor-pointer">刪除</button>
                   </div>
@@ -1144,7 +1144,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
 
                 <!-- 操作 -->
                 <td class="px-4 py-2.5 text-right">
-                  <div class="flex gap-2.5 justify-end whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div class="flex gap-2.5 justify-end whitespace-nowrap transition-opacity">
                     <template v-if="editingPhysId === p.id">
                       <button @click="saveInlinePhys" class="text-xs text-success hover:text-success-hover font-bold cursor-pointer">儲存</button>
                       <button @click="cancelEditPhys" class="text-xs text-muted hover:text-fg-secondary cursor-pointer">取消</button>
