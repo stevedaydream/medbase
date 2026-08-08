@@ -325,7 +325,7 @@ onMounted(() => { scrollToActive() })
           @click="selectedIdx = idx"
           class="w-full text-left px-3 py-2 text-xs transition-colors"
           :class="selectedIdx === idx
-            ? 'bg-blue-900/50 text-white border-r-2 border-blue-500'
+            ? 'bg-accent/50 text-white border-r-2 border-blue-500'
             : 'text-fg-secondary hover:bg-elevated hover:text-fg'"
         >
           <div class="font-medium">{{ pool.label }}</div>
@@ -403,7 +403,7 @@ onMounted(() => { scrollToActive() })
                 :disabled="!canEdit"
                 class="w-6 h-6 text-xs rounded transition-colors disabled:opacity-50"
                 :class="isDayActive(di)
-                  ? (di === 0 ? 'bg-red-700 text-white' : di === 6 ? 'bg-blue-700 text-white' : 'bg-emerald-700 text-white')
+                  ? (di === 0 ? 'bg-danger text-white' : di === 6 ? 'bg-blue-700 text-white' : 'bg-emerald-700 text-white')
                   : 'bg-elevated text-muted hover:text-fg-secondary'"
               >{{ lbl }}</button>
             </div>
@@ -414,14 +414,14 @@ onMounted(() => { scrollToActive() })
             @click="isLocked = !isLocked"
             class="ml-auto text-xs px-2 py-0.5 rounded border transition-colors"
             :class="isLocked
-              ? 'border-blue-500 text-blue-400 bg-blue-900/20'
+              ? 'border-blue-500 text-accent bg-accent/20'
               : 'border-hairline text-muted hover:border-hairline hover:text-fg-secondary'"
           >{{ isLocked ? '✦ 履帶模式' : '⊞ 切換履帶' }}</button>
 
           <!-- Delete pool -->
           <button v-if="canEdit"
             @click="removePool(selectedIdx)"
-            class="text-xs text-red-700 hover:text-red-500 transition-colors">
+            class="text-xs text-danger hover:text-danger transition-colors">
             刪除此池
           </button>
         </div>
@@ -442,14 +442,14 @@ onMounted(() => { scrollToActive() })
               class="group flex items-center gap-1 px-2 py-1 rounded-lg border text-xs cursor-grab transition-colors select-none touch-none"
               :class="[
                 dragOverIdx === mi && dragFromIdx !== mi
-                  ? 'border-blue-500 bg-blue-900/40'
+                  ? 'border-blue-500 bg-accent/40'
                   : mi === nextPickIdx
-                    ? 'border-blue-400 bg-blue-950/60 text-blue-200'
+                    ? 'border-blue-400 bg-accent/60 text-accent'
                     : 'border-hairline bg-elevated text-fg-secondary hover:border-hairline'
               ]"
             >
               <!-- Next pointer -->
-              <span v-if="mi === nextPickIdx" class="text-blue-400 text-xs leading-none">▶</span>
+              <span v-if="mi === nextPickIdx" class="text-accent text-xs leading-none">▶</span>
               <span class="font-mono text-muted text-xs">{{ code }}</span>
               <span>{{ getName(code) }}</span>
 
@@ -458,10 +458,10 @@ onMounted(() => { scrollToActive() })
                 <button v-if="canEdit"
                   @click.stop="setStartPoint(mi)"
                   title="設為輪序起點"
-                  class="text-muted hover:text-blue-400 text-xs px-0.5">▷</button>
+                  class="text-muted hover:text-accent text-xs px-0.5">▷</button>
                 <button v-if="canEdit"
                   @click.stop="removeMember(code)"
-                  class="text-muted hover:text-red-500 text-xs px-0.5">✕</button>
+                  class="text-muted hover:text-danger text-xs px-0.5">✕</button>
               </span>
             </div>
 
@@ -482,7 +482,7 @@ onMounted(() => { scrollToActive() })
                 <div v-if="!availableStaff.length" class="text-xs text-muted px-2 py-1">全員已加入</div>
                 <template v-else>
                   <button @click="addAllStaff"
-                    class="w-full text-left text-xs px-2 py-1.5 hover:bg-blue-900/40 rounded text-blue-300 transition-colors font-semibold border-b border-hairline mb-0.5">
+                    class="w-full text-left text-xs px-2 py-1.5 hover:bg-accent/40 rounded text-accent transition-colors font-semibold border-b border-hairline mb-0.5">
                     ＋ 全員加入 ({{ availableStaff.length }})
                   </button>
                   <button v-for="s in availableStaff" :key="s.code"
@@ -509,15 +509,15 @@ onMounted(() => { scrollToActive() })
                 class="shrink-0 flex flex-col items-center justify-center px-2.5 py-1.5 rounded border text-xs min-w-[5rem] transition-colors"
                 :class="[
                   isNextRange(item.idx)
-                    ? 'border-blue-500 bg-blue-900/40 text-blue-200'
+                    ? 'border-blue-500 bg-accent/40 text-accent'
                     : 'border-hairline bg-elevated text-fg-secondary',
-                  canEdit ? 'cursor-pointer hover:border-blue-400 hover:bg-blue-900/20' : ''
+                  canEdit ? 'cursor-pointer hover:border-blue-400 hover:bg-accent/20' : ''
                 ]"
                 :title="canEdit ? '點選設為起點' : ''">
                 <span class="font-mono text-muted text-xs">{{ item.code }}</span>
                 <span class="text-xs truncate max-w-[4.5rem] text-center"
-                  :class="isNextRange(item.idx) ? 'text-blue-100' : 'text-fg'">{{ item.name }}</span>
-                <span v-if="item.idx === nextPickIdx" class="text-2xs text-blue-400 mt-0.5">▶</span>
+                  :class="isNextRange(item.idx) ? 'text-accent' : 'text-fg'">{{ item.name }}</span>
+                <span v-if="item.idx === nextPickIdx" class="text-2xs text-accent mt-0.5">▶</span>
               </div>
             </div>
 
@@ -528,23 +528,23 @@ onMounted(() => { scrollToActive() })
       </div>
 
       <!-- Pool date info bar -->
-      <div v-if="poolMonthInfo && selected?.order.length" class="flex items-center gap-2 px-4 py-2 border-t border-hairline bg-surface/40 flex-wrap text-xs">
+      <div v-if="poolMonthInfo && selected?.order.length" class="flex items-center gap-2 px-4 py-2 border-t border-hairline bg-surface flex-wrap text-xs">
         <span class="text-muted font-semibold shrink-0">{{ props.month }}月</span>
         <span class="text-muted shrink-0">起：</span>
-        <span v-if="poolMonthInfo.curFirst" class="text-emerald-400 font-mono shrink-0">
+        <span v-if="poolMonthInfo.curFirst" class="text-success font-mono shrink-0">
           {{ props.month }}/{{ poolMonthInfo.curFirst.day }}
           <span class="text-fg-secondary font-sans ml-1">{{ poolMonthInfo.curFirst.codes.map(getName).join('、') }}</span>
         </span>
         <span v-else class="text-muted">—</span>
         <span class="text-muted shrink-0">→ 終：</span>
-        <span v-if="poolMonthInfo.curLast" class="text-amber-400 font-mono shrink-0">
+        <span v-if="poolMonthInfo.curLast" class="text-warning font-mono shrink-0">
           {{ props.month }}/{{ poolMonthInfo.curLast.day }}
           <span class="text-fg-secondary font-sans ml-1">{{ poolMonthInfo.curLast.codes.map(getName).join('、') }}</span>
         </span>
         <span v-else class="text-muted">—</span>
         <span class="text-muted shrink-0 mx-1">｜</span>
         <span class="text-muted shrink-0">下月起：</span>
-        <span v-if="poolMonthInfo.nextFirst" class="text-blue-400 font-mono shrink-0">
+        <span v-if="poolMonthInfo.nextFirst" class="text-accent font-mono shrink-0">
           {{ poolMonthInfo.nextFirst.month }}/{{ poolMonthInfo.nextFirst.day }}
           <span class="text-fg-secondary font-sans ml-1">{{ poolMonthInfo.nextFirst.codes.map(getName).join('、') }}</span>
         </span>
@@ -585,14 +585,14 @@ onMounted(() => { scrollToActive() })
               <template v-for="row in projectionRows" :key="row.day">
                 <tr v-for="(entry, ei) in row.entries" :key="ei"
                   class="border-b border-hairline hover:bg-surface/40"
-                  :class="row.dow === 6 ? 'bg-blue-950/10' : row.dow === 0 ? 'bg-red-950/10' : ''">
+                  :class="row.dow === 6 ? 'bg-accent/10' : row.dow === 0 ? 'bg-accent/10' : ''">
                   <td class="px-3 py-1.5">
                     <span v-if="ei === 0"
-                      :class="row.dow === 6 ? 'text-blue-300' : row.dow === 0 ? 'text-red-300' : 'text-fg-secondary'"
+                      :class="row.dow === 6 ? 'text-accent' : row.dow === 0 ? 'text-accent' : 'text-fg-secondary'"
                     >{{ row.dateStr }}</span>
                   </td>
                   <td class="px-2 py-1.5 text-center"
-                    :class="row.dow === 6 ? 'text-blue-400' : row.dow === 0 ? 'text-red-400' : 'text-muted'">
+                    :class="row.dow === 6 ? 'text-accent' : row.dow === 0 ? 'text-accent' : 'text-muted'">
                     <span v-if="ei === 0">{{ DOW_ZH[row.dow] }}</span>
                   </td>
                   <td class="px-3 py-1.5 text-muted">
