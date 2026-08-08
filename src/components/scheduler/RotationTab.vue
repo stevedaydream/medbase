@@ -315,9 +315,9 @@ onMounted(() => { scrollToActive() })
   <div class="flex h-full overflow-hidden">
 
     <!-- ── Left: Pool list ────────────────────────────────────────── -->
-    <div class="w-44 border-r border-gray-800 flex flex-col flex-shrink-0 bg-gray-900">
-      <div class="px-3 py-2.5 border-b border-gray-800">
-        <p class="text-xs font-semibold text-gray-400">輪序池</p>
+    <div class="w-44 border-r border-hairline flex flex-col flex-shrink-0 bg-surface">
+      <div class="px-3 py-2.5 border-b border-hairline">
+        <p class="text-xs font-semibold text-fg-secondary">輪序池</p>
       </div>
       <div class="flex-1 overflow-y-auto py-1">
         <button
@@ -326,29 +326,29 @@ onMounted(() => { scrollToActive() })
           class="w-full text-left px-3 py-2 text-xs transition-colors"
           :class="selectedIdx === idx
             ? 'bg-blue-900/50 text-white border-r-2 border-blue-500'
-            : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'"
+            : 'text-fg-secondary hover:bg-elevated hover:text-fg'"
         >
           <div class="font-medium">{{ pool.label }}</div>
-          <div class="text-gray-600 mt-0.5">{{ pool.poolName }}
-            <span v-if="pool.order.length" class="text-gray-700">・{{ pool.order.length }}人</span>
+          <div class="text-muted mt-0.5">{{ pool.poolName }}
+            <span v-if="pool.order.length" class="text-muted">・{{ pool.order.length }}人</span>
           </div>
         </button>
       </div>
       <!-- Add pool -->
-      <div class="border-t border-gray-800 p-2">
+      <div class="border-t border-hairline p-2">
         <button v-if="!showNewPool && canEdit"
           @click="showNewPool = true"
-          class="w-full text-xs py-1.5 text-gray-600 hover:text-gray-300 hover:bg-gray-800 rounded transition-colors">
+          class="w-full text-xs py-1.5 text-muted hover:text-fg-secondary hover:bg-elevated rounded transition-colors">
           + 新增自訂池
         </button>
         <div v-if="showNewPool" class="space-y-1.5">
           <input v-model="newPoolLabel" placeholder="名稱（週六白班）"
-            class="w-full text-xs px-2 py-1 bg-gray-800 border border-gray-700 rounded text-gray-200 outline-none focus:border-blue-500" />
+            class="w-full text-xs px-2 py-1 bg-elevated border border-hairline rounded text-fg outline-none focus:border-blue-500" />
           <input v-model="newPoolName" placeholder="ID（如 satD2）" maxlength="10"
-            class="w-full text-xs px-2 py-1 bg-gray-800 border border-gray-700 rounded text-gray-200 outline-none focus:border-blue-500" />
+            class="w-full text-xs px-2 py-1 bg-elevated border border-hairline rounded text-fg outline-none focus:border-blue-500" />
           <div class="flex gap-1">
             <button @click="addPool" class="flex-1 text-xs py-1 bg-blue-700 hover:bg-blue-600 text-white rounded">新增</button>
-            <button @click="showNewPool = false" class="text-xs px-2 text-gray-600 hover:text-gray-400">✕</button>
+            <button @click="showNewPool = false" class="text-xs px-2 text-muted hover:text-fg-secondary">✕</button>
           </div>
         </div>
       </div>
@@ -358,44 +358,44 @@ onMounted(() => { scrollToActive() })
     <div class="flex-1 overflow-hidden flex flex-col">
 
       <!-- No pool selected -->
-      <div v-if="!selected" class="flex-1 flex items-center justify-center text-gray-700 text-sm">
+      <div v-if="!selected" class="flex-1 flex items-center justify-center text-muted text-sm">
         請選擇左側輪序池
       </div>
 
       <template v-else>
       <!-- Top: Pool settings + members -->
-      <div class="flex-1 overflow-y-auto p-4 space-y-4 border-b border-gray-800">
+      <div class="flex-1 overflow-y-auto p-4 space-y-4 border-b border-hairline">
 
         <!-- Pool header row -->
         <div class="flex items-center gap-3 flex-wrap">
-          <h3 class="text-sm font-semibold text-white">{{ selected.label }}</h3>
-          <span class="text-xs text-gray-600">{{ selected.poolName }}</span>
+          <h3 class="text-sm font-semibold text-fg">{{ selected.label }}</h3>
+          <span class="text-xs text-muted">{{ selected.poolName }}</span>
 
           <!-- Shift code selector -->
           <div class="flex items-center gap-1.5 ml-2">
-            <span class="text-xs text-gray-500">班別</span>
+            <span class="text-xs text-muted">班別</span>
             <select :value="selected.shiftCode" @change="setShiftCode(($event.target as HTMLSelectElement).value)"
               :disabled="!canEdit"
-              class="text-xs bg-gray-800 border border-gray-700 rounded px-1.5 py-0.5 text-gray-200 outline-none focus:border-gray-500 disabled:opacity-60">
+              class="text-xs bg-elevated border border-hairline rounded px-1.5 py-0.5 text-fg outline-none focus:border-hairline disabled:opacity-60">
               <option v-for="sc in shiftCodes" :key="sc" :value="sc">{{ sc }}</option>
             </select>
           </div>
 
           <!-- Quota spinner -->
           <div class="flex items-center gap-1.5">
-            <span class="text-xs text-gray-500">每日人數</span>
-            <div class="flex items-center border border-gray-700 rounded overflow-hidden">
+            <span class="text-xs text-muted">每日人數</span>
+            <div class="flex items-center border border-hairline rounded overflow-hidden">
               <button @click="setQuota(-1)" :disabled="!canEdit || selected.quota <= 1"
-                class="px-1.5 py-0.5 text-gray-400 hover:bg-gray-700 disabled:opacity-30 text-xs">−</button>
-              <span class="px-2 text-xs text-white font-mono min-w-[1.5rem] text-center">{{ selected.quota }}</span>
+                class="px-1.5 py-0.5 text-fg-secondary hover:bg-raised disabled:opacity-30 text-xs">−</button>
+              <span class="px-2 text-xs text-fg font-mono min-w-[1.5rem] text-center">{{ selected.quota }}</span>
               <button @click="setQuota(1)" :disabled="!canEdit"
-                class="px-1.5 py-0.5 text-gray-400 hover:bg-gray-700 disabled:opacity-30 text-xs">＋</button>
+                class="px-1.5 py-0.5 text-fg-secondary hover:bg-raised disabled:opacity-30 text-xs">＋</button>
             </div>
           </div>
 
           <!-- Day-of-week filter -->
           <div class="flex items-center gap-1.5">
-            <span class="text-xs text-gray-500">啟用日</span>
+            <span class="text-xs text-muted">啟用日</span>
             <div class="flex gap-0.5">
               <button
                 v-for="(lbl, di) in DOW_LABELS" :key="di"
@@ -404,7 +404,7 @@ onMounted(() => { scrollToActive() })
                 class="w-6 h-6 text-xs rounded transition-colors disabled:opacity-50"
                 :class="isDayActive(di)
                   ? (di === 0 ? 'bg-red-700 text-white' : di === 6 ? 'bg-blue-700 text-white' : 'bg-emerald-700 text-white')
-                  : 'bg-gray-800 text-gray-600 hover:text-gray-400'"
+                  : 'bg-elevated text-muted hover:text-fg-secondary'"
               >{{ lbl }}</button>
             </div>
           </div>
@@ -415,7 +415,7 @@ onMounted(() => { scrollToActive() })
             class="ml-auto text-xs px-2 py-0.5 rounded border transition-colors"
             :class="isLocked
               ? 'border-blue-500 text-blue-400 bg-blue-900/20'
-              : 'border-gray-700 text-gray-500 hover:border-gray-500 hover:text-gray-300'"
+              : 'border-hairline text-muted hover:border-hairline hover:text-fg-secondary'"
           >{{ isLocked ? '✦ 履帶模式' : '⊞ 切換履帶' }}</button>
 
           <!-- Delete pool -->
@@ -428,9 +428,9 @@ onMounted(() => { scrollToActive() })
 
         <!-- Members -->
         <div>
-          <p class="text-xs text-gray-500 mb-2">
+          <p class="text-xs text-muted mb-2">
             成員順序
-            <span class="text-gray-700 ml-1">{{ isLocked ? '（履帶：左滑前進，右滑回退）' : '（拖拽調整；▶ = 下次輪到）' }}</span>
+            <span class="text-muted ml-1">{{ isLocked ? '（履帶：左滑前進，右滑回退）' : '（拖拽調整；▶ = 下次輪到）' }}</span>
           </p>
 
           <!-- 編輯模式：chips -->
@@ -445,12 +445,12 @@ onMounted(() => { scrollToActive() })
                   ? 'border-blue-500 bg-blue-900/40'
                   : mi === nextPickIdx
                     ? 'border-blue-400 bg-blue-950/60 text-blue-200'
-                    : 'border-gray-700 bg-gray-800 text-gray-300 hover:border-gray-500'
+                    : 'border-hairline bg-elevated text-fg-secondary hover:border-hairline'
               ]"
             >
               <!-- Next pointer -->
               <span v-if="mi === nextPickIdx" class="text-blue-400 text-xs leading-none">▶</span>
-              <span class="font-mono text-gray-500 text-xs">{{ code }}</span>
+              <span class="font-mono text-muted text-xs">{{ code }}</span>
               <span>{{ getName(code) }}</span>
 
               <!-- Hover actions -->
@@ -458,37 +458,37 @@ onMounted(() => { scrollToActive() })
                 <button v-if="canEdit"
                   @click.stop="setStartPoint(mi)"
                   title="設為輪序起點"
-                  class="text-gray-600 hover:text-blue-400 text-xs px-0.5">▷</button>
+                  class="text-muted hover:text-blue-400 text-xs px-0.5">▷</button>
                 <button v-if="canEdit"
                   @click.stop="removeMember(code)"
-                  class="text-gray-700 hover:text-red-500 text-xs px-0.5">✕</button>
+                  class="text-muted hover:text-red-500 text-xs px-0.5">✕</button>
               </span>
             </div>
 
             <!-- Empty state -->
-            <div v-if="!selected.order.length" class="text-xs text-gray-700 self-center">
+            <div v-if="!selected.order.length" class="text-xs text-muted self-center">
               尚無成員，點「+ 加入成員」開始
             </div>
 
             <!-- Add member button -->
             <div v-if="canEdit" class="relative">
               <button @click="showAddPicker = !showAddPicker"
-                class="flex items-center gap-1 px-2 py-1 rounded-lg border border-dashed border-gray-700 text-xs text-gray-600 hover:border-gray-500 hover:text-gray-400 transition-colors">
+                class="flex items-center gap-1 px-2 py-1 rounded-lg border border-dashed border-hairline text-xs text-muted hover:border-hairline hover:text-fg-secondary transition-colors">
                 + 加入
               </button>
               <!-- Picker dropdown -->
               <div v-if="showAddPicker"
-                class="absolute top-8 left-0 z-20 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-1 min-w-[10rem] max-h-48 overflow-y-auto">
-                <div v-if="!availableStaff.length" class="text-xs text-gray-600 px-2 py-1">全員已加入</div>
+                class="absolute top-8 left-0 z-20 bg-surface border border-hairline rounded-lg shadow-2xl p-1 min-w-[10rem] max-h-48 overflow-y-auto">
+                <div v-if="!availableStaff.length" class="text-xs text-muted px-2 py-1">全員已加入</div>
                 <template v-else>
                   <button @click="addAllStaff"
-                    class="w-full text-left text-xs px-2 py-1.5 hover:bg-blue-900/40 rounded text-blue-300 transition-colors font-semibold border-b border-gray-800 mb-0.5">
+                    class="w-full text-left text-xs px-2 py-1.5 hover:bg-blue-900/40 rounded text-blue-300 transition-colors font-semibold border-b border-hairline mb-0.5">
                     ＋ 全員加入 ({{ availableStaff.length }})
                   </button>
                   <button v-for="s in availableStaff" :key="s.code"
                     @click="addMember(s.code)"
-                    class="w-full text-left text-xs px-2 py-1.5 hover:bg-gray-800 rounded text-gray-300 transition-colors">
-                    <span class="font-mono text-gray-500 mr-1.5">{{ s.code }}</span>{{ s.name }}
+                    class="w-full text-left text-xs px-2 py-1.5 hover:bg-elevated rounded text-fg-secondary transition-colors">
+                    <span class="font-mono text-muted mr-1.5">{{ s.code }}</span>{{ s.name }}
                   </button>
                 </template>
               </div>
@@ -498,7 +498,7 @@ onMounted(() => { scrollToActive() })
           <!-- 履帶模式 -->
           <div v-else class="flex items-center gap-1 select-none">
             <button @click="stepTrack(-1)"
-              class="shrink-0 px-2 py-3 text-gray-500 hover:text-white hover:bg-gray-800 rounded transition-colors text-lg">‹</button>
+              class="shrink-0 px-2 py-3 text-muted hover:text-fg hover:bg-elevated rounded transition-colors text-lg">‹</button>
 
             <div ref="trackEl"
               class="flex overflow-x-auto gap-1.5 py-1.5 scroll-smooth flex-1"
@@ -510,71 +510,71 @@ onMounted(() => { scrollToActive() })
                 :class="[
                   isNextRange(item.idx)
                     ? 'border-blue-500 bg-blue-900/40 text-blue-200'
-                    : 'border-gray-700 bg-gray-800 text-gray-400',
+                    : 'border-hairline bg-elevated text-fg-secondary',
                   canEdit ? 'cursor-pointer hover:border-blue-400 hover:bg-blue-900/20' : ''
                 ]"
                 :title="canEdit ? '點選設為起點' : ''">
-                <span class="font-mono text-gray-500 text-xs">{{ item.code }}</span>
+                <span class="font-mono text-muted text-xs">{{ item.code }}</span>
                 <span class="text-xs truncate max-w-[4.5rem] text-center"
-                  :class="isNextRange(item.idx) ? 'text-blue-100' : 'text-gray-200'">{{ item.name }}</span>
+                  :class="isNextRange(item.idx) ? 'text-blue-100' : 'text-fg'">{{ item.name }}</span>
                 <span v-if="item.idx === nextPickIdx" class="text-2xs text-blue-400 mt-0.5">▶</span>
               </div>
             </div>
 
             <button @click="stepTrack(1)"
-              class="shrink-0 px-2 py-3 text-gray-500 hover:text-white hover:bg-gray-800 rounded transition-colors text-lg">›</button>
+              class="shrink-0 px-2 py-3 text-muted hover:text-fg hover:bg-elevated rounded transition-colors text-lg">›</button>
           </div>
         </div>
       </div>
 
       <!-- Pool date info bar -->
-      <div v-if="poolMonthInfo && selected?.order.length" class="flex items-center gap-2 px-4 py-2 border-t border-gray-800/60 bg-gray-900/40 flex-wrap text-xs">
-        <span class="text-gray-600 font-semibold shrink-0">{{ props.month }}月</span>
-        <span class="text-gray-600 shrink-0">起：</span>
+      <div v-if="poolMonthInfo && selected?.order.length" class="flex items-center gap-2 px-4 py-2 border-t border-hairline bg-surface/40 flex-wrap text-xs">
+        <span class="text-muted font-semibold shrink-0">{{ props.month }}月</span>
+        <span class="text-muted shrink-0">起：</span>
         <span v-if="poolMonthInfo.curFirst" class="text-emerald-400 font-mono shrink-0">
           {{ props.month }}/{{ poolMonthInfo.curFirst.day }}
-          <span class="text-gray-400 font-sans ml-1">{{ poolMonthInfo.curFirst.codes.map(getName).join('、') }}</span>
+          <span class="text-fg-secondary font-sans ml-1">{{ poolMonthInfo.curFirst.codes.map(getName).join('、') }}</span>
         </span>
-        <span v-else class="text-gray-700">—</span>
-        <span class="text-gray-700 shrink-0">→ 終：</span>
+        <span v-else class="text-muted">—</span>
+        <span class="text-muted shrink-0">→ 終：</span>
         <span v-if="poolMonthInfo.curLast" class="text-amber-400 font-mono shrink-0">
           {{ props.month }}/{{ poolMonthInfo.curLast.day }}
-          <span class="text-gray-400 font-sans ml-1">{{ poolMonthInfo.curLast.codes.map(getName).join('、') }}</span>
+          <span class="text-fg-secondary font-sans ml-1">{{ poolMonthInfo.curLast.codes.map(getName).join('、') }}</span>
         </span>
-        <span v-else class="text-gray-700">—</span>
-        <span class="text-gray-800 shrink-0 mx-1">｜</span>
-        <span class="text-gray-600 shrink-0">下月起：</span>
+        <span v-else class="text-muted">—</span>
+        <span class="text-muted shrink-0 mx-1">｜</span>
+        <span class="text-muted shrink-0">下月起：</span>
         <span v-if="poolMonthInfo.nextFirst" class="text-blue-400 font-mono shrink-0">
           {{ poolMonthInfo.nextFirst.month }}/{{ poolMonthInfo.nextFirst.day }}
-          <span class="text-gray-400 font-sans ml-1">{{ poolMonthInfo.nextFirst.codes.map(getName).join('、') }}</span>
+          <span class="text-fg-secondary font-sans ml-1">{{ poolMonthInfo.nextFirst.codes.map(getName).join('、') }}</span>
         </span>
-        <span v-else class="text-gray-700">—</span>
+        <span v-else class="text-muted">—</span>
       </div>
 
       <!-- Bottom: Projection preview -->
       <div class="flex-1 overflow-hidden flex flex-col min-h-0">
         <!-- Preview header -->
-        <div class="flex items-center gap-2 px-4 py-2 border-b border-gray-800 flex-shrink-0">
-          <span class="text-xs text-gray-500 font-semibold">投影預覽</span>
+        <div class="flex items-center gap-2 px-4 py-2 border-b border-hairline flex-shrink-0">
+          <span class="text-xs text-muted font-semibold">投影預覽</span>
           <div class="flex items-center gap-1 ml-2">
-            <button @click="prevPrevMonth" class="px-1.5 text-gray-500 hover:text-white text-sm">‹</button>
-            <span class="text-xs font-mono text-gray-300 w-16 text-center">
+            <button @click="prevPrevMonth" class="px-1.5 text-muted hover:text-fg text-sm">‹</button>
+            <span class="text-xs font-mono text-fg-secondary w-16 text-center">
               {{ prevYear }}/{{ String(prevMonth).padStart(2,'0') }}
             </span>
-            <button @click="nextPrevMonth" class="px-1.5 text-gray-500 hover:text-white text-sm">›</button>
+            <button @click="nextPrevMonth" class="px-1.5 text-muted hover:text-fg text-sm">›</button>
           </div>
-          <span class="text-xs text-gray-700 ml-2">（唯讀，僅顯示有指派的日期）</span>
+          <span class="text-xs text-muted ml-2">（唯讀，僅顯示有指派的日期）</span>
         </div>
 
         <!-- Preview table -->
         <div class="flex-1 overflow-y-auto">
           <div v-if="!projectionRows.length"
-            class="flex items-center justify-center h-full text-gray-700 text-xs">
+            class="flex items-center justify-center h-full text-muted text-xs">
             無投影資料（輪序池尚無成員）
           </div>
           <table v-else class="w-full text-xs border-collapse">
-            <thead class="sticky top-0 bg-gray-900 z-10">
-              <tr class="text-gray-600 border-b border-gray-800">
+            <thead class="sticky top-0 bg-surface z-10">
+              <tr class="text-muted border-b border-hairline">
                 <th class="px-3 py-1.5 text-left font-medium">日期</th>
                 <th class="px-2 py-1.5 text-center font-medium w-8">週</th>
                 <th class="px-3 py-1.5 text-left font-medium">池</th>
@@ -584,25 +584,25 @@ onMounted(() => { scrollToActive() })
             <tbody>
               <template v-for="row in projectionRows" :key="row.day">
                 <tr v-for="(entry, ei) in row.entries" :key="ei"
-                  class="border-b border-gray-800/50 hover:bg-gray-900/40"
+                  class="border-b border-hairline hover:bg-surface/40"
                   :class="row.dow === 6 ? 'bg-blue-950/10' : row.dow === 0 ? 'bg-red-950/10' : ''">
                   <td class="px-3 py-1.5">
                     <span v-if="ei === 0"
-                      :class="row.dow === 6 ? 'text-blue-300' : row.dow === 0 ? 'text-red-300' : 'text-gray-300'"
+                      :class="row.dow === 6 ? 'text-blue-300' : row.dow === 0 ? 'text-red-300' : 'text-fg-secondary'"
                     >{{ row.dateStr }}</span>
                   </td>
                   <td class="px-2 py-1.5 text-center"
-                    :class="row.dow === 6 ? 'text-blue-400' : row.dow === 0 ? 'text-red-400' : 'text-gray-600'">
+                    :class="row.dow === 6 ? 'text-blue-400' : row.dow === 0 ? 'text-red-400' : 'text-muted'">
                     <span v-if="ei === 0">{{ DOW_ZH[row.dow] }}</span>
                   </td>
-                  <td class="px-3 py-1.5 text-gray-500">
+                  <td class="px-3 py-1.5 text-muted">
                     <span class="">{{ entry.pool.poolName }}</span>
-                    <span v-if="entry.pool.quota > 1" class="text-gray-700">×{{ entry.pool.quota }}</span>
+                    <span v-if="entry.pool.quota > 1" class="text-muted">×{{ entry.pool.quota }}</span>
                   </td>
                   <td class="px-3 py-1.5">
                     <span v-for="code in entry.codes" :key="code"
-                      class="inline-block mr-2 text-gray-300">
-                      <span class="font-mono text-gray-600 text-xs mr-0.5">{{ code }}</span>{{ getName(code) }}
+                      class="inline-block mr-2 text-fg-secondary">
+                      <span class="font-mono text-muted text-xs mr-0.5">{{ code }}</span>{{ getName(code) }}
                     </span>
                   </td>
                 </tr>
@@ -619,7 +619,7 @@ onMounted(() => { scrollToActive() })
   <!-- Drag ghost -->
   <Teleport to="body">
     <div v-if="isDragging"
-      class="fixed pointer-events-none z-[9999] bg-gray-700 border border-blue-500 text-xs text-white px-2 py-1 rounded shadow-xl opacity-90 whitespace-nowrap"
+      class="fixed pointer-events-none z-[9999] bg-raised border border-blue-500 text-xs text-fg px-2 py-1 rounded shadow-xl opacity-90 whitespace-nowrap"
       :style="{ left: ghostX + 'px', top: ghostY + 'px' }">
       {{ ghostLabel }}
     </div>
