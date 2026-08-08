@@ -324,11 +324,11 @@ function getRequestBadge(rowName: string, dayIdx: number) {
   ].filter(Boolean).join("，");
   if (actual) {
     return actual === entry.v1
-      ? { text: "✓", cls: "bg-emerald-700 text-emerald-200", tip: parts }
+      ? { text: "✓", cls: "bg-emerald-700 text-success", tip: parts }
       : { text: entry.v1 ?? "?", cls: "bg-raised text-fg-secondary", tip: parts };
   }
   const vn = entry.v1 ? "1" : entry.v2 ? "2" : "3";
-  return { text: vn, cls: "bg-orange-700 text-orange-200", tip: parts };
+  return { text: vn, cls: "bg-accent text-accent", tip: parts };
 }
 
 interface DayMeta { d: number; dow: number; isSat: boolean; isSun: boolean; isHoliday: boolean }
@@ -1822,7 +1822,7 @@ async function createTemplate() {
 }
 </script>
 <template>
-  <div class="flex flex-col h-full bg-sunken/20 text-fg overflow-hidden select-none">
+  <div class="accent-blue flex flex-col h-full bg-sunken text-fg overflow-hidden select-none">
 
     <!-- ── Login Modal ─────────────────────────────────────────────── -->
     <LoginModal v-if="!session" @logged-in="session = $event" />
@@ -1831,20 +1831,20 @@ async function createTemplate() {
     <template v-if="session">
 
     <!-- ── Header ─────────────────────────────────────────────────── -->
-    <div class="flex items-center justify-between px-6 py-4 border-b border-hairline bg-surface/30 backdrop-blur-md flex-shrink-0">
+    <div class="flex items-center justify-between px-6 py-4 border-b border-hairline bg-surface flex-shrink-0">
       <div class="flex items-center gap-3">
         <span class="text-xl">📅</span>
         <h1 class="text-sm font-black text-fg">排班控制面板</h1>
         <span v-if="activeTab === 'schedule'"
           class="text-2xs px-2.5 py-0.5 rounded-full font-bold border"
           :class="scheduleStatus === 'published'
-            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.05)]'
+            ? 'bg-success/10 text-success border-success/30 shadow-[0_0_10px_rgba(16,185,129,0.05)]'
             : 'bg-elevated border-hairline text-fg-secondary'">
           {{ scheduleStatus === 'published' ? '已發布' : '編輯草稿' }}
         </span>
         <span v-if="activeTab === 'schedule'" class="flex items-center gap-2 text-2xs font-medium">
-          <span v-if="isDirty" class="text-amber-400 animate-pulse">● 有未儲存變更</span>
-          <span v-else-if="dataSource" class="text-emerald-400">✓ 已同步至本機</span>
+          <span v-if="isDirty" class="text-warning animate-pulse">● 有未儲存變更</span>
+          <span v-else-if="dataSource" class="text-success">✓ 已同步至本機</span>
           <span v-if="lastAutoSave" class="text-muted font-mono">AUTOSAVE: {{ lastAutoSave }}</span>
         </span>
         <p v-else class="text-2xs text-muted font-mono">
@@ -1864,13 +1864,13 @@ async function createTemplate() {
     </div>
 
     <!-- ── Tab Bar ─────────────────────────────────────────────────── -->
-    <div class="flex border-b border-hairline flex-shrink-0 px-6 bg-surface/10 gap-1.5">
+    <div class="flex border-b border-hairline flex-shrink-0 px-6 bg-surface gap-1.5">
       <button
         v-for="tab in visibleTabs" :key="tab.key"
         @click="activeTab = tab.key"
         class="px-5 py-3 text-xs font-bold transition-all border-b-2 -mb-px cursor-pointer"
         :class="activeTab === tab.key
-          ? 'text-indigo-400 border-indigo-500 shadow-[0_4px_15px_-4px_rgba(99,102,241,0.15)] bg-overlay/[0.01]'
+          ? 'text-accent border-indigo-500 shadow-[0_4px_15px_-4px_rgba(99,102,241,0.15)] bg-overlay/[0.01]'
           : 'text-muted border-transparent hover:text-fg-secondary hover:bg-overlay/[0.005]'"
       >{{ tab.label }}</button>
     </div>
@@ -1879,7 +1879,7 @@ async function createTemplate() {
     <div v-if="activeTab === 'rotation'" class="flex-1 overflow-hidden flex flex-col">
 
       <!-- ── 配額分配面板 ────────────────────────────────────────────── -->
-      <div class="bg-surface/40 backdrop-blur-md border-b border-hairline flex-shrink-0">
+      <div class="bg-surface border-b border-hairline flex-shrink-0">
         <!-- Panel header -->
         <div class="flex items-center justify-between px-6 py-3 border-b border-hairline">
           <div class="flex items-center gap-4">
@@ -1890,29 +1890,29 @@ async function createTemplate() {
             </button>
             <div v-if="qShowPanel" class="flex items-center gap-2 text-2xs font-bold uppercase font-mono">
               <div :class="['px-2.5 py-0.5 rounded-full border transition-colors',
-                qPreview.length && !qLocked ? 'bg-green-500/10 border-green-500/30 text-green-400 shadow-[0_0_10px_rgba(16,185,129,0.05)]'
-                : 'bg-blue-500/10 border-blue-500/30 text-blue-400']">1. 試算</div>
+                qPreview.length && !qLocked ? 'bg-accent/10 border-accent/30 text-accent shadow-[0_0_10px_rgba(16,185,129,0.05)]'
+                : 'bg-accent/10 border-accent/30 text-accent']">1. 試算</div>
               <span class="text-muted">›</span>
               <div :class="['px-2.5 py-0.5 rounded-full border transition-colors',
-                Object.keys(monthlyQuotaMap).length ? 'bg-green-500/10 border-green-500/30 text-green-400 shadow-[0_0_10px_rgba(16,185,129,0.05)]'
-                : qPreview.length ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                Object.keys(monthlyQuotaMap).length ? 'bg-accent/10 border-accent/30 text-accent shadow-[0_0_10px_rgba(16,185,129,0.05)]'
+                : qPreview.length ? 'bg-accent/10 border-accent/30 text-accent'
                 : 'border-hairline text-muted']">2. 帶入</div>
               <span class="text-muted">›</span>
               <div :class="['px-2.5 py-0.5 rounded-full border transition-colors',
-                qLocked ? 'bg-green-500/10 border-green-500/30 text-green-400 shadow-[0_0_10px_rgba(16,185,129,0.05)]'
-                : qPreview.length ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                qLocked ? 'bg-accent/10 border-accent/30 text-accent shadow-[0_0_10px_rgba(16,185,129,0.05)]'
+                : qPreview.length ? 'bg-accent/10 border-accent/30 text-accent'
                 : 'border-hairline text-muted']">3. 結算</div>
             </div>
           </div>
           <div v-if="qShowPanel" class="flex items-center gap-2">
-            <span v-if="qError" class="text-xs text-rose-400 font-bold font-mono">{{ qError }}</span>
+            <span v-if="qError" class="text-xs text-danger font-bold font-mono">{{ qError }}</span>
             <button v-if="qLocked" @click="qUnlock"
               class="text-xs px-3 py-1.5 border border-hairline hover:border-hairline text-fg-secondary hover:text-fg rounded-xl transition-all cursor-pointer bg-overlay/5">
               解鎖並重新計算
             </button>
             <template v-else>
               <button @click="qCalc"
-                class="text-xs px-3.5 py-1.5 bg-blue-700 hover:bg-blue-600 text-white font-bold rounded-xl transition-all cursor-pointer shadow-md shadow-blue-500/10">
+                class="text-xs px-3.5 py-1.5 bg-blue-700 hover:bg-blue-600 text-white font-bold rounded-xl transition-all cursor-pointer shadow-md shadow-accent/10">
                 執行試算
               </button>
               <button v-if="qPreview.length" @click="qApply" :disabled="qLoading"
@@ -1920,7 +1920,7 @@ async function createTemplate() {
                 帶入配額
               </button>
               <button v-if="qPreview.length" @click="qCommit" :disabled="qCommitting"
-                class="text-xs px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white font-bold rounded-xl transition-all disabled:opacity-40 cursor-pointer shadow-md shadow-emerald-500/10">
+                class="text-xs px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white font-bold rounded-xl transition-all disabled:opacity-40 cursor-pointer shadow-md shadow-success/10">
                 {{ qCommitting ? '正在結算...' : '確認結算' }}
               </button>
             </template>
@@ -1932,7 +1932,7 @@ async function createTemplate() {
           <!-- Monthly totals -->
           <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-medium">
             <span class="text-2xs font-bold text-muted">本月份總計預估值</span>
-            <span v-for="f in QUOTA_FIELDS" :key="f" class="border border-hairline bg-sunken/40 rounded-lg px-2.5 py-1 flex items-center gap-1.5 font-mono">
+            <span v-for="f in QUOTA_FIELDS" :key="f" class="border border-hairline bg-sunken rounded-lg px-2.5 py-1 flex items-center gap-1.5 font-mono">
               <span class="text-muted font-bold">{{ f }}</span>
               <span class="text-fg font-bold"
                 :title="f === 'Off' ? `非週六 ${qTotals.Off - qTotals.W6Off} + 週六 ${qTotals.W6Off} = ${qTotals.Off}` : undefined">
@@ -1946,10 +1946,10 @@ async function createTemplate() {
           </div>
 
           <!-- Preview table -->
-          <div v-if="qPreview.length" class="overflow-x-auto rounded-xl border border-hairline bg-sunken/20">
+          <div v-if="qPreview.length" class="overflow-x-auto rounded-xl border border-hairline bg-sunken">
             <table class="text-xs border-collapse w-full">
               <thead>
-                <tr class="text-muted border-b border-hairline bg-surface/30">
+                <tr class="text-muted border-b border-hairline bg-surface">
                   <th class="text-left px-4 py-2 font-bold w-36">工作人員</th>
                   <th v-for="f in QUOTA_FIELDS" :key="f" class="px-4 py-2 text-center font-mono font-bold uppercase tracking-wider">{{ f }}</th>
                 </tr>
@@ -1962,7 +1962,7 @@ async function createTemplate() {
                     <span class="text-fg-secondary font-semibold">{{ staff.find(s => s.code === entry.code)?.name ?? entry.code }}</span>
                   </td>
                   <td v-for="f in QUOTA_FIELDS" :key="f" class="px-4 py-2.5 text-center">
-                    <span :class="['font-mono font-bold', entry[f].quota > entry[f].base ? 'text-amber-400' : 'text-fg']"
+                    <span :class="['font-mono font-bold', entry[f].quota > entry[f].base ? 'text-warning' : 'text-fg']"
                       :title="f === 'Off' ? `非週六 ${entry.Off.quota - entry.W6Off.quota} + 週六 ${entry.W6Off.quota} = ${entry.Off.quota}` : undefined">
                       <template v-if="f === 'Off' && entry.W6Off.quota > 0">
                         {{ entry.Off.quota - entry.W6Off.quota }}<span class="text-muted mx-0.5">+</span>{{ entry.W6Off.quota }}
@@ -1977,7 +1977,7 @@ async function createTemplate() {
                 </tr>
               </tbody>
               <tfoot>
-                <tr class="border-t border-hairline bg-surface/20 text-muted">
+                <tr class="border-t border-hairline bg-surface text-muted">
                   <td class="px-4 py-2.5 font-bold">加總合計</td>
                   <td v-for="f in QUOTA_FIELDS" :key="f" class="px-4 py-2.5 text-center font-mono font-bold">
                     <template v-if="f === 'Off' && qPreview.reduce((s, e) => s + e.W6Off.quota, 0) > 0">
@@ -2033,7 +2033,7 @@ async function createTemplate() {
     />
 
     <!-- ── Tab: 人員 ─────────────────────────────────────────────────── -->
-    <div v-else-if="activeTab === 'staff'" class="flex-1 overflow-y-auto bg-sunken/40 backdrop-blur-md">
+    <div v-else-if="activeTab === 'staff'" class="flex-1 overflow-y-auto bg-sunken">
       <div class="px-6 py-5 space-y-4 max-w-5xl mx-auto">
         <!-- Toolbar -->
         <div class="flex items-center gap-3 flex-wrap">
@@ -2041,11 +2041,11 @@ async function createTemplate() {
           <span class="text-2xs text-muted border border-hairline rounded px-2 py-0.5 bg-overlay/[0.01]">{{ staff.length }} 人</span>
           <div class="flex-1"></div>
           <button @click="pullStaffFromCloud" :disabled="isStaffLoading"
-            class="text-2xs font-bold px-3 py-2 bg-blue-500/10 border border-blue-500/20 text-blue-300 rounded-xl disabled:opacity-40 cursor-pointer transition-all">
+            class="text-2xs font-bold px-3 py-2 bg-accent/10 border border-accent/20 text-accent rounded-xl disabled:opacity-40 cursor-pointer transition-all">
             {{ isStaffLoading ? '…' : '↓ 從雲端拉取' }}
           </button>
           <button @click="pushStaffToCloud" :disabled="isStaffLoading || !staff.length"
-            class="text-2xs font-bold px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 rounded-xl disabled:opacity-40 cursor-pointer transition-all">
+            class="text-2xs font-bold px-3 py-2 bg-success/10 border border-success/20 text-success rounded-xl disabled:opacity-40 cursor-pointer transition-all">
             {{ isStaffLoading ? '…' : '↑ 上傳至雲端' }}
           </button>
           <button @click="importStaffFromSchedule" :disabled="!scheduleData.length"
@@ -2062,14 +2062,14 @@ async function createTemplate() {
         <div class="relative">
           <span class="absolute left-3 top-2 text-muted text-xs">🔍</span>
           <input v-model="staffFilter" placeholder="搜尋人員姓名、排班代號或員工編號…"
-            class="w-full text-xs pl-8 pr-4 py-2 bg-surface/50 border border-hairline rounded-xl text-fg outline-none focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/10 placeholder-muted transition-all font-sans" />
+            class="w-full text-xs pl-8 pr-4 py-2 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-sans" />
         </div>
 
         <!-- Staff table -->
-        <div class="rounded-2xl border border-hairline overflow-hidden bg-surface/20 shadow-xl">
+        <div class="rounded-2xl border border-hairline overflow-hidden bg-surface shadow-xl">
           <table class="w-full text-xs">
             <thead>
-              <tr class="bg-surface/60 text-muted border-b border-hairline">
+              <tr class="bg-surface text-muted border-b border-hairline">
                 <th class="px-4 py-3 text-left font-bold w-36">員工編號 (帳號)</th>
                 <th class="px-4 py-3 text-left font-bold w-28">班表代號</th>
                 <th class="px-4 py-3 text-left font-bold">真實姓名</th>
@@ -2087,11 +2087,11 @@ async function createTemplate() {
                 <td class="px-4 py-2">
                   <input v-model="member.employee_id" @change="onEmployeeIdChange(member)"
                     placeholder="（尚未設定）"
-                    class="font-mono text-amber-300 font-bold bg-transparent outline-none w-full focus:bg-sunken px-2 py-1 rounded-lg border border-transparent focus:border-hairline" />
+                    class="font-mono text-warning font-bold bg-transparent outline-none w-full focus:bg-sunken px-2 py-1 rounded-lg border border-transparent focus:border-hairline" />
                 </td>
                 <td class="px-4 py-2">
                   <input v-model="member.code" @change="saveStaffLocal"
-                    class="font-mono text-cyan-400 font-bold bg-transparent outline-none w-full focus:bg-sunken px-2 py-1 rounded-lg border border-transparent focus:border-hairline" />
+                    class="font-mono text-accent font-bold bg-transparent outline-none w-full focus:bg-sunken px-2 py-1 rounded-lg border border-transparent focus:border-hairline" />
                 </td>
                 <td class="px-4 py-2">
                   <input v-model="member.name"
@@ -2101,7 +2101,7 @@ async function createTemplate() {
                 </td>
                 <td class="px-4 py-2">
                   <select v-model="member.role" @change="saveStaffLocal"
-                    class="text-xs bg-sunken border border-hairline rounded-xl px-2 py-1.5 text-fg-secondary outline-none focus:border-cyan-500/50 w-full font-semibold">
+                    class="text-xs bg-sunken border border-hairline rounded-xl px-2 py-1.5 text-fg-secondary outline-none focus:border-accent/50 w-full font-semibold">
                     <option value="employee">員工 (Employee)</option>
                     <option value="scheduler">排班者 (Scheduler)</option>
                     <option value="admin">管理員 (Admin)</option>
@@ -2116,18 +2116,18 @@ async function createTemplate() {
                 </td>
                 <td class="px-4 py-2 text-center">
                   <button @click="removeStaff(staff.indexOf(member))"
-                    class="opacity-0 group-hover:opacity-100 text-rose-500 hover:text-rose-400 text-sm leading-none transition-all cursor-pointer">✕</button>
+                    class="opacity-0 group-hover:opacity-100 text-rose-500 hover:text-danger text-sm leading-none transition-all cursor-pointer">✕</button>
                 </td>
               </tr>
               <!-- Inline password reset row -->
               <tr v-if="resetPwTarget === member.code"
-                class="bg-sunken/80 border-t border-hairline">
+                class="bg-sunken border-t border-hairline">
                 <td colspan="6" class="px-4 py-3">
                   <div class="flex items-center gap-3">
                     <span class="text-xs text-muted font-medium">請輸入該成員新密碼：</span>
                     <input v-model="resetPwInput" type="password" placeholder="新密碼"
                       @keyup.enter="resetUserPassword" @keyup.escape="resetPwTarget = null"
-                      class="text-xs px-3 py-1.5 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-cyan-500/50 w-52 font-mono"
+                      class="text-xs px-3 py-1.5 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 w-52 font-mono"
                       autofocus />
                     <button @click="resetUserPassword"
                       :disabled="!resetPwInput.trim()"
@@ -2145,12 +2145,12 @@ async function createTemplate() {
         <!-- Add new staff row -->
         <div class="flex gap-2 items-center flex-wrap bg-overlay/[0.01] border border-hairline p-4 rounded-2xl">
           <input v-model="newStaffEmployeeId" @keyup.enter="addStaff" placeholder="輸入新員工帳號 (編號)" maxlength="20"
-            class="w-44 text-xs px-3 py-2 bg-sunken border border-hairline rounded-xl text-amber-300 font-mono font-bold outline-none focus:border-amber-600/50" />
+            class="w-44 text-xs px-3 py-2 bg-sunken border border-hairline rounded-xl text-warning font-mono font-bold outline-none focus:border-warning/50" />
           <input v-model="newStaffCode" @keyup.enter="addStaff" placeholder="排班代號 (英數)" maxlength="16"
-            class="w-40 text-xs px-3 py-2 bg-sunken border border-hairline rounded-xl text-cyan-400 font-mono font-bold outline-none focus:border-cyan-600/50" />
+            class="w-40 text-xs px-3 py-2 bg-sunken border border-hairline rounded-xl text-accent font-mono font-bold outline-none focus:border-accent/50" />
           <input v-model="newStaffName" @keyup.enter="addStaff" placeholder="輸入真實姓名" maxlength="20"
             class="flex-1 text-xs px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg outline-none focus:border-hairline" />
-          <button @click="addStaff" class="text-xs font-bold px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded-xl shadow-md shadow-blue-500/10 cursor-pointer transition-all">+ 新增人員</button>
+          <button @click="addStaff" class="text-xs font-bold px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded-xl shadow-md shadow-accent/10 cursor-pointer transition-all">+ 新增人員</button>
         </div>
 
         <p class="text-2xs text-muted leading-normal font-sans">
@@ -2160,7 +2160,7 @@ async function createTemplate() {
     </div>
 
     <!-- ── Tab: 設定 ─────────────────────────────────────────────────── -->
-    <div v-else-if="activeTab === 'settings'" class="flex-1 overflow-y-auto bg-sunken/40 backdrop-blur-md px-6 py-5 space-y-6">
+    <div v-else-if="activeTab === 'settings'" class="flex-1 overflow-y-auto bg-sunken px-6 py-5 space-y-6">
       <div class="max-w-5xl mx-auto space-y-6">
         <!-- 本地 XLSX 路徑 -->
         <div class="bg-overlay/[0.01] border border-hairline rounded-2xl p-5 space-y-3.5 shadow-md">
@@ -2168,7 +2168,7 @@ async function createTemplate() {
           <div class="flex gap-2">
             <input :value="effectiveXlsxPath || '尚未設定本地路徑'" readonly
               class="flex-1 text-xs px-3 py-2.5 bg-sunken border border-hairline rounded-xl text-muted font-mono" />
-            <button @click="createTemplate" class="text-xs font-bold px-3.5 py-2 bg-blue-500/10 border border-blue-500/20 text-blue-300 rounded-xl hover:bg-blue-500/20 transition-all cursor-pointer whitespace-nowrap">建立範本</button>
+            <button @click="createTemplate" class="text-xs font-bold px-3.5 py-2 bg-accent/10 border border-accent/20 text-accent rounded-xl hover:bg-accent/20 transition-all cursor-pointer whitespace-nowrap">建立範本</button>
             <button @click="pickLocalPath" class="text-xs font-bold px-3.5 py-2 bg-elevated border border-hairline text-fg-secondary rounded-xl hover:bg-raised transition-all cursor-pointer whitespace-nowrap">選取現有</button>
           </div>
           <p class="text-2xs text-muted font-mono uppercase tracking-wide">Automatic naming schema: schedule_YYYYMM.xlsx (stored in target directory)</p>
@@ -2180,7 +2180,7 @@ async function createTemplate() {
             <p class="text-xs font-bold text-fg-secondary">系統班別定義與規則</p>
             <div class="flex gap-1.5">
               <button @click="pullShiftsFromCloud" :disabled="isSyncingShifts"
-                class="text-2xs font-bold px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-300 rounded-xl hover:bg-blue-500/20 disabled:opacity-40 transition-colors cursor-pointer"
+                class="text-2xs font-bold px-3 py-1.5 bg-accent/10 border border-accent/20 text-accent rounded-xl hover:bg-accent/20 disabled:opacity-40 transition-colors cursor-pointer"
                 title="從雲端讀取，覆蓋本機班別設定">
                 {{ isSyncingShifts ? '…' : '↓ 從雲端還原' }}
               </button>
@@ -2196,7 +2196,7 @@ async function createTemplate() {
           <div class="flex flex-wrap gap-3">
             <div v-for="(shift, si) in shifts" :key="si"
               class="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-surface border transition-all duration-300"
-              :class="expandedShiftIdx === si ? 'border-cyan-500/40 shadow-[0_0_10px_rgba(6,182,212,0.05)]' : 'border-hairline'">
+              :class="expandedShiftIdx === si ? 'border-accent/40 shadow-[0_0_10px_rgba(6,182,212,0.05)]' : 'border-hairline'">
               <!-- Code input -->
               <input v-model="shift.code" @change="saveShifts"
                 class="w-10 text-xs text-center font-black bg-transparent outline-none uppercase font-mono border-b border-transparent focus:border-hairline"
@@ -2211,7 +2211,7 @@ async function createTemplate() {
               <button @click="shift.offVariant = !shift.offVariant; saveShifts()"
                 class="text-xs font-bold px-2 py-1 rounded-lg border transition-all cursor-pointer"
                 :class="shift.offVariant
-                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                  ? 'bg-warning/10 border-warning/30 text-warning'
                   : 'bg-sunken border-hairline text-muted hover:text-fg-secondary'"
                 title="啟用為放假或非出勤班別">
                 放假類
@@ -2220,12 +2220,12 @@ async function createTemplate() {
               <button @click="expandedShiftIdx = expandedShiftIdx === si ? null : si"
                 class="text-xs font-bold px-2 py-1 rounded-lg border transition-all cursor-pointer"
                 :class="expandedShiftIdx === si
-                  ? 'bg-blue-500/10 border-blue-500/30 text-blue-300'
+                  ? 'bg-accent/10 border-accent/30 text-accent'
                   : hasPerDayTargets(shift)
-                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                    ? 'bg-success/10 border-success/30 text-success'
                     : 'bg-sunken border-hairline text-muted hover:text-fg-secondary'"
                 title="編輯此班別每日目標人數">
-                每日目標<span v-if="hasPerDayTargets(shift) && expandedShiftIdx !== si" class="ml-0.5 text-emerald-400 font-bold">•</span>
+                每日目標<span v-if="hasPerDayTargets(shift) && expandedShiftIdx !== si" class="ml-0.5 text-success font-bold">•</span>
               </button>
               <!-- Remove -->
               <button @click="removeShift(si)" class="text-muted hover:text-rose-500 text-xs leading-none transition-colors cursor-pointer">✕</button>
@@ -2235,7 +2235,7 @@ async function createTemplate() {
             <div class="flex items-center gap-1.5 bg-surface px-3 py-1.5 rounded-xl border border-dashed border-hairline">
               <input v-model="newShiftCode" @keyup.enter="addShift"
                 placeholder="代號" maxlength="4"
-                class="w-16 text-xs px-2.5 py-1 bg-sunken border border-hairline rounded-lg text-fg-secondary font-black uppercase outline-none focus:border-cyan-500/30 font-mono" />
+                class="w-16 text-xs px-2.5 py-1 bg-sunken border border-hairline rounded-lg text-fg-secondary font-black uppercase outline-none focus:border-accent/30 font-mono" />
               <button @click="addShift" class="text-xs font-bold px-2.5 py-1 bg-elevated hover:bg-raised text-fg rounded-lg cursor-pointer transition-all">+</button>
             </div>
           </div>
@@ -2243,7 +2243,7 @@ async function createTemplate() {
           <p class="text-2xs text-muted font-sans">💡 說明：點擊彩色圓點可切換標記色；「每日目標」處若顯示 <span class="text-emerald-500">●</span> 代表已設定不同日期類型的人員目標配額。</p>
 
           <!-- Daily staffing summary -->
-          <div v-if="staffingSummary.some(r => r.entries.length)" class="mt-4 p-4 rounded-xl bg-sunken/50 border border-hairline space-y-2">
+          <div v-if="staffingSummary.some(r => r.entries.length)" class="mt-4 p-4 rounded-xl bg-sunken border border-hairline space-y-2">
             <p class="text-xs font-bold text-muted mb-1">每日預計出勤配置總計</p>
             <div class="flex flex-wrap gap-x-6 gap-y-2">
               <div v-for="row in staffingSummary" :key="row.key"
@@ -2260,7 +2260,7 @@ async function createTemplate() {
           </div>
 
           <!-- Per-day-type target panel -->
-          <div v-if="expandedShift" class="p-5 bg-sunken border border-cyan-500/20 rounded-2xl space-y-4 shadow-inner relative overflow-hidden">
+          <div v-if="expandedShift" class="p-5 bg-sunken border border-accent/20 rounded-2xl space-y-4 shadow-inner relative overflow-hidden">
             <div class="flex items-center justify-between border-b border-hairline pb-2">
               <span class="text-xs font-bold text-fg flex items-center gap-1.5">
                 <span :style="{ color: colorOf(expandedShift.color).text }" class="font-mono font-black">{{ expandedShift.code }}</span>
@@ -2269,16 +2269,16 @@ async function createTemplate() {
               <button @click="expandedShiftIdx = null" class="text-xs text-muted hover:text-fg-secondary cursor-pointer">✕ 關閉</button>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div v-for="dt in DAY_TYPE_LABELS" :key="dt.key" class="space-y-2.5 p-3 rounded-xl bg-surface/30 border border-hairline">
+              <div v-for="dt in DAY_TYPE_LABELS" :key="dt.key" class="space-y-2.5 p-3 rounded-xl bg-surface border border-hairline">
                 <div class="flex items-center justify-between gap-2 border-b border-hairline pb-1.5">
                   <span class="text-xs font-bold text-fg-secondary">{{ dt.label }}</span>
                   <div class="flex items-center gap-1.5">
                     <button @click="toggleTargetMode(expandedShiftIdx!, dt.key)"
                       class="text-xs font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer"
                       :class="isDerived(expandedShift.targets?.[dt.key])
-                        ? 'bg-purple-500/10 border-purple-500/30 text-purple-300'
+                        ? 'bg-accent/10 border-accent/30 text-accent'
                         : expandedShift.targets?.[dt.key] !== undefined
-                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                          ? 'bg-success/10 border-success/30 text-success'
                           : 'bg-surface border-hairline text-muted hover:text-fg-secondary'">
                       {{ isDerived(expandedShift.targets?.[dt.key]) ? '公式' : '固定' }}
                     </button>
@@ -2293,7 +2293,7 @@ async function createTemplate() {
                     :value="(expandedShift.targets?.[dt.key] as number) ?? ''"
                     @change="setFixedTarget(expandedShiftIdx!, dt.key, $event)"
                     placeholder="未設定人數"
-                    class="w-full text-xs text-center bg-sunken border border-hairline rounded-xl outline-none text-fg focus:border-cyan-500/50 px-2 py-2 font-mono" />
+                    class="w-full text-xs text-center bg-sunken border border-hairline rounded-xl outline-none text-fg focus:border-accent/50 px-2 py-2 font-mono" />
                 </template>
                 <!-- Derived mode -->
                 <template v-else>
@@ -2305,12 +2305,12 @@ async function createTemplate() {
                       <input type="checkbox"
                         :checked="(expandedShift.targets?.[dt.key] as any)?.subtract?.includes(s.code)"
                         @change="toggleSubtract(expandedShiftIdx!, dt.key, s.code, $event)"
-                        class="accent-purple-500 scale-90" />
+                        class="accent-accent scale-90" />
                       <span class="font-bold" :style="{ color: colorOf(s.color).text }">{{ s.code }}</span>
                     </label>
                   </div>
                   <div v-if="(expandedShift.targets?.[dt.key] as any)?.subtract?.length"
-                    class="text-2xs font-bold text-purple-400 mt-2.5">
+                    class="text-2xs font-bold text-accent mt-2.5">
                     = 總人數 - {{ (expandedShift.targets?.[dt.key] as any).subtract.join(' - ') }}
                   </div>
                 </template>
@@ -2326,7 +2326,7 @@ async function createTemplate() {
             <p class="text-xs font-bold text-fg-secondary">輪序池設定與雲端備份</p>
             <div class="flex gap-1.5">
               <button @click="pullPoolsFromCloud" :disabled="isSyncingPools"
-                class="text-2xs font-bold px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-300 rounded-xl hover:bg-blue-500/20 disabled:opacity-40 transition-colors cursor-pointer"
+                class="text-2xs font-bold px-3 py-1.5 bg-accent/10 border border-accent/20 text-accent rounded-xl hover:bg-accent/20 disabled:opacity-40 transition-colors cursor-pointer"
                 title="從雲端讀取，覆蓋本機輪序池">
                 {{ isSyncingPools ? '…' : '↓ 從雲端還原' }}
               </button>
@@ -2339,9 +2339,9 @@ async function createTemplate() {
           </div>
           <p class="text-[0.6875rem] text-muted font-sans">輪序池的成員與輪替順序可在此手動推送備份至雲端，或者在切換不同裝置時從雲端同步還原。</p>
           <!-- Pre-calculate snapshots -->
-          <div class="flex items-center gap-3 bg-sunken/40 p-4 rounded-xl border border-hairline">
+          <div class="flex items-center gap-3 bg-sunken p-4 rounded-xl border border-hairline">
             <button @click="preCalculateFuture(6)" :disabled="isPreCalcRunning"
-              class="text-xs font-bold px-3.5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-fg rounded-xl disabled:opacity-40 transition-all cursor-pointer shadow-lg shadow-purple-500/10"
+              class="text-xs font-bold px-3.5 py-2.5 bg-gradient-to-r from-accent to-indigo-600 text-fg rounded-xl disabled:opacity-40 transition-all cursor-pointer shadow-lg shadow-accent/10"
               title="從本月起算，預先計算並儲存未來 6 個月的輪序投影">
               {{ isPreCalcRunning ? '正在演算中…' : '⚡ 預算未來 6 個月輪替投影' }}
             </button>
@@ -2362,7 +2362,7 @@ async function createTemplate() {
             </div>
             <div class="flex gap-1.5">
               <button @click="fetchHolidaysFromApi" :disabled="isHolidayLoading"
-                class="text-2xs font-bold px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-300 rounded-xl disabled:opacity-40 cursor-pointer transition-all">
+                class="text-2xs font-bold px-3 py-1.5 bg-accent/10 border border-accent/20 text-accent rounded-xl disabled:opacity-40 cursor-pointer transition-all">
                 {{ isHolidayLoading ? '…' : '↓ 從政府 API 獲取' }}
               </button>
               <button @click="importHolidaysFromCsv"
@@ -2372,38 +2372,38 @@ async function createTemplate() {
             </div>
           </div>
           
-          <p class="text-2xs text-muted">💡 類型顏色識別：<span class="text-orange-400 font-bold">橘色</span> = 國定假日（計入月配額）；<span class="text-amber-400 font-bold">黃色</span> = 春節假期（不計入）；<span class="text-fg-secondary font-bold">灰色</span> = 常規周末（不計入）。</p>
+          <p class="text-2xs text-muted">💡 類型顏色識別：<span class="text-accent font-bold">橘色</span> = 國定假日（計入月配額）；<span class="text-warning font-bold">黃色</span> = 春節假期（不計入）；<span class="text-fg-secondary font-bold">灰色</span> = 常規周末（不計入）。</p>
           
           <!-- Manual add -->
           <div class="flex gap-2 items-center flex-wrap">
             <input v-model="newHolidayInput" @keyup.enter="addHoliday" placeholder="手動新增 YYYY-MM-DD"
-              class="w-44 text-xs px-3.5 py-2 bg-sunken border border-hairline rounded-xl text-fg font-mono outline-none focus:border-cyan-500/30" />
+              class="w-44 text-xs px-3.5 py-2 bg-sunken border border-hairline rounded-xl text-fg font-mono outline-none focus:border-accent/30" />
             <button @click="addHoliday"
               class="text-xs font-bold px-3.5 py-2 bg-elevated border border-hairline text-fg-secondary rounded-xl hover:bg-raised transition-all cursor-pointer">+ 新增</button>
             <button v-if="holidayList.filter(h => h.date.startsWith(String(currentYear))).length"
               @click="holidayList = holidayList.filter(h => !h.date.startsWith(String(currentYear))); saveHolidays()"
-              class="text-xs font-bold px-3.5 py-2 bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 rounded-xl ml-auto cursor-pointer transition-all">
+              class="text-xs font-bold px-3.5 py-2 bg-danger/10 border border-danger/20 text-danger hover:bg-danger/20 rounded-xl ml-auto cursor-pointer transition-all">
               清空 {{ currentYear }} 年度假日資料
             </button>
           </div>
           
           <!-- Holiday list tags -->
-          <div class="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto no-scrollbar p-1.5 rounded-xl bg-sunken/20 border border-hairline">
+          <div class="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto no-scrollbar p-1.5 rounded-xl bg-sunken border border-hairline">
             <template v-for="h in holidayList.filter(h => h.date.startsWith(String(currentYear)))" :key="h.date">
               <span
                 class="inline-flex items-center gap-1.5 text-2xs px-3 py-1 rounded-lg border font-mono font-bold shadow-sm"
                 :class="effectiveType(h) === 'a0' || effectiveType(h) === 'b0'
                   ? 'bg-surface border-hairline text-muted'
                   : effectiveType(h) === 'c0'
-                    ? 'bg-amber-500/5 border-amber-500/20 text-amber-300'
-                    : 'bg-orange-500/5 border-orange-500/20 text-orange-300'">
+                    ? 'bg-warning/5 border-warning/20 text-warning'
+                    : 'bg-accent/5 border-accent/20 text-accent'">
                 {{ h.date }}
                 <span v-if="h.description" class="font-sans"
-                  :class="effectiveType(h) === 'a0' || effectiveType(h) === 'b0' ? 'text-muted' : effectiveType(h) === 'c0' ? 'text-amber-500' : 'text-orange-500'">
+                  :class="effectiveType(h) === 'a0' || effectiveType(h) === 'b0' ? 'text-muted' : effectiveType(h) === 'c0' ? 'text-amber-500' : 'text-accent'">
                   {{ h.description }}
                 </span>
                 <button @click="removeHoliday(h.date)"
-                  :class="effectiveType(h) === 'a0' || effectiveType(h) === 'b0' ? 'text-muted hover:text-fg-secondary' : effectiveType(h) === 'c0' ? 'text-amber-700 hover:text-amber-400' : 'text-orange-700 hover:text-orange-400'"
+                  :class="effectiveType(h) === 'a0' || effectiveType(h) === 'b0' ? 'text-muted hover:text-fg-secondary' : effectiveType(h) === 'c0' ? 'text-amber-700 hover:text-warning' : 'text-accent hover:text-accent'"
                   class="leading-none text-xs ml-1 cursor-pointer">✕</button>
               </span>
             </template>
@@ -2420,14 +2420,14 @@ async function createTemplate() {
     <!-- ── New Month Banner ─────────────────────────────────────────── -->
     <Transition name="toast">
       <div v-if="newMonthMsg"
-        class="flex-shrink-0 flex items-center gap-2.5 px-6 py-2.5 bg-blue-500/10 border-b border-blue-500/20 text-blue-300 text-xs font-bold">
+        class="flex-shrink-0 flex items-center gap-2.5 px-6 py-2.5 bg-accent/10 border-b border-accent/20 text-accent text-xs font-bold">
         <span class="text-base animate-pulse">🗓</span>
         {{ newMonthMsg }}
       </div>
     </Transition>
 
     <!-- ── Toolbar / Controls Bar ──────────────────────────────────── -->
-    <div class="flex items-center gap-2.5 px-6 py-3 border-b border-hairline bg-surface/10 flex-shrink-0 flex-wrap">
+    <div class="flex items-center gap-2.5 px-6 py-3 border-b border-hairline bg-surface flex-shrink-0 flex-wrap">
       <!-- Month switcher -->
       <div class="flex items-center gap-1.5 mr-2">
         <button @click="prevMonth" class="px-2.5 py-1.5 bg-elevated border border-hairline text-fg-secondary hover:text-fg hover:bg-raised rounded-lg text-sm cursor-pointer transition-all">‹</button>
@@ -2442,7 +2442,7 @@ async function createTemplate() {
       <!-- Google Sheet link -->
       <button v-if="cloud.scheduleSpreadsheetId || cloud.spreadsheetId"
         @click="openGoogleSheet"
-        class="flex items-center gap-1.5 text-2xs font-bold px-3.5 py-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 rounded-xl hover:bg-emerald-500/20 transition-all cursor-pointer"
+        class="flex items-center gap-1.5 text-2xs font-bold px-3.5 py-2 bg-success/10 border border-success/20 text-success rounded-xl hover:bg-success/20 transition-all cursor-pointer"
         title="在瀏覽器中開啟 Google 試算表">
         <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
           <path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z"/>
@@ -2452,11 +2452,11 @@ async function createTemplate() {
 
       <!-- Sync actions -->
       <button @click="pullFromCloud" :disabled="isLoading"
-        class="flex items-center gap-1.5 text-2xs font-bold px-3.5 py-2 bg-blue-500/10 border border-blue-500/20 text-blue-300 rounded-xl disabled:opacity-40 hover:bg-blue-500/20 transition-all cursor-pointer">
+        class="flex items-center gap-1.5 text-2xs font-bold px-3.5 py-2 bg-accent/10 border border-accent/20 text-accent rounded-xl disabled:opacity-40 hover:bg-accent/20 transition-all cursor-pointer">
         <span>{{ isLoading ? '…' : '↓' }}</span> 同步雲端班表
       </button>
       <button @click="applyRotationToSchedule" :disabled="scheduleData.length === 0 || !rotationPools.length"
-        class="flex items-center gap-1.5 text-2xs font-bold px-3.5 py-2 bg-purple-500/10 border border-purple-500/20 text-purple-300 rounded-xl disabled:opacity-40 hover:bg-purple-500/20 transition-all cursor-pointer">
+        class="flex items-center gap-1.5 text-2xs font-bold px-3.5 py-2 bg-accent/10 border border-accent/20 text-accent rounded-xl disabled:opacity-40 hover:bg-accent/20 transition-all cursor-pointer">
         套用輪序投影
       </button>
       <button @click="exportXlsx" :disabled="scheduleData.length === 0"
@@ -2468,11 +2468,11 @@ async function createTemplate() {
         讀取本地 Excel
       </button>
       <button @click="pushToCloud" :disabled="isLoading || scheduleData.length === 0"
-        class="flex items-center gap-1.5 text-2xs font-bold px-3.5 py-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 rounded-xl disabled:opacity-40 hover:bg-emerald-500/20 transition-all cursor-pointer">
+        class="flex items-center gap-1.5 text-2xs font-bold px-3.5 py-2 bg-success/10 border border-success/20 text-success rounded-xl disabled:opacity-40 hover:bg-success/20 transition-all cursor-pointer">
         <span>{{ isLoading ? '…' : '↑' }}</span> 上傳覆蓋雲端
       </button>
       <button @click="publishSchedule" :disabled="isLoading || scheduleData.length === 0 || scheduleStatus === 'published'"
-        class="flex items-center gap-1.5 text-2xs font-bold px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 disabled:opacity-40 text-fg rounded-xl transition-all shadow-md shadow-indigo-500/10 cursor-pointer">
+        class="flex items-center gap-1.5 text-2xs font-bold px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 disabled:opacity-40 text-fg rounded-xl transition-all shadow-md shadow-accent/10 cursor-pointer">
         {{ scheduleStatus === 'published' ? '✓ 班表已發布' : '確認發布班表' }}
       </button>
 
@@ -2491,13 +2491,13 @@ async function createTemplate() {
               v-for="member in staff.filter(s => !scheduleData.some(r => r.name === s.name))"
               :key="member.code"
               @click="addRowFromStaff(member); showAddRow = false"
-              class="text-2xs font-bold px-2 py-1 bg-sunken hover:bg-cyan-500/10 border border-hairline hover:border-cyan-500/30 text-fg-secondary hover:text-cyan-300 rounded-lg transition-colors cursor-pointer">
+              class="text-2xs font-bold px-2 py-1 bg-sunken hover:bg-accent/10 border border-hairline hover:border-accent/30 text-fg-secondary hover:text-accent rounded-lg transition-colors cursor-pointer">
               <span class="font-mono text-muted mr-1">{{ member.code }}</span>{{ member.name }}
             </button>
           </div>
           <div class="flex gap-1.5">
             <input v-model="newNameInput" @keyup.enter="addRow" placeholder="或自訂姓名…"
-              class="text-2xs px-2.5 py-1 bg-sunken border border-hairline rounded-lg text-fg-secondary w-32 outline-none focus:border-cyan-500/30 font-sans" />
+              class="text-2xs px-2.5 py-1 bg-sunken border border-hairline rounded-lg text-fg-secondary w-32 outline-none focus:border-accent/30 font-sans" />
             <button v-if="newNameInput.trim()" @click="addRow"
               class="text-2xs font-bold px-2.5 py-1 bg-blue-700 hover:bg-blue-600 text-white rounded-lg cursor-pointer">確認</button>
           </div>
@@ -2505,7 +2505,7 @@ async function createTemplate() {
         <div v-else class="flex gap-1.5 items-center">
           <input v-model="newNameInput" @keyup.enter="addRow" @keyup.escape="showAddRow = false"
             placeholder="輸入姓名" autofocus
-            class="text-2xs px-2.5 py-1 bg-sunken border border-hairline rounded-lg text-fg-secondary w-28 outline-none focus:border-cyan-500/30 font-bold" />
+            class="text-2xs px-2.5 py-1 bg-sunken border border-hairline rounded-lg text-fg-secondary w-28 outline-none focus:border-accent/30 font-bold" />
           <button @click="addRow" class="text-2xs font-bold px-2.5 py-1 bg-blue-700 hover:bg-blue-600 text-white rounded-lg cursor-pointer">確認</button>
         </div>
         <button @click="showAddRow = false" class="text-2xs text-muted hover:text-fg-secondary px-1 cursor-pointer">✕</button>
@@ -2516,13 +2516,13 @@ async function createTemplate() {
     </div>
 
     <!-- ── Data Status Bar ───────────────────────────────────────── -->
-    <div class="flex items-center gap-3 px-6 py-1.5 border-b border-hairline bg-sunken/60 text-2xs font-bold tracking-wide uppercase text-muted flex-shrink-0">
+    <div class="flex items-center gap-3 px-6 py-1.5 border-b border-hairline bg-sunken text-2xs font-bold tracking-wide uppercase text-muted flex-shrink-0">
       <!-- Sync light indicator -->
       <span v-if="isDirty" class="flex items-center gap-1.5 text-amber-500">
         <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"></span>
         有未儲存變更
       </span>
-      <span v-else-if="dataSource" class="flex items-center gap-1.5 text-emerald-400">
+      <span v-else-if="dataSource" class="flex items-center gap-1.5 text-success">
         <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
         已同步存檔
       </span>
@@ -2555,7 +2555,7 @@ async function createTemplate() {
     </div>
 
     <!-- ── Schedule Grid ──────────────────────────────────────────── -->
-    <div ref="scheduleGridRef" class="flex-1 overflow-auto relative bg-sunken/10">
+    <div ref="scheduleGridRef" class="flex-1 overflow-auto relative bg-sunken">
       <!-- Zoom indicator -->
       <div v-if="scheduleZoom !== 1"
         @dblclick="scheduleZoom = 1"
@@ -2590,9 +2590,9 @@ async function createTemplate() {
               v-for="day in dayLabels" :key="day.d"
               class="sticky top-0 z-20 text-center font-bold w-9 py-2.5 text-xs font-mono"
               :class="[
-                day.isHoliday ? 'bg-orange-500/15 text-orange-400 border-b border-orange-500/30' :
-                day.isSat     ? 'bg-indigo-500/15 text-indigo-400 border-b border-indigo-500/30' :
-                day.isSun     ? 'bg-rose-500/15 text-rose-400 border-b border-rose-500/30' :
+                day.isHoliday ? 'bg-accent/15 text-accent border-b border-accent/30' :
+                day.isSat     ? 'bg-accent/15 text-accent border-b border-accent/30' :
+                day.isSun     ? 'bg-danger/15 text-danger border-b border-danger/30' :
                                 'bg-surface text-fg-secondary border-b border-hairline'
               ]"
             >{{ day.d }}</th>
@@ -2613,9 +2613,9 @@ async function createTemplate() {
               v-for="day in dayLabels" :key="day.d"
               class="text-center py-1 text-2xs font-bold"
               :class="[
-                day.isHoliday ? 'bg-orange-500/5 text-orange-400/80' :
-                day.isSat     ? 'bg-indigo-500/5 text-indigo-400/80' :
-                day.isSun     ? 'bg-rose-500/5 text-rose-400/80' :
+                day.isHoliday ? 'bg-accent/5 text-accent/80' :
+                day.isSat     ? 'bg-accent/5 text-accent/80' :
+                day.isSun     ? 'bg-danger/5 text-danger/80' :
                                 'bg-surface text-muted'
               ]"
             >{{ DOW[day.dow] }}</th>
@@ -2643,10 +2643,10 @@ async function createTemplate() {
               class="text-center py-1.5 cursor-pointer select-none relative transition-all duration-150 border-r border-hairline"
               :class="[
                 isCellSelected(ri, day.d - 1)
-                  ? 'bg-indigo-500/20 outline outline-1 outline-indigo-400/50 z-10'
-                  : day.isHoliday ? 'bg-orange-500/[0.02] hover:bg-orange-500/[0.08]'
-                  : day.isSat     ? 'bg-indigo-500/[0.02] hover:bg-indigo-500/[0.08]'
-                  : day.isSun     ? 'bg-rose-500/[0.02] hover:bg-rose-500/[0.08]'
+                  ? 'bg-accent/20 outline outline-1 outline-accent/50 z-10'
+                  : day.isHoliday ? 'bg-accent/[0.02] hover:bg-accent/[0.08]'
+                  : day.isSat     ? 'bg-accent/[0.02] hover:bg-accent/[0.08]'
+                  : day.isSun     ? 'bg-danger/[0.02] hover:bg-danger/[0.08]'
                   : 'hover:bg-overlay/5'
               ]"
             >
@@ -2688,24 +2688,24 @@ async function createTemplate() {
               :class="si === 0 ? 'border-l border-hairline' : ''"
             >
               <span :class="{
-                'text-emerald-400 font-black': quotaStatus(row, shift) === 'met',
-                'text-rose-400 font-black':   quotaStatus(row, shift) === 'over',
+                'text-success font-black': quotaStatus(row, shift) === 'met',
+                'text-danger font-black':   quotaStatus(row, shift) === 'over',
                 'text-amber-500 font-black':  quotaStatus(row, shift) === 'under',
               }" :style="quotaStatus(row, shift) === 'none' ? { color: colorOf(shift.color).text } : {}">
                 {{ countForShift(row, shift) || '—' }}
               </span>
               <template v-if="quotaTarget(row, shift) !== undefined">
                 <span class="text-muted font-mono text-2xs">/{{ quotaTarget(row, shift) }}</span>
-                <span v-if="quotaStatus(row, shift) === 'met'"   class="text-emerald-400 text-2xs ml-0.5">✓</span>
+                <span v-if="quotaStatus(row, shift) === 'met'"   class="text-success text-2xs ml-0.5">✓</span>
                 <span v-else-if="quotaStatus(row, shift) === 'under'" class="text-amber-500 text-2xs ml-0.5">↓</span>
-                <span v-else-if="quotaStatus(row, shift) === 'over'"  class="text-rose-400 text-2xs ml-0.5">↑</span>
+                <span v-else-if="quotaStatus(row, shift) === 'over'"  class="text-danger text-2xs ml-0.5">↑</span>
               </template>
             </td>
             
             <!-- Delete row -->
             <td class="text-center py-2">
               <button @click="removeRow(ri)"
-                class="opacity-0 group-hover:opacity-100 text-rose-500 hover:text-rose-400 text-xs px-1 cursor-pointer transition-opacity leading-none">
+                class="opacity-0 group-hover:opacity-100 text-rose-500 hover:text-danger text-xs px-1 cursor-pointer transition-opacity leading-none">
                 ✕
               </button>
             </td>
@@ -2719,17 +2719,17 @@ async function createTemplate() {
             <td v-for="day in dayLabels" :key="day.d"
               class="text-center py-1 text-xs"
               :class="[
-                day.isHoliday ? 'bg-orange-950/5' :
-                day.isSat     ? 'bg-blue-950/5'   :
-                day.isSun     ? 'bg-red-950/5'    : ''
+                day.isHoliday ? 'bg-accent/5' :
+                day.isSat     ? 'bg-accent/5'   :
+                day.isSun     ? 'bg-accent/5'    : ''
               ]">
               <template v-for="(shift, si) in shifts" :key="shift.code">
                 <template v-if="totalShiftStaff(day.d - 1, shift.code)">
                   <span
                     :style="dayQuotaStatus(shift, day.d - 1) === 'none' ? { color: colorOf(shift.color).text } : {}"
                     :class="{
-                      'text-emerald-400': dayQuotaStatus(shift, day.d - 1) === 'met',
-                      'text-red-400':     dayQuotaStatus(shift, day.d - 1) === 'over',
+                      'text-success': dayQuotaStatus(shift, day.d - 1) === 'met',
+                      'text-accent':     dayQuotaStatus(shift, day.d - 1) === 'over',
                       'text-yellow-500':  dayQuotaStatus(shift, day.d - 1) === 'under',
                     }"
                   >{{ totalShiftStaff(day.d - 1, shift.code) }}</span>
@@ -2768,7 +2768,7 @@ async function createTemplate() {
           >{{ shift.code }}</button>
           <div class="w-px h-4 bg-raised mx-0.5"></div>
           <button @click="applyBatchShift(null)"
-            class="text-xs px-2.5 py-1 rounded-lg bg-elevated hover:bg-red-950 text-muted hover:text-red-400 border border-hairline hover:border-red-800 transition-colors">
+            class="text-xs px-2.5 py-1 rounded-lg bg-elevated hover:bg-accent/10 text-muted hover:text-accent border border-hairline hover:border-danger transition-colors">
             清除
           </button>
           <button @click="clearDragSelection"
@@ -2798,7 +2798,7 @@ async function createTemplate() {
           >{{ shift.code }}</button>
           <!-- Center: clear cell -->
           <button
-            class="absolute flex items-center justify-center rounded-full text-base font-bold bg-surface border-2 border-hairline text-muted hover:border-red-600 hover:text-red-500 transition-colors shadow-lg"
+            class="absolute flex items-center justify-center rounded-full text-base font-bold bg-surface border-2 border-hairline text-muted hover:border-danger hover:text-danger transition-colors shadow-lg"
             style="width:32px; height:32px; left:-16px; top:-16px;"
             @click="selectShift(null)"
             title="清除"
@@ -2818,15 +2818,15 @@ async function createTemplate() {
     <!-- ── Drift Detection Modal ──────────────────────────────────── -->
     <Transition name="toast">
       <div v-if="driftState" class="fixed inset-0 z-50 flex items-center justify-center bg-sunken/60 backdrop-blur-sm">
-        <div class="bg-surface border border-amber-700/50 rounded-xl shadow-2xl p-5 max-w-md w-full mx-4">
+        <div class="bg-surface border border-warning/50 rounded-xl shadow-2xl p-5 max-w-md w-full mx-4">
           <div class="flex items-center gap-2 mb-3">
-            <span class="text-amber-400 text-base">⚠</span>
+            <span class="text-warning text-base">⚠</span>
             <h3 class="text-sm font-semibold text-fg">成員變動影響已預算的未來月份</h3>
           </div>
           <p class="text-xs text-fg-secondary mb-3">以下月份的輪序預算因成員增減而需要更新：</p>
           <div class="flex flex-wrap gap-1.5 mb-4">
             <span v-for="m in driftState.affectedMonths" :key="m"
-              class="text-xs px-2 py-0.5 bg-amber-900/30 border border-amber-700/40 rounded text-amber-300 font-mono">
+              class="text-xs px-2 py-0.5 bg-warning/30 border border-warning/40 rounded text-warning font-mono">
               {{ m.slice(0,4) }}/{{ m.slice(4) }}
             </span>
           </div>
@@ -2835,8 +2835,8 @@ async function createTemplate() {
             <template v-for="pool in rotationPools" :key="pool.poolName">
               <template v-if="JSON.stringify(driftState.oldSigObj[pool.poolName] ?? []) !== JSON.stringify(driftState.newPools.find(p=>p.poolName===pool.poolName)?.order ?? [])">
                 <div class="text-muted font-sans mb-0.5">{{ pool.label }} ({{ pool.poolName }})</div>
-                <div class="text-red-400">− {{ (driftState.oldSigObj[pool.poolName] ?? []).map(c => staff.find(s=>s.code===c)?.name ?? c).join(' → ') || '（空）' }}</div>
-                <div class="text-emerald-400">+ {{ (driftState.newPools.find(p=>p.poolName===pool.poolName)?.order ?? []).map(c => staff.find(s=>s.code===c)?.name ?? c).join(' → ') || '（空）' }}</div>
+                <div class="text-accent">− {{ (driftState.oldSigObj[pool.poolName] ?? []).map(c => staff.find(s=>s.code===c)?.name ?? c).join(' → ') || '（空）' }}</div>
+                <div class="text-success">+ {{ (driftState.newPools.find(p=>p.poolName===pool.poolName)?.order ?? []).map(c => staff.find(s=>s.code===c)?.name ?? c).join(' → ') || '（空）' }}</div>
               </template>
             </template>
           </div>
