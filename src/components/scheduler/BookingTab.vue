@@ -237,13 +237,13 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
       <span class="text-xs text-muted border border-hairline rounded px-1.5 py-0.5">
         {{ activeCodes.size }}/{{ staff.length }} 人選取
       </span>
-      <span v-if="pendingCount" class="text-xs text-emerald-600 border border-emerald-900 rounded px-1.5 py-0.5">
+      <span v-if="pendingCount" class="text-xs text-success border border-success/30 rounded px-1.5 py-0.5">
         {{ pendingCount }} 人有草稿
       </span>
       <div class="flex-1"></div>
       <span v-if="toastMsg" class="text-xs text-fg-secondary italic">{{ toastMsg }}</span>
       <button @click="syncToCloud" :disabled="isSyncing || !pendingCount"
-        class="text-xs px-3 py-1.5 bg-success/60 hover:bg-emerald-700 text-success rounded disabled:opacity-40">
+        class="text-xs px-3 py-1.5 bg-success/10 hover:bg-success text-success rounded disabled:opacity-40">
         {{ isSyncing ? '…' : '↑' }} 同步至雲端
       </button>
     </div>
@@ -256,7 +256,7 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
         <!-- Select all / clear -->
         <div class="flex gap-1 px-2 py-1.5 border-b border-hairline">
           <button @click="selectAll"
-            class="flex-1 text-xs py-0.5 bg-elevated hover:bg-accent/60 text-fg-secondary hover:text-accent rounded transition-colors">
+            class="flex-1 text-xs py-0.5 bg-elevated hover:bg-accent/10 text-fg-secondary hover:text-accent rounded transition-colors">
             全選
           </button>
           <button @click="clearSelection"
@@ -270,7 +270,7 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
             @click="toggleActive(member.code)"
             class="flex items-center gap-1.5 px-2 py-1.5 cursor-pointer text-xs border-l-2 transition-colors"
             :class="activeCodes.has(member.code)
-              ? 'bg-accent/30 text-accent border-blue-500 hover:bg-accent/50'
+              ? 'bg-accent/10 text-accent border-accent/30 hover:bg-accent/20'
               : 'text-muted border-transparent hover:text-fg-secondary hover:bg-elevated/40'">
             <span class="flex-1 truncate font-medium">{{ member.name }}</span>
             <!-- green dot / clear button -->
@@ -278,8 +278,8 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
               @click="clearPersonDraft(member.code, $event)"
               class="w-3 h-3 rounded-full flex-shrink-0 flex items-center justify-center text-2xs font-bold leading-none transition-colors"
               :class="activeCodes.has(member.code)
-                ? 'bg-emerald-400 text-emerald-900 hover:bg-danger hover:text-white'
-                : 'bg-emerald-700 text-success hover:bg-danger hover:text-white'"
+                ? 'bg-success/15 text-success hover:bg-danger hover:text-white'
+                : 'bg-success text-success hover:bg-danger hover:text-white'"
               title="清除草稿">✓</button>
           </div>
         </div>
@@ -310,7 +310,7 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
               <th v-for="day in dayLabels" :key="day.d"
                 class="sticky top-0 z-20 border-b border-hairline text-center font-semibold w-9 py-2"
                 :class="day.isSat ? 'bg-accent/10 text-accent'
-                      : day.isSun ? 'bg-accent/10 text-accent'
+                      : day.isSun ? 'bg-danger/10 text-danger'
                       :             'bg-surface text-fg-secondary'">
                 {{ day.d }}
               </th>
@@ -322,8 +322,8 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
               </th>
               <th v-for="day in dayLabels" :key="day.d"
                 class="border-b border-hairline text-center py-1 font-normal"
-                :class="day.isSat ? 'bg-accent/60 text-accent'
-                      : day.isSun ? 'bg-accent/60 text-accent'
+                :class="day.isSat ? 'bg-accent/15 text-accent'
+                      : day.isSun ? 'bg-danger/15 text-danger'
                       :             'bg-surface text-muted'">
                 {{ DOW[day.dow] }}
               </th>
@@ -336,12 +336,12 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
                 @click="toggleActive(member.code)"
                 class="sticky left-0 z-10 border-b border-r border-hairline px-3 py-1.5 font-medium whitespace-nowrap min-w-[7rem] cursor-pointer transition-colors border-l-2"
                 :class="activeCodes.has(member.code)
-                  ? 'bg-accent/40 text-accent border-blue-500'
+                  ? 'bg-accent/10 text-accent border-accent/30'
                   : 'bg-sunken group-hover:bg-surface/60 text-fg-secondary border-transparent hover:text-fg'">
                 <span class="flex items-center gap-1.5">
                   {{ member.name }}
                   <span v-if="hasAnyChoice(member.code) && !activeCodes.has(member.code)"
-                    class="w-1.5 h-1.5 rounded-full bg-emerald-700 flex-shrink-0"></span>
+                    class="w-1.5 h-1.5 rounded-full bg-success flex-shrink-0"></span>
                 </span>
               </td>
               <!-- Day cells -->
@@ -351,7 +351,7 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
                   activeCodes.has(member.code)
                     ? 'cursor-pointer hover:bg-accent/20'
                     : 'cursor-default',
-                  day.isSat ? 'bg-accent/5' : day.isSun ? 'bg-accent/5' : '',
+                  day.isSat ? 'bg-accent/5' : day.isSun ? 'bg-danger/5' : '',
                 ]"
                 @click="openCell(member.code, day.d - 1, $event)">
 
@@ -365,11 +365,11 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
 
                 <!-- v2 dot (bottom-right) -->
                 <span v-if="getDraftDay(member.code, day.d - 1).v2"
-                  class="absolute bottom-0.5 right-0.5 w-1 h-1 rounded-full bg-violet-500"
+                  class="absolute bottom-0.5 right-0.5 w-1 h-1 rounded-full bg-accent"
                   :title="`v2: ${getDraftDay(member.code, day.d - 1).v2}`"></span>
                 <!-- v3 dot (bottom-left) -->
                 <span v-if="getDraftDay(member.code, day.d - 1).v3"
-                  class="absolute bottom-0.5 left-0.5 w-1 h-1 rounded-full bg-amber-500"
+                  class="absolute bottom-0.5 left-0.5 w-1 h-1 rounded-full bg-warning"
                   :title="`v3: ${getDraftDay(member.code, day.d - 1).v3}`"></span>
               </td>
             </tr>

@@ -180,7 +180,7 @@ async function pullFromCloud() {
         <input v-model="search" placeholder="搜尋疾病、ICD-10…"
           class="flex-1 px-3 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs placeholder-muted outline-none focus:border-success/50 font-bold" />
         <button @click="openAdd"
-          class="w-10 h-10 flex items-center justify-center rounded-xl bg-emerald-600 hover:bg-emerald-500 border border-success/30 text-white text-lg font-bold transition-all active:scale-95 shadow-lg shadow-success/10 cursor-pointer"
+          class="w-10 h-10 flex items-center justify-center rounded-xl bg-success hover:bg-success border border-success/30 text-white text-lg font-bold transition-all active:scale-95 shadow-lg shadow-success/10 cursor-pointer"
           title="新增疾病入院流程">＋</button>
       </div>
       
@@ -188,7 +188,7 @@ async function pullFromCloud() {
         <span class="text-muted text-2xs font-black uppercase tracking-widest font-mono">{{ filtered.length }} RECORDS</span>
         <div class="flex gap-1">
           <button @click="pullFromCloud" :disabled="isSyncing"
-            class="text-2xs font-bold px-2.5 py-1.5 rounded-lg border border-accent/30 text-accent hover:border-indigo-500 hover:bg-accent/10 disabled:opacity-40 transition-colors cursor-pointer">
+            class="text-2xs font-bold px-2.5 py-1.5 rounded-lg border border-accent/30 text-accent hover:border-accent/30 hover:bg-accent/10 disabled:opacity-40 transition-colors cursor-pointer">
             {{ isSyncing ? "…" : "↓ 同步" }}
           </button>
           <button @click="pushToCloud" :disabled="isSyncing"
@@ -240,7 +240,7 @@ async function pullFromCloud() {
             <button @click="openEdit"
               class="px-3.5 py-2 rounded-xl border border-hairline bg-sunken hover:bg-elevated text-fg-secondary text-xs font-bold transition-all active:scale-95 cursor-pointer">✏️ 編輯</button>
             <button @click="showDeleteConfirm = true"
-              class="px-3.5 py-2 rounded-xl border border-danger/30 bg-danger/20 hover:bg-danger/30 text-danger text-xs font-bold transition-all active:scale-95 cursor-pointer">🗑 刪除</button>
+              class="px-3.5 py-2 rounded-xl border border-danger/30 bg-danger/10 hover:bg-danger/20 text-danger text-xs font-bold transition-all active:scale-95 cursor-pointer">🗑 刪除</button>
           </div>
         </div>
 
@@ -392,7 +392,7 @@ async function pullFromCloud() {
           <div class="flex justify-end gap-3 px-6 py-4 border-t border-hairline shrink-0 bg-sunken">
             <button @click="showModal = false" class="px-4 py-2 bg-elevated hover:bg-raised text-fg-secondary text-xs font-bold rounded-xl cursor-pointer">取消</button>
             <button @click="save" :disabled="!form.name.trim()"
-              class="px-5 py-2 bg-emerald-600 border border-success/30 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-success/10 cursor-pointer">
+              class="px-5 py-2 bg-success border border-success/30 hover:bg-success disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-success/10 cursor-pointer">
               儲存
             </button>
           </div>
@@ -410,7 +410,7 @@ async function pullFromCloud() {
           <p class="text-fg-secondary text-xs mb-5 font-medium">確定刪除「{{ selected?.name }}」？此操作無法復原。</p>
           <div class="flex justify-end gap-3">
             <button @click="showDeleteConfirm = false" class="px-4 py-2 bg-elevated hover:bg-raised text-fg-secondary text-xs font-bold rounded-xl cursor-pointer">取消</button>
-            <button @click="deleteSelected" class="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl cursor-pointer">確定刪除</button>
+            <button @click="deleteSelected" class="px-4 py-2 bg-danger hover:bg-danger text-white text-xs font-bold rounded-xl cursor-pointer">確定刪除</button>
           </div>
         </div>
       </div>

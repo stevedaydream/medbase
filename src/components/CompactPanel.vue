@@ -228,10 +228,10 @@ refreshList();
     <div class="px-2.5 py-2 border-b border-hairline shrink-0">
       <input v-if="activeTab !== 'sets'" v-model="searchQ"
         placeholder="品項碼/名稱…"
-        class="w-full px-2.5 py-1.5 rounded-lg bg-elevated border border-hairline text-fg text-xs placeholder-muted focus:outline-none focus:border-blue-500" />
+        class="w-full px-2.5 py-1.5 rounded-lg bg-elevated border border-hairline text-fg text-xs placeholder-muted focus:outline-none focus:border-accent/30" />
       <input v-else v-model="physicianFilter"
         placeholder="醫師名稱篩選…"
-        class="w-full px-2.5 py-1.5 rounded-lg bg-elevated border border-hairline text-fg text-xs placeholder-muted focus:outline-none focus:border-blue-500" />
+        class="w-full px-2.5 py-1.5 rounded-lg bg-elevated border border-hairline text-fg text-xs placeholder-muted focus:outline-none focus:border-accent/30" />
     </div>
 
     <!-- Content area -->
@@ -274,7 +274,7 @@ refreshList();
               class="text-muted hover:text-fg text-sm">←</button>
             <span class="text-sm text-fg font-medium flex-1 truncate">{{ activeSet.name }}</span>
             <button @click="copyAllCodes"
-              class="text-xs px-2 py-0.5 rounded bg-accent/60 text-accent hover:bg-accent/60 shrink-0">
+              class="text-xs px-2 py-0.5 rounded bg-accent/10 text-accent hover:bg-accent/20 shrink-0">
               {{ copiedKey === 'all-codes' ? '✓ 已複製' : '全選複製' }}
             </button>
           </div>
@@ -301,14 +301,14 @@ refreshList();
           <button
             @click="physTitleFilter = ''"
             class="px-2 py-0.5 rounded-full text-2xs transition-colors"
-            :class="physTitleFilter === '' ? 'bg-indigo-600 text-white' : 'bg-elevated text-fg-secondary hover:bg-raised'">
+            :class="physTitleFilter === '' ? 'bg-accent text-white' : 'bg-elevated text-fg-secondary hover:bg-raised'">
             全部
           </button>
           <button
             v-for="t in physTitles" :key="t"
             @click="physTitleFilter = physTitleFilter === t ? '' : t"
             class="px-2 py-0.5 rounded-full text-2xs transition-colors"
-            :class="physTitleFilter === t ? 'bg-indigo-600 text-white' : 'bg-elevated text-fg-secondary hover:bg-raised'">
+            :class="physTitleFilter === t ? 'bg-accent text-white' : 'bg-elevated text-fg-secondary hover:bg-raised'">
             {{ t }}
           </button>
         </div>

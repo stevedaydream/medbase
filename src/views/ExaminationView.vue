@@ -192,7 +192,7 @@ const tipCount = computed(() =>
         <span class="text-muted text-2xs font-black uppercase tracking-widest font-mono">{{ filtered.length }} EXAMINATIONS</span>
         <div class="flex gap-1">
           <button @click="pullFromCloud" :disabled="isSyncing"
-            class="text-2xs font-bold px-2.5 py-1.5 rounded-lg border border-accent/30 text-accent hover:border-indigo-500 hover:bg-accent/10 disabled:opacity-40 transition-colors cursor-pointer">
+            class="text-2xs font-bold px-2.5 py-1.5 rounded-lg border border-accent/30 text-accent hover:border-accent/30 hover:bg-accent/10 disabled:opacity-40 transition-colors cursor-pointer">
             {{ isSyncing ? "…" : "↓ 同步" }}
           </button>
           <button @click="pushToCloud" :disabled="isSyncing"
@@ -246,13 +246,13 @@ const tipCount = computed(() =>
             <button @click="openEdit"
               class="px-3.5 py-2 rounded-xl border border-hairline bg-sunken hover:bg-elevated text-fg-secondary text-xs font-bold transition-all active:scale-95 cursor-pointer">✏️ 編輯</button>
             <button @click="showDeleteConfirm = true"
-              class="px-3.5 py-2 rounded-xl border border-danger/30 bg-danger/20 hover:bg-danger/30 text-danger text-xs font-bold transition-all active:scale-95 cursor-pointer">🗑 刪除</button>
+              class="px-3.5 py-2 rounded-xl border border-danger/30 bg-danger/10 hover:bg-danger/20 text-danger text-xs font-bold transition-all active:scale-95 cursor-pointer">🗑 刪除</button>
           </div>
         </div>
 
         <!-- HIS 代碼區塊 -->
         <div v-if="selected.his_code"
-          class="shrink-0 flex items-center justify-between bg-accent/20 border border-accent/30 rounded-2xl px-5 py-4 shadow-lg">
+          class="shrink-0 flex items-center justify-between bg-accent/10 border border-accent/30 rounded-2xl px-5 py-4 shadow-lg">
           <div>
             <p class="text-accent text-2xs font-black mb-1">HIS 系統代碼</p>
             <p class="text-accent text-lg font-mono font-black tracking-wider">{{ selected.his_code }}</p>
@@ -260,8 +260,8 @@ const tipCount = computed(() =>
           <button @click="copyCode"
             class="px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-md"
             :class="codeCopied
-              ? 'bg-emerald-600 text-white shadow-success/10 border border-success/20'
-              : 'bg-accent/60 text-accent border border-accent/20 hover:bg-accent/60'">
+              ? 'bg-success text-white shadow-success/10 border border-success/20'
+              : 'bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20'">
             {{ codeCopied ? '✓ 已複製' : '複製代碼' }}
           </button>
         </div>
@@ -313,7 +313,7 @@ const tipCount = computed(() =>
             <div>
               <label class="text-accent text-2xs font-black block mb-1.5 font-bold">HIS 系統代碼 ★</label>
               <input v-model="form.his_code"
-                class="w-full px-3 py-2 bg-accent/40 border border-accent/60 rounded-xl text-accent text-xs font-mono outline-none focus:border-accent"
+                class="w-full px-3 py-2 bg-accent/10 border border-accent/60 rounded-xl text-accent text-xs font-mono outline-none focus:border-accent"
                 placeholder="如：R2-7 #201、R7401+R602、電話預約" />
             </div>
             
@@ -371,7 +371,7 @@ const tipCount = computed(() =>
           <p class="text-fg-secondary text-xs mb-5 font-medium">確定刪除「{{ selected?.name }}」？此操作無法復原。</p>
           <div class="flex justify-end gap-3">
             <button @click="showDeleteConfirm = false" class="px-4 py-2 bg-elevated hover:bg-raised text-fg-secondary text-xs font-bold rounded-xl cursor-pointer">取消</button>
-            <button @click="deleteSelected" class="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl cursor-pointer">確定刪除</button>
+            <button @click="deleteSelected" class="px-4 py-2 bg-danger hover:bg-danger text-white text-xs font-bold rounded-xl cursor-pointer">確定刪除</button>
           </div>
         </div>
       </div>

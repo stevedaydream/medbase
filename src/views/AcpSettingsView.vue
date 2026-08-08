@@ -137,7 +137,7 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
                  placeholder="套組名稱 (如: 攝護腺肥大)..." 
                  class="flex-1 bg-sunken border border-hairline rounded-xl px-3 py-2 text-xs text-fg outline-none focus:border-accent/50 placeholder:text-muted font-bold" />
           <button @click="saveSet" 
-                  class="bg-indigo-600 hover:bg-indigo-500 border border-accent/30 text-white px-4 rounded-xl text-xs font-bold transition-all active:scale-95 shadow-lg shadow-accent/10 cursor-pointer">
+                  class="bg-accent hover:bg-accent border border-accent/30 text-white px-4 rounded-xl text-xs font-bold transition-all active:scale-95 shadow-lg shadow-accent/10 cursor-pointer">
             建立
           </button>
         </div>
@@ -150,7 +150,7 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
                  ? 'bg-accent/20 border-accent/50 text-white shadow-lg' 
                  : 'bg-sunken border-hairline text-fg-secondary hover:border-hairline hover:text-fg hover:bg-surface/30'">
             <span class="truncate">{{ s.name }}</span>
-            <span v-if="selectedSetId === s.id" class="w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)] shrink-0"></span>
+            <span v-if="selectedSetId === s.id" class="w-1.5 h-1.5 rounded-full bg-accent/15 shadow-[0_0_8px_rgba(129,140,248,0.8)] shrink-0"></span>
           </div>
         </div>
       </aside>
@@ -182,7 +182,7 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
                    placeholder="輸入醫囑項目名稱..." 
                    class="flex-1 bg-sunken border border-hairline rounded-xl px-3 py-2 text-xs text-fg outline-none focus:border-success/50 placeholder:text-muted font-bold" />
             <button @click="saveItem" 
-                    class="bg-emerald-600 hover:bg-emerald-500 border border-success/30 text-white px-5 rounded-xl text-xs font-bold transition-all active:scale-95 shadow-lg shadow-success/10 cursor-pointer">
+                    class="bg-success hover:bg-success border border-success/30 text-white px-5 rounded-xl text-xs font-bold transition-all active:scale-95 shadow-lg shadow-success/10 cursor-pointer">
               新增細項
             </button>
           </div>
@@ -198,7 +198,7 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
                        class="flex-1 bg-sunken border border-accent/50 rounded-lg px-3 py-1.5 text-xs text-fg outline-none" 
                        autofocus />
                 <button @click="updateItem" 
-                        class="text-2xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-bold cursor-pointer transition-colors">
+                        class="text-2xs bg-accent hover:bg-accent text-white px-3 py-1.5 rounded-lg font-bold cursor-pointer transition-colors">
                   儲存
                 </button>
                 <button @click="editingItemId = null" 
@@ -216,7 +216,7 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
                     ✏️
                   </button>
                   <button @click="deleteItem(item.id)" 
-                          class="w-7 h-7 flex items-center justify-center hover:bg-danger/40 rounded-lg text-rose-500 hover:text-danger transition-colors cursor-pointer"
+                          class="w-7 h-7 flex items-center justify-center hover:bg-danger/10 rounded-lg text-danger hover:text-danger transition-colors cursor-pointer"
                           title="刪除項目">
                     🗑️
                   </button>

@@ -181,7 +181,7 @@ const stepCount = computed(() =>
           />
         </div>
         <button @click="openAdd"
-          class="w-9 h-9 rounded-xl bg-amber-600 border border-warning/30 text-white text-lg font-black hover:bg-amber-500 active:scale-95 transition-all flex items-center justify-center cursor-pointer shrink-0"
+          class="w-9 h-9 rounded-xl bg-warning border border-warning/30 text-white text-lg font-black hover:bg-warning active:scale-95 transition-all flex items-center justify-center cursor-pointer shrink-0"
           title="新增藥物配製參考">＋</button>
       </div>
 
@@ -205,7 +205,7 @@ const stepCount = computed(() =>
         <button v-for="m in filtered" :key="m.id" @click="selected = m"
           class="w-full text-left px-3.5 py-3 rounded-xl border transition-all cursor-pointer"
           :class="selected?.id === m.id
-            ? 'bg-warning/20 border-warning/40 text-warning shadow-[0_0_12px_rgba(245,158,11,0.08)]'
+            ? 'bg-warning/10 border-warning/40 text-warning shadow-[0_0_12px_rgba(245,158,11,0.08)]'
             : 'bg-sunken border-hairline text-fg-secondary hover:text-fg hover:bg-surface/40 hover:border-hairline'">
           <div class="font-black text-xs text-fg truncate">{{ m.name }}</div>
           <div class="flex items-center gap-1.5 mt-1.5">
@@ -249,7 +249,7 @@ const stepCount = computed(() =>
               ✏️ 編輯
             </button>
             <button @click="showDeleteConfirm = true"
-              class="px-3.5 py-2 rounded-xl bg-danger/40 border border-danger/30 text-danger text-xs font-bold hover:bg-danger/40 hover:text-danger transition-all cursor-pointer">
+              class="px-3.5 py-2 rounded-xl bg-danger/10 border border-danger/30 text-danger text-xs font-bold hover:bg-danger/20 hover:text-danger transition-all cursor-pointer">
               🗑 刪除
             </button>
           </div>
@@ -263,7 +263,7 @@ const stepCount = computed(() =>
           <ol class="space-y-3.5">
             <li v-for="(o, i) in parseSteps(selected.orders)" :key="i"
               class="flex items-start gap-3.5 text-fg text-xs leading-relaxed font-bold">
-              <span class="shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-amber-500 to-accent text-fg text-2xs flex items-center justify-center font-black font-mono shadow-md shadow-warning/20">
+              <span class="shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-warning to-accent text-fg text-2xs flex items-center justify-center font-black font-mono shadow-md shadow-warning/20">
                 {{ i + 1 }}
               </span>
               <span class="font-mono mt-0.5 leading-relaxed flex-1 select-all">{{ o }}</span>
@@ -338,7 +338,7 @@ const stepCount = computed(() =>
             <button @click="showModal = false"
               class="px-4 py-2 text-xs font-bold bg-elevated text-fg-secondary hover:text-fg hover:bg-raised rounded-xl transition-all cursor-pointer">取消</button>
             <button @click="save" :disabled="!form.name.trim()"
-              class="px-5 py-2 text-xs font-black bg-amber-600 hover:bg-amber-500 border border-warning/30 text-white rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
+              class="px-5 py-2 text-xs font-black bg-warning hover:bg-warning border border-warning/30 text-white rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
               儲存
             </button>
           </div>
@@ -359,7 +359,7 @@ const stepCount = computed(() =>
             <button @click="showDeleteConfirm = false"
               class="px-4 py-2 rounded-xl text-xs font-bold bg-elevated text-fg-secondary hover:text-fg hover:bg-raised border border-hairline cursor-pointer">取消</button>
             <button @click="deleteSelected"
-              class="px-4 py-2 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white border border-danger/30 cursor-pointer">確定刪除</button>
+              class="px-4 py-2 rounded-xl text-xs font-black bg-danger hover:bg-danger text-white border border-danger/30 cursor-pointer">確定刪除</button>
           </div>
         </div>
       </div>

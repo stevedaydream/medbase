@@ -724,7 +724,7 @@ function insertBuilderToScript() {
         @click="tab = key as 'scripts' | 'groups' | 'guide'"
         class="px-4 pb-2.5 text-xs font-black transition-all border-b-2 cursor-pointer"
         :class="tab === key
-          ? 'border-indigo-500 text-accent'
+          ? 'border-accent/30 text-accent'
           : 'border-transparent text-muted hover:text-fg-secondary'"
       >
         {{ label }}
@@ -746,7 +746,7 @@ function insertBuilderToScript() {
         <div class="flex gap-2 px-3.5 pb-2 shrink-0">
           <button
             @click="newScript"
-            class="flex-1 text-xs py-2 bg-indigo-600 border border-accent/30 hover:bg-indigo-500 text-white rounded-xl font-black transition-all cursor-pointer"
+            class="flex-1 text-xs py-2 bg-accent border border-accent/30 hover:bg-accent text-white rounded-xl font-black transition-all cursor-pointer"
           >
             ＋ 新增
           </button>
@@ -760,7 +760,7 @@ function insertBuilderToScript() {
         <div class="px-3.5 pb-3.5 space-y-2 border-b border-hairline shrink-0">
           <button
             @click="generatePassAhk"
-            class="w-full text-xs py-2 bg-warning/20 border border-warning/30 text-warning hover:bg-warning/10 rounded-xl flex items-center justify-center gap-1.5 transition-colors font-black cursor-pointer"
+            class="w-full text-xs py-2 bg-warning/10 border border-warning/30 text-warning hover:bg-warning/20 rounded-xl flex items-center justify-center gap-1.5 transition-colors font-black cursor-pointer"
             title="從通訊錄的帳密自動產生 AHK 熱字串腳本"
           >
             <span>⚡</span> 產生帳密腳本
@@ -851,19 +851,19 @@ function insertBuilderToScript() {
           <div class="flex items-center gap-2 flex-shrink-0">
             <button
               @click="showBuilder = true"
-              class="text-xs px-4 py-2 bg-accent/20 border border-accent/30 text-accent hover:bg-accent/10 rounded-xl transition-all cursor-pointer font-black flex items-center gap-1.5"
+              class="text-xs px-4 py-2 bg-accent/10 border border-accent/30 text-accent hover:bg-accent/20 rounded-xl transition-all cursor-pointer font-black flex items-center gap-1.5"
             >
               🧩 積木視覺編輯器
             </button>
             <button
               v-if="selectedScript?.file_path !== passAhkPath"
               @click="designateAsPassAhk"
-              class="text-xs px-4 py-2 bg-warning/20 border border-warning/30 text-warning hover:bg-warning/10 rounded-xl transition-all cursor-pointer font-bold"
+              class="text-xs px-4 py-2 bg-warning/10 border border-warning/30 text-warning hover:bg-warning/20 rounded-xl transition-all cursor-pointer font-bold"
               title="設為通訊錄變更時自動同步的目標腳本"
             >
               ⚡ 設為通訊錄連動帳密腳本
             </button>
-            <span v-else class="text-2xs font-black text-amber-500 flex items-center gap-1 bg-warning/10 border border-warning/20 px-3 py-1.5 rounded-xl">
+            <span v-else class="text-2xs font-black text-warning flex items-center gap-1 bg-warning/10 border border-warning/20 px-3 py-1.5 rounded-xl">
               ⚡ 帳密腳本連動狀態中
             </span>
           </div>
@@ -882,7 +882,7 @@ function insertBuilderToScript() {
           <div class="flex items-center gap-2 flex-shrink-0 pt-1">
             <button
               @click="saveScript(true)"
-              class="px-5 py-2.5 bg-indigo-600 border border-accent/30 hover:bg-indigo-500 text-white text-xs font-black rounded-xl hover:shadow-[0_0_15px_rgba(99,102,241,0.2)] transition-all cursor-pointer"
+              class="px-5 py-2.5 bg-accent border border-accent/30 hover:bg-accent text-white text-xs font-black rounded-xl hover:shadow-[0_0_15px_rgba(99,102,241,0.2)] transition-all cursor-pointer"
             >
               儲存並載入 (Reload)
             </button>
@@ -896,18 +896,18 @@ function insertBuilderToScript() {
             <div class="ml-auto flex items-center gap-2">
               <template v-if="!showDeleteConfirm">
                 <button @click="showDeleteConfirm = true"
-                  class="px-4 py-2.5 bg-danger/40 border border-danger/30 text-danger hover:bg-danger/30 hover:text-danger text-xs font-bold rounded-xl transition-all cursor-pointer">
+                  class="px-4 py-2.5 bg-danger/10 border border-danger/30 text-danger hover:bg-danger/20 hover:text-danger text-xs font-bold rounded-xl transition-all cursor-pointer">
                   移除此紀錄…
                 </button>
               </template>
               <template v-else>
                 <span class="text-2xs font-black text-muted">安全驗證:</span>
                 <button @click="deleteScript(false)"
-                  class="text-2xs px-3 py-2 bg-danger/60 border border-danger/30 text-danger hover:text-danger-hover rounded-xl font-bold transition-colors cursor-pointer">
+                  class="text-2xs px-3 py-2 bg-danger/10 border border-danger/30 text-danger hover:text-danger-hover rounded-xl font-bold transition-colors cursor-pointer">
                   僅移除 DB 紀錄
                 </button>
                 <button @click="deleteScript(true)"
-                  class="text-2xs px-3 py-2 bg-rose-700 border border-rose-600 text-white rounded-xl font-black transition-colors cursor-pointer">
+                  class="text-2xs px-3 py-2 bg-danger border border-danger/30 text-white rounded-xl font-black transition-colors cursor-pointer">
                   同時刪除本機 AHK 檔案
                 </button>
                 <button @click="showDeleteConfirm = false"
@@ -929,7 +929,7 @@ function insertBuilderToScript() {
         <div class="p-3.5 border-b border-hairline shrink-0">
           <button
             @click="newGroup"
-            class="w-full text-xs py-2 bg-indigo-600 border border-accent/30 hover:bg-indigo-500 text-white rounded-xl font-black transition-all cursor-pointer"
+            class="w-full text-xs py-2 bg-accent border border-accent/30 hover:bg-accent text-white rounded-xl font-black transition-all cursor-pointer"
           >
             ＋ 新增套組
           </button>
@@ -990,7 +990,7 @@ function insertBuilderToScript() {
                   type="checkbox"
                   :checked="groupScriptIds.includes(s.id)"
                   @change="toggleGroupScript(s.id)"
-                  class="w-4 h-4 rounded accent-indigo-500 flex-shrink-0"
+                  class="w-4 h-4 rounded accent-accent flex-shrink-0"
                 />
                 <div class="flex-1 min-w-0">
                   <div class="text-xs font-bold text-fg">{{ s.name }}</div>
@@ -1007,7 +1007,7 @@ function insertBuilderToScript() {
           <div class="flex items-center gap-2.5 flex-shrink-0">
             <button
               @click="saveGroup"
-              class="px-5 py-2.5 bg-indigo-600 border border-accent/30 hover:bg-indigo-500 text-white text-xs font-black rounded-xl transition-all cursor-pointer shadow-md"
+              class="px-5 py-2.5 bg-accent border border-accent/30 hover:bg-accent text-white text-xs font-black rounded-xl transition-all cursor-pointer shadow-md"
             >
               儲存套組設定
             </button>
@@ -1019,7 +1019,7 @@ function insertBuilderToScript() {
             </button>
             <button
               @click="deleteGroup"
-              class="ml-auto px-4 py-2.5 bg-danger/40 border border-danger/30 text-danger hover:bg-danger/30 hover:text-danger text-xs font-bold rounded-xl transition-all cursor-pointer"
+              class="ml-auto px-4 py-2.5 bg-danger/10 border border-danger/30 text-danger hover:bg-danger/20 hover:text-danger text-xs font-bold rounded-xl transition-all cursor-pointer"
             >
               刪除此套組
             </button>
@@ -1034,7 +1034,7 @@ function insertBuilderToScript() {
       <!-- 修飾符速查 -->
       <section class="bg-overlay/[0.01] border border-hairline rounded-2xl p-5 shadow-sm">
         <h2 class="text-xs font-black text-fg mb-3.5 flex items-center gap-2">
-          <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0"></span>
+          <span class="w-1.5 h-1.5 rounded-full bg-accent/15 shrink-0"></span>
           AHK 常用熱鍵修飾符號速查表
         </h2>
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -1060,7 +1060,7 @@ function insertBuilderToScript() {
       <!-- 快捷鍵語法 -->
       <section class="bg-overlay/[0.01] border border-hairline rounded-2xl p-5 shadow-sm">
         <h2 class="text-xs font-black text-fg mb-3 flex items-center gap-2">
-          <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0"></span>
+          <span class="w-1.5 h-1.5 rounded-full bg-accent/15 shrink-0"></span>
           熱鍵 (Hotkeys) 語法基礎
         </h2>
         <p class="text-fg-secondary mb-3.5 font-medium leading-relaxed">
@@ -1086,7 +1086,7 @@ function insertBuilderToScript() {
       <!-- 熱字串語法 -->
       <section class="bg-overlay/[0.01] border border-hairline rounded-2xl p-5 shadow-sm">
         <h2 class="text-xs font-black text-fg mb-2 flex items-center gap-2">
-          <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 shrink-0"></span>
+          <span class="w-1.5 h-1.5 rounded-full bg-accent/15 shrink-0"></span>
           熱字串 (Hotstrings) 語法基礎 — 縮寫自動展開
         </h2>
         <p class="text-fg-secondary mb-3.5 font-medium leading-relaxed">
@@ -1225,7 +1225,7 @@ function insertBuilderToScript() {
                   :disabled="!builderBlocks.length"
                   class="w-full py-2.5 text-xs rounded-xl transition-all cursor-pointer font-black border"
                   :class="builderBlocks.length
-                    ? 'bg-indigo-600 border-accent/30 hover:bg-indigo-500 text-white'
+                    ? 'bg-accent border-accent/30 hover:bg-accent text-white'
                     : 'bg-sunken border-hairline text-muted cursor-not-allowed'"
                 >
                   確認插入到腳本源碼（{{ builderBlocks.length }}）
@@ -1264,15 +1264,15 @@ function insertBuilderToScript() {
                   </div>
                   <div class="flex items-center gap-4 pb-2.5">
                     <label class="flex items-center gap-2 cursor-pointer text-xs text-fg-secondary select-none">
-                      <input type="checkbox" v-model="builderForm.optInstant" class="w-4 h-4 rounded accent-indigo-500" />
+                      <input type="checkbox" v-model="builderForm.optInstant" class="w-4 h-4 rounded accent-accent" />
                       即時展開 <code class="text-accent font-mono text-2xs font-bold">*</code>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer text-xs text-fg-secondary select-none">
-                      <input type="checkbox" v-model="builderForm.optInWord" class="w-4 h-4 rounded accent-indigo-500" />
+                      <input type="checkbox" v-model="builderForm.optInWord" class="w-4 h-4 rounded accent-accent" />
                       字中展開 <code class="text-accent font-mono text-2xs font-bold">?</code>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer text-xs text-fg-secondary select-none">
-                      <input type="checkbox" v-model="builderForm.optCase" class="w-4 h-4 rounded accent-indigo-500" />
+                      <input type="checkbox" v-model="builderForm.optCase" class="w-4 h-4 rounded accent-accent" />
                       區分大小寫 <code class="text-accent font-mono text-2xs font-bold">C</code>
                     </label>
                   </div>
@@ -1332,22 +1332,22 @@ function insertBuilderToScript() {
                     <label class="block text-2xs font-black text-muted mb-1.5">修飾組合鍵（可多選）</label>
                     <div class="flex gap-2">
                       <label class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-hairline bg-sunken text-muted hover:border-hairline transition-colors text-xs select-none cursor-pointer font-bold"
-                        :class="builderForm.modCtrl ? 'bg-accent/20 border-accent/40 text-accent' : ''">
+                        :class="builderForm.modCtrl ? 'bg-accent/10 border-accent/40 text-accent' : ''">
                         <input type="checkbox" v-model="builderForm.modCtrl" class="hidden" />
                         <code class="font-mono text-2xs font-black">^</code> Ctrl
                       </label>
                       <label class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-hairline bg-sunken text-muted hover:border-hairline transition-colors text-xs select-none cursor-pointer font-bold"
-                        :class="builderForm.modShift ? 'bg-accent/20 border-accent/40 text-accent' : ''">
+                        :class="builderForm.modShift ? 'bg-accent/10 border-accent/40 text-accent' : ''">
                         <input type="checkbox" v-model="builderForm.modShift" class="hidden" />
                         <code class="font-mono text-2xs font-black">+</code> Shift
                       </label>
                       <label class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-hairline bg-sunken text-muted hover:border-hairline transition-colors text-xs select-none cursor-pointer font-bold"
-                        :class="builderForm.modAlt ? 'bg-accent/20 border-accent/40 text-accent' : ''">
+                        :class="builderForm.modAlt ? 'bg-accent/10 border-accent/40 text-accent' : ''">
                         <input type="checkbox" v-model="builderForm.modAlt" class="hidden" />
                         <code class="font-mono text-2xs font-black">!</code> Alt
                       </label>
                       <label class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-hairline bg-sunken text-muted hover:border-hairline transition-colors text-xs select-none cursor-pointer font-bold"
-                        :class="builderForm.modWin ? 'bg-accent/20 border-accent/40 text-accent' : ''">
+                        :class="builderForm.modWin ? 'bg-accent/10 border-accent/40 text-accent' : ''">
                         <input type="checkbox" v-model="builderForm.modWin" class="hidden" />
                         <code class="font-mono text-2xs font-black">#</code> Win
                       </label>
@@ -1416,7 +1416,7 @@ function insertBuilderToScript() {
               <div class="flex items-center gap-2 flex-shrink-0 pt-1">
                 <button
                   @click="addOrUpdateBlock"
-                  class="px-4 py-2 bg-indigo-700 hover:bg-indigo-600 text-white text-sm rounded font-medium transition-colors"
+                  class="px-4 py-2 bg-accent hover:bg-accent text-white text-sm rounded font-medium transition-colors"
                 >
                   {{ editingBlockIdx !== null ? '更新區塊' : '＋ 加入清單' }}
                 </button>
@@ -1481,7 +1481,7 @@ function insertBuilderToScript() {
                   }}</pre>
                 </div>
                 <div class="flex flex-col gap-1">
-                  <p class="text-2xs font-black text-emerald-500">雲端版本</p>
+                  <p class="text-2xs font-black text-success">雲端版本</p>
                   <pre class="text-2xs text-fg bg-success/20 border border-success/20 rounded-xl px-3 py-2.5
                                max-h-52 overflow-y-auto font-mono leading-relaxed whitespace-pre-wrap custom-scrollbar">{{
                     item.cloudContent
@@ -1503,7 +1503,7 @@ function insertBuilderToScript() {
               </button>
               <button @click="applySelectedDiffs"
                 :disabled="diffItems.filter(i => i.selected).length === 0"
-                class="text-xs px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white font-bold cursor-pointer transition-colors">
+                class="text-xs px-5 py-2 rounded-xl bg-success hover:bg-success disabled:opacity-40 text-white font-bold cursor-pointer transition-colors">
                 套用選取 ({{ diffItems.filter(i => i.selected).length }})
               </button>
             </div>

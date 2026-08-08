@@ -147,7 +147,7 @@ onUnmounted(() => {
         class="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors"
         :class="route.path === '/emergency'
           ? 'bg-danger text-white'
-          : 'bg-accent/50 text-accent hover:bg-accent/50'"
+          : 'bg-danger/10 text-danger hover:bg-danger/20'"
       >
         <span class="text-base">🚨</span>
         <span>危急情境</span>
@@ -168,7 +168,7 @@ onUnmounted(() => {
         :class="[
           route.path === item.path ? 'bg-elevated text-fg' : 'text-fg-secondary hover:bg-elevated hover:text-fg',
           dragFrom === index && isDragging ? 'opacity-30 bg-elevated' : '',
-          dragTo === index && isDragging && dragFrom !== index ? 'ring-1 ring-blue-500 ring-inset' : '',
+          dragTo === index && isDragging && dragFrom !== index ? 'ring-1 ring-accent/30 ring-inset' : '',
         ]"
       >
         <span class="text-base leading-none shrink-0">{{ item.icon }}</span>

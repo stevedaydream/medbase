@@ -183,7 +183,7 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
         <span class="text-muted text-2xs font-black uppercase tracking-widest font-mono">{{ filtered.length }} SURGERIES</span>
         <div class="flex gap-1">
           <button @click="pullFromCloud" :disabled="isSyncing"
-            class="text-2xs font-bold px-2.5 py-1.5 rounded-lg border border-accent/30 text-accent hover:border-indigo-500 hover:bg-accent/10 disabled:opacity-40 transition-colors cursor-pointer">
+            class="text-2xs font-bold px-2.5 py-1.5 rounded-lg border border-accent/30 text-accent hover:border-accent/30 hover:bg-accent/10 disabled:opacity-40 transition-colors cursor-pointer">
             {{ isSyncing ? "…" : "↓ 同步" }}
           </button>
           <button @click="pushToCloud" :disabled="isSyncing"
@@ -234,7 +234,7 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
             <button @click="openEdit"
               class="px-3.5 py-2 rounded-xl border border-hairline bg-sunken hover:bg-elevated text-fg-secondary text-xs font-bold transition-all active:scale-95 cursor-pointer">✏️ 編輯</button>
             <button @click="showDeleteConfirm = true"
-              class="px-3.5 py-2 rounded-xl border border-danger/30 bg-danger/20 hover:bg-danger/30 text-danger text-xs font-bold transition-all active:scale-95 cursor-pointer">🗑 刪除</button>
+              class="px-3.5 py-2 rounded-xl border border-danger/30 bg-danger/10 hover:bg-danger/20 text-danger text-xs font-bold transition-all active:scale-95 cursor-pointer">🗑 刪除</button>
           </div>
         </div>
 
@@ -365,7 +365,7 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
           <p class="text-fg-secondary text-xs mb-5 font-medium">確定刪除「{{ selected?.name }}」？此操作無法復原。</p>
           <div class="flex justify-end gap-3">
             <button @click="showDeleteConfirm = false" class="px-4 py-2 bg-elevated hover:bg-raised text-fg-secondary text-xs font-bold rounded-xl cursor-pointer">取消</button>
-            <button @click="deleteSelected" class="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl cursor-pointer">確定刪除</button>
+            <button @click="deleteSelected" class="px-4 py-2 bg-danger hover:bg-danger text-white text-xs font-bold rounded-xl cursor-pointer">確定刪除</button>
           </div>
         </div>
       </div>

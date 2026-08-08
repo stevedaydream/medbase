@@ -509,7 +509,7 @@ async function pullTemplatesFromCloud() {
         @click="mode = 'polish'; activeKey = t.format_key"
         class="shrink-0 px-3.5 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer"
         :class="activeKey === t.format_key && mode === 'polish'
-          ? 'bg-accent/20 border-accent/40 text-accent shadow-[0_0_12px_rgba(99,102,241,0.08)]'
+          ? 'bg-accent/10 border-accent/40 text-accent shadow-[0_0_12px_rgba(99,102,241,0.08)]'
           : 'bg-surface border-hairline text-fg-secondary hover:text-fg hover:bg-surface/60'"
       >{{ t.format_label }}</button>
 
@@ -517,7 +517,7 @@ async function pullTemplatesFromCloud() {
         @click="mode = 'chat'"
         class="shrink-0 px-3.5 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer"
         :class="mode === 'chat'
-          ? 'bg-accent/20 border-accent/40 text-accent shadow-[0_0_12px_rgba(139,92,246,0.08)]'
+          ? 'bg-accent/10 border-accent/40 text-accent shadow-[0_0_12px_rgba(139,92,246,0.08)]'
           : 'bg-surface border-hairline text-fg-secondary hover:text-fg hover:bg-surface/60'"
       >💬 聊天</button>
 
@@ -527,7 +527,7 @@ async function pullTemplatesFromCloud() {
         @click="mode = 'case'"
         class="shrink-0 px-3.5 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer"
         :class="mode === 'case'
-          ? 'bg-accent/20 border-accent/40 text-accent shadow-[0_0_12px_rgba(20,184,166,0.08)]'
+          ? 'bg-accent/10 border-accent/40 text-accent shadow-[0_0_12px_rgba(20,184,166,0.08)]'
           : 'bg-surface border-hairline text-fg-secondary hover:text-fg hover:bg-surface/60'"
       >📋 病例討論</button>
 
@@ -535,7 +535,7 @@ async function pullTemplatesFromCloud() {
         @click="mode = 'leave'"
         class="shrink-0 px-3.5 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer"
         :class="mode === 'leave'
-          ? 'bg-accent/20 border-accent/40 text-accent shadow-[0_0_12px_rgba(20,184,166,0.08)]'
+          ? 'bg-accent/10 border-accent/40 text-accent shadow-[0_0_12px_rgba(20,184,166,0.08)]'
           : 'bg-surface border-hairline text-fg-secondary hover:text-fg hover:bg-surface/60'"
       >📝 公假心得</button>
 
@@ -591,7 +591,7 @@ async function pullTemplatesFromCloud() {
                      placeholder:text-muted focus:outline-none font-bold"
             />
             <button @click="confirmAddProfile"
-              class="text-2xs font-bold px-2 py-1 rounded-lg bg-accent/20 border border-accent/30 text-accent hover:bg-accent/40 transition-all cursor-pointer">
+              class="text-2xs font-bold px-2 py-1 rounded-lg bg-accent/10 border border-accent/30 text-accent hover:bg-accent/20 transition-all cursor-pointer">
               確認
             </button>
             <button @click="addingProfile = false"
@@ -624,7 +624,7 @@ async function pullTemplatesFromCloud() {
             @click="saveTemplateEdits" :disabled="!isDirty"
             class="text-2xs font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
             :class="isDirty
-              ? 'bg-accent/20 border-accent/30 text-accent hover:bg-accent/40'
+              ? 'bg-accent/10 border-accent/30 text-accent hover:bg-accent/20'
               : 'bg-surface border-hairline text-muted'"
           >💾 儲存設定</button>
           <button
@@ -711,8 +711,8 @@ async function pullTemplatesFromCloud() {
         @click="generate"
         :disabled="isGenerating || !inputText.trim() || !activeTemplate || !apiKey"
         :title="!apiKey ? '請先至設定頁填入 Gemini API Key' : ''"
-        class="flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-xl bg-indigo-600 border border-accent/30
-               hover:bg-indigo-500 text-white disabled:opacity-40 disabled:cursor-not-allowed
+        class="flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-xl bg-accent border border-accent/30
+               hover:bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed
                hover:shadow-[0_0_15px_rgba(99,102,241,0.25)] transition-all cursor-pointer"
       >
         <span v-if="isGenerating" class="inline-block w-3.5 h-3.5 border-2 border-hairline border-t-white rounded-full animate-spin" />
@@ -750,7 +750,7 @@ async function pullTemplatesFromCloud() {
         <button v-if="outputText" @click="copyOutput"
           class="text-xs px-4 py-2.5 rounded-xl border font-bold transition-all cursor-pointer"
           :class="copied
-            ? 'bg-success/20 border-success/40 text-success'
+            ? 'bg-success/10 border-success/40 text-success'
             : 'bg-surface border-hairline text-fg-secondary hover:text-fg hover:border-hairline'">
           {{ copied ? "✓ 已複製結果" : "📋 複製結果" }}
         </button>
@@ -832,7 +832,7 @@ async function pullTemplatesFromCloud() {
           <div class="flex flex-col gap-2 shrink-0">
             <button @click="sendChat"
               :disabled="!chatInput.trim() || chatStreaming || !apiKey"
-              class="px-4 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white
+              class="px-4 py-2 bg-accent hover:bg-accent disabled:opacity-40 text-white
                      text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap">
               {{ chatStreaming ? '…' : '傳送' }}
             </button>

@@ -325,7 +325,7 @@ onMounted(() => { scrollToActive() })
           @click="selectedIdx = idx"
           class="w-full text-left px-3 py-2 text-xs transition-colors"
           :class="selectedIdx === idx
-            ? 'bg-accent/50 text-white border-r-2 border-blue-500'
+            ? 'bg-accent/50 text-white border-r-2 border-accent/30'
             : 'text-fg-secondary hover:bg-elevated hover:text-fg'"
         >
           <div class="font-medium">{{ pool.label }}</div>
@@ -343,11 +343,11 @@ onMounted(() => { scrollToActive() })
         </button>
         <div v-if="showNewPool" class="space-y-1.5">
           <input v-model="newPoolLabel" placeholder="名稱（週六白班）"
-            class="w-full text-xs px-2 py-1 bg-elevated border border-hairline rounded text-fg outline-none focus:border-blue-500" />
+            class="w-full text-xs px-2 py-1 bg-elevated border border-hairline rounded text-fg outline-none focus:border-accent/30" />
           <input v-model="newPoolName" placeholder="ID（如 satD2）" maxlength="10"
-            class="w-full text-xs px-2 py-1 bg-elevated border border-hairline rounded text-fg outline-none focus:border-blue-500" />
+            class="w-full text-xs px-2 py-1 bg-elevated border border-hairline rounded text-fg outline-none focus:border-accent/30" />
           <div class="flex gap-1">
-            <button @click="addPool" class="flex-1 text-xs py-1 bg-blue-700 hover:bg-blue-600 text-white rounded">新增</button>
+            <button @click="addPool" class="flex-1 text-xs py-1 bg-accent hover:bg-accent text-white rounded">新增</button>
             <button @click="showNewPool = false" class="text-xs px-2 text-muted hover:text-fg-secondary">✕</button>
           </div>
         </div>
@@ -403,7 +403,7 @@ onMounted(() => { scrollToActive() })
                 :disabled="!canEdit"
                 class="w-6 h-6 text-xs rounded transition-colors disabled:opacity-50"
                 :class="isDayActive(di)
-                  ? (di === 0 ? 'bg-danger text-white' : di === 6 ? 'bg-blue-700 text-white' : 'bg-emerald-700 text-white')
+                  ? (di === 0 ? 'bg-danger text-white' : di === 6 ? 'bg-accent text-white' : 'bg-success text-white')
                   : 'bg-elevated text-muted hover:text-fg-secondary'"
               >{{ lbl }}</button>
             </div>
@@ -414,7 +414,7 @@ onMounted(() => { scrollToActive() })
             @click="isLocked = !isLocked"
             class="ml-auto text-xs px-2 py-0.5 rounded border transition-colors"
             :class="isLocked
-              ? 'border-blue-500 text-accent bg-accent/20'
+              ? 'border-accent/30 text-accent bg-accent/10'
               : 'border-hairline text-muted hover:border-hairline hover:text-fg-secondary'"
           >{{ isLocked ? '✦ 履帶模式' : '⊞ 切換履帶' }}</button>
 
@@ -442,9 +442,9 @@ onMounted(() => { scrollToActive() })
               class="group flex items-center gap-1 px-2 py-1 rounded-lg border text-xs cursor-grab transition-colors select-none touch-none"
               :class="[
                 dragOverIdx === mi && dragFromIdx !== mi
-                  ? 'border-blue-500 bg-accent/40'
+                  ? 'border-accent/30 bg-accent/10'
                   : mi === nextPickIdx
-                    ? 'border-blue-400 bg-accent/60 text-accent'
+                    ? 'border-accent/30 bg-accent/10 text-accent'
                     : 'border-hairline bg-elevated text-fg-secondary hover:border-hairline'
               ]"
             >
@@ -482,7 +482,7 @@ onMounted(() => { scrollToActive() })
                 <div v-if="!availableStaff.length" class="text-xs text-muted px-2 py-1">全員已加入</div>
                 <template v-else>
                   <button @click="addAllStaff"
-                    class="w-full text-left text-xs px-2 py-1.5 hover:bg-accent/40 rounded text-accent transition-colors font-semibold border-b border-hairline mb-0.5">
+                    class="w-full text-left text-xs px-2 py-1.5 hover:bg-accent/10 rounded text-accent transition-colors font-semibold border-b border-hairline mb-0.5">
                     ＋ 全員加入 ({{ availableStaff.length }})
                   </button>
                   <button v-for="s in availableStaff" :key="s.code"
@@ -509,9 +509,9 @@ onMounted(() => { scrollToActive() })
                 class="shrink-0 flex flex-col items-center justify-center px-2.5 py-1.5 rounded border text-xs min-w-[5rem] transition-colors"
                 :class="[
                   isNextRange(item.idx)
-                    ? 'border-blue-500 bg-accent/40 text-accent'
+                    ? 'border-accent/30 bg-accent/10 text-accent'
                     : 'border-hairline bg-elevated text-fg-secondary',
-                  canEdit ? 'cursor-pointer hover:border-blue-400 hover:bg-accent/20' : ''
+                  canEdit ? 'cursor-pointer hover:border-accent/30 hover:bg-accent/20' : ''
                 ]"
                 :title="canEdit ? '點選設為起點' : ''">
                 <span class="font-mono text-muted text-xs">{{ item.code }}</span>
@@ -585,14 +585,14 @@ onMounted(() => { scrollToActive() })
               <template v-for="row in projectionRows" :key="row.day">
                 <tr v-for="(entry, ei) in row.entries" :key="ei"
                   class="border-b border-hairline hover:bg-surface/40"
-                  :class="row.dow === 6 ? 'bg-accent/10' : row.dow === 0 ? 'bg-accent/10' : ''">
+                  :class="row.dow === 6 ? 'bg-accent/10' : row.dow === 0 ? 'bg-danger/10' : ''">
                   <td class="px-3 py-1.5">
                     <span v-if="ei === 0"
-                      :class="row.dow === 6 ? 'text-accent' : row.dow === 0 ? 'text-accent' : 'text-fg-secondary'"
+                      :class="row.dow === 6 ? 'text-accent' : row.dow === 0 ? 'text-danger' : 'text-fg-secondary'"
                     >{{ row.dateStr }}</span>
                   </td>
                   <td class="px-2 py-1.5 text-center"
-                    :class="row.dow === 6 ? 'text-accent' : row.dow === 0 ? 'text-accent' : 'text-muted'">
+                    :class="row.dow === 6 ? 'text-accent' : row.dow === 0 ? 'text-danger' : 'text-muted'">
                     <span v-if="ei === 0">{{ DOW_ZH[row.dow] }}</span>
                   </td>
                   <td class="px-3 py-1.5 text-muted">
@@ -619,7 +619,7 @@ onMounted(() => { scrollToActive() })
   <!-- Drag ghost -->
   <Teleport to="body">
     <div v-if="isDragging"
-      class="fixed pointer-events-none z-[9999] bg-raised border border-blue-500 text-xs text-fg px-2 py-1 rounded shadow-xl opacity-90 whitespace-nowrap"
+      class="fixed pointer-events-none z-[9999] bg-raised border border-accent/30 text-xs text-fg px-2 py-1 rounded shadow-xl opacity-90 whitespace-nowrap"
       :style="{ left: ghostX + 'px', top: ghostY + 'px' }">
       {{ ghostLabel }}
     </div>

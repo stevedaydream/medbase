@@ -123,7 +123,7 @@ const tabs = [
                     ? 'bg-accent/20 border-accent/50 text-white shadow-[0_0_15px_rgba(99,102,241,0.1)]' 
                     : 'bg-sunken border-hairline text-fg-secondary hover:border-hairline hover:text-fg hover:bg-surface/30'">
             <span class="truncate">{{ s.name }}</span>
-            <span v-if="selectedSetId === s.id" class="w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.8)] shrink-0"></span>
+            <span v-if="selectedSetId === s.id" class="w-1.5 h-1.5 rounded-full bg-accent/15 shadow-[0_0_8px_rgba(129,140,248,0.8)] shrink-0"></span>
           </button>
         </div>
       </div>
@@ -154,9 +154,9 @@ const tabs = [
               {{ totalStats.rate }}<span class="text-lg font-bold ml-0.5">%</span>
             </p>
             <div class="mt-3 flex gap-3 text-[0.6875rem] font-mono text-fg-secondary border-t border-hairline pt-2 w-full justify-center">
-              <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>已開:{{ totalStats.prescribed }}</span>
+              <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-success/15"></span>已開:{{ totalStats.prescribed }}</span>
               <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-muted"></span>未開:{{ totalStats.unprescribed }}</span>
-              <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>NA:{{ totalStats.na }}</span>
+              <span class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-warning/15"></span>NA:{{ totalStats.na }}</span>
             </div>
           </div>
 
@@ -187,7 +187,7 @@ const tabs = [
                   </p>
                 </div>
                 <button @click.stop="saveRecord" v-if="t.key === 'procedure'" 
-                        class="px-3 py-1.5 rounded-xl text-2xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 border border-accent/30 transition-all shadow-lg shadow-accent/10 hover:shadow-accent/20 active:scale-95 flex items-center gap-1 cursor-pointer">
+                        class="px-3 py-1.5 rounded-xl text-2xs font-bold text-white bg-accent hover:bg-accent border border-accent/30 transition-all shadow-lg shadow-accent/10 hover:shadow-accent/20 active:scale-95 flex items-center gap-1 cursor-pointer">
                   <span>💾</span>
                   <span>儲存</span>
                 </button>
@@ -233,9 +233,9 @@ const tabs = [
               <div class="flex-1 min-w-0 flex items-center gap-3">
                 <span class="w-1.5 h-1.5 rounded-full shrink-0" 
                       :class="evalStates[item.id]?.status === 'prescribed' 
-                        ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)] animate-pulse' 
+                        ? 'bg-success/15 shadow-[0_0_6px_rgba(52,211,153,0.6)] animate-pulse' 
                         : evalStates[item.id]?.status === 'na' 
-                          ? 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]' 
+                          ? 'bg-warning/15 shadow-[0_0_6px_rgba(251,191,36,0.6)]' 
                           : 'bg-raised'"></span>
                 <h4 class="text-fg font-bold text-xs leading-snug truncate">{{ item.name }}</h4>
               </div>
@@ -245,7 +245,7 @@ const tabs = [
                 <button @click="evalStates[item.id].status = 'prescribed'" 
                         class="px-4 py-1.5 rounded-lg text-2xs font-black transition-all cursor-pointer"
                         :class="evalStates[item.id]?.status === 'prescribed' 
-                          ? 'bg-emerald-600 border border-success/20 text-white shadow-lg shadow-success/10' 
+                          ? 'bg-success border border-success/20 text-white shadow-lg shadow-success/10' 
                           : 'text-muted hover:text-fg-secondary'">
                   已開
                 </button>
@@ -259,7 +259,7 @@ const tabs = [
                 <button @click="evalStates[item.id].status = 'na'" 
                         class="px-4 py-1.5 rounded-lg text-2xs font-black uppercase tracking-wider transition-all cursor-pointer"
                         :class="evalStates[item.id]?.status === 'na' 
-                          ? 'bg-amber-600 border border-warning/20 text-white shadow-lg shadow-warning/10' 
+                          ? 'bg-warning border border-warning/20 text-white shadow-lg shadow-warning/10' 
                           : 'text-muted hover:text-fg-secondary'">
                   N/A
                 </button>

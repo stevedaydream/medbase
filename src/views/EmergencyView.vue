@@ -152,9 +152,9 @@ function exportRecord() {
     <!-- Left: Protocol list -->
     <div class="w-72 shrink-0 flex flex-col bg-surface border-r border-hairline p-4 space-y-4">
       <div class="border-b border-hairline pb-4 flex items-center gap-2">
-        <span class="text-rose-500 animate-pulse text-lg">🚨</span>
+        <span class="text-danger animate-pulse text-lg">🚨</span>
         <div>
-          <p class="text-xs font-bold text-rose-500 uppercase tracking-widest">Emergency Protocols</p>
+          <p class="text-xs font-bold text-danger uppercase tracking-widest">Emergency Protocols</p>
           <p class="text-2xs text-muted font-mono tracking-tight">CRITICAL PATHWAY MONITOR</p>
         </div>
       </div>
@@ -169,7 +169,7 @@ function exportRecord() {
             ? 'bg-danger/10 border-danger/30 text-danger shadow-[0_0_15px_rgba(239,68,68,0.05)]'
             : 'bg-sunken border-hairline text-fg-secondary hover:text-fg hover:bg-surface/50'"
         >
-          <div v-if="selected?.id === p.id" class="absolute left-0 top-0 bottom-0 w-1 bg-rose-500" />
+          <div v-if="selected?.id === p.id" class="absolute left-0 top-0 bottom-0 w-1 bg-danger" />
           <div class="font-bold text-xs uppercase tracking-wide transition-colors" :class="selected?.id === p.id ? 'text-danger' : 'text-fg-secondary'">{{ p.name }}</div>
           <div class="text-2xs text-muted mt-1 truncate font-mono">{{ parseJson<string>(p.triggers).join(' · ') }}</div>
         </button>
@@ -189,7 +189,7 @@ function exportRecord() {
         <div class="flex items-center justify-between border-b border-hairline pb-4">
           <div>
             <h2 class="text-xl font-black text-danger tracking-wide uppercase flex items-center gap-2">
-              <span class="inline-block w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+              <span class="inline-block w-2.5 h-2.5 rounded-full bg-danger animate-ping" />
               {{ selected.name }}
             </h2>
             <p class="text-2xs text-muted mt-1 font-mono uppercase tracking-wide">Emergency Action Plan</p>
@@ -242,7 +242,7 @@ function exportRecord() {
                     @change="toggleAction(idx)"
                     class="sr-only peer"
                   />
-                  <div class="w-5 h-5 rounded-lg border-2 transition-all duration-300 peer-checked:bg-rose-500 peer-checked:border-rose-500 border-hairline flex items-center justify-center">
+                  <div class="w-5 h-5 rounded-lg border-2 transition-all duration-300 peer-checked:bg-danger peer-checked:border-danger/30 border-hairline flex items-center justify-center">
                     <span class="text-fg text-xs scale-0 peer-checked:scale-100 transition-transform font-bold">✓</span>
                   </div>
                 </div>
@@ -300,7 +300,7 @@ function exportRecord() {
                     <p
                       class="text-3xl font-mono font-black tracking-wider mt-1 transition-all"
                       :class="t.expired
-                        ? 'text-rose-500 animate-pulse'
+                        ? 'text-danger animate-pulse'
                         : t.remaining < 30
                           ? 'text-warning animate-pulse'
                           : t.running

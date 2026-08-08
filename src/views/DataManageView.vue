@@ -1007,7 +1007,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         </button>
         <button
           @click="openAdd"
-          class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 border border-accent/30 text-white hover:bg-indigo-500 text-xs font-bold transition-all shrink-0 cursor-pointer shadow-[0_4px_12px_rgba(99,102,241,0.15)]"
+          class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent border border-accent/30 text-white hover:bg-accent text-xs font-bold transition-all shrink-0 cursor-pointer shadow-[0_4px_12px_rgba(99,102,241,0.15)]"
         >
           <span>＋</span> 新增
         </button>
@@ -1171,7 +1171,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             @click="selectProtocol(p)"
             class="px-5 py-3.5 cursor-pointer border-b border-hairline transition-all text-left"
             :class="selectedProtocolId === p.id
-              ? 'bg-danger/10 text-danger border-l-2 border-l-rose-500 shadow-[0_0_15px_rgba(239,68,68,0.08)]'
+              ? 'bg-danger/10 text-danger border-l-2 border-l-danger shadow-[0_0_15px_rgba(239,68,68,0.08)]'
               : 'text-fg-secondary hover:bg-overlay/[0.01] hover:text-fg'"
           >
             <div class="font-bold text-xs">{{ p.name }}</div>
@@ -1191,12 +1191,12 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
                 class="flex-1 px-4 py-2 rounded-xl bg-sunken border border-hairline text-fg text-sm font-bold focus:outline-none focus:border-danger/50 focus:ring-1 focus:ring-danger/20"
                 placeholder="情境名稱（如：過敏性休克 Anaphylaxis）" />
               <button @click="saveProtocol"
-                class="px-4 py-2 rounded-xl bg-rose-600 border border-danger/30 hover:bg-rose-500 text-white text-xs font-bold shrink-0 cursor-pointer shadow-[0_4px_12px_rgba(239,68,68,0.15)]"
+                class="px-4 py-2 rounded-xl bg-danger border border-danger/30 hover:bg-danger text-white text-xs font-bold shrink-0 cursor-pointer shadow-[0_4px_12px_rgba(239,68,68,0.15)]"
               >
                 儲存
               </button>
               <button v-if="protocolForm.id" @click="deleteProtocol"
-                class="px-3 py-2 rounded-xl text-rose-500 hover:bg-danger/10 text-xs font-bold shrink-0 cursor-pointer transition-colors"
+                class="px-3 py-2 rounded-xl text-danger hover:bg-danger/10 text-xs font-bold shrink-0 cursor-pointer transition-colors"
               >
                 刪除
               </button>
@@ -1233,7 +1233,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               </div>
               <div class="space-y-2">
                 <div v-for="(_, i) in protocolForm.immediate_actions" :key="i" class="flex gap-2 items-center">
-                  <span class="text-xs text-rose-500/60 w-5 shrink-0 text-right font-mono font-bold">{{ i+1 }}.</span>
+                  <span class="text-xs text-danger/60 w-5 shrink-0 text-right font-mono font-bold">{{ i+1 }}.</span>
                   <input v-model="protocolForm.immediate_actions[i]"
                     class="flex-1 px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-danger/45 text-fg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-danger/20 transition-all"
                     placeholder="處置動作描述（如：建立大口徑靜脈管路、給予高流量氧氣）" />
@@ -1363,11 +1363,11 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
           <p class="text-xs text-fg-secondary leading-relaxed">下載或載入 MedBase 的主 SQLite 資料庫檔案 <code class="font-mono text-accent bg-sunken px-1.5 py-0.5 rounded text-2xs border border-hairline">medbase.db</code>。此選項適用於完全遷移、手動硬碟備份。還原成功後，程式將自動重啟以載入新庫。</p>
           <div class="flex gap-3 pt-2">
             <button @click="backupDb" :disabled="dbBackingUp || dbRestoring"
-              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 border border-accent/30 text-white text-xs font-bold hover:bg-indigo-500 transition-all disabled:opacity-40 cursor-pointer shadow-lg shadow-accent/10">
+              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent border border-accent/30 text-white text-xs font-bold hover:bg-accent transition-all disabled:opacity-40 cursor-pointer shadow-lg shadow-accent/10">
               {{ dbBackingUp ? '備份中…' : '💾 匯出資料庫主檔 (.db)' }}
             </button>
             <button @click="restoreDb" :disabled="dbBackingUp || dbRestoring"
-              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 border border-warning/30 text-white text-xs font-bold hover:bg-amber-500 transition-all disabled:opacity-40 cursor-pointer shadow-lg shadow-warning/10">
+              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-warning border border-warning/30 text-white text-xs font-bold hover:bg-warning transition-all disabled:opacity-40 cursor-pointer shadow-lg shadow-warning/10">
               {{ dbRestoring ? '還原中…' : '📂 匯入並還原資料庫 (.db)' }}
             </button>
           </div>
@@ -1397,7 +1397,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             >
               <input type="checkbox" :checked="selectedGroups.has(g.key)"
                 @change="toggleGroup(g.key)"
-                class="mt-0.5 accent-indigo-500 shrink-0" />
+                class="mt-0.5 accent-accent shrink-0" />
               <div class="min-w-0 flex-1">
                 <div class="flex items-center justify-between text-xs text-fg font-bold">
                   <span>{{ g.icon }} {{ g.label }}</span>
@@ -1415,7 +1415,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             <button
               @click="exportSelected"
               :disabled="exportingFull || selectedGroups.size === 0"
-              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 border border-accent/30 text-white text-xs font-bold hover:bg-indigo-500 transition-all disabled:opacity-40 cursor-pointer shadow-lg shadow-accent/10"
+              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent border border-accent/30 text-white text-xs font-bold hover:bg-accent transition-all disabled:opacity-40 cursor-pointer shadow-lg shadow-accent/10"
             >
               {{ exportingFull ? '匯出中…' : '💾 匯出選取模組 (Excel .xlsx)' }}
             </button>
@@ -1476,14 +1476,14 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             </p>
             <!-- 進度條（匯入中才顯示） -->
             <div v-if="importingFull" class="w-full rounded-full bg-sunken border border-hairline h-2 overflow-hidden">
-              <div class="h-2 bg-emerald-500 transition-all duration-150 rounded-full"
+              <div class="h-2 bg-success transition-all duration-150 rounded-full"
                 :style="{ width: fullImportProgress + '%' }"></div>
             </div>
             <div class="flex items-center gap-3 pt-2">
               <button
                 @click="confirmFullImport"
                 :disabled="importingFull"
-                class="px-5 py-2 rounded-xl bg-emerald-600 border border-success/30 text-white text-xs font-bold hover:bg-emerald-500 transition-all disabled:opacity-40 cursor-pointer shadow-lg shadow-success/10"
+                class="px-5 py-2 rounded-xl bg-success border border-success/30 text-white text-xs font-bold hover:bg-success transition-all disabled:opacity-40 cursor-pointer shadow-lg shadow-success/10"
               >{{ importingFull ? `寫入中… ${fullImportProgress}%` : '確認寫入資料庫' }}</button>
               <button
                 @click="cancelImport"
@@ -1508,7 +1508,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
           <div v-if="!xlsxSyncPath" class="flex flex-wrap gap-2.5 pt-2">
             <button
               @click="bindXlsxFile"
-              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 border border-accent/30 text-white text-xs font-bold hover:bg-indigo-500 transition-all cursor-pointer shadow-lg shadow-accent/10"
+              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent border border-accent/30 text-white text-xs font-bold hover:bg-accent transition-all cursor-pointer shadow-lg shadow-accent/10"
             >
               📂 連結現有 Excel 檔案
             </button>
@@ -1552,7 +1552,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               </button>
               <button
                 @click="doXlsxUnbind"
-                class="flex items-center gap-1 px-3.5 py-1.5 rounded-xl bg-danger/20 border border-danger/30 hover:border-danger/60 text-danger text-xs font-bold hover:bg-danger/40 transition-all cursor-pointer"
+                class="flex items-center gap-1 px-3.5 py-1.5 rounded-xl bg-danger/10 border border-danger/30 hover:border-danger/60 text-danger text-xs font-bold hover:bg-danger/20 transition-all cursor-pointer"
               >
                 解除連結
               </button>
@@ -1569,7 +1569,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             </div>
             <div class="flex gap-2">
               <button @click="clearGroups = new Set(BACKUP_GROUPS.map(g => g.key))" class="text-xs text-danger/80 hover:text-danger font-bold cursor-pointer">全選</button>
-              <span class="text-rose-900 font-mono">|</span>
+              <span class="text-danger font-mono">|</span>
               <button @click="clearGroups = new Set()" class="text-xs text-muted hover:text-fg-secondary font-bold cursor-pointer">全消</button>
             </div>
           </div>
@@ -1585,7 +1585,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             >
               <input type="checkbox" :checked="clearGroups.has(g.key)"
                 @change="toggleClearGroup(g.key)"
-                class="accent-rose-600 shrink-0" />
+                class="accent-danger shrink-0" />
               <span class="text-xs text-fg font-bold">{{ g.icon }} {{ g.label }}</span>
             </label>
           </div>
@@ -1593,7 +1593,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
           <button
             @click="showClearConfirm = true"
             :disabled="clearGroups.size === 0"
-            class="px-5 py-2.5 rounded-xl bg-danger/40 border border-danger/30 hover:border-rose-700 text-danger text-xs font-bold hover:bg-danger/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-danger/20"
+            class="px-5 py-2.5 rounded-xl bg-danger/10 border border-danger/30 hover:border-danger/30 text-danger text-xs font-bold hover:bg-danger/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-danger/20"
           >清空選取模組（{{ clearGroups.size }} 個群組）</button>
         </div>
 
@@ -1601,8 +1601,8 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         <div class="text-2xs text-muted space-y-1.5 px-2 py-4 border-t border-hairline font-medium leading-relaxed">
           <p>• 模組備份 XLSX 的每個分頁 (Sheet) 名稱對應資料庫實體表名稱，方便手動用 Excel 大量編輯。</p>
           <p>• 還原匯入時系統會自動關閉外鍵檢查，並依賴資料相依拓撲順序寫入，確保不會觸發外鍵衝突。</p>
-          <p>• <span class="text-amber-500/80">班表參數設定</span>及帳號密碼，均儲存在「排班系統」模組的 <code class="font-mono bg-sunken px-1 py-0.5 rounded border border-hairline text-2xs">app_settings</code> 表中，備份排班資料時請務必勾選該群組。</p>
-          <p>• AHK 腳本的<span class="text-amber-500/80">硬碟實體檔案</span>不在 SQLite 資料庫備份範圍內，此處備份僅包含腳本的元資料、群組結構及關聯資訊。</p>
+          <p>• <span class="text-warning/80">班表參數設定</span>及帳號密碼，均儲存在「排班系統」模組的 <code class="font-mono bg-sunken px-1 py-0.5 rounded border border-hairline text-2xs">app_settings</code> 表中，備份排班資料時請務必勾選該群組。</p>
+          <p>• AHK 腳本的<span class="text-warning/80">硬碟實體檔案</span>不在 SQLite 資料庫備份範圍內，此處備份僅包含腳本的元資料、群組結構及關聯資訊。</p>
         </div>
 
       </div>
@@ -1688,7 +1688,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         </div>
         <div class="flex justify-end gap-2 px-6 py-4 border-t border-hairline bg-surface">
           <button @click="closeModal" class="px-4 py-2 rounded-xl text-xs font-bold text-fg-secondary hover:text-fg hover:bg-overlay/5 cursor-pointer transition-colors">取消</button>
-          <button @click="saveItem" class="px-5 py-2 rounded-xl bg-indigo-600 border border-accent/30 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer shadow-lg shadow-accent/10">儲存品項</button>
+          <button @click="saveItem" class="px-5 py-2 rounded-xl bg-accent border border-accent/30 hover:bg-accent text-white text-xs font-bold cursor-pointer shadow-lg shadow-accent/10">儲存品項</button>
         </div>
       </div>
 
@@ -1751,7 +1751,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         </div>
         <div class="flex justify-end gap-2 px-6 py-4 border-t border-hairline bg-surface">
           <button @click="closeModal" class="px-4 py-2 rounded-xl text-xs font-bold text-fg-secondary hover:text-fg hover:bg-overlay/5 cursor-pointer transition-colors">取消</button>
-          <button @click="savePhysician" class="px-5 py-2 rounded-xl bg-indigo-600 border border-accent/30 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer shadow-lg shadow-accent/10">儲存資料</button>
+          <button @click="savePhysician" class="px-5 py-2 rounded-xl bg-accent border border-accent/30 hover:bg-accent text-white text-xs font-bold cursor-pointer shadow-lg shadow-accent/10">儲存資料</button>
         </div>
       </div>
 
@@ -1811,15 +1811,15 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
                 </td>
                 <td class="px-2 py-2">
                   <input v-model="row.price" type="number" placeholder="0"
-                    class="w-full px-2 py-1 bg-elevated border border-hairline rounded text-xs font-mono text-fg outline-none focus:border-blue-500" />
+                    class="w-full px-2 py-1 bg-elevated border border-hairline rounded text-xs font-mono text-fg outline-none focus:border-accent/30" />
                 </td>
                 <td class="px-2 py-1.5">
                   <input v-model="row.supplier" placeholder="廠商名稱"
-                    class="w-full px-2 py-1 bg-elevated border border-hairline rounded text-xs text-fg outline-none focus:border-blue-500" />
+                    class="w-full px-2 py-1 bg-elevated border border-hairline rounded text-xs text-fg outline-none focus:border-accent/30" />
                 </td>
                 <td class="px-2 py-1.5 text-center">
                   <button @click="removeBatchRow(i)" :disabled="batchRows.length === 1"
-                    class="text-muted hover:text-accent disabled:opacity-20 text-base leading-none">×</button>
+                    class="text-muted hover:text-danger disabled:opacity-20 text-base leading-none">×</button>
                 </td>
               </tr>
             </tbody>
@@ -1839,7 +1839,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             <button @click="showBatchAdd = false"
               class="px-4 py-1.5 rounded-lg text-sm text-fg-secondary hover:text-fg hover:bg-elevated">取消</button>
             <button @click="saveBatchItems" :disabled="batchSaving || !batchRows.some(r=>r.hospital_code.trim())"
-              class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-sm font-medium">
+              class="px-4 py-1.5 rounded-lg bg-accent hover:bg-accent disabled:opacity-40 text-white text-sm font-medium">
               {{ batchSaving ? "儲存中…" : `全部儲存（${batchRows.filter(r=>r.hospital_code.trim()).length} 筆）` }}
             </button>
           </div>
@@ -1855,8 +1855,8 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
       <div v-if="toast"
         class="fixed top-4 right-4 z-[60] flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-xl text-sm font-medium"
         :class="toast.type === 'success'
-          ? 'bg-success/10 border border-emerald-700 text-success'
-          : 'bg-accent/10 border border-danger text-accent'"
+          ? 'bg-success/10 border border-success/30 text-success'
+          : 'bg-danger/10 border border-danger text-danger'"
       >
         <span>{{ toast.type === 'success' ? '✓' : '✕' }}</span>
         <span>{{ toast.msg }}</span>
@@ -1897,18 +1897,18 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
       @click.self="showClearConfirm = false; clearInput = ''">
       <div class="w-full max-w-sm bg-surface rounded-2xl border border-danger shadow-2xl p-6">
         <div class="text-3xl mb-3 text-center">⚠️</div>
-        <h3 class="font-semibold text-accent text-center mb-1">確認清空</h3>
+        <h3 class="font-semibold text-danger text-center mb-1">確認清空</h3>
         <p class="text-sm text-fg-secondary text-center mb-3">
-          以下資料將被永久刪除，此操作<span class="text-accent font-semibold">無法復原</span>。
+          以下資料將被永久刪除，此操作<span class="text-danger font-semibold">無法復原</span>。
         </p>
         <div class="flex flex-wrap gap-1 justify-center mb-4">
           <span v-for="g in BACKUP_GROUPS.filter(g => clearGroups.has(g.key))" :key="g.key"
-            class="px-2 py-0.5 rounded-full bg-accent/50 text-accent text-xs">
+            class="px-2 py-0.5 rounded-full bg-danger/10 text-danger text-xs">
             {{ g.icon }} {{ g.label }}
           </span>
         </div>
         <p class="text-xs text-muted mb-2 text-center">
-          輸入「<span class="text-accent font-mono">{{ CLEAR_KEYWORD }}</span>」以確認
+          輸入「<span class="text-danger font-mono">{{ CLEAR_KEYWORD }}</span>」以確認
         </p>
         <input
           v-model="clearInput"

@@ -257,7 +257,7 @@ async function exportDocx() {
               @click="meta[f.key] = opt"
               class="flex-1 text-xs font-bold px-3 py-1.5 rounded-xl border transition-all cursor-pointer"
               :class="meta[f.key] === opt
-                ? 'bg-accent/20 border-accent/40 text-accent'
+                ? 'bg-accent/10 border-accent/40 text-accent'
                 : 'bg-surface border-hairline text-fg-secondary hover:text-fg'">
               {{ opt }}
             </button>
@@ -342,8 +342,8 @@ async function exportDocx() {
         <button @click="generate"
           :disabled="isGenerating || !hasSource || !apiKey"
           :title="!apiKey ? '請先至設定頁填入 Gemini API Key' : ''"
-          class="flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-xl bg-indigo-600 border border-accent/30
-                 hover:bg-indigo-500 text-white disabled:opacity-40 disabled:cursor-not-allowed
+          class="flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-xl bg-accent border border-accent/30
+                 hover:bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed
                  hover:shadow-[0_0_15px_rgba(99,102,241,0.25)] transition-all cursor-pointer">
           <span v-if="isGenerating" class="inline-block w-3.5 h-3.5 border-2 border-hairline border-t-white rounded-full animate-spin" />
           <span v-else>✦</span>
@@ -372,7 +372,7 @@ async function exportDocx() {
       <div class="mt-4">
         <button @click="exportDocx" :disabled="isExporting"
           class="flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-xl bg-success/90 border border-success/30
-                 hover:bg-emerald-500 text-white disabled:opacity-40 disabled:cursor-not-allowed
+                 hover:bg-success text-white disabled:opacity-40 disabled:cursor-not-allowed
                  hover:shadow-[0_0_15px_rgba(16,185,129,0.25)] transition-all cursor-pointer">
           <span v-if="isExporting" class="inline-block w-3.5 h-3.5 border-2 border-hairline border-t-white rounded-full animate-spin" />
           <span v-else>⬇</span>

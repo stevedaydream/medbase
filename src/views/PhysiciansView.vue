@@ -256,7 +256,7 @@ async function saveForm() {
         </button>
         <div class="w-px h-5 bg-overlay/10" />
         <button @click="openAdd"
-          class="px-4 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-fg text-xs font-bold hover:from-blue-500 hover:to-cyan-500 transition-all shadow-md cursor-pointer">
+          class="px-4 py-1.5 rounded-xl bg-gradient-to-r from-accent to-accent text-fg text-xs font-bold hover:from-accent hover:to-accent transition-all shadow-md cursor-pointer">
           ＋ 新增
         </button>
       </div>
@@ -305,7 +305,7 @@ async function saveForm() {
             :class="selected?.id === p.id
               ? 'bg-elevated'
               : 'hover:bg-overlay/5'">
-            <div v-if="selected?.id === p.id" class="absolute left-0 top-0 bottom-0 w-0.5 bg-cyan-500 rounded-r" />
+            <div v-if="selected?.id === p.id" class="absolute left-0 top-0 bottom-0 w-0.5 bg-accent rounded-r" />
             <div class="flex-1 min-w-0">
               <div class="text-sm font-bold truncate" :class="selected?.id === p.id ? 'text-accent' : 'text-fg'">{{ p.name }}</div>
               <div v-if="p.department" class="text-2xs text-muted truncate mt-0.5">{{ p.department }}</div>
@@ -397,7 +397,7 @@ async function saveForm() {
         <p class="text-xs text-danger font-bold font-mono">「{{ deleteTarget.name }}」</p>
         <div class="flex gap-2.5 justify-center pt-3 border-t border-hairline">
           <button @click="deleteTarget = null" class="px-4 py-2 text-xs font-bold bg-elevated border border-hairline text-fg-secondary rounded-xl hover:bg-raised">取消</button>
-          <button @click="doDelete" class="px-4 py-2 text-xs font-bold bg-rose-600 text-white rounded-xl hover:bg-rose-500 shadow-lg">確認刪除</button>
+          <button @click="doDelete" class="px-4 py-2 text-xs font-bold bg-danger text-white rounded-xl hover:bg-danger shadow-lg">確認刪除</button>
         </div>
       </div>
     </div>
@@ -440,7 +440,7 @@ async function saveForm() {
         </div>
         <div class="flex gap-3 justify-end pt-2 border-t border-hairline bg-surface">
           <button @click="showAddModal = false" class="px-4 py-2 text-xs font-bold bg-elevated border border-hairline text-fg-secondary rounded-xl hover:bg-raised hover:text-fg transition-colors">取消</button>
-          <button @click="saveForm" class="px-5 py-2 text-xs font-bold bg-gradient-to-r from-blue-600 to-cyan-600 text-fg rounded-xl hover:from-blue-500 hover:to-cyan-500 transition-all shadow-lg">儲存並寫入</button>
+          <button @click="saveForm" class="px-5 py-2 text-xs font-bold bg-gradient-to-r from-accent to-accent text-fg rounded-xl hover:from-accent hover:to-accent transition-all shadow-lg">儲存並寫入</button>
         </div>
       </div>
     </div>

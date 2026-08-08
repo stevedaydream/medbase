@@ -299,7 +299,7 @@ async function doDelete() {
         </button>
         <button
           @click="openAdd"
-          class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-fg text-xs font-bold hover:from-blue-500 hover:to-cyan-500 transition-all shadow-lg shadow-accent/10 flex items-center gap-1.5 cursor-pointer"
+          class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-accent to-accent text-fg text-xs font-bold hover:from-accent hover:to-accent transition-all shadow-lg shadow-accent/10 flex items-center gap-1.5 cursor-pointer"
         >
           <span>＋</span> 新增分機
         </button>
@@ -417,7 +417,7 @@ async function doDelete() {
         <!-- Footer -->
         <div class="flex justify-end gap-2.5 px-5 py-3.5 border-t border-hairline">
           <button @click="showModal = false" class="px-4 py-2 text-xs font-bold bg-elevated border border-hairline text-fg-secondary rounded-xl hover:bg-raised hover:text-fg transition-colors">取消</button>
-          <button @click="save" class="px-5 py-2 text-xs font-bold bg-gradient-to-r from-blue-600 to-cyan-600 text-fg rounded-xl hover:from-blue-500 hover:to-cyan-500 transition-all shadow-lg">儲存記錄</button>
+          <button @click="save" class="px-5 py-2 text-xs font-bold bg-gradient-to-r from-accent to-accent text-fg rounded-xl hover:from-accent hover:to-accent transition-all shadow-lg">儲存記錄</button>
         </div>
       </div>
     </div>
@@ -432,7 +432,7 @@ async function doDelete() {
         <p class="text-xs text-muted mb-6">「{{ deleteTarget?.label }}」{{ deleteTarget?.ext }}</p>
         <div class="flex gap-2.5 justify-center">
           <button @click="showConfirm = false" class="px-4 py-2 text-xs font-bold bg-elevated border border-hairline text-fg-secondary rounded-xl hover:bg-raised hover:text-fg">取消</button>
-          <button @click="doDelete" class="px-4 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white rounded-xl shadow-lg shadow-danger/10">確認刪除</button>
+          <button @click="doDelete" class="px-4 py-2 text-xs font-bold bg-danger hover:bg-danger text-white rounded-xl shadow-lg shadow-danger/10">確認刪除</button>
         </div>
       </div>
     </div>

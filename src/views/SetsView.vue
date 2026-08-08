@@ -572,7 +572,7 @@ async function doDelete() {
         <input v-model="searchSet" placeholder="搜尋套組…"
           class="flex-1 px-3 py-2 text-xs rounded-xl bg-sunken border border-hairline text-fg placeholder-muted focus:outline-none focus:border-accent/50 focus:shadow-[0_0_12px_rgba(139,92,246,0.15)] transition-all font-bold" />
         <button @click="openAddSet"
-          class="w-9 h-9 rounded-xl bg-violet-600 border border-accent/30 text-white text-lg font-black hover:bg-violet-500 active:scale-95 transition-all flex items-center justify-center cursor-pointer shrink-0"
+          class="w-9 h-9 rounded-xl bg-accent border border-accent/30 text-white text-lg font-black hover:bg-accent active:scale-95 transition-all flex items-center justify-center cursor-pointer shrink-0"
           title="新增套組">＋</button>
       </div>
 
@@ -593,7 +593,7 @@ async function doDelete() {
         <div v-for="group in grouped" :key="group.name" class="mb-2">
           <!-- 醫師群組標題 -->
           <div class="px-2 pt-2.5 pb-1.5 flex items-center gap-2 sticky top-0 bg-sunken/20 backdrop-blur-sm z-[2]">
-            <span class="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse shrink-0"></span>
+            <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shrink-0"></span>
             <span class="text-xs font-black text-fg tracking-wide truncate flex-1">{{ group.name }}</span>
             <span class="text-2xs font-mono font-bold text-muted bg-surface px-1.5 py-0.5 rounded border border-hairline">{{ group.items.length }}</span>
           </div>
@@ -604,7 +604,7 @@ async function doDelete() {
               @click="selectSet(s)"
               class="group w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all cursor-pointer"
               :class="activeSet?.id === s.id
-                ? 'bg-accent/20 border-accent/40 text-accent shadow-[0_0_12px_rgba(139,92,246,0.08)]'
+                ? 'bg-accent/10 border-accent/40 text-accent shadow-[0_0_12px_rgba(139,92,246,0.08)]'
                 : 'bg-sunken border-hairline text-fg-secondary hover:text-fg hover:bg-surface/40 hover:border-hairline'"
             >
               <span class="text-xs font-bold truncate flex-1 min-w-0">{{ s.surgery_type || s.name }}</span>
@@ -644,7 +644,7 @@ async function doDelete() {
                   @keyup.esc="renamingSet = false"
                   @blur="saveRename"
                   autofocus
-                  class="text-fg font-bold text-base bg-sunken border border-violet-500 rounded-xl px-3 py-1.5 focus:outline-none w-72 focus:shadow-[0_0_12px_rgba(139,92,246,0.15)] transition-all"
+                  class="text-fg font-bold text-base bg-sunken border border-accent/30 rounded-xl px-3 py-1.5 focus:outline-none w-72 focus:shadow-[0_0_12px_rgba(139,92,246,0.15)] transition-all"
                 />
               </template>
               <template v-else>
@@ -665,7 +665,7 @@ async function doDelete() {
               {{ setItems.filter(i => i.is_optional).length }} PRN
             </span>
             <button @click="showOverwriteConfirm = true"
-              class="px-3.5 py-2 rounded-xl bg-warning/30 border border-warning/30 text-warning text-xs font-bold hover:bg-warning/40 hover:text-warning transition-all cursor-pointer">
+              class="px-3.5 py-2 rounded-xl bg-warning/10 border border-warning/30 text-warning text-xs font-bold hover:bg-warning/20 hover:text-warning transition-all cursor-pointer">
               ↑ 覆蓋上傳
             </button>
             <button @click="openEditSet(activeSet)"
@@ -673,7 +673,7 @@ async function doDelete() {
               編輯套組
             </button>
             <button @click="openAddItem"
-              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-600 border border-accent/30 text-white text-xs font-black hover:bg-violet-500 active:scale-95 transition-all cursor-pointer">
+              class="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-accent border border-accent/30 text-white text-xs font-black hover:bg-accent active:scale-95 transition-all cursor-pointer">
               ＋ 加入品項
             </button>
           </div>
@@ -722,7 +722,7 @@ async function doDelete() {
                     class="w-10 h-5 rounded-full transition-all relative border border-hairline cursor-pointer"
                     :class="si.is_optional ? 'bg-warning/30 border-warning/40 shadow-inner' : 'bg-sunken'">
                     <span class="absolute top-0.5 w-3.5 h-3.5 rounded-full bg-fg-secondary transition-all shadow-md"
-                      :class="si.is_optional ? 'right-0.5 bg-amber-400 shadow-warning/50' : 'left-0.5 bg-muted'"></span>
+                      :class="si.is_optional ? 'right-0.5 bg-warning/15 shadow-warning/50' : 'left-0.5 bg-muted'"></span>
                   </button>
                 </td>
                 <td class="px-5 py-3 text-right font-mono text-xs font-bold"
@@ -804,7 +804,7 @@ async function doDelete() {
         </div>
         <div class="flex justify-end gap-2.5 px-5 py-4 border-t border-hairline bg-sunken shrink-0">
           <button @click="showSetModal = false" class="px-4 py-2 text-xs font-bold bg-elevated text-fg-secondary hover:text-fg hover:bg-raised rounded-xl transition-all cursor-pointer">取消</button>
-          <button @click="saveSet" :disabled="!setForm.name?.trim()" class="px-5 py-2 text-xs font-black bg-violet-600 hover:bg-violet-500 border border-accent/30 text-white rounded-xl transition-all disabled:opacity-40 cursor-pointer">儲存套組</button>
+          <button @click="saveSet" :disabled="!setForm.name?.trim()" class="px-5 py-2 text-xs font-black bg-accent hover:bg-accent border border-accent/30 text-white rounded-xl transition-all disabled:opacity-40 cursor-pointer">儲存套組</button>
         </div>
       </div>
     </div>
@@ -856,7 +856,7 @@ async function doDelete() {
             <div class="flex flex-col justify-end">
               <label class="flex items-center gap-2 cursor-pointer pb-2 select-none">
                 <input type="checkbox" v-model="itemForm.is_optional" :true-value="1" :false-value="0"
-                  class="w-4 h-4 rounded accent-violet-500 bg-sunken border border-hairline" />
+                  class="w-4 h-4 rounded accent-accent bg-sunken border border-hairline" />
                 <span class="text-xs font-bold text-fg-secondary">PRN 按需（不計費）</span>
               </label>
             </div>
@@ -872,7 +872,7 @@ async function doDelete() {
           <button @click="showAddItem = false" class="px-4 py-2 text-xs font-bold bg-elevated text-fg-secondary hover:text-fg hover:bg-raised rounded-xl transition-all cursor-pointer">取消</button>
           <button @click="addItem"
             :disabled="!itemForm.hospital_code"
-            class="px-5 py-2 text-xs font-black bg-violet-600 hover:bg-violet-500 border border-accent/30 text-white rounded-xl transition-all disabled:opacity-40 cursor-pointer">
+            class="px-5 py-2 text-xs font-black bg-accent hover:bg-accent border border-accent/30 text-white rounded-xl transition-all disabled:opacity-40 cursor-pointer">
             確認加入
           </button>
         </div>
@@ -899,7 +899,7 @@ async function doDelete() {
           <button @click="showOverwriteConfirm = false"
             class="px-4 py-2 text-xs font-bold bg-elevated text-fg-secondary hover:text-fg hover:bg-raised border border-hairline rounded-xl cursor-pointer">取消</button>
           <button @click="overwriteSetToCloud" :disabled="isSyncing"
-            class="px-5 py-2 text-xs font-black bg-amber-600 hover:bg-amber-500 border border-warning/30 text-white rounded-xl disabled:opacity-40 cursor-pointer">
+            class="px-5 py-2 text-xs font-black bg-warning hover:bg-warning border border-warning/30 text-white rounded-xl disabled:opacity-40 cursor-pointer">
             {{ isSyncing ? '同步中…' : '確定覆蓋上傳' }}
           </button>
         </div>
@@ -919,7 +919,7 @@ async function doDelete() {
           <button @click="deleteTarget = null"
             class="px-5 py-2 rounded-xl text-xs font-bold bg-elevated text-fg-secondary hover:text-fg hover:bg-raised border border-hairline cursor-pointer">取消</button>
           <button @click="doDelete"
-            class="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 border border-danger/30 text-white text-xs font-black cursor-pointer">確認刪除</button>
+            class="px-5 py-2 rounded-xl bg-danger hover:bg-danger border border-danger/30 text-white text-xs font-black cursor-pointer">確認刪除</button>
         </div>
       </div>
     </div>

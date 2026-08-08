@@ -79,13 +79,13 @@ async function handleExport() {
 
 // ── 樣式 ─────────────────────────────────────────────────────────
 const levelClass: Record<string, string> = {
-  error:  'bg-accent/10   text-accent',
+  error:  'bg-danger/10   text-danger',
   warn:   'bg-yellow-900 text-yellow-300',
   info:   'bg-accent/10  text-accent',
   action: 'bg-accent/10 text-accent',
 }
 const rowHover: Record<string, string> = {
-  error:  'hover:bg-accent/40',
+  error:  'hover:bg-danger/40',
   warn:   'hover:bg-yellow-950/30',
   info:   'hover:bg-surface',
   action: 'hover:bg-accent/30',
@@ -127,7 +127,7 @@ function isDifferentSession(idx: number): boolean {
         <span v-if="exportMsg" class="text-accent text-2xs">{{ exportMsg }}</span>
         <button @click="toggleHistory" :disabled="loadingHistory"
           class="px-2 py-0.5 rounded text-2xs transition-colors"
-          :class="showHistory ? 'bg-indigo-700 text-accent' : 'bg-raised text-fg-secondary hover:bg-raised'">
+          :class="showHistory ? 'bg-accent text-accent' : 'bg-raised text-fg-secondary hover:bg-raised'">
           {{ loadingHistory ? '載入中…' : showHistory ? '歷史 ▲' : '歷史 ▼' }}
         </button>
         <button @click="handleExport" :disabled="exporting"

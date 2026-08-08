@@ -292,7 +292,7 @@ const fio2Result = computed(() => {
           <!-- Active left indicator bar -->
           <div
             v-if="activeTool === t.id"
-            class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-cyan-400 to-teal-500"
+            class="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-accent to-accent"
           />
 
           <span class="text-xl leading-none shrink-0 transition-transform duration-300 group-hover:scale-110">{{ t.icon }}</span>

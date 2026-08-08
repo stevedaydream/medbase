@@ -226,7 +226,7 @@ async function saveTitle() {
             : 'bg-transparent border-transparent text-fg-secondary hover:bg-overlay/5 hover:text-fg'">
           
           <!-- Selected active left indicator bar -->
-          <div v-if="activeMemo?.id === m.id" class="absolute left-0 top-0 bottom-0 w-1 bg-cyan-500" />
+          <div v-if="activeMemo?.id === m.id" class="absolute left-0 top-0 bottom-0 w-1 bg-accent" />
           
           <div class="flex-1 min-w-0">
             <p class="text-xs font-bold truncate tracking-wide" :class="activeMemo?.id === m.id ? 'text-accent' : 'text-fg'">{{ m.title }}</p>
@@ -252,7 +252,7 @@ async function saveTitle() {
           </button>
         </div>
         <button @click="openAdd"
-          class="w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-fg text-xs font-bold hover:from-blue-500 hover:to-indigo-500 transition-all shadow-lg shadow-accent/10 cursor-pointer">
+          class="w-full py-2.5 rounded-xl bg-gradient-to-r from-accent to-accent text-fg text-xs font-bold hover:from-accent hover:to-accent transition-all shadow-lg shadow-accent/10 cursor-pointer">
           ＋ 新增備忘
         </button>
       </div>
@@ -273,14 +273,14 @@ async function saveTitle() {
               <input v-model="titleDraft" @keydown.enter="saveTitle" @keydown.escape="editingTitle = false"
                 class="flex-1 px-3 py-1.5 rounded-xl bg-surface border border-accent/30 text-fg text-sm focus:outline-none focus:ring-2 focus:ring-accent/15"
                 autofocus />
-              <button @click="saveTitle" class="text-xs font-bold px-3 py-1.5 bg-blue-700 hover:bg-blue-600 text-white rounded-xl transition-all cursor-pointer">儲存</button>
+              <button @click="saveTitle" class="text-xs font-bold px-3 py-1.5 bg-accent hover:bg-accent text-white rounded-xl transition-all cursor-pointer">儲存</button>
             </div>
             <h2 v-else
               class="text-sm font-black text-fg cursor-pointer hover:text-accent transition-all flex items-center gap-1.5 group"
               @click="titleDraft = activeMemo.title; editingTitle = true"
               title="點擊編輯標題">
               {{ activeMemo.title }}
-              <span class="text-xs text-muted group-hover:text-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity">✏️</span>
+              <span class="text-xs text-muted group-hover:text-accent opacity-0 group-hover:opacity-100 transition-opacity">✏️</span>
             </h2>
           </div>
           <span class="text-2xs font-bold bg-overlay/5 border border-hairline text-muted px-2.5 py-1 rounded-lg uppercase tracking-wider shrink-0 font-mono">{{ activeMemo.category }}</span>
@@ -344,7 +344,7 @@ async function saveTitle() {
         </div>
         <div class="flex gap-3 justify-end pt-2 border-t border-hairline">
           <button @click="showAddModal = false" class="px-4 py-2 text-xs font-bold bg-elevated border border-hairline text-fg-secondary rounded-xl hover:bg-raised hover:text-fg">取消</button>
-          <button @click="confirmAdd" class="px-5 py-2 text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 text-fg rounded-xl hover:from-blue-500 hover:to-indigo-500 transition-all shadow-lg">建立備忘</button>
+          <button @click="confirmAdd" class="px-5 py-2 text-xs font-bold bg-gradient-to-r from-accent to-accent text-fg rounded-xl hover:from-accent hover:to-accent transition-all shadow-lg">建立備忘</button>
         </div>
       </div>
     </div>
@@ -355,7 +355,7 @@ async function saveTitle() {
         <p class="text-sm text-fg-secondary">確定刪除「<span class="text-danger font-bold">{{ deleteTarget.title }}</span>」備忘嗎？</p>
         <div class="flex gap-3 justify-end pt-2 border-t border-hairline">
           <button @click="deleteTarget = null" class="px-4 py-2 text-xs font-bold bg-elevated border border-hairline text-fg-secondary rounded-xl hover:bg-raised">取消</button>
-          <button @click="doDelete" class="px-4 py-2 text-xs font-bold bg-rose-600 text-white rounded-xl hover:bg-rose-500">確認刪除</button>
+          <button @click="doDelete" class="px-4 py-2 text-xs font-bold bg-danger text-white rounded-xl hover:bg-danger">確認刪除</button>
         </div>
       </div>
     </div>

@@ -398,7 +398,7 @@ function dismissUpdate() {
       <!-- 其他雲端同步背景 banner -->
       <Transition name="toast">
         <div v-if="activeSyncLabels.length > 0"
-          class="flex items-center gap-3 px-4 py-2 bg-accent/80 border-b border-accent/60 text-accent text-xs flex-shrink-0">
+          class="flex items-center gap-3 px-4 py-2 bg-accent/10 border-b border-accent/60 text-accent text-xs flex-shrink-0">
           <span class="animate-pulse">⟳</span>
           <span>{{ activeSyncLabels.join('、') }} 雲端同步背景執行中…</span>
         </div>
@@ -444,7 +444,7 @@ function dismissUpdate() {
               稍後再說
             </button>
             <button @click="installUpdate" :disabled="updateDownloading"
-              class="text-sm px-5 py-2 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg font-semibold transition-colors flex items-center gap-2">
+              class="text-sm px-5 py-2 bg-success hover:bg-success disabled:opacity-50 text-white rounded-lg font-semibold transition-colors flex items-center gap-2">
               <span v-if="updateDownloading" class="inline-block w-3.5 h-3.5 border-2 border-hairline border-t-white rounded-full animate-spin" />
               {{ updateDownloading ? '安裝中…' : '立即更新' }}
             </button>

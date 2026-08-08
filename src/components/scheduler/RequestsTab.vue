@@ -302,7 +302,7 @@ function adoptionClass(req: RequestEntry, dayIdx: number): string {
   const actual = props.scheduleData.find(r => r.name === member.name)?.days[dayIdx] ?? null;
   const v1 = req.days[dayIdx]?.v1;
   if (!v1) return "";
-  if (actual === v1) return "ring-1 ring-emerald-500";
+  if (actual === v1) return "ring-1 ring-success/30";
   if (actual && actual !== v1) return "ring-1 ring-hairline opacity-60";
   return "";
 }
@@ -325,12 +325,12 @@ onMounted(async () => {
         <button v-if="canEdit" @click="toggleBooking" :disabled="isSavingConfig"
           class="flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border font-semibold transition-colors"
           :class="bookingOpen
-            ? 'bg-success/60 border-emerald-700 text-success hover:bg-success/10'
+            ? 'bg-success/10 border-success/30 text-success hover:bg-success/20'
             : 'bg-elevated border-hairline text-muted hover:border-hairline hover:text-fg-secondary'">
           <span>{{ bookingOpen ? "● 預約開放中" : "○ 預約已關閉" }}</span>
         </button>
         <span v-else class="text-xs px-2 py-0.5 rounded-full border"
-          :class="bookingOpen ? 'border-emerald-800 text-success' : 'border-hairline text-muted'">
+          :class="bookingOpen ? 'border-success/30 text-success' : 'border-hairline text-muted'">
           {{ bookingOpen ? "● 開放中" : "○ 已關閉" }}
         </span>
 
@@ -352,7 +352,7 @@ onMounted(async () => {
           </button>
         </div>
         <button v-if="canEdit" @click="saveBookingConfig" :disabled="isSavingConfig"
-          class="text-xs px-3 py-1 bg-blue-700 hover:bg-blue-600 disabled:opacity-40 text-white rounded">
+          class="text-xs px-3 py-1 bg-accent hover:bg-accent disabled:opacity-40 text-white rounded">
           儲存設定
         </button>
       </div>
@@ -366,10 +366,10 @@ onMounted(async () => {
             v-model="mobileAppUrl"
             :disabled="!canEdit"
             placeholder="https://your-app.netlify.app"
-            class="flex-1 min-w-0 text-xs px-2 py-1 bg-elevated border border-hairline rounded font-mono text-fg-secondary outline-none focus:border-blue-600 disabled:opacity-50"
+            class="flex-1 min-w-0 text-xs px-2 py-1 bg-elevated border border-hairline rounded font-mono text-fg-secondary outline-none focus:border-accent/30 disabled:opacity-50"
           />
           <button v-if="canEdit" @click="saveMobileAppUrl" :disabled="isSavingUrl"
-            class="text-xs px-3 py-1 bg-blue-700 hover:bg-blue-600 disabled:opacity-40 text-white rounded flex-shrink-0">
+            class="text-xs px-3 py-1 bg-accent hover:bg-accent disabled:opacity-40 text-white rounded flex-shrink-0">
             {{ isSavingUrl ? "…" : "儲存" }}
           </button>
         </div>
@@ -380,12 +380,12 @@ onMounted(async () => {
           <span class="flex-1 text-xs font-mono text-muted truncate">{{ mobileUrl }}</span>
           <button @click="copyUrl"
             class="text-xs px-2 py-0.5 rounded transition-colors flex-shrink-0"
-            :class="urlCopied ? 'bg-emerald-700 text-white' : 'bg-raised hover:bg-raised text-fg-secondary'">
+            :class="urlCopied ? 'bg-success text-white' : 'bg-raised hover:bg-raised text-fg-secondary'">
             {{ urlCopied ? "✓ 已複製" : "複製" }}
           </button>
           <button @click="showQr = !showQr"
             class="text-xs px-2 py-0.5 rounded flex-shrink-0"
-            :class="showQr ? 'bg-indigo-700 text-white' : 'bg-raised hover:bg-raised text-fg-secondary'">
+            :class="showQr ? 'bg-accent text-white' : 'bg-raised hover:bg-raised text-fg-secondary'">
             QR
           </button>
         </div>
@@ -404,7 +404,7 @@ onMounted(async () => {
     <!-- ── Request list header ──────────────────────────────────────── -->
     <div class="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-hairline">
       <button @click="pullRequests" :disabled="isLoading"
-        class="text-xs px-3 py-1.5 bg-accent/60 hover:bg-blue-700 text-accent rounded disabled:opacity-40">
+        class="text-xs px-3 py-1.5 bg-accent/10 hover:bg-accent text-accent rounded disabled:opacity-40">
         {{ isLoading ? "…" : "↓" }} 從雲端拉取請求
       </button>
       <span class="text-xs text-muted">{{ requests.length }} 筆</span>
@@ -452,8 +452,8 @@ onMounted(async () => {
               <td class="px-3 py-2 text-center">
                 <span class="inline-block px-1.5 py-0.5 rounded text-xs font-medium"
                   :class="{
-                    'bg-accent/60 text-accent': req.status === 'pending',
-                    'bg-success/60 text-success': req.status === 'adopted',
+                    'bg-accent/10 text-accent': req.status === 'pending',
+                    'bg-success/10 text-success': req.status === 'adopted',
                     'bg-elevated text-muted': req.status === 'ignored',
                   }">
                   {{ req.status === 'pending' ? '待審' : req.status === 'adopted' ? '已採納' : '已忽略' }}
@@ -462,7 +462,7 @@ onMounted(async () => {
               <td v-if="canEdit" class="px-3 py-2" @click.stop>
                 <div class="flex gap-1 justify-end">
                   <button v-if="req.status !== 'adopted'" @click="emit('adopt', req.code)"
-                    class="text-xs px-2 py-0.5 bg-success/60 hover:bg-emerald-700 text-success rounded">採納</button>
+                    class="text-xs px-2 py-0.5 bg-success/10 hover:bg-success text-success rounded">採納</button>
                   <button v-if="req.status === 'pending'" @click="emit('ignore', req.code)"
                     class="text-xs px-2 py-0.5 bg-raised hover:bg-raised text-fg-secondary rounded">忽略</button>
                 </div>
@@ -479,7 +479,7 @@ onMounted(async () => {
                         <th class="w-6 py-1 text-muted">志願</th>
                         <th v-for="day in dayLabels" :key="day.d"
                           class="w-7 py-1 text-center font-normal"
-                          :class="day.isSat ? 'text-accent' : day.isSun ? 'text-accent' : 'text-muted'">
+                          :class="day.isSat ? 'text-accent' : day.isSun ? 'text-danger' : 'text-muted'">
                           {{ day.d }}
                         </th>
                       </tr>
@@ -497,7 +497,7 @@ onMounted(async () => {
                         <td v-for="day in dayLabels" :key="day.d"
                           class="py-0.5 text-center relative"
                           :class="[
-                            day.isSat ? 'bg-accent/10' : day.isSun ? 'bg-accent/10' : '',
+                            day.isSat ? 'bg-accent/10' : day.isSun ? 'bg-danger/10' : '',
                             vn === 1 ? adoptionClass(req, day.d - 1) : ''
                           ]">
                           <span v-if="req.days[day.d - 1]?.[`v${vn}` as 'v1'|'v2'|'v3']"

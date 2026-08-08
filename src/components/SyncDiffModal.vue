@@ -124,11 +124,11 @@ function confirmMerge() {
         </div>
         <div class="flex gap-2">
           <button @click="selectAll('local')"
-            class="text-xs px-3 py-1.5 rounded-lg bg-accent/20 border border-accent/30 text-accent hover:bg-accent/30 transition-colors cursor-pointer">
+            class="text-xs px-3 py-1.5 rounded-lg bg-accent/10 border border-accent/30 text-accent hover:bg-accent/20 transition-colors cursor-pointer">
             全選本地
           </button>
           <button @click="selectAll('cloud')"
-            class="text-xs px-3 py-1.5 rounded-lg bg-warning/20 border border-warning/30 text-warning hover:bg-warning/30 transition-colors cursor-pointer">
+            class="text-xs px-3 py-1.5 rounded-lg bg-warning/10 border border-warning/30 text-warning hover:bg-warning/20 transition-colors cursor-pointer">
             全選雲端
           </button>
         </div>
@@ -141,7 +141,7 @@ function confirmMerge() {
           <div v-if="row.local && !row.cloud"
             class="rounded-xl border border-accent/20 bg-accent/30 p-3 flex items-center justify-between gap-4">
             <div class="flex items-center gap-2 min-w-0">
-              <span class="text-2xs font-bold text-accent bg-accent/40 px-2 py-0.5 rounded-full shrink-0">本地新增</span>
+              <span class="text-2xs font-bold text-accent bg-accent/10 px-2 py-0.5 rounded-full shrink-0">本地新增</span>
               <span class="text-xs text-fg-secondary truncate">{{ formatValue(row.pk) }}</span>
             </div>
             <span class="text-2xs text-accent shrink-0">自動保留</span>
@@ -151,7 +151,7 @@ function confirmMerge() {
           <div v-else-if="!row.local && row.cloud"
             class="rounded-xl border border-warning/20 bg-warning/30 p-3 flex items-center justify-between gap-4">
             <div class="flex items-center gap-2 min-w-0">
-              <span class="text-2xs font-bold text-warning bg-warning/40 px-2 py-0.5 rounded-full shrink-0">雲端新增</span>
+              <span class="text-2xs font-bold text-warning bg-warning/10 px-2 py-0.5 rounded-full shrink-0">雲端新增</span>
               <span class="text-xs text-fg-secondary truncate">{{ formatValue(row.pk) }}</span>
             </div>
             <span class="text-2xs text-warning shrink-0">自動加入</span>
@@ -165,14 +165,14 @@ function confirmMerge() {
               : 'border-warning/30 bg-warning/20'">
             <div class="flex items-center justify-between gap-4">
               <div class="flex items-center gap-2">
-                <span class="text-2xs font-bold text-danger bg-danger/30 px-2 py-0.5 rounded-full">衝突</span>
+                <span class="text-2xs font-bold text-danger bg-danger/10 px-2 py-0.5 rounded-full">衝突</span>
                 <span class="text-xs text-fg-secondary font-mono">{{ formatValue(row.pk) }}</span>
               </div>
               <div class="flex gap-1.5">
                 <button
                   @click="setChoice(row.pk, 'local')"
                   :class="getChoice(row.pk) === 'local'
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-accent text-white'
                     : 'bg-raised text-fg-secondary hover:bg-raised'"
                   class="text-[0.6875rem] px-3 py-1 rounded-lg transition-colors cursor-pointer">
                   本地版
@@ -180,7 +180,7 @@ function confirmMerge() {
                 <button
                   @click="setChoice(row.pk, 'cloud')"
                   :class="getChoice(row.pk) === 'cloud'
-                    ? 'bg-amber-600 text-white'
+                    ? 'bg-warning text-white'
                     : 'bg-raised text-fg-secondary hover:bg-raised'"
                   class="text-[0.6875rem] px-3 py-1 rounded-lg transition-colors cursor-pointer">
                   雲端版
@@ -225,7 +225,7 @@ function confirmMerge() {
           取消（保留本地）
         </button>
         <button @click="confirmMerge"
-          class="text-sm px-5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg font-semibold transition-colors cursor-pointer">
+          class="text-sm px-5 py-2 bg-success hover:bg-success text-white rounded-lg font-semibold transition-colors cursor-pointer">
           確認套用
         </button>
       </div>

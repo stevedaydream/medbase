@@ -324,7 +324,7 @@ function getRequestBadge(rowName: string, dayIdx: number) {
   ].filter(Boolean).join("，");
   if (actual) {
     return actual === entry.v1
-      ? { text: "✓", cls: "bg-emerald-700 text-success", tip: parts }
+      ? { text: "✓", cls: "bg-success text-success", tip: parts }
       : { text: entry.v1 ?? "?", cls: "bg-raised text-fg-secondary", tip: parts };
   }
   const vn = entry.v1 ? "1" : entry.v2 ? "2" : "3";
@@ -1870,7 +1870,7 @@ async function createTemplate() {
         @click="activeTab = tab.key"
         class="px-5 py-3 text-xs font-bold transition-all border-b-2 -mb-px cursor-pointer"
         :class="activeTab === tab.key
-          ? 'text-accent border-indigo-500 shadow-[0_4px_15px_-4px_rgba(99,102,241,0.15)] bg-overlay/[0.01]'
+          ? 'text-accent border-accent/30 shadow-[0_4px_15px_-4px_rgba(99,102,241,0.15)] bg-overlay/[0.01]'
           : 'text-muted border-transparent hover:text-fg-secondary hover:bg-overlay/[0.005]'"
       >{{ tab.label }}</button>
     </div>
@@ -1912,7 +1912,7 @@ async function createTemplate() {
             </button>
             <template v-else>
               <button @click="qCalc"
-                class="text-xs px-3.5 py-1.5 bg-blue-700 hover:bg-blue-600 text-white font-bold rounded-xl transition-all cursor-pointer shadow-md shadow-accent/10">
+                class="text-xs px-3.5 py-1.5 bg-accent hover:bg-accent text-white font-bold rounded-xl transition-all cursor-pointer shadow-md shadow-accent/10">
                 執行試算
               </button>
               <button v-if="qPreview.length" @click="qApply" :disabled="qLoading"
@@ -1920,7 +1920,7 @@ async function createTemplate() {
                 帶入配額
               </button>
               <button v-if="qPreview.length" @click="qCommit" :disabled="qCommitting"
-                class="text-xs px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white font-bold rounded-xl transition-all disabled:opacity-40 cursor-pointer shadow-md shadow-success/10">
+                class="text-xs px-3.5 py-1.5 bg-success hover:bg-success text-white font-bold rounded-xl transition-all disabled:opacity-40 cursor-pointer shadow-md shadow-success/10">
                 {{ qCommitting ? '正在結算...' : '確認結算' }}
               </button>
             </template>
@@ -1958,7 +1958,7 @@ async function createTemplate() {
                 <tr v-for="entry in qPreview" :key="entry.code"
                   class="hover:bg-overlay/[0.01] transition-colors">
                   <td class="px-4 py-2.5">
-                    <span class="font-mono text-cyan-500 font-bold mr-1.5">{{ entry.code }}</span>
+                    <span class="font-mono text-accent font-bold mr-1.5">{{ entry.code }}</span>
                     <span class="text-fg-secondary font-semibold">{{ staff.find(s => s.code === entry.code)?.name ?? entry.code }}</span>
                   </td>
                   <td v-for="f in QUOTA_FIELDS" :key="f" class="px-4 py-2.5 text-center">
@@ -2116,7 +2116,7 @@ async function createTemplate() {
                 </td>
                 <td class="px-4 py-2 text-center">
                   <button @click="removeStaff(staff.indexOf(member))"
-                    class="opacity-0 group-hover:opacity-100 text-rose-500 hover:text-danger text-sm leading-none transition-all cursor-pointer">✕</button>
+                    class="opacity-0 group-hover:opacity-100 text-danger hover:text-danger text-sm leading-none transition-all cursor-pointer">✕</button>
                 </td>
               </tr>
               <!-- Inline password reset row -->
@@ -2131,7 +2131,7 @@ async function createTemplate() {
                       autofocus />
                     <button @click="resetUserPassword"
                       :disabled="!resetPwInput.trim()"
-                      class="text-xs font-bold px-4 py-1.5 bg-blue-700 hover:bg-blue-600 disabled:opacity-40 text-white rounded-xl transition-all cursor-pointer">確認修改</button>
+                      class="text-xs font-bold px-4 py-1.5 bg-accent hover:bg-accent disabled:opacity-40 text-white rounded-xl transition-all cursor-pointer">確認修改</button>
                     <button @click="resetPwTarget = null"
                       class="text-xs text-muted hover:text-fg-secondary cursor-pointer">取消</button>
                   </div>
@@ -2150,7 +2150,7 @@ async function createTemplate() {
             class="w-40 text-xs px-3 py-2 bg-sunken border border-hairline rounded-xl text-accent font-mono font-bold outline-none focus:border-accent/50" />
           <input v-model="newStaffName" @keyup.enter="addStaff" placeholder="輸入真實姓名" maxlength="20"
             class="flex-1 text-xs px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg outline-none focus:border-hairline" />
-          <button @click="addStaff" class="text-xs font-bold px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded-xl shadow-md shadow-accent/10 cursor-pointer transition-all">+ 新增人員</button>
+          <button @click="addStaff" class="text-xs font-bold px-4 py-2 bg-accent hover:bg-accent text-white rounded-xl shadow-md shadow-accent/10 cursor-pointer transition-all">+ 新增人員</button>
         </div>
 
         <p class="text-2xs text-muted leading-normal font-sans">
@@ -2228,7 +2228,7 @@ async function createTemplate() {
                 每日目標<span v-if="hasPerDayTargets(shift) && expandedShiftIdx !== si" class="ml-0.5 text-success font-bold">•</span>
               </button>
               <!-- Remove -->
-              <button @click="removeShift(si)" class="text-muted hover:text-rose-500 text-xs leading-none transition-colors cursor-pointer">✕</button>
+              <button @click="removeShift(si)" class="text-muted hover:text-danger text-xs leading-none transition-colors cursor-pointer">✕</button>
             </div>
             
             <!-- Add new shift -->
@@ -2240,7 +2240,7 @@ async function createTemplate() {
             </div>
           </div>
           
-          <p class="text-2xs text-muted font-sans">💡 說明：點擊彩色圓點可切換標記色；「每日目標」處若顯示 <span class="text-emerald-500">●</span> 代表已設定不同日期類型的人員目標配額。</p>
+          <p class="text-2xs text-muted font-sans">💡 說明：點擊彩色圓點可切換標記色；「每日目標」處若顯示 <span class="text-success">●</span> 代表已設定不同日期類型的人員目標配額。</p>
 
           <!-- Daily staffing summary -->
           <div v-if="staffingSummary.some(r => r.entries.length)" class="mt-4 p-4 rounded-xl bg-sunken border border-hairline space-y-2">
@@ -2284,7 +2284,7 @@ async function createTemplate() {
                     </button>
                     <button v-if="expandedShift.targets?.[dt.key] !== undefined"
                       @click="shifts[expandedShiftIdx!].targets![dt.key] = undefined; saveShifts()"
-                      class="text-xs text-muted hover:text-rose-500" title="清除">✕</button>
+                      class="text-xs text-muted hover:text-danger" title="清除">✕</button>
                   </div>
                 </div>
                 <!-- Fixed mode -->
@@ -2341,7 +2341,7 @@ async function createTemplate() {
           <!-- Pre-calculate snapshots -->
           <div class="flex items-center gap-3 bg-sunken p-4 rounded-xl border border-hairline">
             <button @click="preCalculateFuture(6)" :disabled="isPreCalcRunning"
-              class="text-xs font-bold px-3.5 py-2.5 bg-gradient-to-r from-accent to-indigo-600 text-fg rounded-xl disabled:opacity-40 transition-all cursor-pointer shadow-lg shadow-accent/10"
+              class="text-xs font-bold px-3.5 py-2.5 bg-gradient-to-r from-accent to-accent text-fg rounded-xl disabled:opacity-40 transition-all cursor-pointer shadow-lg shadow-accent/10"
               title="從本月起算，預先計算並儲存未來 6 個月的輪序投影">
               {{ isPreCalcRunning ? '正在演算中…' : '⚡ 預算未來 6 個月輪替投影' }}
             </button>
@@ -2399,11 +2399,11 @@ async function createTemplate() {
                     : 'bg-accent/5 border-accent/20 text-accent'">
                 {{ h.date }}
                 <span v-if="h.description" class="font-sans"
-                  :class="effectiveType(h) === 'a0' || effectiveType(h) === 'b0' ? 'text-muted' : effectiveType(h) === 'c0' ? 'text-amber-500' : 'text-accent'">
+                  :class="effectiveType(h) === 'a0' || effectiveType(h) === 'b0' ? 'text-muted' : effectiveType(h) === 'c0' ? 'text-warning' : 'text-accent'">
                   {{ h.description }}
                 </span>
                 <button @click="removeHoliday(h.date)"
-                  :class="effectiveType(h) === 'a0' || effectiveType(h) === 'b0' ? 'text-muted hover:text-fg-secondary' : effectiveType(h) === 'c0' ? 'text-amber-700 hover:text-warning' : 'text-accent hover:text-accent-hover'"
+                  :class="effectiveType(h) === 'a0' || effectiveType(h) === 'b0' ? 'text-muted hover:text-fg-secondary' : effectiveType(h) === 'c0' ? 'text-warning hover:text-warning' : 'text-accent hover:text-accent-hover'"
                   class="leading-none text-xs ml-1 cursor-pointer">✕</button>
               </span>
             </template>
@@ -2472,7 +2472,7 @@ async function createTemplate() {
         <span>{{ isLoading ? '…' : '↑' }}</span> 上傳覆蓋雲端
       </button>
       <button @click="publishSchedule" :disabled="isLoading || scheduleData.length === 0 || scheduleStatus === 'published'"
-        class="flex items-center gap-1.5 text-2xs font-bold px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 disabled:opacity-40 text-fg rounded-xl transition-all shadow-md shadow-accent/10 cursor-pointer">
+        class="flex items-center gap-1.5 text-2xs font-bold px-4 py-2 bg-gradient-to-r from-accent to-accent hover:from-accent hover:to-accent disabled:opacity-40 text-fg rounded-xl transition-all shadow-md shadow-accent/10 cursor-pointer">
         {{ scheduleStatus === 'published' ? '✓ 班表已發布' : '確認發布班表' }}
       </button>
 
@@ -2499,14 +2499,14 @@ async function createTemplate() {
             <input v-model="newNameInput" @keyup.enter="addRow" placeholder="或自訂姓名…"
               class="text-2xs px-2.5 py-1 bg-sunken border border-hairline rounded-lg text-fg-secondary w-32 outline-none focus:border-accent/30 font-sans" />
             <button v-if="newNameInput.trim()" @click="addRow"
-              class="text-2xs font-bold px-2.5 py-1 bg-blue-700 hover:bg-blue-600 text-white rounded-lg cursor-pointer">確認</button>
+              class="text-2xs font-bold px-2.5 py-1 bg-accent hover:bg-accent text-white rounded-lg cursor-pointer">確認</button>
           </div>
         </div>
         <div v-else class="flex gap-1.5 items-center">
           <input v-model="newNameInput" @keyup.enter="addRow" @keyup.escape="showAddRow = false"
             placeholder="輸入姓名" autofocus
             class="text-2xs px-2.5 py-1 bg-sunken border border-hairline rounded-lg text-fg-secondary w-28 outline-none focus:border-accent/30 font-bold" />
-          <button @click="addRow" class="text-2xs font-bold px-2.5 py-1 bg-blue-700 hover:bg-blue-600 text-white rounded-lg cursor-pointer">確認</button>
+          <button @click="addRow" class="text-2xs font-bold px-2.5 py-1 bg-accent hover:bg-accent text-white rounded-lg cursor-pointer">確認</button>
         </div>
         <button @click="showAddRow = false" class="text-2xs text-muted hover:text-fg-secondary px-1 cursor-pointer">✕</button>
       </div>
@@ -2518,12 +2518,12 @@ async function createTemplate() {
     <!-- ── Data Status Bar ───────────────────────────────────────── -->
     <div class="flex items-center gap-3 px-6 py-1.5 border-b border-hairline bg-sunken text-2xs font-bold tracking-wide uppercase text-muted flex-shrink-0">
       <!-- Sync light indicator -->
-      <span v-if="isDirty" class="flex items-center gap-1.5 text-amber-500">
-        <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]"></span>
+      <span v-if="isDirty" class="flex items-center gap-1.5 text-warning">
+        <span class="inline-block w-1.5 h-1.5 rounded-full bg-warning shadow-[0_0_8px_rgba(245,158,11,0.5)]"></span>
         有未儲存變更
       </span>
       <span v-else-if="dataSource" class="flex items-center gap-1.5 text-success">
-        <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+        <span class="inline-block w-1.5 h-1.5 rounded-full bg-success/15 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
         已同步存檔
       </span>
       <span v-else class="text-muted">無存檔狀態</span>
@@ -2690,14 +2690,14 @@ async function createTemplate() {
               <span :class="{
                 'text-success font-black': quotaStatus(row, shift) === 'met',
                 'text-danger font-black':   quotaStatus(row, shift) === 'over',
-                'text-amber-500 font-black':  quotaStatus(row, shift) === 'under',
+                'text-warning font-black':  quotaStatus(row, shift) === 'under',
               }" :style="quotaStatus(row, shift) === 'none' ? { color: colorOf(shift.color).text } : {}">
                 {{ countForShift(row, shift) || '—' }}
               </span>
               <template v-if="quotaTarget(row, shift) !== undefined">
                 <span class="text-muted font-mono text-2xs">/{{ quotaTarget(row, shift) }}</span>
                 <span v-if="quotaStatus(row, shift) === 'met'"   class="text-success text-2xs ml-0.5">✓</span>
-                <span v-else-if="quotaStatus(row, shift) === 'under'" class="text-amber-500 text-2xs ml-0.5">↓</span>
+                <span v-else-if="quotaStatus(row, shift) === 'under'" class="text-warning text-2xs ml-0.5">↓</span>
                 <span v-else-if="quotaStatus(row, shift) === 'over'"  class="text-danger text-2xs ml-0.5">↑</span>
               </template>
             </td>
@@ -2705,7 +2705,7 @@ async function createTemplate() {
             <!-- Delete row -->
             <td class="text-center py-2">
               <button @click="removeRow(ri)"
-                class="opacity-0 group-hover:opacity-100 text-rose-500 hover:text-danger text-xs px-1 cursor-pointer transition-opacity leading-none">
+                class="opacity-0 group-hover:opacity-100 text-danger hover:text-danger text-xs px-1 cursor-pointer transition-opacity leading-none">
                 ✕
               </button>
             </td>
@@ -2721,7 +2721,7 @@ async function createTemplate() {
               :class="[
                 day.isHoliday ? 'bg-accent/5' :
                 day.isSat     ? 'bg-accent/5'   :
-                day.isSun     ? 'bg-accent/5'    : ''
+                day.isSun     ? 'bg-danger/5'    : ''
               ]">
               <template v-for="(shift, si) in shifts" :key="shift.code">
                 <template v-if="totalShiftStaff(day.d - 1, shift.code)">
@@ -2729,7 +2729,7 @@ async function createTemplate() {
                     :style="dayQuotaStatus(shift, day.d - 1) === 'none' ? { color: colorOf(shift.color).text } : {}"
                     :class="{
                       'text-success': dayQuotaStatus(shift, day.d - 1) === 'met',
-                      'text-accent':     dayQuotaStatus(shift, day.d - 1) === 'over',
+                      'text-danger':     dayQuotaStatus(shift, day.d - 1) === 'over',
                       'text-yellow-500':  dayQuotaStatus(shift, day.d - 1) === 'under',
                     }"
                   >{{ totalShiftStaff(day.d - 1, shift.code) }}</span>
@@ -2768,7 +2768,7 @@ async function createTemplate() {
           >{{ shift.code }}</button>
           <div class="w-px h-4 bg-raised mx-0.5"></div>
           <button @click="applyBatchShift(null)"
-            class="text-xs px-2.5 py-1 rounded-lg bg-elevated hover:bg-accent/10 text-muted hover:text-accent border border-hairline hover:border-danger transition-colors">
+            class="text-xs px-2.5 py-1 rounded-lg bg-elevated hover:bg-danger/10 text-muted hover:text-danger border border-hairline hover:border-danger transition-colors">
             清除
           </button>
           <button @click="clearDragSelection"
@@ -2826,7 +2826,7 @@ async function createTemplate() {
           <p class="text-xs text-fg-secondary mb-3">以下月份的輪序預算因成員增減而需要更新：</p>
           <div class="flex flex-wrap gap-1.5 mb-4">
             <span v-for="m in driftState.affectedMonths" :key="m"
-              class="text-xs px-2 py-0.5 bg-warning/30 border border-warning/40 rounded text-warning font-mono">
+              class="text-xs px-2 py-0.5 bg-warning/10 border border-warning/40 rounded text-warning font-mono">
               {{ m.slice(0,4) }}/{{ m.slice(4) }}
             </span>
           </div>
@@ -2835,7 +2835,7 @@ async function createTemplate() {
             <template v-for="pool in rotationPools" :key="pool.poolName">
               <template v-if="JSON.stringify(driftState.oldSigObj[pool.poolName] ?? []) !== JSON.stringify(driftState.newPools.find(p=>p.poolName===pool.poolName)?.order ?? [])">
                 <div class="text-muted font-sans mb-0.5">{{ pool.label }} ({{ pool.poolName }})</div>
-                <div class="text-accent">− {{ (driftState.oldSigObj[pool.poolName] ?? []).map(c => staff.find(s=>s.code===c)?.name ?? c).join(' → ') || '（空）' }}</div>
+                <div class="text-danger">− {{ (driftState.oldSigObj[pool.poolName] ?? []).map(c => staff.find(s=>s.code===c)?.name ?? c).join(' → ') || '（空）' }}</div>
                 <div class="text-success">+ {{ (driftState.newPools.find(p=>p.poolName===pool.poolName)?.order ?? []).map(c => staff.find(s=>s.code===c)?.name ?? c).join(' → ') || '（空）' }}</div>
               </template>
             </template>
@@ -2850,7 +2850,7 @@ async function createTemplate() {
               套用但保留舊預算
             </button>
             <button @click="confirmDriftOverwrite" :disabled="isPreCalcRunning"
-              class="text-xs px-3 py-1.5 bg-amber-700 hover:bg-amber-600 disabled:opacity-40 text-white rounded transition-colors">
+              class="text-xs px-3 py-1.5 bg-warning hover:bg-warning disabled:opacity-40 text-white rounded transition-colors">
               {{ isPreCalcRunning ? '計算中…' : '重新計算並覆寫' }}
             </button>
           </div>

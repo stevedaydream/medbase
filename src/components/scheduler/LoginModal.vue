@@ -61,7 +61,7 @@ async function login() {
             @keyup.enter="login"
             placeholder="例：E001"
             autocomplete="username"
-            class="w-full text-sm px-3 py-2 bg-elevated border border-hairline rounded-lg text-fg font-mono outline-none focus:border-blue-500 transition-colors"
+            class="w-full text-sm px-3 py-2 bg-elevated border border-hairline rounded-lg text-fg font-mono outline-none focus:border-accent/30 transition-colors"
           />
         </div>
         <div>
@@ -72,18 +72,18 @@ async function login() {
             @keyup.enter="login"
             placeholder="••••••••"
             autocomplete="current-password"
-            class="w-full text-sm px-3 py-2 bg-elevated border border-hairline rounded-lg text-fg outline-none focus:border-blue-500 transition-colors"
+            class="w-full text-sm px-3 py-2 bg-elevated border border-hairline rounded-lg text-fg outline-none focus:border-accent/30 transition-colors"
           />
         </div>
 
         <!-- Error -->
-        <p v-if="error" class="text-xs text-accent">{{ error }}</p>
+        <p v-if="error" class="text-xs text-danger">{{ error }}</p>
 
         <!-- Submit -->
         <button
           @click="login"
           :disabled="loading"
-          class="w-full mt-1 py-2 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+          class="w-full mt-1 py-2 bg-accent hover:bg-accent disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
         >
           {{ loading ? "驗證中…" : "登入" }}
         </button>

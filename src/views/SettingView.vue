@@ -430,7 +430,7 @@ async function pullSettingsFromCloud() {
             @click="ui.fontSize = size"
             class="px-4 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer"
             :class="ui.fontSize === size
-              ? 'bg-indigo-600 border-accent/30 text-white shadow-lg shadow-accent/10'
+              ? 'bg-accent border-accent/30 text-white shadow-lg shadow-accent/10'
               : 'bg-elevated border-hairline text-fg-secondary hover:bg-raised hover:text-fg'"
           >{{ FONT_SIZE_LABELS[size] }}</button>
         </div>
@@ -445,13 +445,13 @@ async function pullSettingsFromCloud() {
             @click="ui.theme = t"
             class="px-4 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer"
             :class="ui.theme === t
-              ? 'bg-indigo-600 border-accent/30 text-white shadow-lg shadow-accent/10'
+              ? 'bg-accent border-accent/30 text-white shadow-lg shadow-accent/10'
               : 'bg-elevated border-hairline text-fg-secondary hover:bg-raised hover:text-fg'"
           >{{ THEME_LABELS[t] }}</button>
         </div>
         <p class="text-xs text-muted font-medium">
           「跟隨系統」會採用 Windows 的深淺色設定（它本身已有日夜排程）。
-          <span class="text-amber-500/80">畫面遷移至新色彩系統前，切換暫時不會有視覺變化。</span>
+          <span class="text-warning/80">畫面遷移至新色彩系統前，切換暫時不會有視覺變化。</span>
         </p>
       </div>
     </section>
@@ -506,11 +506,11 @@ async function pullSettingsFromCloud() {
 
         <div class="flex items-center gap-3 flex-wrap pt-2 border-t border-hairline">
           <button @click="saveSettings"
-            class="text-xs px-4 py-2 bg-indigo-600 border border-accent/30 hover:bg-indigo-500 text-white rounded-xl font-bold cursor-pointer transition-all shadow-lg shadow-accent/10">
+            class="text-xs px-4 py-2 bg-accent border border-accent/30 hover:bg-accent text-white rounded-xl font-bold cursor-pointer transition-all shadow-lg shadow-accent/10">
             儲存設定
           </button>
           <button @click="pullSettingsFromCloud" :disabled="isPullingSettings || !cloud.gasUrl"
-            class="text-xs px-4 py-2 rounded-xl border border-accent/30 text-accent hover:border-indigo-500 hover:text-accent disabled:opacity-40 transition-colors font-bold cursor-pointer"
+            class="text-xs px-4 py-2 rounded-xl border border-accent/30 text-accent hover:border-accent/30 hover:text-accent disabled:opacity-40 transition-colors font-bold cursor-pointer"
             title="填入 GAS URL 後，從雲端還原其他所有設定（換電腦用）">
             {{ isPullingSettings ? '還原中…' : '↓ 從雲端拉取/還原設定' }}
           </button>
@@ -538,7 +538,7 @@ async function pullSettingsFromCloud() {
           <pre class="text-xs font-mono text-fg-secondary leading-relaxed overflow-x-auto pr-24 max-h-72">{{ GAS_CODE }}</pre>
           <button @click="copyGasCode"
             class="absolute top-4 right-4 text-xs font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer shadow-md"
-            :class="gasCopied ? 'bg-emerald-700 text-white' : 'bg-elevated hover:bg-raised text-fg-secondary border border-hairline'">
+            :class="gasCopied ? 'bg-success text-white' : 'bg-elevated hover:bg-raised text-fg-secondary border border-hairline'">
             {{ gasCopied ? '✓ 已複製到剪貼簿' : '複製程式碼' }}
           </button>
         </div>
@@ -549,7 +549,7 @@ async function pullSettingsFromCloud() {
         <div class="flex gap-2.5 mb-2 flex-wrap border-b border-hairline pb-3">
           <button v-for="n in [1,2,3]" :key="n" @click="guideStep = n as 1|2|3"
             class="text-xs px-4 py-2 rounded-xl transition-all cursor-pointer font-bold"
-            :class="guideStep === n ? 'bg-indigo-600 border border-accent/30 text-white' : 'bg-elevated text-fg-secondary hover:text-fg'">
+            :class="guideStep === n ? 'bg-accent border border-accent/30 text-white' : 'bg-elevated text-fg-secondary hover:text-fg'">
             步驟 {{ n }}
             <span class="ml-1.5 font-medium opacity-70" v-if="n===1">取得試算表 ID</span>
             <span class="ml-1.5 font-medium opacity-70" v-if="n===2">啟用 Google API 金鑰</span>
@@ -580,7 +580,7 @@ async function pullSettingsFromCloud() {
             </div>
           </div>
           <div class="flex justify-end pt-1">
-            <button @click="guideStep = 2" class="text-xs px-4 py-2 bg-indigo-600 border border-accent/30 hover:bg-indigo-500 text-white rounded-xl font-bold cursor-pointer transition-all shadow-lg shadow-accent/10">
+            <button @click="guideStep = 2" class="text-xs px-4 py-2 bg-accent border border-accent/30 hover:bg-accent text-white rounded-xl font-bold cursor-pointer transition-all shadow-lg shadow-accent/10">
               下一步：設定 API Key →
             </button>
           </div>
@@ -611,7 +611,7 @@ async function pullSettingsFromCloud() {
           </div>
           <div class="flex justify-between pt-1">
             <button @click="guideStep = 1" class="text-xs px-4 py-2 bg-elevated border border-hairline text-fg-secondary rounded-xl font-bold cursor-pointer">← 上一步</button>
-            <button @click="guideStep = 3" class="text-xs px-4 py-2 bg-indigo-600 border border-accent/30 hover:bg-indigo-500 text-white rounded-xl font-bold cursor-pointer transition-all shadow-lg shadow-accent/10">下一步：設定 GAS 服務 →</button>
+            <button @click="guideStep = 3" class="text-xs px-4 py-2 bg-accent border border-accent/30 hover:bg-accent text-white rounded-xl font-bold cursor-pointer transition-all shadow-lg shadow-accent/10">下一步：設定 GAS 服務 →</button>
           </div>
         </div>
 
@@ -640,7 +640,7 @@ async function pullSettingsFromCloud() {
             </div>
             <div class="p-3 bg-warning/5 border border-warning/20 rounded-xl space-y-1">
               <p class="text-warning font-bold">重要提示</p>
-              <p class="text-amber-600 leading-relaxed">
+              <p class="text-warning leading-relaxed">
                 若後續有修改 GAS 程式碼，必須重新進行部署以更新連結（「管理部署」→「編輯」→ 版本選「新版本」後儲存），否則修改不會生效。<br>
                 因為 Tauri 桌面端與 GAS 的 no-cors 跨網域存取限制，上傳動作在本地將一律回報成功，請以試算表分頁實際有無重新寫入為準。
               </p>
@@ -648,7 +648,7 @@ async function pullSettingsFromCloud() {
           </div>
           <div class="flex justify-between pt-1">
             <button @click="guideStep = 2" class="text-xs px-4 py-2 bg-elevated border border-hairline text-fg-secondary rounded-xl font-bold cursor-pointer">← 上一步</button>
-            <button @click="showGuide = false" class="text-xs px-5 py-2 bg-emerald-600 border border-success/30 text-white rounded-xl font-bold cursor-pointer shadow-lg shadow-success/10">完成建置指引</button>
+            <button @click="showGuide = false" class="text-xs px-5 py-2 bg-success border border-success/30 text-white rounded-xl font-bold cursor-pointer shadow-lg shadow-success/10">完成建置指引</button>
           </div>
         </div>
       </div><!-- end guide -->
@@ -674,7 +674,7 @@ async function pullSettingsFromCloud() {
             placeholder="請貼入 Gemini API 授權金鑰 (AIzaSy...)"
             class="flex-1 text-xs px-3.5 py-2.5 bg-sunken border border-hairline rounded-xl text-fg font-mono outline-none focus:border-accent/50" />
           <button @click="saveGeminiKey" :disabled="!geminiApiKeyInput.trim()"
-            class="text-xs px-4 py-2 bg-indigo-600 border border-accent/30 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl font-bold cursor-pointer transition-all shadow-lg shadow-accent/10">
+            class="text-xs px-4 py-2 bg-accent border border-accent/30 hover:bg-accent disabled:opacity-40 text-white rounded-xl font-bold cursor-pointer transition-all shadow-lg shadow-accent/10">
             儲存金鑰
           </button>
           <button v-if="geminiKeySet" @click="clearGeminiKey"
@@ -702,7 +702,7 @@ async function pullSettingsFromCloud() {
         </div>
         <div class="flex flex-col items-end gap-1.5 shrink-0">
           <button @click="checkForUpdate" :disabled="updateChecking || updateDownloading"
-            class="text-xs px-4 py-2 bg-indigo-600 border border-accent/30 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl font-bold cursor-pointer transition-all shadow-lg shadow-accent/10">
+            class="text-xs px-4 py-2 bg-accent border border-accent/30 hover:bg-accent disabled:opacity-50 text-white rounded-xl font-bold cursor-pointer transition-all shadow-lg shadow-accent/10">
             {{ updateChecking ? '正在線上搜檢…' : '檢查線上更新' }}
           </button>
           <p class="text-2xs text-muted font-medium">系統將比對 GitHub Releases 最新發佈</p>
@@ -717,7 +717,7 @@ async function pullSettingsFromCloud() {
             <p class="text-xs text-success font-black">⚡ 偵測到新版本發佈: v{{ updateVersion }}</p>
           </div>
           <button @click="installUpdate" :disabled="updateDownloading"
-            class="text-xs px-4 py-2 bg-emerald-600 border border-success/30 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl font-bold cursor-pointer shadow-lg shadow-success/10">
+            class="text-xs px-4 py-2 bg-success border border-success/30 hover:bg-success disabled:opacity-50 text-white rounded-xl font-bold cursor-pointer shadow-lg shadow-success/10">
             {{ updateDownloading ? '下載並安裝更新中…' : '立即下載並更新' }}
           </button>
         </div>
@@ -745,10 +745,10 @@ async function pullSettingsFromCloud() {
         <div class="space-y-4 pl-2 max-w-4xl">
           <div v-for="entry in changelog" :key="entry.version"
             class="relative pl-6 border-l-2 transition-all pb-1"
-            :class="entry.version === APP_VERSION ? 'border-indigo-500' : 'border-hairline'">
+            :class="entry.version === APP_VERSION ? 'border-accent/30' : 'border-hairline'">
             <!-- Timeline bullet -->
             <div class="absolute -left-1.5 top-1.5 w-3 h-3 rounded-full border-2 bg-surface"
-              :class="entry.version === APP_VERSION ? 'border-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]' : 'border-hairline'"></div>
+              :class="entry.version === APP_VERSION ? 'border-accent/30 shadow-[0_0_10px_rgba(99,102,241,0.5)]' : 'border-hairline'"></div>
             
             <div class="flex items-baseline gap-3 mb-2">
               <span class="text-xs font-black font-mono tracking-wider"
@@ -811,7 +811,7 @@ async function pullSettingsFromCloud() {
       <!-- 儲存 + 手動觸發 -->
       <div class="flex items-center gap-3 flex-wrap border-t border-hairline pt-4">
         <button @click="saveSyncSchedule" :disabled="isSavingSchedule"
-          class="text-xs px-4 py-2 bg-indigo-600 border border-accent/30 hover:bg-indigo-500 text-white rounded-xl font-bold cursor-pointer transition-all shadow-lg shadow-accent/10 disabled:opacity-50">
+          class="text-xs px-4 py-2 bg-accent border border-accent/30 hover:bg-accent text-white rounded-xl font-bold cursor-pointer transition-all shadow-lg shadow-accent/10 disabled:opacity-50">
           {{ isSavingSchedule ? '儲存中…' : '儲存排程設定' }}
         </button>
         <button @click="triggerCheckVersions" :disabled="isCheckingVersions || !cloud.gasUrl"
