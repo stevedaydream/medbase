@@ -243,7 +243,7 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
       <div class="flex-1"></div>
       <span v-if="toastMsg" class="text-xs text-fg-secondary italic">{{ toastMsg }}</span>
       <button @click="syncToCloud" :disabled="isSyncing || !pendingCount"
-        class="text-xs px-3 py-1.5 bg-emerald-800/60 hover:bg-emerald-700 text-emerald-200 rounded disabled:opacity-40">
+        class="text-xs px-3 py-1.5 bg-success/60 hover:bg-emerald-700 text-success rounded disabled:opacity-40">
         {{ isSyncing ? '…' : '↑' }} 同步至雲端
       </button>
     </div>
@@ -256,7 +256,7 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
         <!-- Select all / clear -->
         <div class="flex gap-1 px-2 py-1.5 border-b border-hairline">
           <button @click="selectAll"
-            class="flex-1 text-xs py-0.5 bg-elevated hover:bg-blue-800/60 text-fg-secondary hover:text-blue-200 rounded transition-colors">
+            class="flex-1 text-xs py-0.5 bg-elevated hover:bg-accent/60 text-fg-secondary hover:text-accent rounded transition-colors">
             全選
           </button>
           <button @click="clearSelection"
@@ -270,7 +270,7 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
             @click="toggleActive(member.code)"
             class="flex items-center gap-1.5 px-2 py-1.5 cursor-pointer text-xs border-l-2 transition-colors"
             :class="activeCodes.has(member.code)
-              ? 'bg-blue-900/30 text-blue-300 border-blue-500 hover:bg-blue-900/50'
+              ? 'bg-accent/30 text-accent border-blue-500 hover:bg-accent/50'
               : 'text-muted border-transparent hover:text-fg-secondary hover:bg-elevated/40'">
             <span class="flex-1 truncate font-medium">{{ member.name }}</span>
             <!-- green dot / clear button -->
@@ -278,8 +278,8 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
               @click="clearPersonDraft(member.code, $event)"
               class="w-3 h-3 rounded-full flex-shrink-0 flex items-center justify-center text-2xs font-bold leading-none transition-colors"
               :class="activeCodes.has(member.code)
-                ? 'bg-emerald-400 text-emerald-900 hover:bg-red-500 hover:text-white'
-                : 'bg-emerald-700 text-emerald-200 hover:bg-red-700 hover:text-white'"
+                ? 'bg-emerald-400 text-emerald-900 hover:bg-danger hover:text-white'
+                : 'bg-emerald-700 text-success hover:bg-danger hover:text-white'"
               title="清除草稿">✓</button>
           </div>
         </div>
@@ -309,8 +309,8 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
               </th>
               <th v-for="day in dayLabels" :key="day.d"
                 class="sticky top-0 z-20 border-b border-hairline text-center font-semibold w-9 py-2"
-                :class="day.isSat ? 'bg-blue-950 text-blue-300'
-                      : day.isSun ? 'bg-red-950 text-red-300'
+                :class="day.isSat ? 'bg-accent/10 text-accent'
+                      : day.isSun ? 'bg-accent/10 text-accent'
                       :             'bg-surface text-fg-secondary'">
                 {{ day.d }}
               </th>
@@ -322,8 +322,8 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
               </th>
               <th v-for="day in dayLabels" :key="day.d"
                 class="border-b border-hairline text-center py-1 font-normal"
-                :class="day.isSat ? 'bg-blue-950/60 text-blue-400'
-                      : day.isSun ? 'bg-red-950/60 text-red-400'
+                :class="day.isSat ? 'bg-accent/60 text-accent'
+                      : day.isSun ? 'bg-accent/60 text-accent'
                       :             'bg-surface text-muted'">
                 {{ DOW[day.dow] }}
               </th>
@@ -336,7 +336,7 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
                 @click="toggleActive(member.code)"
                 class="sticky left-0 z-10 border-b border-r border-hairline px-3 py-1.5 font-medium whitespace-nowrap min-w-[7rem] cursor-pointer transition-colors border-l-2"
                 :class="activeCodes.has(member.code)
-                  ? 'bg-blue-900/40 text-blue-200 border-blue-500'
+                  ? 'bg-accent/40 text-accent border-blue-500'
                   : 'bg-sunken group-hover:bg-surface/60 text-fg-secondary border-transparent hover:text-fg'">
                 <span class="flex items-center gap-1.5">
                   {{ member.name }}
@@ -349,9 +349,9 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
                 class="border-b border-hairline text-center py-1 relative transition-colors"
                 :class="[
                   activeCodes.has(member.code)
-                    ? 'cursor-pointer hover:bg-blue-900/20'
+                    ? 'cursor-pointer hover:bg-accent/20'
                     : 'cursor-default',
-                  day.isSat ? 'bg-blue-950/5' : day.isSun ? 'bg-red-950/5' : '',
+                  day.isSat ? 'bg-accent/5' : day.isSun ? 'bg-accent/5' : '',
                 ]"
                 @click="openCell(member.code, day.d - 1, $event)">
 
@@ -361,9 +361,7 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
                   :style="shiftStyle(getDraftDay(member.code, day.d - 1).v1)">
                   {{ getDraftDay(member.code, day.d - 1).v1 }}
                 </span>
-                <span v-else
-                  class="inline-block w-7 text-center"
-                  :class="activeCodes.has(member.code) ? 'text-muted' : 'text-muted'">·</span>
+                <span v-else class="inline-block w-7 text-center text-muted">·</span>
 
                 <!-- v2 dot (bottom-right) -->
                 <span v-if="getDraftDay(member.code, day.d - 1).v2"
@@ -392,7 +390,7 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
           <div v-for="vn in ([1, 2, 3] as const)" :key="vn"
             class="flex items-center gap-1.5">
             <span class="text-xs w-12 flex-shrink-0"
-              :class="vn === 1 ? 'text-blue-400' : vn === 2 ? 'text-violet-400' : 'text-amber-400'">
+              :class="vn === 1 ? 'text-accent' : vn === 2 ? 'text-accent' : 'text-warning'">
               第{{ vn === 1 ? '1' : vn === 2 ? '2' : '3' }}志願
             </span>
             <button v-for="shift in shifts" :key="shift.code"
@@ -412,7 +410,7 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
           <!-- Footer: clear all + close -->
           <div class="flex items-center justify-between pt-1 border-t border-hairline">
             <button @click="clearDay"
-              class="text-xs text-red-700 hover:text-red-500 transition-colors">
+              class="text-xs text-danger hover:text-danger transition-colors">
               清除本日
             </button>
             <button @click="activeCell = null"
