@@ -79,16 +79,16 @@ async function handleExport() {
 
 // ── 樣式 ─────────────────────────────────────────────────────────
 const levelClass: Record<string, string> = {
-  error:  'bg-red-900   text-red-300',
+  error:  'bg-accent/10   text-accent',
   warn:   'bg-yellow-900 text-yellow-300',
-  info:   'bg-blue-900  text-blue-300',
-  action: 'bg-green-900 text-green-300',
+  info:   'bg-accent/10  text-accent',
+  action: 'bg-accent/10 text-accent',
 }
 const rowHover: Record<string, string> = {
-  error:  'hover:bg-red-950/40',
+  error:  'hover:bg-accent/40',
   warn:   'hover:bg-yellow-950/30',
   info:   'hover:bg-surface',
-  action: 'hover:bg-green-950/30',
+  action: 'hover:bg-accent/30',
 }
 
 // Session 分隔線：相鄰兩條記錄 session 不同時插入
@@ -124,10 +124,10 @@ function isDifferentSession(idx: number): boolean {
       </div>
 
       <div class="ml-auto flex items-center gap-1.5 flex-wrap">
-        <span v-if="exportMsg" class="text-green-400 text-2xs">{{ exportMsg }}</span>
+        <span v-if="exportMsg" class="text-accent text-2xs">{{ exportMsg }}</span>
         <button @click="toggleHistory" :disabled="loadingHistory"
           class="px-2 py-0.5 rounded text-2xs transition-colors"
-          :class="showHistory ? 'bg-indigo-700 text-indigo-200' : 'bg-raised text-fg-secondary hover:bg-raised'">
+          :class="showHistory ? 'bg-indigo-700 text-accent' : 'bg-raised text-fg-secondary hover:bg-raised'">
           {{ loadingHistory ? '載入中…' : showHistory ? '歷史 ▲' : '歷史 ▼' }}
         </button>
         <button @click="handleExport" :disabled="exporting"
@@ -135,7 +135,7 @@ function isDifferentSession(idx: number): boolean {
           {{ exporting ? '…' : '匯出' }}
         </button>
         <button @click="handleClearHistory"
-          class="px-2 py-0.5 rounded bg-raised hover:bg-red-800 text-fg-secondary transition-colors">
+          class="px-2 py-0.5 rounded bg-raised hover:bg-danger text-fg-secondary transition-colors">
           清除
         </button>
       </div>
@@ -170,8 +170,8 @@ function isDifferentSession(idx: number): boolean {
             <!-- Message -->
             <span class="flex-1 break-all leading-relaxed transition-colors min-w-0"
               :class="[
-                copied === entry.id ? 'text-green-400' : '',
-                entry.level === 'action' ? 'text-green-300/80' : 'text-fg',
+                copied === entry.id ? 'text-accent' : '',
+                entry.level === 'action' ? 'text-accent/80' : 'text-fg',
               ]">
               {{ copied === entry.id ? '✓ 已複製' : entry.message }}
             </span>
@@ -188,7 +188,7 @@ function isDifferentSession(idx: number): boolean {
         </div>
 
         <!-- Session 分隔線 -->
-        <div v-if="isDifferentSession(idx)" class="flex items-center gap-2 px-3 py-1 bg-surface/60">
+        <div v-if="isDifferentSession(idx)" class="flex items-center gap-2 px-3 py-1 bg-surface">
           <div class="flex-1 h-px bg-elevated"></div>
           <span class="text-2xs text-muted shrink-0">session {{ filtered[idx+1]?.session }}</span>
           <div class="flex-1 h-px bg-elevated"></div>
