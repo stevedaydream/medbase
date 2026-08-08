@@ -500,7 +500,7 @@ async function pullTemplatesFromCloud() {
 </script>
 
 <template>
-  <div class="flex flex-col h-full overflow-hidden bg-sunken text-fg">
+  <div class="accent-cyan flex flex-col h-full overflow-hidden bg-sunken text-fg">
 
     <!-- ── 頂部格式 tab 列 ──────────────────────────────────────────── -->
     <div class="flex items-center gap-1.5 px-6 py-3 border-b border-hairline bg-sunken shrink-0 overflow-x-auto no-scrollbar">
@@ -509,16 +509,16 @@ async function pullTemplatesFromCloud() {
         @click="mode = 'polish'; activeKey = t.format_key"
         class="shrink-0 px-3.5 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer"
         :class="activeKey === t.format_key && mode === 'polish'
-          ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-200 shadow-[0_0_12px_rgba(99,102,241,0.08)]'
-          : 'bg-surface/40 border-hairline text-fg-secondary hover:text-fg hover:bg-surface/60'"
+          ? 'bg-accent/20 border-accent/40 text-accent shadow-[0_0_12px_rgba(99,102,241,0.08)]'
+          : 'bg-surface border-hairline text-fg-secondary hover:text-fg hover:bg-surface/60'"
       >{{ t.format_label }}</button>
 
       <button
         @click="mode = 'chat'"
         class="shrink-0 px-3.5 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer"
         :class="mode === 'chat'
-          ? 'bg-violet-600/20 border-violet-500/40 text-violet-200 shadow-[0_0_12px_rgba(139,92,246,0.08)]'
-          : 'bg-surface/40 border-hairline text-fg-secondary hover:text-fg hover:bg-surface/60'"
+          ? 'bg-accent/20 border-accent/40 text-accent shadow-[0_0_12px_rgba(139,92,246,0.08)]'
+          : 'bg-surface border-hairline text-fg-secondary hover:text-fg hover:bg-surface/60'"
       >💬 聊天</button>
 
       <span class="text-fg/10 shrink-0 select-none px-1">|</span>
@@ -527,23 +527,23 @@ async function pullTemplatesFromCloud() {
         @click="mode = 'case'"
         class="shrink-0 px-3.5 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer"
         :class="mode === 'case'
-          ? 'bg-teal-600/20 border-teal-500/40 text-teal-200 shadow-[0_0_12px_rgba(20,184,166,0.08)]'
-          : 'bg-surface/40 border-hairline text-fg-secondary hover:text-fg hover:bg-surface/60'"
+          ? 'bg-accent/20 border-accent/40 text-accent shadow-[0_0_12px_rgba(20,184,166,0.08)]'
+          : 'bg-surface border-hairline text-fg-secondary hover:text-fg hover:bg-surface/60'"
       >📋 病例討論</button>
 
       <button
         @click="mode = 'leave'"
         class="shrink-0 px-3.5 py-2 text-xs font-bold rounded-xl border transition-all whitespace-nowrap cursor-pointer"
         :class="mode === 'leave'
-          ? 'bg-teal-600/20 border-teal-500/40 text-teal-200 shadow-[0_0_12px_rgba(20,184,166,0.08)]'
-          : 'bg-surface/40 border-hairline text-fg-secondary hover:text-fg hover:bg-surface/60'"
+          ? 'bg-accent/20 border-accent/40 text-accent shadow-[0_0_12px_rgba(20,184,166,0.08)]'
+          : 'bg-surface border-hairline text-fg-secondary hover:text-fg hover:bg-surface/60'"
       >📝 公假心得</button>
 
       <div class="ml-auto shrink-0">
         <button
           @click="openHistory"
           class="flex items-center gap-1.5 px-3.5 py-2 text-xs rounded-xl border border-hairline
-                 bg-surface/40 text-fg-secondary hover:text-fg hover:border-hairline transition-all cursor-pointer font-bold"
+                 bg-surface text-fg-secondary hover:text-fg hover:border-hairline transition-all cursor-pointer font-bold"
         >📂 歷史記錄</button>
       </div>
     </div>
@@ -552,7 +552,7 @@ async function pullTemplatesFromCloud() {
     <div v-if="mode === 'polish'" class="border-b border-hairline shrink-0">
 
       <!-- Header -->
-      <div class="flex items-center gap-2 px-6 py-2 bg-sunken/30 flex-wrap">
+      <div class="flex items-center gap-2 px-6 py-2 bg-sunken flex-wrap">
 
         <!-- 折疊 toggle -->
         <button
@@ -576,7 +576,7 @@ async function pullTemplatesFromCloud() {
             :value="activeProfile"
             @change="switchProfile(($event.target as HTMLSelectElement).value)"
             class="text-2xs font-bold bg-surface border border-hairline rounded-lg px-2 py-1
-                   text-fg focus:outline-none focus:border-indigo-500/50 cursor-pointer"
+                   text-fg focus:outline-none focus:border-accent/50 cursor-pointer"
           >
             <option v-for="p in profiles" :key="p" :value="p">{{ displayProfile(p) }}</option>
           </select>
@@ -587,34 +587,34 @@ async function pullTemplatesFromCloud() {
               placeholder="名稱（如：Steve）"
               @keydown.enter="confirmAddProfile"
               @keydown.esc="addingProfile = false"
-              class="text-2xs w-36 px-2 py-1 bg-surface border border-indigo-500/40 rounded-lg text-fg
+              class="text-2xs w-36 px-2 py-1 bg-surface border border-accent/40 rounded-lg text-fg
                      placeholder:text-muted focus:outline-none font-bold"
             />
             <button @click="confirmAddProfile"
-              class="text-2xs font-bold px-2 py-1 rounded-lg bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-600/40 transition-all cursor-pointer">
+              class="text-2xs font-bold px-2 py-1 rounded-lg bg-accent/20 border border-accent/30 text-accent hover:bg-accent/40 transition-all cursor-pointer">
               確認
             </button>
             <button @click="addingProfile = false"
-              class="text-2xs font-bold px-2 py-1 rounded-lg bg-surface/60 border border-hairline text-fg-secondary hover:text-fg transition-all cursor-pointer">
+              class="text-2xs font-bold px-2 py-1 rounded-lg bg-surface border border-hairline text-fg-secondary hover:text-fg transition-all cursor-pointer">
               取消
             </button>
           </template>
           <template v-else>
             <button
               @click="startAddProfile"
-              class="text-2xs font-bold px-2 py-1 rounded-lg border border-hairline bg-surface/40 text-fg-secondary hover:text-indigo-300 hover:border-indigo-500/30 transition-all cursor-pointer"
+              class="text-2xs font-bold px-2 py-1 rounded-lg border border-hairline bg-surface text-fg-secondary hover:text-accent hover:border-accent/30 transition-all cursor-pointer"
               title="新增個人設定檔">＋</button>
             <button
               v-if="activeProfile !== 'default'"
               @click="deleteProfile(activeProfile)"
-              class="text-2xs font-bold px-2 py-1 rounded-lg border border-hairline bg-surface/40 text-fg-secondary hover:text-rose-400 hover:border-rose-500/30 transition-all cursor-pointer"
+              class="text-2xs font-bold px-2 py-1 rounded-lg border border-hairline bg-surface text-fg-secondary hover:text-danger hover:border-danger/30 transition-all cursor-pointer"
               title="刪除此設定檔">🗑</button>
           </template>
         </div>
 
         <!-- 未儲存 badge -->
         <span v-if="isDirty"
-          class="text-2xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full shrink-0">
+          class="text-2xs font-bold text-warning bg-warning/10 border border-warning/20 px-2 py-0.5 rounded-full shrink-0">
           ● 未儲存
         </span>
 
@@ -624,17 +624,17 @@ async function pullTemplatesFromCloud() {
             @click="saveTemplateEdits" :disabled="!isDirty"
             class="text-2xs font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
             :class="isDirty
-              ? 'bg-indigo-600/20 border-indigo-500/30 text-indigo-300 hover:bg-indigo-600/40'
+              ? 'bg-accent/20 border-accent/30 text-accent hover:bg-accent/40'
               : 'bg-surface border-hairline text-muted'"
           >💾 儲存設定</button>
           <button
             @click="pullTemplatesFromCloud" :disabled="templateSyncing"
-            class="text-2xs font-bold px-2.5 py-1 rounded-lg border border-hairline bg-surface/40 text-fg-secondary hover:text-indigo-300 hover:border-indigo-500/30 disabled:opacity-40 transition-all cursor-pointer"
+            class="text-2xs font-bold px-2.5 py-1 rounded-lg border border-hairline bg-surface text-fg-secondary hover:text-accent hover:border-accent/30 disabled:opacity-40 transition-all cursor-pointer"
             title="從雲端還原設定至目前設定檔"
           >{{ templateSyncing ? '…' : '↓' }} 載入雲端</button>
           <button
             @click="pushTemplatesToCloud" :disabled="templateSyncing"
-            class="text-2xs font-bold px-2.5 py-1 rounded-lg border border-hairline bg-surface/40 text-fg-secondary hover:text-blue-300 hover:border-blue-500/30 disabled:opacity-40 transition-all cursor-pointer"
+            class="text-2xs font-bold px-2.5 py-1 rounded-lg border border-hairline bg-surface text-fg-secondary hover:text-accent hover:border-accent/30 disabled:opacity-40 transition-all cursor-pointer"
             title="將目前設定檔備份至雲端"
           >{{ templateSyncing ? '…' : '↑' }} 備份雲端</button>
         </div>
@@ -650,8 +650,8 @@ async function pullTemplatesFromCloud() {
             <textarea
               v-model="editingPrompt" rows="5"
               placeholder="例如：你是資深住院醫師，請將以下草稿整理為標準出院摘要..."
-              class="resize-y text-xs bg-sunken/80 border border-hairline rounded-xl text-fg
-                     px-3.5 py-2.5 focus:outline-none focus:border-indigo-500/50 font-mono leading-relaxed
+              class="resize-y text-xs bg-sunken border border-hairline rounded-xl text-fg
+                     px-3.5 py-2.5 focus:outline-none focus:border-accent/50 font-mono leading-relaxed
                      custom-scrollbar placeholder:text-muted transition-colors"
             />
           </div>
@@ -662,8 +662,8 @@ async function pullTemplatesFromCloud() {
             <textarea
               v-model="editingExample" rows="5"
               placeholder="例如：&#10;Discharge Diagnosis:&#10;- ...&#10;&#10;Brief History:&#10;- ..."
-              class="resize-y text-xs bg-sunken/80 border border-hairline rounded-xl text-fg
-                     px-3.5 py-2.5 focus:outline-none focus:border-indigo-500/50 font-mono leading-relaxed
+              class="resize-y text-xs bg-sunken border border-hairline rounded-xl text-fg
+                     px-3.5 py-2.5 focus:outline-none focus:border-accent/50 font-mono leading-relaxed
                      custom-scrollbar placeholder:text-muted transition-colors"
             />
           </div>
@@ -672,18 +672,18 @@ async function pullTemplatesFromCloud() {
     </div>
 
     <!-- ── 病人資訊列 ───────────────────────────────────────────────── -->
-    <div v-if="mode === 'polish'" class="flex items-center gap-4 px-6 py-2.5 border-b border-hairline bg-surface/20 shrink-0">
+    <div v-if="mode === 'polish'" class="flex items-center gap-4 px-6 py-2.5 border-b border-hairline bg-surface shrink-0">
       <span class="text-2xs text-muted font-black shrink-0">病人資料:</span>
       <div class="flex items-center gap-2">
         <input v-model="patientId" placeholder="病歷號"
-          class="w-32 text-xs px-3 py-1.5 bg-sunken/60 border border-hairline rounded-xl text-fg
-                 placeholder:text-muted focus:outline-none focus:border-indigo-500/50 font-mono font-bold" />
+          class="w-32 text-xs px-3 py-1.5 bg-sunken border border-hairline rounded-xl text-fg
+                 placeholder:text-muted focus:outline-none focus:border-accent/50 font-mono font-bold" />
         <input v-model="patientName" placeholder="姓名"
-          class="w-28 text-xs px-3 py-1.5 bg-sunken/60 border border-hairline rounded-xl text-fg
-                 placeholder:text-muted focus:outline-none focus:border-indigo-500/50 font-bold" />
+          class="w-28 text-xs px-3 py-1.5 bg-sunken border border-hairline rounded-xl text-fg
+                 placeholder:text-muted focus:outline-none focus:border-accent/50 font-bold" />
         <input v-model="bedNo" placeholder="床號"
-          class="w-24 text-xs px-3 py-1.5 bg-sunken/60 border border-hairline rounded-xl text-fg
-                 placeholder:text-muted focus:outline-none focus:border-indigo-500/50 font-mono font-bold" />
+          class="w-24 text-xs px-3 py-1.5 bg-sunken border border-hairline rounded-xl text-fg
+                 placeholder:text-muted focus:outline-none focus:border-accent/50 font-mono font-bold" />
       </div>
     </div>
 
@@ -699,7 +699,7 @@ async function pullTemplatesFromCloud() {
       <textarea
         v-model="inputText"
         placeholder="在此貼上病歷草稿（progress notes）…"
-        class="flex-1 resize-none bg-sunken/50 border border-hairline focus:border-indigo-500/30 rounded-2xl p-4
+        class="flex-1 resize-none bg-sunken border border-hairline focus:border-accent/30 rounded-2xl p-4
                placeholder:text-muted focus:outline-none font-mono text-xs leading-relaxed text-fg
                focus:shadow-[0_0_12px_rgba(99,102,241,0.08)] transition-all custom-scrollbar"
       />
@@ -711,7 +711,7 @@ async function pullTemplatesFromCloud() {
         @click="generate"
         :disabled="isGenerating || !inputText.trim() || !activeTemplate || !apiKey"
         :title="!apiKey ? '請先至設定頁填入 Gemini API Key' : ''"
-        class="flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-xl bg-indigo-600 border border-indigo-500/30
+        class="flex items-center gap-2 px-6 py-2.5 text-xs font-black rounded-xl bg-indigo-600 border border-accent/30
                hover:bg-indigo-500 text-white disabled:opacity-40 disabled:cursor-not-allowed
                hover:shadow-[0_0_15px_rgba(99,102,241,0.25)] transition-all cursor-pointer"
       >
@@ -723,7 +723,7 @@ async function pullTemplatesFromCloud() {
       <div class="relative">
         <select v-model="selectedModel" @change="onModelChange"
           class="text-xs pl-3 pr-8 py-2 bg-surface border border-hairline rounded-xl text-fg-secondary
-                 focus:outline-none focus:border-indigo-500/50 cursor-pointer font-bold appearance-none">
+                 focus:outline-none focus:border-accent/50 cursor-pointer font-bold appearance-none">
           <option v-for="m in MODELS" :key="m.id" :value="m.id">{{ m.label }}</option>
         </select>
         <span class="absolute right-3 top-2.5 text-2xs text-muted pointer-events-none">▼</span>
@@ -733,25 +733,25 @@ async function pullTemplatesFromCloud() {
         @click="deidentify = !deidentify"
         class="flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-bold rounded-xl border transition-all cursor-pointer"
         :class="deidentify
-          ? 'bg-amber-500/15 border-amber-500/30 text-amber-300 shadow-[0_0_10px_rgba(251,191,36,0.08)]'
-          : 'bg-surface/40 border-hairline text-muted hover:text-fg-secondary hover:border-hairline'"
+          ? 'bg-warning/15 border-warning/30 text-warning shadow-[0_0_10px_rgba(251,191,36,0.08)]'
+          : 'bg-surface border-hairline text-muted hover:text-fg-secondary hover:border-hairline'"
       >🛡 去識別化</button>
 
-      <span v-if="!apiKey" class="text-xs text-amber-400 font-bold flex items-center gap-1">
+      <span v-if="!apiKey" class="text-xs text-warning font-bold flex items-center gap-1">
         <span>⚠️</span> 請先至設定頁填入 Gemini API Key
       </span>
 
       <div class="ml-auto flex items-center gap-2">
         <button @click="saveRecord" :disabled="!outputText.trim()"
           class="text-xs px-4 py-2.5 rounded-xl border font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer
-                 bg-emerald-600/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/15">
+                 bg-success/10 border-success/20 text-success hover:bg-success/15">
           💾 儲存歷史
         </button>
         <button v-if="outputText" @click="copyOutput"
           class="text-xs px-4 py-2.5 rounded-xl border font-bold transition-all cursor-pointer"
           :class="copied
-            ? 'bg-emerald-600/20 border-emerald-500/40 text-emerald-300'
-            : 'bg-surface/40 border-hairline text-fg-secondary hover:text-fg hover:border-hairline'">
+            ? 'bg-success/20 border-success/40 text-success'
+            : 'bg-surface border-hairline text-fg-secondary hover:text-fg hover:border-hairline'">
           {{ copied ? "✓ 已複製結果" : "📋 複製結果" }}
         </button>
       </div>
@@ -762,7 +762,7 @@ async function pullTemplatesFromCloud() {
       <div class="flex items-center px-2 pb-2 shrink-0">
         <span class="text-2xs font-black text-muted">整理結果</span>
       </div>
-      <div class="flex-1 overflow-y-auto bg-sunken/50 border border-hairline rounded-2xl px-5 py-4 custom-scrollbar">
+      <div class="flex-1 overflow-y-auto bg-sunken border border-hairline rounded-2xl px-5 py-4 custom-scrollbar">
         <pre v-if="outputText" class="text-xs text-fg whitespace-pre-wrap font-mono leading-relaxed select-all">{{ outputText }}</pre>
         <div v-else class="flex items-center justify-center h-full text-muted text-xs font-bold italic py-12">
           點擊「開始 AI 整理」後，結果將顯示於此
@@ -794,16 +794,16 @@ async function pullTemplatesFromCloud() {
           class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
           <div class="max-w-[78%] rounded-2xl px-4 py-3 text-xs leading-relaxed"
             :class="msg.role === 'user'
-              ? 'bg-indigo-600/20 border border-indigo-500/30 text-fg'
-              : 'bg-surface/60 border border-hairline text-fg'">
+              ? 'bg-accent/20 border border-accent/30 text-fg'
+              : 'bg-surface border border-hairline text-fg'">
             <pre class="whitespace-pre-wrap font-sans leading-relaxed">{{ msg.text }}</pre>
           </div>
         </div>
 
         <!-- Streaming bubble -->
         <div v-if="chatStreaming" class="flex justify-start">
-          <div class="max-w-[78%] rounded-2xl px-4 py-3 text-xs bg-surface/60 border border-hairline text-fg">
-            <pre v-if="streamingText" class="whitespace-pre-wrap font-sans leading-relaxed">{{ streamingText }}<span class="animate-pulse text-violet-400">▍</span></pre>
+          <div class="max-w-[78%] rounded-2xl px-4 py-3 text-xs bg-surface border border-hairline text-fg">
+            <pre v-if="streamingText" class="whitespace-pre-wrap font-sans leading-relaxed">{{ streamingText }}<span class="animate-pulse text-accent">▍</span></pre>
             <span v-else class="flex items-center gap-1.5 text-muted">
               <span class="inline-block w-1.5 h-1.5 rounded-full bg-muted animate-bounce" style="animation-delay:0ms"/>
               <span class="inline-block w-1.5 h-1.5 rounded-full bg-muted animate-bounce" style="animation-delay:150ms"/>
@@ -814,8 +814,8 @@ async function pullTemplatesFromCloud() {
       </div>
 
       <!-- 輸入列 -->
-      <div class="shrink-0 px-5 py-4 border-t border-hairline bg-sunken/40">
-        <div v-if="!apiKey" class="mb-2 text-2xs text-amber-400 font-bold flex items-center gap-1">
+      <div class="shrink-0 px-5 py-4 border-t border-hairline bg-sunken">
+        <div v-if="!apiKey" class="mb-2 text-2xs text-warning font-bold flex items-center gap-1">
           <span>⚠️</span> 請先至設定頁填入 Gemini API Key
         </div>
         <div class="flex gap-3 items-end">
@@ -825,8 +825,8 @@ async function pullTemplatesFromCloud() {
             placeholder="輸入訊息… (Enter 傳送，Shift+Enter 換行)"
             rows="3"
             :disabled="chatStreaming"
-            class="flex-1 resize-none text-xs bg-sunken/60 border border-hairline rounded-2xl px-4 py-3
-                   text-fg placeholder:text-muted focus:outline-none focus:border-violet-500/40
+            class="flex-1 resize-none text-xs bg-sunken border border-hairline rounded-2xl px-4 py-3
+                   text-fg placeholder:text-muted focus:outline-none focus:border-accent/40
                    font-mono leading-relaxed custom-scrollbar disabled:opacity-50 transition-colors"
           />
           <div class="flex flex-col gap-2 shrink-0">
@@ -866,11 +866,11 @@ async function pullTemplatesFromCloud() {
         @click.self="historyOpen = false">
         <div class="bg-surface border border-hairline rounded-2xl shadow-2xl flex flex-col overflow-hidden text-fg"
           style="width: 760px; max-width: 92vw; max-height: 80vh">
-          <div class="flex items-center gap-3 px-5 py-4 border-b border-hairline bg-sunken/30 shrink-0">
+          <div class="flex items-center gap-3 px-5 py-4 border-b border-hairline bg-sunken shrink-0">
             <h3 class="text-xs font-black text-fg">歷史記錄</h3>
             <input v-model="historySearch" placeholder="搜尋病歷號、姓名、床號…"
-              class="ml-4 flex-1 text-xs px-3.5 py-1.5 bg-sunken/80 border border-hairline rounded-xl
-                     text-fg-secondary placeholder:text-muted focus:outline-none focus:border-indigo-500/50 font-bold" />
+              class="ml-4 flex-1 text-xs px-3.5 py-1.5 bg-sunken border border-hairline rounded-xl
+                     text-fg-secondary placeholder:text-muted focus:outline-none focus:border-accent/50 font-bold" />
             <button @click="historyOpen = false"
               class="ml-2 text-muted hover:text-fg text-xl leading-none transition-colors cursor-pointer">×</button>
           </div>
@@ -899,13 +899,13 @@ async function pullTemplatesFromCloud() {
                   <td class="px-4 py-3 text-fg-secondary font-bold">{{ r.patient_name || '—' }}</td>
                   <td class="px-4 py-3 text-fg-secondary font-mono font-bold">{{ r.bed_no || '—' }}</td>
                   <td class="px-4 py-3">
-                    <span class="text-2xs font-bold bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded-full">
+                    <span class="text-2xs font-bold bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 rounded-full">
                       {{ r.format_label }}
                     </span>
                   </td>
                   <td class="px-4 py-3 text-right">
                     <button @click.stop="deleteRecord(r.id)"
-                      class="opacity-0 group-hover:opacity-100 text-muted hover:text-rose-400 transition-opacity px-1 text-sm cursor-pointer"
+                      class="opacity-0 group-hover:opacity-100 text-muted hover:text-danger transition-opacity px-1 text-sm cursor-pointer"
                       title="刪除">✕</button>
                   </td>
                 </tr>
@@ -913,7 +913,7 @@ async function pullTemplatesFromCloud() {
             </table>
           </div>
 
-          <div class="px-5 py-3 border-t border-hairline bg-sunken/20 shrink-0 text-2xs font-bold text-muted">
+          <div class="px-5 py-3 border-t border-hairline bg-sunken shrink-0 text-2xs font-bold text-muted">
             共 {{ records.length }} 筆記錄，點擊列表可載入
           </div>
         </div>
