@@ -226,31 +226,31 @@ async function saveForm() {
 </script>
 
 <template>
-  <div class="flex flex-col h-full gap-3">
+  <div class="accent-cyan flex flex-col h-full gap-3">
 
     <!-- Top bar: two rows -->
-    <div class="shrink-0 flex flex-col gap-2 bg-surface/60 backdrop-blur-xl rounded-2xl border border-hairline px-4 py-3">
+    <div class="shrink-0 flex flex-col gap-2 bg-surface rounded-2xl border border-hairline px-4 py-3">
       <!-- Row 1: search + cloud sync + add -->
       <div class="flex items-center gap-3">
         <div class="relative w-52 shrink-0">
           <span class="absolute left-3 top-2.5 text-muted text-sm">🔍</span>
           <input v-model="search" placeholder="搜尋姓名 / 科別…"
-            class="w-full pl-9 pr-8 py-2 rounded-xl bg-sunken border border-hairline text-fg text-sm placeholder-muted outline-none focus:border-cyan-500/50 transition-all" />
+            class="w-full pl-9 pr-8 py-2 rounded-xl bg-sunken border border-hairline text-fg text-sm placeholder-muted outline-none focus:border-accent/50 transition-all" />
           <button v-if="search" @click="search = ''" class="absolute right-2.5 top-2 text-muted hover:text-fg-secondary text-lg leading-none cursor-pointer">×</button>
         </div>
         <div class="flex-1" />
         <button @click="pullFromCloud" :disabled="syncing"
-          class="px-3 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-bold hover:bg-indigo-500/20 disabled:opacity-50 transition-colors cursor-pointer"
+          class="px-3 py-1.5 rounded-xl bg-accent/10 border border-accent/20 text-accent text-xs font-bold hover:bg-accent/20 disabled:opacity-50 transition-colors cursor-pointer"
           title="從雲端拉取">
           {{ syncing ? '…' : '↓' }} 拉取
         </button>
         <button @click="pushToCloud" :disabled="syncing"
-          class="px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs font-bold hover:bg-blue-500/20 disabled:opacity-50 transition-colors cursor-pointer"
+          class="px-3 py-1.5 rounded-xl bg-accent/10 border border-accent/20 text-accent text-xs font-bold hover:bg-accent/20 disabled:opacity-50 transition-colors cursor-pointer"
           title="本地有、雲端無才上傳">
           {{ syncing ? '…' : '↑' }} 推送
         </button>
         <button @click="overwriteCloud" :disabled="syncing"
-          class="px-3 py-1.5 rounded-xl bg-rose-500/5 border border-rose-500/20 text-rose-300 text-xs font-bold hover:bg-rose-500/15 disabled:opacity-50 transition-colors cursor-pointer"
+          class="px-3 py-1.5 rounded-xl bg-danger/5 border border-danger/20 text-danger text-xs font-bold hover:bg-danger/15 disabled:opacity-50 transition-colors cursor-pointer"
           title="以本地資料完整覆蓋雲端">
           覆蓋
         </button>
@@ -265,25 +265,25 @@ async function saveForm() {
       <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar" @wheel.prevent="onTagsWheel">
         <button @click="deptFilter = ''"
           class="shrink-0 px-3 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer"
-          :class="deptFilter === '' ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300' : 'bg-sunken border-hairline text-muted hover:text-fg-secondary'">
+          :class="deptFilter === '' ? 'bg-accent/10 border-accent/30 text-accent' : 'bg-sunken border-hairline text-muted hover:text-fg-secondary'">
           全科
         </button>
         <button v-for="dept in departments" :key="dept"
           @click="deptFilter = deptFilter === dept ? '' : dept"
           class="shrink-0 px-3 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer"
-          :class="deptFilter === dept ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300' : 'bg-sunken border-hairline text-muted hover:text-fg-secondary'">
+          :class="deptFilter === dept ? 'bg-accent/10 border-accent/30 text-accent' : 'bg-sunken border-hairline text-muted hover:text-fg-secondary'">
           {{ dept }}
         </button>
         <div class="w-px h-4 bg-overlay/10 mx-1 shrink-0" />
         <button @click="titleFilter = ''"
           class="shrink-0 px-3 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer"
-          :class="titleFilter === '' ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300' : 'bg-sunken border-hairline text-muted hover:text-fg-secondary'">
+          :class="titleFilter === '' ? 'bg-accent/10 border-accent/30 text-accent' : 'bg-sunken border-hairline text-muted hover:text-fg-secondary'">
           所有職稱
         </button>
         <button v-for="title in titles" :key="title"
           @click="titleFilter = titleFilter === title ? '' : title"
           class="shrink-0 px-3 py-1 rounded-full text-xs font-bold transition-all border cursor-pointer"
-          :class="titleFilter === title ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300' : 'bg-sunken border-hairline text-muted hover:text-fg-secondary'">
+          :class="titleFilter === title ? 'bg-accent/10 border-accent/30 text-accent' : 'bg-sunken border-hairline text-muted hover:text-fg-secondary'">
           {{ title }}
         </button>
       </div>
@@ -293,7 +293,7 @@ async function saveForm() {
     <div class="flex flex-1 gap-3 min-h-0">
 
       <!-- Left: names only -->
-      <div class="w-44 shrink-0 flex flex-col bg-surface/60 backdrop-blur-xl rounded-2xl border border-hairline overflow-hidden">
+      <div class="w-44 shrink-0 flex flex-col bg-surface rounded-2xl border border-hairline overflow-hidden">
         <div class="px-3 py-2 border-b border-hairline shrink-0">
           <span class="text-2xs font-mono font-bold text-muted">{{ filtered().length }} RECORDS</span>
         </div>
@@ -303,21 +303,21 @@ async function saveForm() {
             @click="selected = p"
             class="group relative flex items-center px-3 py-2.5 cursor-pointer transition-all"
             :class="selected?.id === p.id
-              ? 'bg-elevated/80'
+              ? 'bg-elevated'
               : 'hover:bg-overlay/5'">
             <div v-if="selected?.id === p.id" class="absolute left-0 top-0 bottom-0 w-0.5 bg-cyan-500 rounded-r" />
             <div class="flex-1 min-w-0">
-              <div class="text-sm font-bold truncate" :class="selected?.id === p.id ? 'text-cyan-300' : 'text-fg'">{{ p.name }}</div>
+              <div class="text-sm font-bold truncate" :class="selected?.id === p.id ? 'text-accent' : 'text-fg'">{{ p.name }}</div>
               <div v-if="p.department" class="text-2xs text-muted truncate mt-0.5">{{ p.department }}</div>
             </div>
             <button @click.stop="deleteTarget = p"
-              class="opacity-0 group-hover:opacity-100 text-muted hover:text-rose-400 text-sm leading-none cursor-pointer transition-all shrink-0 ml-1">×</button>
+              class="opacity-0 group-hover:opacity-100 text-muted hover:text-danger text-sm leading-none cursor-pointer transition-all shrink-0 ml-1">×</button>
           </div>
         </div>
       </div>
 
       <!-- Right: dossier detail -->
-      <div class="flex-1 rounded-2xl bg-surface/40 backdrop-blur-md border border-hairline p-6 overflow-y-auto min-h-0 custom-scrollbar">
+      <div class="flex-1 rounded-2xl bg-surface border border-hairline p-6 overflow-y-auto min-h-0 custom-scrollbar">
         <div v-if="!selected" class="flex flex-col items-center justify-center h-full text-muted text-center space-y-3">
           <span class="text-4xl opacity-20">👨‍⚕️</span>
           <p class="text-sm uppercase tracking-widest font-mono">Select a physician card to view detail dossier</p>
@@ -336,43 +336,43 @@ async function saveForm() {
                 編輯
               </button>
               <button @click="deleteTarget = selected"
-                class="px-4 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm font-bold hover:bg-rose-500/20 transition-all cursor-pointer">
+                class="px-4 py-2 rounded-xl bg-danger/10 border border-danger/20 text-danger text-sm font-bold hover:bg-danger/20 transition-all cursor-pointer">
                 刪除
               </button>
             </div>
           </div>
 
           <!-- Extension -->
-          <div v-if="selected.ext" class="p-4 rounded-2xl bg-surface/40 border border-hairline flex items-center justify-between shadow-lg group hover:border-cyan-500/20 transition-all">
+          <div v-if="selected.ext" class="p-4 rounded-2xl bg-surface border border-hairline flex items-center justify-between shadow-lg group hover:border-accent/20 transition-all">
             <div class="flex items-center gap-4">
               <span class="text-lg">📞</span>
               <div>
                 <p class="text-xs font-bold text-muted">院內聯絡分機</p>
-                <p class="text-3xl font-mono font-black text-cyan-400 mt-1 tracking-widest">{{ selected.ext }}</p>
+                <p class="text-3xl font-mono font-black text-accent mt-1 tracking-widest">{{ selected.ext }}</p>
               </div>
             </div>
-            <button @click="copy(selected.ext)" class="text-xs font-bold px-3 py-1.5 bg-elevated border border-hairline text-fg-secondary hover:text-cyan-400 hover:border-cyan-500/20 rounded-xl transition-all cursor-pointer">
+            <button @click="copy(selected.ext)" class="text-xs font-bold px-3 py-1.5 bg-elevated border border-hairline text-fg-secondary hover:text-accent hover:border-accent/20 rounded-xl transition-all cursor-pointer">
               複製分機
             </button>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <!-- HIS -->
-            <div class="rounded-2xl border border-hairline bg-surface/30 p-5 space-y-4">
+            <div class="rounded-2xl border border-hairline bg-surface p-5 space-y-4">
               <div class="border-b border-hairline pb-2.5 flex justify-between items-center">
                 <span class="text-xs font-bold text-fg-secondary">HIS 系統登入資料</span>
                 <span class="text-2xs font-mono text-muted">HIS CREDENTIALS</span>
               </div>
               <div class="space-y-3 font-mono text-sm">
-                <div class="flex items-center justify-between p-3 bg-sunken/60 rounded-xl border border-hairline">
+                <div class="flex items-center justify-between p-3 bg-sunken rounded-xl border border-hairline">
                   <span class="text-muted w-12">帳號</span>
                   <span class="text-fg font-bold flex-1 select-all truncate ml-2">{{ selected.his_account || '—' }}</span>
-                  <button v-if="selected.his_account" @click="copy(selected.his_account)" class="text-muted hover:text-cyan-400 text-xs pl-2 cursor-pointer">📋</button>
+                  <button v-if="selected.his_account" @click="copy(selected.his_account)" class="text-muted hover:text-accent text-xs pl-2 cursor-pointer">📋</button>
                 </div>
-                <div class="flex items-center justify-between p-3 bg-sunken/60 rounded-xl border border-hairline">
+                <div class="flex items-center justify-between p-3 bg-sunken rounded-xl border border-hairline">
                   <span class="text-muted w-12">密碼</span>
                   <span class="text-fg font-bold flex-1 select-all truncate ml-2">{{ selected.his_password || '—' }}</span>
-                  <button v-if="selected.his_password" @click="copy(selected.his_password)" class="text-muted hover:text-cyan-400 text-xs pl-2 cursor-pointer">📋</button>
+                  <button v-if="selected.his_password" @click="copy(selected.his_password)" class="text-muted hover:text-accent text-xs pl-2 cursor-pointer">📋</button>
                 </div>
               </div>
             </div>
@@ -380,7 +380,7 @@ async function saveForm() {
           </div>
 
           <!-- Notes -->
-          <div v-if="selected.notes" class="p-5 rounded-2xl bg-surface/30 border border-hairline">
+          <div v-if="selected.notes" class="p-5 rounded-2xl bg-surface border border-hairline">
             <p class="text-xs font-bold text-muted mb-2">備註說明 / 排班偏好</p>
             <p class="text-fg-secondary text-sm leading-relaxed whitespace-pre-wrap font-sans">{{ selected.notes }}</p>
           </div>
@@ -394,7 +394,7 @@ async function saveForm() {
     <div v-if="deleteTarget" class="fixed inset-0 z-50 flex items-center justify-center bg-sunken/60 backdrop-blur-sm" @click.self="deleteTarget = null">
       <div class="bg-surface border border-hairline rounded-2xl shadow-2xl w-80 p-6 space-y-4 text-center">
         <p class="text-fg text-sm font-semibold mb-1">確定要刪除此醫師檔案？</p>
-        <p class="text-xs text-rose-400 font-bold font-mono">「{{ deleteTarget.name }}」</p>
+        <p class="text-xs text-danger font-bold font-mono">「{{ deleteTarget.name }}」</p>
         <div class="flex gap-2.5 justify-center pt-3 border-t border-hairline">
           <button @click="deleteTarget = null" class="px-4 py-2 text-xs font-bold bg-elevated border border-hairline text-fg-secondary rounded-xl hover:bg-raised">取消</button>
           <button @click="doDelete" class="px-4 py-2 text-xs font-bold bg-rose-600 text-white rounded-xl hover:bg-rose-500 shadow-lg">確認刪除</button>
@@ -411,31 +411,31 @@ async function saveForm() {
         <div class="grid grid-cols-2 gap-4">
           <div class="col-span-2">
             <label class="text-xs font-bold text-muted mb-1 block">醫師姓名 *</label>
-            <input v-model="form.name" class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-sm focus:outline-none focus:border-cyan-500/50 font-bold" autofocus />
+            <input v-model="form.name" class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-sm focus:outline-none focus:border-accent/50 font-bold" autofocus />
           </div>
           <div>
             <label class="text-xs font-bold text-muted mb-1 block">專科別</label>
-            <input v-model="form.department" class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-sm focus:outline-none focus:border-cyan-500/50" />
+            <input v-model="form.department" class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-sm focus:outline-none focus:border-accent/50" />
           </div>
           <div>
             <label class="text-xs font-bold text-muted mb-1 block">臨床職稱</label>
-            <input v-model="form.title" class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-sm focus:outline-none focus:border-cyan-500/50" />
+            <input v-model="form.title" class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-sm focus:outline-none focus:border-accent/50" />
           </div>
           <div class="col-span-2">
             <label class="text-xs font-bold text-muted mb-1 block">聯絡分機</label>
-            <input v-model="form.ext" class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-sm font-mono focus:outline-none focus:border-cyan-500/50" placeholder="e.g. 5123" />
+            <input v-model="form.ext" class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-sm font-mono focus:outline-none focus:border-accent/50" placeholder="e.g. 5123" />
           </div>
           <div>
             <label class="text-xs font-bold text-muted mb-1 block">HIS 系統帳號</label>
-            <input v-model="form.his_account" class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-sm font-mono focus:outline-none focus:border-cyan-500/50" />
+            <input v-model="form.his_account" class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-sm font-mono focus:outline-none focus:border-accent/50" />
           </div>
           <div>
             <label class="text-xs font-bold text-muted mb-1 block">HIS 系統密碼</label>
-            <input v-model="form.his_password" class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-sm font-mono focus:outline-none focus:border-cyan-500/50" />
+            <input v-model="form.his_password" class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-sm font-mono focus:outline-none focus:border-accent/50" />
           </div>
           <div class="col-span-2">
             <label class="text-xs font-bold text-muted mb-1 block">備註說明 / 排班偏好</label>
-            <input v-model="form.notes" class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-sm focus:outline-none focus:border-cyan-500/50" />
+            <input v-model="form.notes" class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-sm focus:outline-none focus:border-accent/50" />
           </div>
         </div>
         <div class="flex gap-3 justify-end pt-2 border-t border-hairline bg-surface">
