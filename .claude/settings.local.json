@@ -75,7 +75,8 @@
       "PowerShell(npm run *)",
       "PowerShell(npx vite build 2>&1 | Select-Object -Last 25)",
       "Skill(update-config)",
-      "PowerShell(try { Get-Content \".claude\\\\settings.local.json\" -Raw | ConvertFrom-Json | Out-Null; \"JSON 有效，defaultMode = auto\" } catch { \"JSON 錯誤: $_\" })"
+      "PowerShell(try { Get-Content \".claude\\\\settings.local.json\" -Raw | ConvertFrom-Json | Out-Null; \"JSON 有效，defaultMode = auto\" } catch { \"JSON 錯誤: $_\" })",
+      "PowerShell(git fetch *)"
     ],
     "defaultMode": "auto"
   }
