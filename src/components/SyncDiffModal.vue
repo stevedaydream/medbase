@@ -124,11 +124,11 @@ function confirmMerge() {
         </div>
         <div class="flex gap-2">
           <button @click="selectAll('local')"
-            class="text-xs px-3 py-1.5 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-300 hover:bg-blue-600/30 transition-colors cursor-pointer">
+            class="text-xs px-3 py-1.5 rounded-lg bg-accent/20 border border-accent/30 text-accent hover:bg-accent/30 transition-colors cursor-pointer">
             全選本地
           </button>
           <button @click="selectAll('cloud')"
-            class="text-xs px-3 py-1.5 rounded-lg bg-amber-600/20 border border-amber-500/30 text-amber-300 hover:bg-amber-600/30 transition-colors cursor-pointer">
+            class="text-xs px-3 py-1.5 rounded-lg bg-warning/20 border border-warning/30 text-warning hover:bg-warning/30 transition-colors cursor-pointer">
             全選雲端
           </button>
         </div>
@@ -139,33 +139,33 @@ function confirmMerge() {
         <template v-for="row in diffRows" :key="row.pk">
           <!-- Added locally (cloud doesn't have) -->
           <div v-if="row.local && !row.cloud"
-            class="rounded-xl border border-green-500/20 bg-green-950/30 p-3 flex items-center justify-between gap-4">
+            class="rounded-xl border border-accent/20 bg-accent/30 p-3 flex items-center justify-between gap-4">
             <div class="flex items-center gap-2 min-w-0">
-              <span class="text-2xs font-bold text-green-400 bg-green-900/40 px-2 py-0.5 rounded-full shrink-0">本地新增</span>
+              <span class="text-2xs font-bold text-accent bg-accent/40 px-2 py-0.5 rounded-full shrink-0">本地新增</span>
               <span class="text-xs text-fg-secondary truncate">{{ formatValue(row.pk) }}</span>
             </div>
-            <span class="text-2xs text-green-400 shrink-0">自動保留</span>
+            <span class="text-2xs text-accent shrink-0">自動保留</span>
           </div>
 
           <!-- Deleted on cloud side -->
           <div v-else-if="!row.local && row.cloud"
-            class="rounded-xl border border-amber-500/20 bg-amber-950/30 p-3 flex items-center justify-between gap-4">
+            class="rounded-xl border border-warning/20 bg-warning/30 p-3 flex items-center justify-between gap-4">
             <div class="flex items-center gap-2 min-w-0">
-              <span class="text-2xs font-bold text-amber-400 bg-amber-900/40 px-2 py-0.5 rounded-full shrink-0">雲端新增</span>
+              <span class="text-2xs font-bold text-warning bg-warning/40 px-2 py-0.5 rounded-full shrink-0">雲端新增</span>
               <span class="text-xs text-fg-secondary truncate">{{ formatValue(row.pk) }}</span>
             </div>
-            <span class="text-2xs text-amber-400 shrink-0">自動加入</span>
+            <span class="text-2xs text-warning shrink-0">自動加入</span>
           </div>
 
           <!-- Conflict: both local and cloud changed -->
           <div v-else
             class="rounded-xl border p-3 space-y-2"
             :class="getChoice(row.pk) === 'local'
-              ? 'border-blue-500/30 bg-blue-950/20'
-              : 'border-amber-500/30 bg-amber-950/20'">
+              ? 'border-accent/30 bg-accent/20'
+              : 'border-warning/30 bg-warning/20'">
             <div class="flex items-center justify-between gap-4">
               <div class="flex items-center gap-2">
-                <span class="text-2xs font-bold text-rose-400 bg-rose-900/30 px-2 py-0.5 rounded-full">衝突</span>
+                <span class="text-2xs font-bold text-danger bg-danger/30 px-2 py-0.5 rounded-full">衝突</span>
                 <span class="text-xs text-fg-secondary font-mono">{{ formatValue(row.pk) }}</span>
               </div>
               <div class="flex gap-1.5">
@@ -190,22 +190,22 @@ function confirmMerge() {
             <!-- Conflict fields preview -->
             <div class="grid grid-cols-2 gap-2 text-[0.6875rem]">
               <div class="space-y-1">
-                <p class="text-blue-400 font-bold text-2xs">本地</p>
+                <p class="text-accent font-bold text-2xs">本地</p>
                 <template v-for="k in row.conflictKeys" :key="k">
                   <div class="rounded px-2 py-1"
-                    :class="row.local?.[k] !== row.cloud?.[k] ? 'bg-blue-900/30' : ''">
+                    :class="row.local?.[k] !== row.cloud?.[k] ? 'bg-accent/30' : ''">
                     <span class="text-muted font-mono">{{ k }}: </span>
-                    <span class="text-blue-200">{{ formatValue(row.local?.[k]) }}</span>
+                    <span class="text-accent">{{ formatValue(row.local?.[k]) }}</span>
                   </div>
                 </template>
               </div>
               <div class="space-y-1">
-                <p class="text-amber-400 font-bold text-2xs">雲端</p>
+                <p class="text-warning font-bold text-2xs">雲端</p>
                 <template v-for="k in row.conflictKeys" :key="k">
                   <div class="rounded px-2 py-1"
-                    :class="row.local?.[k] !== row.cloud?.[k] ? 'bg-amber-900/30' : ''">
+                    :class="row.local?.[k] !== row.cloud?.[k] ? 'bg-warning/30' : ''">
                     <span class="text-muted font-mono">{{ k }}: </span>
-                    <span class="text-amber-200">{{ formatValue(row.cloud?.[k]) }}</span>
+                    <span class="text-warning">{{ formatValue(row.cloud?.[k]) }}</span>
                   </div>
                 </template>
               </div>
