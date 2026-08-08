@@ -325,12 +325,12 @@ onMounted(async () => {
         <button v-if="canEdit" @click="toggleBooking" :disabled="isSavingConfig"
           class="flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border font-semibold transition-colors"
           :class="bookingOpen
-            ? 'bg-emerald-900/60 border-emerald-700 text-emerald-300 hover:bg-emerald-900'
+            ? 'bg-success/60 border-emerald-700 text-success hover:bg-success/10'
             : 'bg-elevated border-hairline text-muted hover:border-hairline hover:text-fg-secondary'">
           <span>{{ bookingOpen ? "● 預約開放中" : "○ 預約已關閉" }}</span>
         </button>
         <span v-else class="text-xs px-2 py-0.5 rounded-full border"
-          :class="bookingOpen ? 'border-emerald-800 text-emerald-400' : 'border-hairline text-muted'">
+          :class="bookingOpen ? 'border-emerald-800 text-success' : 'border-hairline text-muted'">
           {{ bookingOpen ? "● 開放中" : "○ 已關閉" }}
         </span>
 
@@ -404,7 +404,7 @@ onMounted(async () => {
     <!-- ── Request list header ──────────────────────────────────────── -->
     <div class="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-hairline">
       <button @click="pullRequests" :disabled="isLoading"
-        class="text-xs px-3 py-1.5 bg-blue-800/60 hover:bg-blue-700 text-blue-200 rounded disabled:opacity-40">
+        class="text-xs px-3 py-1.5 bg-accent/60 hover:bg-blue-700 text-accent rounded disabled:opacity-40">
         {{ isLoading ? "…" : "↓" }} 從雲端拉取請求
       </button>
       <span class="text-xs text-muted">{{ requests.length }} 筆</span>
@@ -445,15 +445,15 @@ onMounted(async () => {
             <!-- Summary row -->
             <tr class="border-b border-hairline hover:bg-surface/40 cursor-pointer"
               @click="toggleExpand(req.code)">
-              <td class="px-3 py-2 font-mono text-blue-300">{{ req.code }}</td>
+              <td class="px-3 py-2 font-mono text-accent">{{ req.code }}</td>
               <td class="px-3 py-2 text-fg">{{ req.name }}</td>
               <td class="px-3 py-2 text-muted">{{ req.submittedAt || "—" }}</td>
               <td class="px-3 py-2 text-muted">{{ summarize(req) || "（無志願）" }}</td>
               <td class="px-3 py-2 text-center">
                 <span class="inline-block px-1.5 py-0.5 rounded text-xs font-medium"
                   :class="{
-                    'bg-orange-900/60 text-orange-300': req.status === 'pending',
-                    'bg-emerald-900/60 text-emerald-300': req.status === 'adopted',
+                    'bg-accent/60 text-accent': req.status === 'pending',
+                    'bg-success/60 text-success': req.status === 'adopted',
                     'bg-elevated text-muted': req.status === 'ignored',
                   }">
                   {{ req.status === 'pending' ? '待審' : req.status === 'adopted' ? '已採納' : '已忽略' }}
@@ -462,7 +462,7 @@ onMounted(async () => {
               <td v-if="canEdit" class="px-3 py-2" @click.stop>
                 <div class="flex gap-1 justify-end">
                   <button v-if="req.status !== 'adopted'" @click="emit('adopt', req.code)"
-                    class="text-xs px-2 py-0.5 bg-emerald-800/60 hover:bg-emerald-700 text-emerald-200 rounded">採納</button>
+                    class="text-xs px-2 py-0.5 bg-success/60 hover:bg-emerald-700 text-success rounded">採納</button>
                   <button v-if="req.status === 'pending'" @click="emit('ignore', req.code)"
                     class="text-xs px-2 py-0.5 bg-raised hover:bg-raised text-fg-secondary rounded">忽略</button>
                 </div>
@@ -471,7 +471,7 @@ onMounted(async () => {
 
             <!-- Expanded: 31-day compact grid -->
             <tr v-if="expandedCode === req.code" class="border-b border-hairline">
-              <td :colspan="canEdit ? 6 : 5" class="px-3 py-3 bg-surface/50">
+              <td :colspan="canEdit ? 6 : 5" class="px-3 py-3 bg-surface">
                 <div class="overflow-x-auto">
                   <table class="border-collapse text-xs" style="min-width: max-content">
                     <thead>
@@ -479,7 +479,7 @@ onMounted(async () => {
                         <th class="w-6 py-1 text-muted">志願</th>
                         <th v-for="day in dayLabels" :key="day.d"
                           class="w-7 py-1 text-center font-normal"
-                          :class="day.isSat ? 'text-blue-400' : day.isSun ? 'text-red-400' : 'text-muted'">
+                          :class="day.isSat ? 'text-accent' : day.isSun ? 'text-accent' : 'text-muted'">
                           {{ day.d }}
                         </th>
                       </tr>
@@ -497,7 +497,7 @@ onMounted(async () => {
                         <td v-for="day in dayLabels" :key="day.d"
                           class="py-0.5 text-center relative"
                           :class="[
-                            day.isSat ? 'bg-blue-950/10' : day.isSun ? 'bg-red-950/10' : '',
+                            day.isSat ? 'bg-accent/10' : day.isSun ? 'bg-accent/10' : '',
                             vn === 1 ? adoptionClass(req, day.d - 1) : ''
                           ]">
                           <span v-if="req.days[day.d - 1]?.[`v${vn}` as 'v1'|'v2'|'v3']"
