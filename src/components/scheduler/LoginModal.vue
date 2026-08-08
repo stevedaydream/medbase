@@ -44,35 +44,35 @@ async function login() {
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/90 backdrop-blur-sm">
-    <div class="w-80 bg-gray-900 border border-gray-800 rounded-xl shadow-2xl p-8">
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-sunken/90 backdrop-blur-sm">
+    <div class="w-80 bg-surface border border-hairline rounded-xl shadow-2xl p-8">
       <!-- Logo / Title -->
       <div class="mb-7 text-center">
-        <div class="text-2xl font-bold text-white tracking-tight">排班系統</div>
-        <div class="text-xs text-gray-600 mt-1">登入以繼續</div>
+        <div class="text-2xl font-bold text-fg tracking-tight">排班系統</div>
+        <div class="text-xs text-muted mt-1">登入以繼續</div>
       </div>
 
       <!-- Form -->
       <div class="space-y-3">
         <div>
-          <label class="block text-xs text-gray-500 mb-1">員工編號</label>
+          <label class="block text-xs text-muted mb-1">員工編號</label>
           <input
             v-model="employeeId"
             @keyup.enter="login"
             placeholder="例：E001"
             autocomplete="username"
-            class="w-full text-sm px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-200 font-mono outline-none focus:border-blue-500 transition-colors"
+            class="w-full text-sm px-3 py-2 bg-elevated border border-hairline rounded-lg text-fg font-mono outline-none focus:border-blue-500 transition-colors"
           />
         </div>
         <div>
-          <label class="block text-xs text-gray-500 mb-1">密碼</label>
+          <label class="block text-xs text-muted mb-1">密碼</label>
           <input
             v-model="password"
             type="password"
             @keyup.enter="login"
             placeholder="••••••••"
             autocomplete="current-password"
-            class="w-full text-sm px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-200 outline-none focus:border-blue-500 transition-colors"
+            class="w-full text-sm px-3 py-2 bg-elevated border border-hairline rounded-lg text-fg outline-none focus:border-blue-500 transition-colors"
           />
         </div>
 
@@ -90,8 +90,8 @@ async function login() {
       </div>
 
       <!-- Hint -->
-      <p class="mt-5 text-center text-xs text-gray-700">
-        預設超級帳號：員工編號 <span class="font-mono text-gray-600">super</span> ／ 密碼 <span class="font-mono text-gray-600">Admin0000</span>
+      <p class="mt-5 text-center text-xs text-muted">
+        預設超級帳號：員工編號 <span class="font-mono text-muted">super</span> ／ 密碼 <span class="font-mono text-muted">Admin0000</span>
       </p>
     </div>
   </div>
