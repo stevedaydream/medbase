@@ -121,14 +121,14 @@ async function copyAndClose(code: string, e: MouseEvent) {
 }
 
 const typeColors: Record<string, string> = {
-  "處方": "bg-green-900/60 text-green-300",
-  "疾病": "bg-amber-900/60 text-amber-300",
-  "檢查": "bg-purple-900/60 text-purple-300",
-  "手術": "bg-orange-900/60 text-orange-300",
-  "急救": "bg-red-900/60 text-red-300",
-  "自費": "bg-teal-900/60 text-teal-300",
-  "醫師": "bg-indigo-900/60 text-indigo-300",
-  "套組": "bg-pink-900/60 text-pink-300",
+  "處方": "bg-accent/60 text-accent",
+  "疾病": "bg-warning/60 text-warning",
+  "檢查": "bg-accent/60 text-accent",
+  "手術": "bg-accent/60 text-accent",
+  "急救": "bg-accent/60 text-accent",
+  "自費": "bg-accent/60 text-accent",
+  "醫師": "bg-accent/60 text-accent",
+  "套組": "bg-accent/60 text-accent",
 };
 </script>
 
@@ -180,8 +180,8 @@ const typeColors: Record<string, string> = {
             @click="copyAndClose(r.copyCode, $event)"
             class="shrink-0 text-xs px-2 py-0.5 rounded transition-colors"
             :class="copiedCode === r.copyCode
-              ? 'bg-green-800/60 text-green-400'
-              : 'bg-elevated text-muted hover:bg-raised hover:text-teal-400'"
+              ? 'bg-accent/60 text-accent'
+              : 'bg-elevated text-muted hover:bg-raised hover:text-accent'"
           >
             {{ copiedCode === r.copyCode ? "✓ 已複製" : "複製碼" }}
           </button>
