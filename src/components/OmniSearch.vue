@@ -134,24 +134,24 @@ const typeColors: Record<string, string> = {
 
 <template>
   <div class="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4" @click.self="emit('close')">
-    <div class="w-full max-w-xl bg-gray-900 rounded-xl border border-gray-700 shadow-2xl overflow-hidden">
+    <div class="w-full max-w-xl bg-surface rounded-xl border border-hairline shadow-2xl overflow-hidden">
 
       <!-- 輸入列 -->
-      <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-800">
-        <span class="text-gray-500 text-base">🔍</span>
+      <div class="flex items-center gap-3 px-4 py-3 border-b border-hairline">
+        <span class="text-muted text-base">🔍</span>
         <input
           ref="inputRef"
           v-model="query"
           @keydown="onKeydown"
           placeholder="搜尋藥物、自費品項、醫師、套組…"
-          class="flex-1 bg-transparent text-gray-100 text-sm placeholder-gray-500 focus:outline-none"
+          class="flex-1 bg-transparent text-fg text-sm placeholder-muted focus:outline-none"
         />
-        <kbd class="text-gray-600 text-xs font-mono border border-gray-700 rounded px-1.5 py-0.5">ESC</kbd>
+        <kbd class="text-muted text-xs font-mono border border-hairline rounded px-1.5 py-0.5">ESC</kbd>
       </div>
 
       <!-- 結果列表 -->
       <ul class="max-h-96 overflow-y-auto py-1">
-        <li v-if="results.length === 0" class="text-gray-500 text-sm text-center py-8">
+        <li v-if="results.length === 0" class="text-muted text-sm text-center py-8">
           無結果
         </li>
         <li
@@ -160,18 +160,18 @@ const typeColors: Record<string, string> = {
           @click="select(r)"
           @mouseenter="activeIdx = idx"
           class="flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors"
-          :class="activeIdx === idx ? 'bg-gray-800' : 'hover:bg-gray-800/50'"
+          :class="activeIdx === idx ? 'bg-elevated' : 'hover:bg-elevated/50'"
         >
           <!-- 類型標籤 -->
           <span
             class="px-1.5 py-0.5 rounded text-xs font-semibold shrink-0 w-8 text-center"
-            :class="typeColors[r.type] ?? 'bg-gray-800 text-gray-400'"
+            :class="typeColors[r.type] ?? 'bg-elevated text-fg-secondary'"
           >{{ r.type }}</span>
 
           <!-- 品名 + 副資訊 -->
           <div class="flex-1 min-w-0">
-            <p class="text-gray-100 text-sm truncate">{{ r.label }}</p>
-            <p class="text-gray-500 text-xs truncate">{{ r.sub }}</p>
+            <p class="text-fg text-sm truncate">{{ r.label }}</p>
+            <p class="text-muted text-xs truncate">{{ r.sub }}</p>
           </div>
 
           <!-- 自費品項：複製院內碼按鈕 -->
@@ -181,17 +181,17 @@ const typeColors: Record<string, string> = {
             class="shrink-0 text-xs px-2 py-0.5 rounded transition-colors"
             :class="copiedCode === r.copyCode
               ? 'bg-green-800/60 text-green-400'
-              : 'bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-teal-400'"
+              : 'bg-elevated text-muted hover:bg-raised hover:text-teal-400'"
           >
             {{ copiedCode === r.copyCode ? "✓ 已複製" : "複製碼" }}
           </button>
 
-          <span v-else class="text-gray-700 text-xs shrink-0">↵</span>
+          <span v-else class="text-muted text-xs shrink-0">↵</span>
         </li>
       </ul>
 
       <!-- Footer -->
-      <div class="flex items-center gap-4 px-4 py-2 border-t border-gray-800 text-xs text-gray-600">
+      <div class="flex items-center gap-4 px-4 py-2 border-t border-hairline text-xs text-muted">
         <span>↑↓ 導航</span>
         <span>↵ 前往</span>
         <span>自費可直接複製院內碼</span>
