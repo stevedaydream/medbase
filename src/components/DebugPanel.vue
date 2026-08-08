@@ -87,7 +87,7 @@ const levelClass: Record<string, string> = {
 const rowHover: Record<string, string> = {
   error:  'hover:bg-red-950/40',
   warn:   'hover:bg-yellow-950/30',
-  info:   'hover:bg-gray-900',
+  info:   'hover:bg-surface',
   action: 'hover:bg-green-950/30',
 }
 
@@ -102,13 +102,13 @@ function isDifferentSession(idx: number): boolean {
 <template>
   <div
     data-debug-panel
-    class="fixed bottom-0 right-0 z-[9999] w-[580px] max-h-[380px] flex flex-col bg-gray-950 border border-gray-700 shadow-2xl rounded-tl-xl font-mono text-xs"
+    class="fixed bottom-0 right-0 z-[9999] w-[580px] max-h-[380px] flex flex-col bg-sunken border border-hairline shadow-2xl rounded-tl-xl font-mono text-xs"
   >
     <!-- ── Header ── -->
-    <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-900 border-b border-gray-700 rounded-tl-xl shrink-0 flex-wrap gap-y-1">
-      <span class="text-gray-400 font-semibold">Debug</span>
-      <span class="bg-gray-800 text-gray-500 rounded px-1.5 py-0.5 text-2xs">{{ SESSION_ID }}</span>
-      <span class="text-gray-600 text-2xs">Ctrl+Shift+D</span>
+    <div class="flex items-center gap-2 px-3 py-1.5 bg-surface border-b border-hairline rounded-tl-xl shrink-0 flex-wrap gap-y-1">
+      <span class="text-fg-secondary font-semibold">Debug</span>
+      <span class="bg-elevated text-muted rounded px-1.5 py-0.5 text-2xs">{{ SESSION_ID }}</span>
+      <span class="text-muted text-2xs">Ctrl+Shift+D</span>
 
       <!-- 篩選 tabs -->
       <div class="flex gap-0.5 ml-1">
@@ -117,8 +117,8 @@ function isDifferentSession(idx: number): boolean {
           @click="filter = key as Filter"
           class="px-1.5 py-0.5 rounded text-2xs transition-colors"
           :class="filter === key
-            ? 'bg-gray-600 text-white'
-            : 'text-gray-600 hover:text-gray-400'">
+            ? 'bg-raised text-fg'
+            : 'text-muted hover:text-fg-secondary'">
           {{ label }}<span v-if="key !== 'all' && counts[key as Filter]" class="ml-0.5 opacity-70">{{ counts[key as Filter] }}</span>
         </button>
       </div>
@@ -127,15 +127,15 @@ function isDifferentSession(idx: number): boolean {
         <span v-if="exportMsg" class="text-green-400 text-2xs">{{ exportMsg }}</span>
         <button @click="toggleHistory" :disabled="loadingHistory"
           class="px-2 py-0.5 rounded text-2xs transition-colors"
-          :class="showHistory ? 'bg-indigo-700 text-indigo-200' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'">
+          :class="showHistory ? 'bg-indigo-700 text-indigo-200' : 'bg-raised text-fg-secondary hover:bg-raised'">
           {{ loadingHistory ? '載入中…' : showHistory ? '歷史 ▲' : '歷史 ▼' }}
         </button>
         <button @click="handleExport" :disabled="exporting"
-          class="px-2 py-0.5 rounded bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors">
+          class="px-2 py-0.5 rounded bg-raised hover:bg-raised text-fg-secondary transition-colors">
           {{ exporting ? '…' : '匯出' }}
         </button>
         <button @click="handleClearHistory"
-          class="px-2 py-0.5 rounded bg-gray-700 hover:bg-red-800 text-gray-300 transition-colors">
+          class="px-2 py-0.5 rounded bg-raised hover:bg-red-800 text-fg-secondary transition-colors">
           清除
         </button>
       </div>
@@ -143,12 +143,12 @@ function isDifferentSession(idx: number): boolean {
 
     <!-- ── Log list ── -->
     <div class="overflow-y-auto flex-1">
-      <div v-if="filtered.length === 0" class="text-gray-600 text-center py-6">
+      <div v-if="filtered.length === 0" class="text-muted text-center py-6">
         {{ showHistory ? '無歷史記錄' : '目前無記錄' }}
       </div>
 
       <template v-for="(entry, idx) in filtered" :key="entry.id">
-        <div class="border-b border-gray-800/60 last:border-0">
+        <div class="border-b border-hairline last:border-0">
           <!-- 主列 -->
           <div
             class="flex items-start gap-1.5 px-2 py-1 cursor-pointer select-text transition-colors"
@@ -157,41 +157,41 @@ function isDifferentSession(idx: number): boolean {
             @dblclick.stop="copyEntry(entry)"
           >
             <!-- 時間 -->
-            <span class="shrink-0 text-gray-600 mt-0.5 w-[62px]">{{ entry.time }}</span>
+            <span class="shrink-0 text-muted mt-0.5 w-[62px]">{{ entry.time }}</span>
             <!-- Level badge -->
             <span class="shrink-0 rounded px-1 py-0.5 text-2xs leading-none mt-0.5 w-[42px] text-center"
               :class="levelClass[entry.level]">
               {{ entry.level === 'action' ? 'CLICK' : entry.level.toUpperCase() }}
             </span>
             <!-- Route -->
-            <span v-if="entry.route" class="shrink-0 text-gray-600 mt-0.5 truncate max-w-[80px]" :title="entry.route">
+            <span v-if="entry.route" class="shrink-0 text-muted mt-0.5 truncate max-w-[80px]" :title="entry.route">
               {{ entry.route }}
             </span>
             <!-- Message -->
             <span class="flex-1 break-all leading-relaxed transition-colors min-w-0"
               :class="[
                 copied === entry.id ? 'text-green-400' : '',
-                entry.level === 'action' ? 'text-green-300/80' : 'text-gray-200',
+                entry.level === 'action' ? 'text-green-300/80' : 'text-fg',
               ]">
               {{ copied === entry.id ? '✓ 已複製' : entry.message }}
             </span>
-            <span v-if="entry.detail" class="ml-auto shrink-0 text-gray-600 mt-0.5">
+            <span v-if="entry.detail" class="ml-auto shrink-0 text-muted mt-0.5">
               {{ expanded.has(entry.id) ? '▲' : '▼' }}
             </span>
           </div>
           <!-- Detail 展開 -->
           <div v-if="entry.detail && expanded.has(entry.id)"
-            class="px-3 pb-2 pt-0.5 text-gray-500 whitespace-pre-wrap break-all bg-gray-900 cursor-pointer hover:text-gray-400"
+            class="px-3 pb-2 pt-0.5 text-muted whitespace-pre-wrap break-all bg-surface cursor-pointer hover:text-fg-secondary"
             @click.stop="copyEntry(entry)">
             {{ entry.detail }}
           </div>
         </div>
 
         <!-- Session 分隔線 -->
-        <div v-if="isDifferentSession(idx)" class="flex items-center gap-2 px-3 py-1 bg-gray-900/60">
-          <div class="flex-1 h-px bg-gray-800"></div>
-          <span class="text-2xs text-gray-700 shrink-0">session {{ filtered[idx+1]?.session }}</span>
-          <div class="flex-1 h-px bg-gray-800"></div>
+        <div v-if="isDifferentSession(idx)" class="flex items-center gap-2 px-3 py-1 bg-surface/60">
+          <div class="flex-1 h-px bg-elevated"></div>
+          <span class="text-2xs text-muted shrink-0">session {{ filtered[idx+1]?.session }}</span>
+          <div class="flex-1 h-px bg-elevated"></div>
         </div>
       </template>
     </div>
