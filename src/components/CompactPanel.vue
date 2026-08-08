@@ -179,22 +179,22 @@ refreshList();
 </script>
 
 <template>
-  <div class="flex h-screen bg-gray-950 overflow-hidden">
+  <div class="flex h-screen bg-sunken overflow-hidden">
 
     <!-- 把手條：隱藏時為唯一可見區域，hover 500ms 自動滑出 -->
     <div
       class="w-7 shrink-0 flex flex-col items-center justify-center gap-1.5
-             bg-gray-900 border-r border-gray-700 cursor-pointer select-none
-             hover:bg-gray-800 transition-colors"
+             bg-surface border-r border-hairline cursor-pointer select-none
+             hover:bg-elevated transition-colors"
       :title="panelVisible ? '收起 (Ctrl+Shift+M)' : '展開 (Ctrl+Shift+M)'"
       @click="handleClick"
       @mouseenter="handleEnter"
       @mouseleave="handleLeave"
     >
       <!-- 三條橫線把手圖示 -->
-      <span v-for="_ in 3" :key="_" class="block w-3 h-0.5 rounded-full bg-gray-600" />
+      <span v-for="_ in 3" :key="_" class="block w-3 h-0.5 rounded-full bg-raised" />
       <!-- 方向箭頭 -->
-      <span class="text-gray-500 text-xs mt-1 leading-none">{{ panelVisible ? '›' : '‹' }}</span>
+      <span class="text-muted text-xs mt-1 leading-none">{{ panelVisible ? '›' : '‹' }}</span>
     </div>
 
     <!-- 主內容：垂直排列，偵測滑鼠/鍵盤活動以重置閒置計時器 -->
@@ -202,36 +202,36 @@ refreshList();
          @mousemove="onActivity" @keydown.capture="onActivity">
 
     <!-- Header -->
-    <div class="flex items-center justify-between px-3 py-2.5 border-b border-gray-800 shrink-0">
-      <span class="text-sm font-bold text-white tracking-tight">MedBase</span>
+    <div class="flex items-center justify-between px-3 py-2.5 border-b border-hairline shrink-0">
+      <span class="text-sm font-bold text-fg tracking-tight">MedBase</span>
       <button @click="emit('exit')"
         title="離開精簡模式"
-        class="text-gray-500 hover:text-gray-200 text-base transition-colors px-1">
+        class="text-muted hover:text-fg text-base transition-colors px-1">
         ⇤
       </button>
     </div>
 
     <!-- Tab bar -->
-    <div class="flex border-b border-gray-800 shrink-0">
+    <div class="flex border-b border-hairline shrink-0">
       <button
         v-for="tab in TABS" :key="tab.id"
         @click="switchTab(tab.id)"
         :title="tab.label"
         class="flex-1 py-2.5 flex flex-col items-center gap-0.5 text-xs transition-colors"
-        :class="activeTab === tab.id ? 'bg-gray-800 text-white' : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/40'">
+        :class="activeTab === tab.id ? 'bg-elevated text-fg' : 'text-muted hover:text-fg-secondary hover:bg-elevated/40'">
         <span class="text-base leading-none">{{ tab.icon }}</span>
         <span class="text-2xs leading-none">{{ tab.label }}</span>
       </button>
     </div>
 
     <!-- Search / filter -->
-    <div class="px-2.5 py-2 border-b border-gray-800 shrink-0">
+    <div class="px-2.5 py-2 border-b border-hairline shrink-0">
       <input v-if="activeTab !== 'sets'" v-model="searchQ"
         placeholder="品項碼/名稱…"
-        class="w-full px-2.5 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-100 text-xs placeholder-gray-600 focus:outline-none focus:border-blue-500" />
+        class="w-full px-2.5 py-1.5 rounded-lg bg-elevated border border-hairline text-fg text-xs placeholder-muted focus:outline-none focus:border-blue-500" />
       <input v-else v-model="physicianFilter"
         placeholder="醫師名稱篩選…"
-        class="w-full px-2.5 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-gray-100 text-xs placeholder-gray-600 focus:outline-none focus:border-blue-500" />
+        class="w-full px-2.5 py-1.5 rounded-lg bg-elevated border border-hairline text-fg text-xs placeholder-muted focus:outline-none focus:border-blue-500" />
     </div>
 
     <!-- Content area -->
@@ -241,17 +241,17 @@ refreshList();
 
       <!-- 📦 Items -->
       <template v-if="activeTab === 'items'">
-        <div v-if="!itemList.length" class="text-gray-600 text-xs text-center py-8">
+        <div v-if="!itemList.length" class="text-muted text-xs text-center py-8">
           {{ searchQ ? '無結果' : '輸入品項碼或名稱搜尋' }}
         </div>
         <div v-for="item in itemList" :key="item.hospital_code"
           @click="copyText(item.hospital_code, `item-${item.hospital_code}`)"
-          class="flex items-center gap-2 px-3 py-2 border-b border-gray-800/50 cursor-pointer hover:bg-gray-800/40 transition-colors">
+          class="flex items-center gap-2 px-3 py-2 border-b border-hairline cursor-pointer hover:bg-elevated/40 transition-colors">
           <span class="font-mono text-xs shrink-0 px-1.5 py-0.5 rounded"
-            :class="copiedKey === `item-${item.hospital_code}` ? 'bg-green-800 text-green-200' : 'bg-gray-800 text-blue-300'">
+            :class="copiedKey === `item-${item.hospital_code}` ? 'bg-green-800 text-green-200' : 'bg-elevated text-blue-300'">
             {{ copiedKey === `item-${item.hospital_code}` ? '✓' : item.hospital_code }}
           </span>
-          <span class="text-sm text-gray-200 truncate">{{ item.name_zh || item.name_en }}</span>
+          <span class="text-sm text-fg truncate">{{ item.name_zh || item.name_en }}</span>
         </div>
       </template>
 
@@ -259,36 +259,36 @@ refreshList();
       <template v-else-if="activeTab === 'sets'">
         <!-- Set list -->
         <template v-if="!activeSet">
-          <div v-if="!setList.length" class="text-gray-600 text-xs text-center py-8">無套組</div>
+          <div v-if="!setList.length" class="text-muted text-xs text-center py-8">無套組</div>
           <div v-for="s in setList" :key="s.id"
             @click="selectSet(s)"
-            class="px-3 py-2 border-b border-gray-800/50 cursor-pointer hover:bg-gray-800/40 transition-colors">
-            <p class="text-sm text-gray-200 truncate">{{ s.name }}</p>
-            <p v-if="s.phys_name" class="text-xs text-gray-500 truncate">{{ s.phys_name }}</p>
+            class="px-3 py-2 border-b border-hairline cursor-pointer hover:bg-elevated/40 transition-colors">
+            <p class="text-sm text-fg truncate">{{ s.name }}</p>
+            <p v-if="s.phys_name" class="text-xs text-muted truncate">{{ s.phys_name }}</p>
           </div>
         </template>
         <!-- Set items -->
         <template v-else>
-          <div class="sticky top-0 bg-gray-900 px-3 py-2 border-b border-gray-800 flex items-center gap-2">
+          <div class="sticky top-0 bg-surface px-3 py-2 border-b border-hairline flex items-center gap-2">
             <button @click="activeSet = null; activeSetItems = []"
-              class="text-gray-500 hover:text-gray-200 text-sm">←</button>
-            <span class="text-sm text-white font-medium flex-1 truncate">{{ activeSet.name }}</span>
+              class="text-muted hover:text-fg text-sm">←</button>
+            <span class="text-sm text-fg font-medium flex-1 truncate">{{ activeSet.name }}</span>
             <button @click="copyAllCodes"
               class="text-xs px-2 py-0.5 rounded bg-blue-800/60 text-blue-300 hover:bg-blue-700/60 shrink-0">
               {{ copiedKey === 'all-codes' ? '✓ 已複製' : '全選複製' }}
             </button>
           </div>
-          <div v-if="!activeSetItems.length" class="text-gray-600 text-xs text-center py-8">無品項</div>
+          <div v-if="!activeSetItems.length" class="text-muted text-xs text-center py-8">無品項</div>
           <div v-for="si in activeSetItems" :key="si.id"
             @click="copyText(si.hospital_code, `si-${si.id}`)"
-            class="flex items-center gap-2 px-3 py-2 border-b border-gray-800/50 cursor-pointer hover:bg-gray-800/40 transition-colors">
+            class="flex items-center gap-2 px-3 py-2 border-b border-hairline cursor-pointer hover:bg-elevated/40 transition-colors">
             <span class="font-mono text-xs shrink-0 px-1.5 py-0.5 rounded"
-              :class="copiedKey === `si-${si.id}` ? 'bg-green-800 text-green-200' : 'bg-gray-800 text-blue-300'">
+              :class="copiedKey === `si-${si.id}` ? 'bg-green-800 text-green-200' : 'bg-elevated text-blue-300'">
               {{ copiedKey === `si-${si.id}` ? '✓' : si.hospital_code }}
             </span>
             <div class="flex-1 min-w-0">
-              <span class="text-sm text-gray-200 truncate">{{ si.name_zh || si.hospital_code }}</span>
-              <span v-if="si.quantity > 1" class="ml-1.5 text-xs text-gray-500">×{{ si.quantity }}</span>
+              <span class="text-sm text-fg truncate">{{ si.name_zh || si.hospital_code }}</span>
+              <span v-if="si.quantity > 1" class="ml-1.5 text-xs text-muted">×{{ si.quantity }}</span>
             </div>
           </div>
         </template>
@@ -297,38 +297,38 @@ refreshList();
       <!-- 👤 Physicians -->
       <template v-else-if="activeTab === 'physicians'">
         <!-- Title filter tags -->
-        <div v-if="physTitles.length" class="flex flex-wrap gap-1 px-2.5 py-1.5 border-b border-gray-800/60">
+        <div v-if="physTitles.length" class="flex flex-wrap gap-1 px-2.5 py-1.5 border-b border-hairline">
           <button
             @click="physTitleFilter = ''"
             class="px-2 py-0.5 rounded-full text-2xs transition-colors"
-            :class="physTitleFilter === '' ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'">
+            :class="physTitleFilter === '' ? 'bg-indigo-600 text-white' : 'bg-elevated text-fg-secondary hover:bg-raised'">
             全部
           </button>
           <button
             v-for="t in physTitles" :key="t"
             @click="physTitleFilter = physTitleFilter === t ? '' : t"
             class="px-2 py-0.5 rounded-full text-2xs transition-colors"
-            :class="physTitleFilter === t ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'">
+            :class="physTitleFilter === t ? 'bg-indigo-600 text-white' : 'bg-elevated text-fg-secondary hover:bg-raised'">
             {{ t }}
           </button>
         </div>
-        <div v-if="!physList.length" class="text-gray-600 text-xs text-center py-8">
+        <div v-if="!physList.length" class="text-muted text-xs text-center py-8">
           {{ searchQ || physTitleFilter ? '無結果' : '輸入姓名或科別搜尋' }}
         </div>
         <div v-for="p in physList" :key="p.id"
-          class="px-3 py-2 border-b border-gray-800/50">
-          <p class="text-sm text-gray-200">{{ p.name }}
-            <span class="text-xs text-gray-500 ml-1">{{ p.department }}</span>
+          class="px-3 py-2 border-b border-hairline">
+          <p class="text-sm text-fg">{{ p.name }}
+            <span class="text-xs text-muted ml-1">{{ p.department }}</span>
           </p>
           <div class="flex gap-2 mt-1">
             <button v-if="p.ext" @click="copyText(p.ext, `ext-${p.id}`)"
               class="text-xs px-2 py-0.5 rounded transition-colors"
-              :class="copiedKey === `ext-${p.id}` ? 'bg-green-800 text-green-200' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'">
+              :class="copiedKey === `ext-${p.id}` ? 'bg-green-800 text-green-200' : 'bg-elevated text-fg-secondary hover:bg-raised'">
               {{ copiedKey === `ext-${p.id}` ? '✓ 已複製' : `📞 ${p.ext}` }}
             </button>
             <button v-if="p.his_account" @click="copyText(p.his_account, `his-${p.id}`)"
               class="text-xs px-2 py-0.5 rounded transition-colors"
-              :class="copiedKey === `his-${p.id}` ? 'bg-green-800 text-green-200' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'">
+              :class="copiedKey === `his-${p.id}` ? 'bg-green-800 text-green-200' : 'bg-elevated text-fg-secondary hover:bg-raised'">
               {{ copiedKey === `his-${p.id}` ? '✓ 已複製' : `HIS: ${p.his_account}` }}
             </button>
           </div>
