@@ -164,6 +164,13 @@ function copyExt(ext: string) {
   showToast(`已複製分機：${ext}`);
 }
 
+// 分類列是單行橫向捲動，但滑鼠滾輪預設只捲垂直方向，這裡把垂直滾輪
+// 轉為水平捲動，否則沒有觸控板的人根本捲不動它。
+function onFilterWheel(e: WheelEvent) {
+  const el = e.currentTarget as HTMLElement;
+  el.scrollLeft += e.deltaY;
+}
+
 // ── CRUD ─────────────────────────────────────────────────────────
 function openAdd() {
   modalMode.value = "add";
@@ -307,11 +314,12 @@ async function doDelete() {
     </div>
 
     <!-- Category Filter Pill Selector -->
-    <div class="flex gap-1.5 px-6 py-3 border-b border-hairline overflow-x-auto shrink-0 bg-surface no-scrollbar">
+    <div class="flex gap-1.5 px-6 py-3 border-b border-hairline overflow-x-auto shrink-0 bg-surface no-scrollbar"
+         @wheel.prevent="onFilterWheel">
       <button
         v-for="cat in categories" :key="cat"
         @click="catFilter = cat"
-        class="px-4 py-1.5 rounded-full text-2xs font-bold tracking-wide uppercase transition-all whitespace-nowrap border cursor-pointer"
+        class="shrink-0 px-4 py-1.5 rounded-full text-2xs font-bold tracking-wide uppercase transition-all whitespace-nowrap border cursor-pointer"
         :class="catFilter === cat
           ? 'bg-gradient-to-r from-accent/10 to-accent/10 border-accent/30 text-accent shadow-[0_0_10px_rgba(6,182,212,0.05)]'
           : 'bg-sunken border-hairline text-muted hover:text-fg-secondary hover:bg-surface/60'"

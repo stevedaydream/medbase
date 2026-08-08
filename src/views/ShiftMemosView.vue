@@ -22,6 +22,12 @@ const activeMemo  = ref<ShiftMemo | null>(null);
 const activeCategory = ref<string>("全部");
 const toastMsg    = ref("");
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
+// 分類列為單行橫向捲動，滑鼠滾輪預設只捲垂直方向，此處轉為水平捲動
+function onCategoryWheel(e: WheelEvent) {
+  const el = e.currentTarget as HTMLElement;
+  el.scrollLeft += e.deltaY;
+}
+
 function toast(msg: string) {
   toastMsg.value = msg;
   if (toastTimer) clearTimeout(toastTimer);
@@ -204,7 +210,8 @@ async function saveTitle() {
     <div class="w-60 shrink-0 flex flex-col border-r border-hairline bg-surface h-full overflow-hidden">
       
       <!-- Category Tabs (Horizontal Scrollable) -->
-      <div class="px-4 py-3.5 border-b border-hairline overflow-x-auto flex gap-1.5 shrink-0 no-scrollbar">
+      <div class="px-4 py-3.5 border-b border-hairline overflow-x-auto flex gap-1.5 shrink-0 no-scrollbar"
+           @wheel.prevent="onCategoryWheel">
         <button v-for="cat in categories" :key="cat"
           @click="activeCategory = cat"
           class="shrink-0 px-3 py-1.5 rounded-full text-2xs font-bold tracking-wide uppercase transition-all cursor-pointer border"
