@@ -166,10 +166,10 @@ const stepCount = computed(() =>
 </script>
 
 <template>
-  <div class="flex gap-6 h-full p-1 overflow-hidden">
+  <div class="accent-teal flex gap-6 h-full p-1 overflow-hidden">
 
     <!-- ── 左側列表 ─────────────────────────────── -->
-    <div class="flex flex-col w-80 shrink-0 bg-sunken/40 backdrop-blur-md border border-hairline rounded-2xl p-4 shadow-xl overflow-hidden">
+    <div class="flex flex-col w-80 shrink-0 bg-sunken border border-hairline rounded-2xl p-4 shadow-xl overflow-hidden">
       <!-- Search & Add -->
       <div class="flex gap-2 mb-3 shrink-0">
         <div class="relative flex-1">
@@ -177,11 +177,11 @@ const stepCount = computed(() =>
           <input
             v-model="search"
             placeholder="搜尋名稱、分類…"
-            class="w-full pl-9 pr-3.5 py-2 text-xs rounded-xl bg-sunken/60 border border-hairline text-fg placeholder-muted focus:outline-none focus:border-amber-500/50 focus:shadow-[0_0_12px_rgba(245,158,11,0.15)] transition-all font-bold"
+            class="w-full pl-9 pr-3.5 py-2 text-xs rounded-xl bg-sunken border border-hairline text-fg placeholder-muted focus:outline-none focus:border-warning/50 focus:shadow-[0_0_12px_rgba(245,158,11,0.15)] transition-all font-bold"
           />
         </div>
         <button @click="openAdd"
-          class="w-9 h-9 rounded-xl bg-amber-600 border border-amber-500/30 text-white text-lg font-black hover:bg-amber-500 active:scale-95 transition-all flex items-center justify-center cursor-pointer shrink-0"
+          class="w-9 h-9 rounded-xl bg-amber-600 border border-warning/30 text-white text-lg font-black hover:bg-amber-500 active:scale-95 transition-all flex items-center justify-center cursor-pointer shrink-0"
           title="新增藥物配製參考">＋</button>
       </div>
 
@@ -194,7 +194,7 @@ const stepCount = computed(() =>
           {{ isSyncing ? "…" : "↓ 雲端同步" }}
         </button>
         <button @click="pushToCloud" :disabled="isSyncing"
-          class="flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl bg-elevated/40 border border-hairline text-fg-secondary text-xs font-black hover:text-fg disabled:opacity-40 active:scale-95 transition-all cursor-pointer">
+          class="flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl bg-elevated border border-hairline text-fg-secondary text-xs font-black hover:text-fg disabled:opacity-40 active:scale-95 transition-all cursor-pointer">
           {{ isSyncing ? "…" : "↑ 上傳備份" }}
         </button>
       </div>
@@ -205,8 +205,8 @@ const stepCount = computed(() =>
         <button v-for="m in filtered" :key="m.id" @click="selected = m"
           class="w-full text-left px-3.5 py-3 rounded-xl border transition-all cursor-pointer"
           :class="selected?.id === m.id
-            ? 'bg-amber-600/20 border-amber-500/40 text-amber-100 shadow-[0_0_12px_rgba(245,158,11,0.08)]'
-            : 'bg-sunken/20 border-hairline text-fg-secondary hover:text-fg hover:bg-surface/40 hover:border-hairline'">
+            ? 'bg-warning/20 border-warning/40 text-warning shadow-[0_0_12px_rgba(245,158,11,0.08)]'
+            : 'bg-sunken border-hairline text-fg-secondary hover:text-fg hover:bg-surface/40 hover:border-hairline'">
           <div class="font-black text-xs text-fg truncate">{{ m.name }}</div>
           <div class="flex items-center gap-1.5 mt-1.5">
             <span class="text-2xs font-bold bg-surface px-1.5 py-0.5 rounded text-muted border border-hairline font-mono">{{ m.category }}</span>
@@ -217,7 +217,7 @@ const stepCount = computed(() =>
     </div>
 
     <!-- ── 右側詳情 ─────────────────────────────── -->
-    <div class="flex-1 rounded-2xl bg-surface/50 backdrop-blur-md border border-hairline p-6 overflow-y-auto shadow-2xl flex flex-col min-w-0 custom-scrollbar">
+    <div class="flex-1 rounded-2xl bg-surface border border-hairline p-6 overflow-y-auto shadow-2xl flex flex-col min-w-0 custom-scrollbar">
       <div v-if="!selected" class="flex flex-col items-center justify-center h-full gap-3 text-muted text-xs font-bold italic py-16">
         <span class="text-5xl animate-pulse">💊</span>
         <span>選擇右側/左側藥物配製參考，或按 ＋ 新增</span>
@@ -231,10 +231,10 @@ const stepCount = computed(() =>
             <h2 class="text-lg font-black text-fg tracking-wide truncate">{{ selected.name }}</h2>
             <div class="flex items-center gap-2 mt-2 flex-wrap">
               <span v-if="selected.category"
-                class="text-2xs font-bold bg-amber-500/10 border border-amber-500/20 text-amber-400 px-2.5 py-0.5 rounded-full">
+                class="text-2xs font-bold bg-warning/10 border border-warning/20 text-warning px-2.5 py-0.5 rounded-full">
                 {{ selected.category }}
               </span>
-              <span v-if="selected.indication" class="text-amber-200/60 text-xs font-mono font-medium">
+              <span v-if="selected.indication" class="text-warning/60 text-xs font-mono font-medium">
                 {{ selected.indication }}
               </span>
             </div>
@@ -249,7 +249,7 @@ const stepCount = computed(() =>
               ✏️ 編輯
             </button>
             <button @click="showDeleteConfirm = true"
-              class="px-3.5 py-2 rounded-xl bg-rose-950/40 border border-rose-900/30 text-rose-400 text-xs font-bold hover:bg-rose-900/40 hover:text-rose-300 transition-all cursor-pointer">
+              class="px-3.5 py-2 rounded-xl bg-danger/40 border border-danger/30 text-danger text-xs font-bold hover:bg-danger/40 hover:text-danger transition-all cursor-pointer">
               🗑 刪除
             </button>
           </div>
@@ -263,7 +263,7 @@ const stepCount = computed(() =>
           <ol class="space-y-3.5">
             <li v-for="(o, i) in parseSteps(selected.orders)" :key="i"
               class="flex items-start gap-3.5 text-fg text-xs leading-relaxed font-bold">
-              <span class="shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 text-fg text-2xs flex items-center justify-center font-black font-mono shadow-md shadow-amber-900/20">
+              <span class="shrink-0 w-6 h-6 rounded-full bg-gradient-to-br from-amber-500 to-accent text-fg text-2xs flex items-center justify-center font-black font-mono shadow-md shadow-warning/20">
                 {{ i + 1 }}
               </span>
               <span class="font-mono mt-0.5 leading-relaxed flex-1 select-all">{{ o }}</span>
@@ -276,11 +276,11 @@ const stepCount = computed(() =>
         </div>
 
         <!-- 注意事項 -->
-        <div v-if="selected.notes" class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 shadow-[0_0_15px_rgba(239,68,68,0.05)]">
-          <p class="text-rose-400 text-xs font-black mb-2 flex items-center gap-1.5">
+        <div v-if="selected.notes" class="p-4 rounded-xl bg-danger/10 border border-danger/20 shadow-[0_0_15px_rgba(239,68,68,0.05)]">
+          <p class="text-danger text-xs font-black mb-2 flex items-center gap-1.5">
             <span>⚠️</span> 注意事項 / 警語
           </p>
-          <p class="text-rose-200/80 text-xs leading-relaxed whitespace-pre-line font-medium pl-1">{{ selected.notes }}</p>
+          <p class="text-danger/80 text-xs leading-relaxed whitespace-pre-line font-medium pl-1">{{ selected.notes }}</p>
         </div>
       </div>
     </div>
@@ -291,7 +291,7 @@ const stepCount = computed(() =>
         class="fixed inset-0 z-[9000] flex items-center justify-center p-4 bg-sunken/60 backdrop-blur-sm"
         @click.self="showModal = false">
         <div class="w-full max-w-lg bg-surface border border-hairline shadow-2xl rounded-2xl flex flex-col max-h-[90vh] overflow-hidden text-fg">
-          <div class="flex items-center justify-between px-5 py-4 border-b border-hairline bg-sunken/30 shrink-0">
+          <div class="flex items-center justify-between px-5 py-4 border-b border-hairline bg-sunken shrink-0">
             <h3 class="text-xs font-black text-fg">
               {{ modalMode === "add" ? "新增藥物配製參考" : "編輯藥物配製參考" }}
             </h3>
@@ -299,22 +299,22 @@ const stepCount = computed(() =>
           </div>
           <div class="overflow-y-auto px-5 py-4 space-y-4 flex-1 custom-scrollbar">
             <div>
-              <label class="text-muted text-2xs font-black block mb-1.5">藥物 / 處方名稱 <span class="text-rose-400">*</span></label>
+              <label class="text-muted text-2xs font-black block mb-1.5">藥物 / 處方名稱 <span class="text-danger">*</span></label>
               <input v-model="form.name"
-                class="w-full px-3.5 py-2 text-xs rounded-xl bg-sunken border border-hairline text-fg focus:outline-none focus:border-amber-500/50 font-bold"
+                class="w-full px-3.5 py-2 text-xs rounded-xl bg-sunken border border-hairline text-fg focus:outline-none focus:border-warning/50 font-bold"
                 placeholder="如：Dopamine、FOY、Ceftriaxone" />
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="text-muted text-2xs font-black block mb-1.5">分類</label>
                 <input v-model="form.category"
-                  class="w-full px-3.5 py-2 text-xs rounded-xl bg-sunken border border-hairline text-fg focus:outline-none focus:border-amber-500/50 font-bold"
+                  class="w-full px-3.5 py-2 text-xs rounded-xl bg-sunken border border-hairline text-fg focus:outline-none focus:border-warning/50 font-bold"
                   placeholder="如：升壓劑、抗生素、消化科" />
               </div>
               <div>
                 <label class="text-muted text-2xs font-black block mb-1.5">濃度 / 規格</label>
                 <input v-model="form.indication"
-                  class="w-full px-3.5 py-2 text-xs rounded-xl bg-sunken border border-hairline text-fg focus:outline-none focus:border-amber-500/50 font-mono font-bold"
+                  class="w-full px-3.5 py-2 text-xs rounded-xl bg-sunken border border-hairline text-fg focus:outline-none focus:border-warning/50 font-mono font-bold"
                   placeholder="如：200mg in 250mL NS" />
               </div>
             </div>
@@ -325,20 +325,20 @@ const stepCount = computed(() =>
               </label>
               <textarea v-model="form.orders" rows="8"
                 placeholder="取 200mg Dopamine HCl&#10;加入 250mL NS → 800mcg/mL&#10;以 5mcg/kg/min 起始，每 5min 上調 2.5mcg/kg/min&#10;最高劑量 20mcg/kg/min"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono focus:outline-none focus:border-amber-500/50 resize-none custom-scrollbar leading-relaxed" />
+                class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono focus:outline-none focus:border-warning/50 resize-none custom-scrollbar leading-relaxed" />
             </div>
             <div>
-              <label class="text-rose-400/80 text-2xs font-black block mb-1.5">⚠️ 注意事項 / 警語</label>
+              <label class="text-danger/80 text-2xs font-black block mb-1.5">⚠️ 注意事項 / 警語</label>
               <textarea v-model="form.notes" rows="3"
                 placeholder="如：腎功能不全需減量；避免與 alkaline solution 混用"
-                class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-rose-900/30 text-fg text-xs focus:outline-none focus:border-red-500 resize-none leading-relaxed" />
+                class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-danger/30 text-fg text-xs focus:outline-none focus:border-danger resize-none leading-relaxed" />
             </div>
           </div>
-          <div class="flex justify-end gap-2.5 px-5 py-4 border-t border-hairline bg-sunken/20 shrink-0">
+          <div class="flex justify-end gap-2.5 px-5 py-4 border-t border-hairline bg-sunken shrink-0">
             <button @click="showModal = false"
               class="px-4 py-2 text-xs font-bold bg-elevated text-fg-secondary hover:text-fg hover:bg-raised rounded-xl transition-all cursor-pointer">取消</button>
             <button @click="save" :disabled="!form.name.trim()"
-              class="px-5 py-2 text-xs font-black bg-amber-600 hover:bg-amber-500 border border-amber-500/30 text-white rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
+              class="px-5 py-2 text-xs font-black bg-amber-600 hover:bg-amber-500 border border-warning/30 text-white rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
               儲存
             </button>
           </div>
@@ -359,7 +359,7 @@ const stepCount = computed(() =>
             <button @click="showDeleteConfirm = false"
               class="px-4 py-2 rounded-xl text-xs font-bold bg-elevated text-fg-secondary hover:text-fg hover:bg-raised border border-hairline cursor-pointer">取消</button>
             <button @click="deleteSelected"
-              class="px-4 py-2 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white border border-rose-500/30 cursor-pointer">確定刪除</button>
+              class="px-4 py-2 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-500 text-white border border-danger/30 cursor-pointer">確定刪除</button>
           </div>
         </div>
       </div>
