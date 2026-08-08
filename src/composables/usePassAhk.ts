@@ -8,12 +8,53 @@ interface PhysicianRow {
   his_password: string | null;
 }
 
+/**
+ * 送鍵模式。兩種寫法在不同機器上互有勝負，故做成可切換而非二選一寫死：
+ *   input  0.3.4 的原始寫法，交給 AHK 內建的自動退格與 SendInput。院內電腦
+ *          實測可用，且瞬間展開，因此為預設
+ *   event  0.3.5 的寫法，SendEvent + 手動退格。慢（約 0.5 秒）但能穿過會吃掉
+ *          SendInput 注入按鍵的低階鍵盤鉤子；快速模式掉字時改用這個
+ */
+export type PassAhkMode = "input" | "event";
+
+export const PASS_AHK_MODES: PassAhkMode[] = ["input", "event"];
+
+export const PASS_AHK_MODE_LABEL: Record<PassAhkMode, string> = {
+  input: "快速",
+  event: "相容",
+};
+
+export const PASS_AHK_MODE_HINT: Record<PassAhkMode, string> = {
+  input: "快速模式（0.3.4 寫法）：SendInput + AHK 自動退格（:*:），瞬間展開。院內電腦實測可用",
+  event: "相容模式（0.3.5 寫法）：SendEvent + 手動退格（:*B0Z:），展開約 0.5 秒。快速模式會掉字時改用這個",
+};
+
+const DEFAULT_MODE: PassAhkMode = "input";
+
 export interface PassAhkResult {
   content: string;
   hisCount: number;
+  mode: PassAhkMode;
 }
 
-export async function buildPassAhkContent(): Promise<PassAhkResult | null> {
+export async function getPassAhkMode(): Promise<PassAhkMode> {
+  const db = await getDb();
+  const rows = await db.select<{ value: string }[]>(
+    `SELECT value FROM app_settings WHERE key = 'pass_ahk_mode'`
+  );
+  return rows[0]?.value === "event" ? "event" : DEFAULT_MODE;
+}
+
+export async function setPassAhkMode(mode: PassAhkMode): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    `INSERT OR REPLACE INTO app_settings (key, value) VALUES ('pass_ahk_mode', ?)`, [mode]
+  );
+}
+
+/** mode 省略時採用使用者設定值（app_settings.pass_ahk_mode）。 */
+export async function buildPassAhkContent(mode?: PassAhkMode): Promise<PassAhkResult | null> {
+  const useMode = mode ?? (await getPassAhkMode());
   const db = await getDb();
   const physicians = await db.select<PhysicianRow[]>(
     `SELECT name, his_account, his_password
@@ -31,18 +72,23 @@ export async function buildPassAhkContent(): Promise<PassAhkResult | null> {
   const lines: string[] = [
     "#Requires AutoHotkey v2",
     "#SingleInstance Force",
-    // 一次展開約 0.5 秒；預設只允許 1 個執行緒，連續輸入時第二組會被丟掉。
-    "#MaxThreadsPerHotkey 3",
+  ];
+  // 相容模式一次展開約 0.5 秒；預設只允許 1 個執行緒，連續輸入時第二組會被
+  // 丟掉。快速模式是瞬間展開，不需要。
+  if (useMode === "event") lines.push("#MaxThreadsPerHotkey 3");
+  lines.push(
     "",
     "; ═══════════════════════════════════════════════════════",
     ";  pass.ahk — MedBase 自動產生的帳密熱字串",
     ";  觸發格式：輸入 .<帳號> 自動展開為 帳號 {Tab} 密碼",
+    `;  送鍵模式：${PASS_AHK_MODE_LABEL[useMode]}（於 MedBase「AHK 管理」切換）`,
     "; ═══════════════════════════════════════════════════════",
     "",
-  ];
+  );
 
-  // 送鍵組態是實測出來的（見 BF-017）：院內電腦有低階鍵盤鉤子會吃掉 SendInput
-  // 注入的按鍵，退格與內文都會隨機掉字，SendPlay 則完全被擋。
+  // 相容模式的送鍵組態是實測出來的（見 BF-017）：部分電腦有低階鍵盤鉤子會吃掉
+  // SendInput 注入的按鍵，退格與內文都會隨機掉字，SendPlay 則完全被擋。院內電腦
+  // 後來實測快速模式可用，故兩種寫法都留著讓使用者按機器切換。
   //   B0        關掉自動退格。這是關鍵 —— 自動退格不吃 SendMode，只設檔頭
   //             的 SendMode "Event" 沒用，退格照樣走被攔截的 SendInput
   //   Z         觸發後重置辨識器。Event 模式會把自己送出的帳密與退格餵回
@@ -56,12 +102,17 @@ export async function buildPassAhkContent(): Promise<PassAhkResult | null> {
     for (const p of his) {
       const trigger = `.${p.his_account}`;
       lines.push(`; ${p.name}`);
-      lines.push(`:*B0Z:${trigger}::`);
-      lines.push(`{`);
-      lines.push(`    SendMode "Event"`);
-      lines.push(`    SetKeyDelay 20, 20`);
-      lines.push(`    Sleep 100`);
-      lines.push(`    Send "{BS ${trigger.length}}"`);
+      if (useMode === "event") {
+        lines.push(`:*B0Z:${trigger}::`);
+        lines.push(`{`);
+        lines.push(`    SendMode "Event"`);
+        lines.push(`    SetKeyDelay 20, 20`);
+        lines.push(`    Sleep 100`);
+        lines.push(`    Send "{BS ${trigger.length}}"`);
+      } else {
+        lines.push(`:*:${trigger}::`);
+        lines.push(`{`);
+      }
       lines.push(`    SendText "${p.his_account}"`);
       lines.push(`    Send "{Tab}"`);
       if (p.his_password) lines.push(`    SendText "${p.his_password}"`);
@@ -71,7 +122,7 @@ export async function buildPassAhkContent(): Promise<PassAhkResult | null> {
     }
   }
 
-  return { content: lines.join("\n"), hisCount: his.length };
+  return { content: lines.join("\n"), hisCount: his.length, mode: useMode };
 }
 
 export async function getPassAhkPath(): Promise<string | null> {

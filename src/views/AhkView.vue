@@ -10,7 +10,12 @@ import { useCloudSettings } from "@/stores/cloudSettings";
 import { setGlobalSyncing } from "@/composables/useCloudSync";
 import { markLocalModified, saveSyncTimestamp } from "@/composables/useSyncMonitor";
 import { useLogger } from "@/composables/useLogger";
-import { buildPassAhkContent, getPassAhkPath, setPassAhkPath } from "@/composables/usePassAhk";
+import {
+  buildPassAhkContent, getPassAhkPath, setPassAhkPath,
+  getPassAhkMode, setPassAhkMode,
+  PASS_AHK_MODES, PASS_AHK_MODE_LABEL, PASS_AHK_MODE_HINT,
+  type PassAhkMode,
+} from "@/composables/usePassAhk";
 import { pullPhysiciansFromCloud } from "@/composables/usePhysicians";
 
 interface AhkScript {
@@ -37,7 +42,9 @@ const scriptContent = ref("");
 const groupScriptIds = ref<number[]>([]);
 const ahkExePath = ref("");
 const passAhkPath = ref<string | null>(null);
+const passAhkMode = ref<PassAhkMode>("input");
 const isRefreshingPass = ref(false);
+const isSwitchingMode = ref(false);
 const showSettings = ref(false);
 const search = ref("");
 const toast = ref("");
@@ -120,6 +127,7 @@ async function loadAll() {
   );
   ahkExePath.value = row[0]?.value ?? "";
   passAhkPath.value = await getPassAhkPath();
+  passAhkMode.value = await getPassAhkMode();
 }
 
 // ── 腳本管理 ─────────────────────────────────────────────
@@ -373,17 +381,7 @@ async function refreshPassAhkNow() {
     const result = await buildPassAhkContent();
     if (!result) { showToast("通訊錄中無帳號資料"); return; }
 
-    const path = passAhkPath.value;
-    await writeTextFile(path, result.content);
-
-    const db = await getDb();
-    await db.execute(
-      `UPDATE ahk_scripts SET updated_at = datetime('now') WHERE file_path = ?`, [path]
-    );
-    await loadAll();
-    if (selectedScript.value?.file_path === path) {
-      scriptContent.value = result.content;
-    }
+    const path = await writePassAhkFile(result.content);
 
     const summary = `已拉取 ${inserted} 新增／${updated} 更新，產生 ${result.hisCount} 筆帳密`;
     if (ahkExePath.value) {
@@ -396,6 +394,60 @@ async function refreshPassAhkNow() {
     showError(`刷新失敗：${(e as Error).message}`, e);
   } finally {
     isRefreshingPass.value = false;
+  }
+}
+
+/** 把新產生的內容落到帳密腳本本體：寫檔、更新時間、同步編輯器。Reload 由呼叫方決定。 */
+async function writePassAhkFile(content: string): Promise<string> {
+  const path = passAhkPath.value!;
+  await writeTextFile(path, content);
+
+  const db = await getDb();
+  await db.execute(
+    `UPDATE ahk_scripts SET updated_at = datetime('now') WHERE file_path = ?`, [path]
+  );
+  await loadAll();
+  if (selectedScript.value?.file_path === path) scriptContent.value = content;
+  return path;
+}
+
+/**
+ * 切換帳密熱字串的送鍵模式（快速／相容，即 0.3.4／0.3.5 兩種寫法）。
+ *
+ * 只換寫法不動資料，所以不拉雲端通訊錄，單純用本機資料重產。與刷新帳密一樣
+ * 是使用者主動觸發，時機安全，因此會 Reload 讓新寫法立即生效。
+ */
+async function switchPassAhkMode(mode: PassAhkMode) {
+  if (mode === passAhkMode.value || isSwitchingMode.value) return;
+  if (!passAhkPath.value) { showToast("尚未指定帳密腳本"); return; }
+
+  const previous = passAhkMode.value;
+  isSwitchingMode.value = true;
+  try {
+    await setPassAhkMode(mode);
+    passAhkMode.value = mode;
+
+    const result = await buildPassAhkContent(mode);
+    if (!result) {
+      showToast(`已切換為${PASS_AHK_MODE_LABEL[mode]}模式（通訊錄中無帳號資料，未重產）`);
+      return;
+    }
+
+    const path = await writePassAhkFile(result.content);
+    const summary = `已切換為${PASS_AHK_MODE_LABEL[mode]}模式，重產 ${result.hisCount} 筆帳密`;
+    if (ahkExePath.value) {
+      await triggerReload(path);
+      showToast(`${summary}｜已 Reload ✓`);
+    } else {
+      showToast(`${summary}｜未設定 AHK 執行檔，未 Reload`);
+    }
+  } catch (e) {
+    // 設定已寫進 DB 但檔案沒換成功時，兩邊會不一致，退回原模式
+    await setPassAhkMode(previous).catch(() => {});
+    passAhkMode.value = previous;
+    showError(`切換失敗：${(e as Error).message}`, e);
+  } finally {
+    isSwitchingMode.value = false;
   }
 }
 
@@ -914,12 +966,31 @@ function insertBuilderToScript() {
               </span>
               <button
                 @click="refreshPassAhkNow"
-                :disabled="isRefreshingPass"
+                :disabled="isRefreshingPass || isSwitchingMode"
                 class="text-xs px-4 py-2 bg-accent/10 border border-accent/30 text-accent hover:bg-accent/20 rounded-xl transition-all cursor-pointer font-black disabled:opacity-50 disabled:cursor-not-allowed"
                 title="拉取通訊錄 → 重新產生帳密 → 儲存並 Reload"
               >
                 {{ isRefreshingPass ? '刷新中…' : '🔄 刷新帳密' }}
               </button>
+              <!-- 送鍵模式切換：0.3.4（快速）／0.3.5（相容）兩種寫法 -->
+              <div class="flex items-center gap-1.5 ml-auto">
+                <span class="text-2xs font-black text-muted">送鍵模式</span>
+                <div class="flex items-center gap-1 bg-sunken border border-hairline rounded-xl p-1">
+                  <button
+                    v-for="m in PASS_AHK_MODES"
+                    :key="m"
+                    @click="switchPassAhkMode(m)"
+                    :disabled="isSwitchingMode || isRefreshingPass"
+                    :title="PASS_AHK_MODE_HINT[m]"
+                    class="text-2xs px-3 py-1 rounded-lg font-black border transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    :class="passAhkMode === m
+                      ? 'bg-accent/15 border-accent/30 text-accent'
+                      : 'border-transparent text-muted hover:text-fg'"
+                  >
+                    {{ isSwitchingMode && passAhkMode === m ? '…' : PASS_AHK_MODE_LABEL[m] }}
+                  </button>
+                </div>
+              </div>
             </template>
           </div>
 
