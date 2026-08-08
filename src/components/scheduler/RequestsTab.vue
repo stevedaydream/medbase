@@ -303,7 +303,7 @@ function adoptionClass(req: RequestEntry, dayIdx: number): string {
   const v1 = req.days[dayIdx]?.v1;
   if (!v1) return "";
   if (actual === v1) return "ring-1 ring-emerald-500";
-  if (actual && actual !== v1) return "ring-1 ring-gray-600 opacity-60";
+  if (actual && actual !== v1) return "ring-1 ring-hairline opacity-60";
   return "";
 }
 
@@ -314,40 +314,40 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full overflow-hidden bg-gray-950">
+  <div class="flex flex-col h-full overflow-hidden bg-sunken">
 
     <!-- ── Booking window control ───────────────────────────────────── -->
-    <div class="flex-shrink-0 border-b border-gray-800 px-4 py-3 space-y-3">
+    <div class="flex-shrink-0 border-b border-hairline px-4 py-3 space-y-3">
       <div class="flex items-center gap-3 flex-wrap">
-        <span class="text-xs font-semibold text-gray-300">預約視窗控制</span>
+        <span class="text-xs font-semibold text-fg-secondary">預約視窗控制</span>
 
         <!-- Status toggle -->
         <button v-if="canEdit" @click="toggleBooking" :disabled="isSavingConfig"
           class="flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border font-semibold transition-colors"
           :class="bookingOpen
             ? 'bg-emerald-900/60 border-emerald-700 text-emerald-300 hover:bg-emerald-900'
-            : 'bg-gray-800 border-gray-700 text-gray-500 hover:border-gray-500 hover:text-gray-300'">
+            : 'bg-elevated border-hairline text-muted hover:border-hairline hover:text-fg-secondary'">
           <span>{{ bookingOpen ? "● 預約開放中" : "○ 預約已關閉" }}</span>
         </button>
         <span v-else class="text-xs px-2 py-0.5 rounded-full border"
-          :class="bookingOpen ? 'border-emerald-800 text-emerald-400' : 'border-gray-800 text-gray-600'">
+          :class="bookingOpen ? 'border-emerald-800 text-emerald-400' : 'border-hairline text-muted'">
           {{ bookingOpen ? "● 開放中" : "○ 已關閉" }}
         </span>
 
         <div class="flex items-center gap-1.5 ml-2">
-          <span class="text-xs text-gray-600">預約月份</span>
+          <span class="text-xs text-muted">預約月份</span>
           <input v-model="bookingMonth" :disabled="!canEdit" maxlength="6" placeholder="202606"
-            class="w-20 text-xs px-2 py-0.5 bg-gray-800 border border-gray-700 rounded font-mono text-gray-300 outline-none focus:border-gray-500 disabled:opacity-50" />
+            class="w-20 text-xs px-2 py-0.5 bg-elevated border border-hairline rounded font-mono text-fg-secondary outline-none focus:border-hairline disabled:opacity-50" />
         </div>
         <div class="flex items-center gap-1.5">
-          <span class="text-xs text-gray-600">開放期間</span>
+          <span class="text-xs text-muted">開放期間</span>
           <input v-model="bookingFrom" :disabled="!canEdit" type="date"
-            class="text-xs px-2 py-0.5 bg-gray-800 border border-gray-700 rounded text-gray-300 outline-none focus:border-gray-500 disabled:opacity-50" />
-          <span class="text-xs text-gray-700">至</span>
+            class="text-xs px-2 py-0.5 bg-elevated border border-hairline rounded text-fg-secondary outline-none focus:border-hairline disabled:opacity-50" />
+          <span class="text-xs text-muted">至</span>
           <input v-model="bookingUntil" :disabled="!canEdit" type="date"
-            class="text-xs px-2 py-0.5 bg-gray-800 border border-gray-700 rounded text-gray-300 outline-none focus:border-gray-500 disabled:opacity-50" />
+            class="text-xs px-2 py-0.5 bg-elevated border border-hairline rounded text-fg-secondary outline-none focus:border-hairline disabled:opacity-50" />
           <button v-if="canEdit" @click="resetDefaultDates" title="重設為預設（上月16日～本月15日）"
-            class="text-xs px-1.5 py-0.5 rounded border border-gray-700 text-gray-500 hover:border-gray-500 hover:text-gray-300 transition-colors">
+            class="text-xs px-1.5 py-0.5 rounded border border-hairline text-muted hover:border-hairline hover:text-fg-secondary transition-colors">
             預設
           </button>
         </div>
@@ -361,12 +361,12 @@ onMounted(async () => {
       <div class="flex flex-col gap-2 pt-1">
         <!-- URL input row -->
         <div class="flex items-center gap-2 flex-wrap">
-          <span class="text-xs text-gray-500 flex-shrink-0">手機端站點</span>
+          <span class="text-xs text-muted flex-shrink-0">手機端站點</span>
           <input
             v-model="mobileAppUrl"
             :disabled="!canEdit"
             placeholder="https://your-app.netlify.app"
-            class="flex-1 min-w-0 text-xs px-2 py-1 bg-gray-800 border border-gray-700 rounded font-mono text-gray-300 outline-none focus:border-blue-600 disabled:opacity-50"
+            class="flex-1 min-w-0 text-xs px-2 py-1 bg-elevated border border-hairline rounded font-mono text-fg-secondary outline-none focus:border-blue-600 disabled:opacity-50"
           />
           <button v-if="canEdit" @click="saveMobileAppUrl" :disabled="isSavingUrl"
             class="text-xs px-3 py-1 bg-blue-700 hover:bg-blue-600 disabled:opacity-40 text-white rounded flex-shrink-0">
@@ -376,62 +376,62 @@ onMounted(async () => {
 
         <!-- Preview + copy + QR (only when URL is set) -->
         <div v-if="mobileUrl" class="flex items-center gap-2">
-          <span class="text-xs text-gray-700 flex-shrink-0">預覽：</span>
-          <span class="flex-1 text-xs font-mono text-gray-500 truncate">{{ mobileUrl }}</span>
+          <span class="text-xs text-muted flex-shrink-0">預覽：</span>
+          <span class="flex-1 text-xs font-mono text-muted truncate">{{ mobileUrl }}</span>
           <button @click="copyUrl"
             class="text-xs px-2 py-0.5 rounded transition-colors flex-shrink-0"
-            :class="urlCopied ? 'bg-emerald-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'">
+            :class="urlCopied ? 'bg-emerald-700 text-white' : 'bg-raised hover:bg-raised text-fg-secondary'">
             {{ urlCopied ? "✓ 已複製" : "複製" }}
           </button>
           <button @click="showQr = !showQr"
             class="text-xs px-2 py-0.5 rounded flex-shrink-0"
-            :class="showQr ? 'bg-indigo-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'">
+            :class="showQr ? 'bg-indigo-700 text-white' : 'bg-raised hover:bg-raised text-fg-secondary'">
             QR
           </button>
         </div>
-        <p v-else class="text-xs text-gray-700">貼入 Netlify 部署完成後的站點網址，儲存後可產生 QR Code 供員工掃描</p>
+        <p v-else class="text-xs text-muted">貼入 Netlify 部署完成後的站點網址，儲存後可產生 QR Code 供員工掃描</p>
 
         <!-- QR code panel -->
         <div v-if="showQr && qrDataUrl" class="flex justify-center py-2">
           <div class="bg-white p-3 rounded-lg inline-block shadow-lg">
             <img :src="qrDataUrl" alt="手機端 QR Code" class="w-44 h-44 block" />
-            <p class="text-center text-gray-600 text-xs mt-1.5 font-medium">{{ mobileUrl }}</p>
+            <p class="text-center text-muted text-xs mt-1.5 font-medium">{{ mobileUrl }}</p>
           </div>
         </div>
       </div>
     </div>
 
     <!-- ── Request list header ──────────────────────────────────────── -->
-    <div class="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-gray-800">
+    <div class="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-hairline">
       <button @click="pullRequests" :disabled="isLoading"
         class="text-xs px-3 py-1.5 bg-blue-800/60 hover:bg-blue-700 text-blue-200 rounded disabled:opacity-40">
         {{ isLoading ? "…" : "↓" }} 從雲端拉取請求
       </button>
-      <span class="text-xs text-gray-600">{{ requests.length }} 筆</span>
+      <span class="text-xs text-muted">{{ requests.length }} 筆</span>
       <div class="flex gap-1 ml-2">
         <button v-for="s in (['all','pending','adopted','ignored'] as const)" :key="s"
           @click="filterStatus = s"
           class="text-xs px-2 py-0.5 rounded transition-colors"
-          :class="filterStatus === s ? 'bg-gray-700 text-gray-200' : 'text-gray-600 hover:text-gray-400'">
+          :class="filterStatus === s ? 'bg-raised text-fg' : 'text-muted hover:text-fg-secondary'">
           {{ s === 'all' ? '全部' : s === 'pending' ? '待審' : s === 'adopted' ? '已採納' : '已忽略' }}
         </button>
       </div>
       <!-- Toast -->
-      <span v-if="toastMsg" class="ml-auto text-xs text-gray-400 italic">{{ toastMsg }}</span>
+      <span v-if="toastMsg" class="ml-auto text-xs text-fg-secondary italic">{{ toastMsg }}</span>
     </div>
 
     <!-- ── Request list ──────────────────────────────────────────────── -->
     <div class="flex-1 overflow-y-auto">
       <div v-if="!filteredRequests.length"
-        class="flex flex-col items-center justify-center h-full text-gray-700 gap-2">
+        class="flex flex-col items-center justify-center h-full text-muted gap-2">
         <span class="text-3xl">📋</span>
         <p class="text-sm">尚無請求資料</p>
         <p class="text-xs">點「從雲端拉取請求」載入，或等員工提交</p>
       </div>
 
       <table v-else class="w-full text-xs border-collapse">
-        <thead class="sticky top-0 bg-gray-900 z-10">
-          <tr class="text-gray-600 border-b border-gray-800">
+        <thead class="sticky top-0 bg-surface z-10">
+          <tr class="text-muted border-b border-hairline">
             <th class="px-3 py-2 text-left font-medium">代號</th>
             <th class="px-3 py-2 text-left font-medium">姓名</th>
             <th class="px-3 py-2 text-left font-medium w-36">提交時間</th>
@@ -443,18 +443,18 @@ onMounted(async () => {
         <tbody>
           <template v-for="req in filteredRequests" :key="req.code">
             <!-- Summary row -->
-            <tr class="border-b border-gray-800/60 hover:bg-gray-900/40 cursor-pointer"
+            <tr class="border-b border-hairline hover:bg-surface/40 cursor-pointer"
               @click="toggleExpand(req.code)">
               <td class="px-3 py-2 font-mono text-blue-300">{{ req.code }}</td>
-              <td class="px-3 py-2 text-gray-200">{{ req.name }}</td>
-              <td class="px-3 py-2 text-gray-600">{{ req.submittedAt || "—" }}</td>
-              <td class="px-3 py-2 text-gray-500">{{ summarize(req) || "（無志願）" }}</td>
+              <td class="px-3 py-2 text-fg">{{ req.name }}</td>
+              <td class="px-3 py-2 text-muted">{{ req.submittedAt || "—" }}</td>
+              <td class="px-3 py-2 text-muted">{{ summarize(req) || "（無志願）" }}</td>
               <td class="px-3 py-2 text-center">
                 <span class="inline-block px-1.5 py-0.5 rounded text-xs font-medium"
                   :class="{
                     'bg-orange-900/60 text-orange-300': req.status === 'pending',
                     'bg-emerald-900/60 text-emerald-300': req.status === 'adopted',
-                    'bg-gray-800 text-gray-600': req.status === 'ignored',
+                    'bg-elevated text-muted': req.status === 'ignored',
                   }">
                   {{ req.status === 'pending' ? '待審' : req.status === 'adopted' ? '已採納' : '已忽略' }}
                 </span>
@@ -464,36 +464,36 @@ onMounted(async () => {
                   <button v-if="req.status !== 'adopted'" @click="emit('adopt', req.code)"
                     class="text-xs px-2 py-0.5 bg-emerald-800/60 hover:bg-emerald-700 text-emerald-200 rounded">採納</button>
                   <button v-if="req.status === 'pending'" @click="emit('ignore', req.code)"
-                    class="text-xs px-2 py-0.5 bg-gray-700 hover:bg-gray-600 text-gray-400 rounded">忽略</button>
+                    class="text-xs px-2 py-0.5 bg-raised hover:bg-raised text-fg-secondary rounded">忽略</button>
                 </div>
               </td>
             </tr>
 
             <!-- Expanded: 31-day compact grid -->
-            <tr v-if="expandedCode === req.code" class="border-b border-gray-800">
-              <td :colspan="canEdit ? 6 : 5" class="px-3 py-3 bg-gray-900/50">
+            <tr v-if="expandedCode === req.code" class="border-b border-hairline">
+              <td :colspan="canEdit ? 6 : 5" class="px-3 py-3 bg-surface/50">
                 <div class="overflow-x-auto">
                   <table class="border-collapse text-xs" style="min-width: max-content">
                     <thead>
                       <tr>
-                        <th class="w-6 py-1 text-gray-700">志願</th>
+                        <th class="w-6 py-1 text-muted">志願</th>
                         <th v-for="day in dayLabels" :key="day.d"
                           class="w-7 py-1 text-center font-normal"
-                          :class="day.isSat ? 'text-blue-400' : day.isSun ? 'text-red-400' : 'text-gray-600'">
+                          :class="day.isSat ? 'text-blue-400' : day.isSun ? 'text-red-400' : 'text-muted'">
                           {{ day.d }}
                         </th>
                       </tr>
                       <tr>
-                        <th class="text-gray-700"></th>
+                        <th class="text-muted"></th>
                         <th v-for="day in dayLabels" :key="day.d"
-                          class="w-7 text-center font-normal text-gray-700">
+                          class="w-7 text-center font-normal text-muted">
                           {{ DOW[day.dow] }}
                         </th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr v-for="vn in [1,2,3] as const" :key="vn">
-                        <td class="py-0.5 text-gray-700 text-center">v{{ vn }}</td>
+                        <td class="py-0.5 text-muted text-center">v{{ vn }}</td>
                         <td v-for="day in dayLabels" :key="day.d"
                           class="py-0.5 text-center relative"
                           :class="[
@@ -505,13 +505,13 @@ onMounted(async () => {
                             :style="{ backgroundColor: '#374151', color: '#9ca3af' }">
                             {{ req.days[day.d - 1][`v${vn}` as 'v1'|'v2'|'v3'] }}
                           </span>
-                          <span v-else class="text-gray-800">·</span>
+                          <span v-else class="text-muted">·</span>
                         </td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
-                <p class="text-xs text-gray-700 mt-1">綠框 = 已採納；灰框 = 已採納但班別不同；橘角標 = 尚未排班</p>
+                <p class="text-xs text-muted mt-1">綠框 = 已採納；灰框 = 已採納但班別不同；橘角標 = 尚未排班</p>
               </td>
             </tr>
           </template>
