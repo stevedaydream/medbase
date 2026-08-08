@@ -147,15 +147,15 @@ function exportRecord() {
 </script>
 
 <template>
-  <div class="flex gap-6 h-full bg-slate-950/20 rounded-2xl border border-white/5 shadow-2xl p-1 overflow-hidden">
+  <div class="flex gap-6 h-full bg-sunken/20 rounded-2xl border border-hairline shadow-2xl p-1 overflow-hidden">
     
     <!-- Left: Protocol list -->
-    <div class="w-72 shrink-0 flex flex-col bg-slate-900/60 backdrop-blur-xl border-r border-white/5 p-4 space-y-4">
-      <div class="border-b border-white/5 pb-4 flex items-center gap-2">
+    <div class="w-72 shrink-0 flex flex-col bg-surface/60 backdrop-blur-xl border-r border-hairline p-4 space-y-4">
+      <div class="border-b border-hairline pb-4 flex items-center gap-2">
         <span class="text-rose-500 animate-pulse text-lg">🚨</span>
         <div>
           <p class="text-xs font-bold text-rose-500 uppercase tracking-widest">Emergency Protocols</p>
-          <p class="text-2xs text-slate-500 font-mono tracking-tight">CRITICAL PATHWAY MONITOR</p>
+          <p class="text-2xs text-muted font-mono tracking-tight">CRITICAL PATHWAY MONITOR</p>
         </div>
       </div>
       
@@ -167,36 +167,36 @@ function exportRecord() {
           class="w-full text-left px-4 py-3.5 rounded-xl transition-all duration-300 border relative group overflow-hidden"
           :class="selected?.id === p.id
             ? 'bg-rose-500/10 border-rose-500/30 text-rose-200 shadow-[0_0_15px_rgba(239,68,68,0.05)]'
-            : 'bg-slate-950/40 border-white/5 text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'"
+            : 'bg-sunken/40 border-hairline text-fg-secondary hover:text-fg hover:bg-surface/50'"
         >
           <div v-if="selected?.id === p.id" class="absolute left-0 top-0 bottom-0 w-1 bg-rose-500" />
-          <div class="font-bold text-xs uppercase tracking-wide transition-colors" :class="selected?.id === p.id ? 'text-rose-300' : 'text-slate-300'">{{ p.name }}</div>
-          <div class="text-2xs text-slate-500 mt-1 truncate font-mono">{{ parseJson<string>(p.triggers).join(' · ') }}</div>
+          <div class="font-bold text-xs uppercase tracking-wide transition-colors" :class="selected?.id === p.id ? 'text-rose-300' : 'text-fg-secondary'">{{ p.name }}</div>
+          <div class="text-2xs text-muted mt-1 truncate font-mono">{{ parseJson<string>(p.triggers).join(' · ') }}</div>
         </button>
-        <div v-if="protocols.length === 0" class="text-slate-600 text-xs text-center py-12 font-mono">LOADING PROTOCOLS...</div>
+        <div v-if="protocols.length === 0" class="text-muted text-xs text-center py-12 font-mono">LOADING PROTOCOLS...</div>
       </div>
     </div>
 
     <!-- Right: Protocol detail -->
     <div class="flex-1 overflow-y-auto p-4 space-y-6">
-      <div v-if="!selected" class="flex flex-col items-center justify-center h-full text-slate-600 text-center space-y-3">
+      <div v-if="!selected" class="flex flex-col items-center justify-center h-full text-muted text-center space-y-3">
         <span class="text-4xl opacity-20">🚨</span>
         <p class="text-xs uppercase tracking-widest font-mono">Please select an emergency protocol from the left</p>
       </div>
 
       <template v-else>
         <!-- Header -->
-        <div class="flex items-center justify-between border-b border-white/5 pb-4">
+        <div class="flex items-center justify-between border-b border-hairline pb-4">
           <div>
             <h2 class="text-xl font-black text-rose-400 tracking-wide uppercase flex items-center gap-2">
               <span class="inline-block w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
               {{ selected.name }}
             </h2>
-            <p class="text-2xs text-slate-500 mt-1 font-mono uppercase tracking-wide">Emergency Action Plan</p>
+            <p class="text-2xs text-muted mt-1 font-mono uppercase tracking-wide">Emergency Action Plan</p>
           </div>
           <button
             @click="exportRecord()"
-            class="px-4 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 active:scale-95 text-slate-300 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-lg"
+            class="px-4 py-2 rounded-xl bg-overlay/5 border border-hairline hover:bg-overlay/10 active:scale-95 text-fg-secondary text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-lg"
           >
             <span>📋</span> 複製急救護理紀錄
           </button>
@@ -220,10 +220,10 @@ function exportRecord() {
 
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
           <!-- Immediate actions Checklist -->
-          <div class="rounded-2xl bg-slate-900/40 border border-white/5 p-5 space-y-4">
-            <div class="border-b border-white/5 pb-2.5 flex justify-between items-center">
-              <span class="text-xs font-bold text-slate-300">立即處置步驟 (Checklist)</span>
-              <span class="text-2xs text-slate-500 font-mono">
+          <div class="rounded-2xl bg-surface/40 border border-hairline p-5 space-y-4">
+            <div class="border-b border-hairline pb-2.5 flex justify-between items-center">
+              <span class="text-xs font-bold text-fg-secondary">立即處置步驟 (Checklist)</span>
+              <span class="text-2xs text-muted font-mono">
                 {{ checkedActions.size }} / {{ parseJson(selected.immediate_actions).length }} 已處理
               </span>
             </div>
@@ -232,8 +232,8 @@ function exportRecord() {
               <label
                 v-for="(action, idx) in parseJson<string>(selected.immediate_actions)"
                 :key="idx"
-                class="flex items-start gap-3.5 p-3 rounded-xl border border-white/[0.02] bg-slate-950/20 cursor-pointer select-none transition-all duration-300 hover:bg-white/[0.02]"
-                :class="checkedActions.has(idx) ? 'opacity-40 border-transparent bg-transparent' : 'border-white/5'"
+                class="flex items-start gap-3.5 p-3 rounded-xl border border-hairline bg-sunken/20 cursor-pointer select-none transition-all duration-300 hover:bg-overlay/[0.02]"
+                :class="checkedActions.has(idx) ? 'opacity-40 border-transparent bg-transparent' : 'border-hairline'"
               >
                 <div class="relative flex items-center mt-0.5">
                   <input
@@ -242,13 +242,13 @@ function exportRecord() {
                     @change="toggleAction(idx)"
                     class="sr-only peer"
                   />
-                  <div class="w-5 h-5 rounded-lg border-2 transition-all duration-300 peer-checked:bg-rose-500 peer-checked:border-rose-500 border-white/20 flex items-center justify-center">
-                    <span class="text-white text-xs scale-0 peer-checked:scale-100 transition-transform font-bold">✓</span>
+                  <div class="w-5 h-5 rounded-lg border-2 transition-all duration-300 peer-checked:bg-rose-500 peer-checked:border-rose-500 border-hairline flex items-center justify-center">
+                    <span class="text-fg text-xs scale-0 peer-checked:scale-100 transition-transform font-bold">✓</span>
                   </div>
                 </div>
                 <span
                   class="text-xs transition-all duration-300 leading-normal"
-                  :class="checkedActions.has(idx) ? 'text-slate-500 line-through' : 'text-slate-200 font-semibold'"
+                  :class="checkedActions.has(idx) ? 'text-muted line-through' : 'text-fg font-semibold'"
                 >{{ action }}</span>
               </label>
             </div>
@@ -257,9 +257,9 @@ function exportRecord() {
           <!-- Meds / Timers / Contacts Panel -->
           <div class="space-y-6">
             <!-- Critical meds -->
-            <div class="rounded-2xl bg-slate-900/40 border border-white/5 p-5 space-y-4">
-              <div class="border-b border-white/5 pb-2.5">
-                <span class="text-xs font-bold text-slate-300">關鍵急救用藥 (Critical Meds)</span>
+            <div class="rounded-2xl bg-surface/40 border border-hairline p-5 space-y-4">
+              <div class="border-b border-hairline pb-2.5">
+                <span class="text-xs font-bold text-fg-secondary">關鍵急救用藥 (Critical Meds)</span>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div
@@ -276,15 +276,15 @@ function exportRecord() {
                     class="font-bold text-xs uppercase tracking-wide"
                     :class="med.color === 'red' ? 'text-rose-300' : med.color === 'yellow' ? 'text-amber-300' : 'text-sky-300'"
                   >{{ med.name }}</p>
-                  <p class="text-2xs text-slate-400 mt-1 font-mono leading-snug">{{ med.dose }}</p>
+                  <p class="text-2xs text-fg-secondary mt-1 font-mono leading-snug">{{ med.dose }}</p>
                 </div>
               </div>
             </div>
 
             <!-- Timers Widget -->
-            <div v-if="timerStates.length" class="rounded-2xl bg-slate-900/40 border border-white/5 p-5 space-y-4">
-              <div class="border-b border-white/5 pb-2.5">
-                <span class="text-xs font-bold text-slate-300">程序監控計時器 (Timers)</span>
+            <div v-if="timerStates.length" class="rounded-2xl bg-surface/40 border border-hairline p-5 space-y-4">
+              <div class="border-b border-hairline pb-2.5">
+                <span class="text-xs font-bold text-fg-secondary">程序監控計時器 (Timers)</span>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div
@@ -293,10 +293,10 @@ function exportRecord() {
                   class="flex items-center justify-between p-4 rounded-xl border transition-all duration-300"
                   :class="t.expired
                     ? 'bg-rose-500/10 border-rose-500/30 shadow-[0_0_15px_rgba(239,68,68,0.1)]'
-                    : 'bg-slate-950/40 border-white/5'"
+                    : 'bg-sunken/40 border-hairline'"
                 >
                   <div class="min-w-0">
-                    <p class="text-2xs text-slate-500 uppercase font-bold tracking-wider">{{ t.label }}</p>
+                    <p class="text-2xs text-muted uppercase font-bold tracking-wider">{{ t.label }}</p>
                     <p
                       class="text-3xl font-mono font-black tracking-wider mt-1 transition-all"
                       :class="t.expired
@@ -305,7 +305,7 @@ function exportRecord() {
                           ? 'text-amber-400 animate-pulse'
                           : t.running
                             ? 'text-emerald-400'
-                            : 'text-slate-400'"
+                            : 'text-fg-secondary'"
                     >{{ formatTime(t.remaining) }}</p>
                   </div>
                   <div class="flex flex-col gap-1.5 ml-3 shrink-0">
@@ -316,7 +316,7 @@ function exportRecord() {
                     >▶ 開始</button>
                     <button
                       @click="resetTimer(t)"
-                      class="px-3 py-1.5 rounded-lg bg-slate-800 border border-white/5 text-slate-400 text-2xs font-bold hover:bg-slate-700 hover:text-slate-200 transition-all cursor-pointer"
+                      class="px-3 py-1.5 rounded-lg bg-elevated border border-hairline text-fg-secondary text-2xs font-bold hover:bg-raised hover:text-fg transition-all cursor-pointer"
                     >↺ 重置</button>
                   </div>
                 </div>
@@ -324,17 +324,17 @@ function exportRecord() {
             </div>
 
             <!-- Contacts -->
-            <div v-if="parseJson(selected.contacts).length" class="rounded-2xl bg-slate-900/40 border border-white/5 p-5 space-y-4">
-              <div class="border-b border-white/5 pb-2.5">
-                <span class="text-xs font-bold text-slate-300">緊急通報聯絡 (Hotlines)</span>
+            <div v-if="parseJson(selected.contacts).length" class="rounded-2xl bg-surface/40 border border-hairline p-5 space-y-4">
+              <div class="border-b border-hairline pb-2.5">
+                <span class="text-xs font-bold text-fg-secondary">緊急通報聯絡 (Hotlines)</span>
               </div>
               <div class="space-y-2">
                 <div
                   v-for="c in parseContacts(selected.contacts)"
                   :key="c.ext"
-                  class="flex items-center justify-between p-3 rounded-xl bg-slate-950/40 border border-white/5 hover:border-rose-500/20 transition-all"
+                  class="flex items-center justify-between p-3 rounded-xl bg-sunken/40 border border-hairline hover:border-rose-500/20 transition-all"
                 >
-                  <span class="text-slate-400 text-xs font-semibold">{{ c.label }}</span>
+                  <span class="text-fg-secondary text-xs font-semibold">{{ c.label }}</span>
                   <button
                     @click="copy(c.ext)"
                     class="font-mono text-xs font-bold text-rose-400 hover:text-rose-300 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
