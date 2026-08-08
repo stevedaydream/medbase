@@ -132,12 +132,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <aside class="flex flex-col w-52 min-h-screen border-r bg-gray-950 border-gray-800 relative">
+  <aside class="flex flex-col w-52 min-h-screen border-r bg-sunken border-hairline relative">
 
     <!-- Logo -->
-    <div class="px-4 py-5 border-b border-gray-800">
-      <span class="text-lg font-bold tracking-tight text-white">MedBase</span>
-      <p class="text-xs mt-0.5 text-gray-500">臨床醫囑查詢系統</p>
+    <div class="px-4 py-5 border-b border-hairline">
+      <span class="text-lg font-bold tracking-tight text-fg">MedBase</span>
+      <p class="text-xs mt-0.5 text-muted">臨床醫囑查詢系統</p>
     </div>
 
     <!-- Emergency protocol link (fixed) -->
@@ -155,7 +155,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Divider -->
-    <div class="mx-4 mt-4 mb-2 border-t border-gray-800"></div>
+    <div class="mx-4 mt-4 mb-2 border-t border-hairline"></div>
 
     <!-- Nav items -->
     <nav class="flex-1 px-3 space-y-0.5 overflow-y-auto">
@@ -166,8 +166,8 @@ onUnmounted(() => {
         @pointerdown="onItemPointerDown($event, index)"
         class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm select-none cursor-grab active:cursor-grabbing transition-colors"
         :class="[
-          route.path === item.path ? 'bg-gray-800 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200',
-          dragFrom === index && isDragging ? 'opacity-30 bg-gray-800/30' : '',
+          route.path === item.path ? 'bg-elevated text-fg' : 'text-fg-secondary hover:bg-elevated hover:text-fg',
+          dragFrom === index && isDragging ? 'opacity-30 bg-elevated/30' : '',
           dragTo === index && isDragging && dragFrom !== index ? 'ring-1 ring-blue-500 ring-inset' : '',
         ]"
       >
@@ -177,14 +177,14 @@ onUnmounted(() => {
     </nav>
 
     <!-- 底部：資料管理 -->
-    <div class="px-3 pb-2 border-t border-gray-800 mt-2 pt-2">
+    <div class="px-3 pb-2 border-t border-hairline mt-2 pt-2">
       <RouterLink
         v-for="item in bottomNav" :key="item.path"
         :to="item.path"
         class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors"
         :class="route.path === item.path
-          ? 'bg-gray-800 text-white'
-          : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'"
+          ? 'bg-elevated text-fg'
+          : 'text-fg-secondary hover:bg-elevated hover:text-fg'"
       >
         <span class="text-base leading-none">{{ item.icon }}</span>
         <span>{{ item.label }}</span>
@@ -196,7 +196,7 @@ onUnmounted(() => {
       <button
         @click="emit('enter-compact')"
         title="精簡模式（吸附右側）"
-        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-gray-800 hover:text-gray-300 transition-colors"
+        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-muted hover:bg-elevated hover:text-fg-secondary transition-colors"
       >
         <span class="text-sm">⇥</span>
         <span>精簡模式</span>
@@ -204,18 +204,18 @@ onUnmounted(() => {
       <button
         @click="ui.toggleTheme()"
         :title="ui.resolvedDark ? '切換為淺色' : '切換為深色'"
-        class="px-2 py-1.5 rounded-lg text-xs text-gray-500 hover:bg-gray-800 hover:text-gray-300 transition-colors"
+        class="px-2 py-1.5 rounded-lg text-xs text-muted hover:bg-elevated hover:text-fg-secondary transition-colors"
       >
         <span class="text-sm">{{ ui.resolvedDark ? "☀" : "☾" }}</span>
       </button>
-      <span class="ml-auto text-xs text-gray-700">v0.3.3</span>
+      <span class="ml-auto text-xs text-muted">v0.3.3</span>
     </div>
 
     <!-- Drag ghost -->
     <Teleport to="body">
       <div
         v-if="ghost.visible"
-        class="fixed left-2 z-50 flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm bg-gray-700 text-white shadow-xl border border-gray-600 pointer-events-none"
+        class="fixed left-2 z-50 flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm bg-raised text-fg shadow-xl border border-hairline pointer-events-none"
         :style="{ top: `${ghost.y - 16}px`, width: '180px' }"
       >
         <span class="text-base leading-none shrink-0">{{ ghost.icon }}</span>
