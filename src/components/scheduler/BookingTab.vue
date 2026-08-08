@@ -226,22 +226,22 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
 </script>
 
 <template>
-  <div class="flex flex-col h-full overflow-hidden bg-gray-950 select-none">
+  <div class="flex flex-col h-full overflow-hidden bg-sunken select-none">
 
     <!-- ── Toolbar ──────────────────────────────────────────────────── -->
-    <div class="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-gray-800 flex-wrap">
-      <span class="text-sm font-semibold text-white">預約登記</span>
-      <span class="text-xs text-gray-600 font-mono">
+    <div class="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b border-hairline flex-wrap">
+      <span class="text-sm font-semibold text-fg">預約登記</span>
+      <span class="text-xs text-muted font-mono">
         {{ year }}/{{ String(month).padStart(2, '0') }}
       </span>
-      <span class="text-xs text-gray-700 border border-gray-800 rounded px-1.5 py-0.5">
+      <span class="text-xs text-muted border border-hairline rounded px-1.5 py-0.5">
         {{ activeCodes.size }}/{{ staff.length }} 人選取
       </span>
       <span v-if="pendingCount" class="text-xs text-emerald-600 border border-emerald-900 rounded px-1.5 py-0.5">
         {{ pendingCount }} 人有草稿
       </span>
       <div class="flex-1"></div>
-      <span v-if="toastMsg" class="text-xs text-gray-400 italic">{{ toastMsg }}</span>
+      <span v-if="toastMsg" class="text-xs text-fg-secondary italic">{{ toastMsg }}</span>
       <button @click="syncToCloud" :disabled="isSyncing || !pendingCount"
         class="text-xs px-3 py-1.5 bg-emerald-800/60 hover:bg-emerald-700 text-emerald-200 rounded disabled:opacity-40">
         {{ isSyncing ? '…' : '↑' }} 同步至雲端
@@ -252,15 +252,15 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
     <div class="flex flex-1 overflow-hidden">
 
       <!-- Left sidebar: staff list ────────────────────────────────── -->
-      <div class="w-28 flex-shrink-0 border-r border-gray-800 flex flex-col overflow-hidden">
+      <div class="w-28 flex-shrink-0 border-r border-hairline flex flex-col overflow-hidden">
         <!-- Select all / clear -->
-        <div class="flex gap-1 px-2 py-1.5 border-b border-gray-800">
+        <div class="flex gap-1 px-2 py-1.5 border-b border-hairline">
           <button @click="selectAll"
-            class="flex-1 text-xs py-0.5 bg-gray-800 hover:bg-blue-800/60 text-gray-400 hover:text-blue-200 rounded transition-colors">
+            class="flex-1 text-xs py-0.5 bg-elevated hover:bg-blue-800/60 text-fg-secondary hover:text-blue-200 rounded transition-colors">
             全選
           </button>
           <button @click="clearSelection"
-            class="flex-1 text-xs py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-400 rounded transition-colors">
+            class="flex-1 text-xs py-0.5 bg-elevated hover:bg-raised text-fg-secondary rounded transition-colors">
             清除
           </button>
         </div>
@@ -271,7 +271,7 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
             class="flex items-center gap-1.5 px-2 py-1.5 cursor-pointer text-xs border-l-2 transition-colors"
             :class="activeCodes.has(member.code)
               ? 'bg-blue-900/30 text-blue-300 border-blue-500 hover:bg-blue-900/50'
-              : 'text-gray-500 border-transparent hover:text-gray-300 hover:bg-gray-800/40'">
+              : 'text-muted border-transparent hover:text-fg-secondary hover:bg-elevated/40'">
             <span class="flex-1 truncate font-medium">{{ member.name }}</span>
             <!-- green dot / clear button -->
             <button v-if="hasAnyChoice(member.code)"
@@ -284,7 +284,7 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
           </div>
         </div>
         <!-- Sidebar footer: count -->
-        <div class="px-2 py-1.5 border-t border-gray-800 text-xs text-gray-700 text-center">
+        <div class="px-2 py-1.5 border-t border-hairline text-xs text-muted text-center">
           點名字選取編輯
         </div>
       </div>
@@ -293,10 +293,10 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
       <div class="flex-1 overflow-auto">
 
         <!-- Empty state -->
-        <div v-if="!staff.length" class="flex items-center justify-center h-full text-gray-700 text-sm">
+        <div v-if="!staff.length" class="flex items-center justify-center h-full text-muted text-sm">
           尚無人員資料，請先在人員Tab新增
         </div>
-        <div v-else-if="isLoading" class="flex items-center justify-center h-full text-gray-600 text-sm">
+        <div v-else-if="isLoading" class="flex items-center justify-center h-full text-muted text-sm">
           載入中…
         </div>
 
@@ -304,27 +304,27 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
           <thead>
             <!-- Date row -->
             <tr class="sticky top-0 z-20">
-              <th class="sticky left-0 z-30 bg-gray-900 border-b border-r border-gray-800 px-3 py-2 text-left font-semibold text-gray-400 min-w-[7rem]">
+              <th class="sticky left-0 z-30 bg-surface border-b border-r border-hairline px-3 py-2 text-left font-semibold text-fg-secondary min-w-[7rem]">
                 姓名
               </th>
               <th v-for="day in dayLabels" :key="day.d"
-                class="sticky top-0 z-20 border-b border-gray-800 text-center font-semibold w-9 py-2"
+                class="sticky top-0 z-20 border-b border-hairline text-center font-semibold w-9 py-2"
                 :class="day.isSat ? 'bg-blue-950 text-blue-300'
                       : day.isSun ? 'bg-red-950 text-red-300'
-                      :             'bg-gray-900 text-gray-400'">
+                      :             'bg-surface text-fg-secondary'">
                 {{ day.d }}
               </th>
             </tr>
             <!-- DOW row -->
             <tr class="sticky top-[33px] z-20">
-              <th class="sticky left-0 z-30 bg-gray-900 border-b border-r border-gray-800 px-3 py-1 text-xs text-gray-600 font-normal text-left">
+              <th class="sticky left-0 z-30 bg-surface border-b border-r border-hairline px-3 py-1 text-xs text-muted font-normal text-left">
                 第1志願
               </th>
               <th v-for="day in dayLabels" :key="day.d"
-                class="border-b border-gray-800 text-center py-1 font-normal"
+                class="border-b border-hairline text-center py-1 font-normal"
                 :class="day.isSat ? 'bg-blue-950/60 text-blue-400'
                       : day.isSun ? 'bg-red-950/60 text-red-400'
-                      :             'bg-gray-900 text-gray-600'">
+                      :             'bg-surface text-muted'">
                 {{ DOW[day.dow] }}
               </th>
             </tr>
@@ -334,10 +334,10 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
               <!-- Name cell (click to toggle) -->
               <td
                 @click="toggleActive(member.code)"
-                class="sticky left-0 z-10 border-b border-r border-gray-800 px-3 py-1.5 font-medium whitespace-nowrap min-w-[7rem] cursor-pointer transition-colors border-l-2"
+                class="sticky left-0 z-10 border-b border-r border-hairline px-3 py-1.5 font-medium whitespace-nowrap min-w-[7rem] cursor-pointer transition-colors border-l-2"
                 :class="activeCodes.has(member.code)
                   ? 'bg-blue-900/40 text-blue-200 border-blue-500'
-                  : 'bg-gray-950 group-hover:bg-gray-900/60 text-gray-400 border-transparent hover:text-gray-200'">
+                  : 'bg-sunken group-hover:bg-surface/60 text-fg-secondary border-transparent hover:text-fg'">
                 <span class="flex items-center gap-1.5">
                   {{ member.name }}
                   <span v-if="hasAnyChoice(member.code) && !activeCodes.has(member.code)"
@@ -346,7 +346,7 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
               </td>
               <!-- Day cells -->
               <td v-for="day in dayLabels" :key="day.d"
-                class="border-b border-gray-800/60 text-center py-1 relative transition-colors"
+                class="border-b border-hairline text-center py-1 relative transition-colors"
                 :class="[
                   activeCodes.has(member.code)
                     ? 'cursor-pointer hover:bg-blue-900/20'
@@ -363,7 +363,7 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
                 </span>
                 <span v-else
                   class="inline-block w-7 text-center"
-                  :class="activeCodes.has(member.code) ? 'text-gray-700' : 'text-gray-900'">·</span>
+                  :class="activeCodes.has(member.code) ? 'text-muted' : 'text-muted'">·</span>
 
                 <!-- v2 dot (bottom-right) -->
                 <span v-if="getDraftDay(member.code, day.d - 1).v2"
@@ -386,7 +386,7 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
         class="fixed inset-0 z-50"
         @click.self="activeCell = null">
         <div
-          class="absolute bg-gray-900 border border-gray-700 rounded-xl shadow-2xl p-3 space-y-2 min-w-[210px]"
+          class="absolute bg-surface border border-hairline rounded-xl shadow-2xl p-3 space-y-2 min-w-[210px]"
           :style="{ left: activeCell.px + 'px', top: activeCell.py + 'px' }">
           <!-- v1 / v2 / v3 rows -->
           <div v-for="vn in ([1, 2, 3] as const)" :key="vn"
@@ -400,23 +400,23 @@ watch(yyyyMM, () => { activeCodes.value = new Set(); loadDrafts(); });
               class="text-xs font-bold px-1.5 py-0.5 rounded transition-all hover:scale-110 hover:brightness-125"
               :style="shiftStyle(shift.code)"
               :class="getDraftDay(activeCell!.code, activeCell!.dayIdx)[`v${vn}` as 'v1'|'v2'|'v3'] === shift.code
-                ? 'ring-2 ring-white/60 scale-105' : ''">
+                ? 'ring-2 ring-hairline scale-105' : ''">
               {{ shift.code }}
             </button>
             <button
               @click="setChoice(vn, null)"
-              class="text-xs px-1.5 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-600 hover:text-gray-300 transition-colors">
+              class="text-xs px-1.5 py-0.5 rounded bg-elevated hover:bg-raised text-muted hover:text-fg-secondary transition-colors">
               ×
             </button>
           </div>
           <!-- Footer: clear all + close -->
-          <div class="flex items-center justify-between pt-1 border-t border-gray-800">
+          <div class="flex items-center justify-between pt-1 border-t border-hairline">
             <button @click="clearDay"
               class="text-xs text-red-700 hover:text-red-500 transition-colors">
               清除本日
             </button>
             <button @click="activeCell = null"
-              class="text-xs text-gray-600 hover:text-gray-400 transition-colors">
+              class="text-xs text-muted hover:text-fg-secondary transition-colors">
               關閉
             </button>
           </div>
