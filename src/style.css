@@ -15,18 +15,24 @@
    汰除對象：slate-500（4.24:1，375 處）、slate-600（2.66:1，149 處）
    ═══════════════════════════════════════════════════════════════ */
 @theme {
-  /* 表面 */
+  /* 表面（由深到淺的層疊順序：sunken → surface → elevated → raised）
+     sunken   最底：輸入框、程式碼區、頁面底色
+     surface  一般：面板、卡片
+     elevated 浮起：按鈕、次級卡片
+     raised   最上：hover 態、選中態 */
+  --color-sunken:       #eef2f7;
   --color-surface:      #f8fafc;
   --color-elevated:     #ffffff;
-  --color-sunken:       #eef2f7;
+  --color-raised:       #e2e8f0;
 
   /* 文字三階 */
   --color-fg:           #0f172a;
   --color-fg-secondary: #334155;
   --color-muted:        #556374;
 
-  /* 分隔線 */
+  /* 分隔線與疊層：淺色時為深色、深色時為淺色，兩者必須反轉 */
   --color-hairline:     rgb(15 23 42 / 0.10);
+  --color-overlay:      #0f172a;
 
   /* 語意色：全站一致，不得挪作頁面裝飾色 */
   --color-danger:       #b91c1c;
@@ -50,15 +56,17 @@
 
 /* 深色主題：只覆寫 token 值本身，不新增任何 class */
 :root[data-theme="dark"] {
+  --color-sunken:       #0d1017;
   --color-surface:      #131720;
   --color-elevated:     #1b2130;
-  --color-sunken:       #0d1017;
+  --color-raised:       #252c3d;
 
   --color-fg:           #e8edf5;
   --color-fg-secondary: #a9b6c8;
   --color-muted:        #8494a8;
 
   --color-hairline:     rgb(255 255 255 / 0.07);
+  --color-overlay:      #ffffff;
 
   --color-danger:       #f87171;
   --color-warning:      #fbbf24;
@@ -68,15 +76,17 @@
 /* JS 尚未接手前（首屏）先跟隨系統，避免深色使用者看到白色閃爍 */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    --color-sunken:       #0d1017;
     --color-surface:      #131720;
     --color-elevated:     #1b2130;
-    --color-sunken:       #0d1017;
+    --color-raised:       #252c3d;
 
     --color-fg:           #e8edf5;
     --color-fg-secondary: #a9b6c8;
     --color-muted:        #8494a8;
 
     --color-hairline:     rgb(255 255 255 / 0.07);
+    --color-overlay:      #ffffff;
 
     --color-danger:       #f87171;
     --color-warning:      #fbbf24;
