@@ -176,43 +176,43 @@ const tipCount = computed(() =>
 </script>
 
 <template>
-  <div class="flex gap-6 h-full text-slate-100 select-none bg-slate-950/20">
+  <div class="flex gap-6 h-full text-fg select-none bg-sunken/20">
 
     <!-- ── 左側列表 ─────────────────────────────── -->
-    <div class="flex flex-col w-80 shrink-0 bg-slate-900/40 backdrop-blur-md border border-white/5 rounded-2xl p-4 shadow-xl overflow-hidden">
+    <div class="flex flex-col w-80 shrink-0 bg-surface/40 backdrop-blur-md border border-hairline rounded-2xl p-4 shadow-xl overflow-hidden">
       <div class="flex gap-2 mb-3 shrink-0">
         <input v-model="search" placeholder="搜尋檢查名稱、HIS 代碼…"
-          class="flex-1 px-3 py-2.5 rounded-xl bg-slate-950 border border-white/10 text-slate-200 text-xs placeholder-slate-600 outline-none focus:border-purple-500/50 font-bold" />
+          class="flex-1 px-3 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs placeholder-muted outline-none focus:border-purple-500/50 font-bold" />
         <button @click="openAdd"
           class="w-10 h-10 flex items-center justify-center rounded-xl bg-purple-600 hover:bg-purple-500 border border-purple-500/30 text-white text-lg font-bold transition-all active:scale-95 shadow-lg shadow-purple-500/10 cursor-pointer"
           title="新增 HIS 開單備忘">＋</button>
       </div>
       
       <div class="flex items-center justify-between px-1.5 mb-3 shrink-0">
-        <span class="text-slate-500 text-2xs font-black uppercase tracking-widest font-mono">{{ filtered.length }} EXAMINATIONS</span>
+        <span class="text-muted text-2xs font-black uppercase tracking-widest font-mono">{{ filtered.length }} EXAMINATIONS</span>
         <div class="flex gap-1">
           <button @click="pullFromCloud" :disabled="isSyncing"
             class="text-2xs font-bold px-2.5 py-1.5 rounded-lg border border-indigo-500/30 text-indigo-400 hover:border-indigo-500 hover:bg-indigo-500/10 disabled:opacity-40 transition-colors cursor-pointer">
             {{ isSyncing ? "…" : "↓ 同步" }}
           </button>
           <button @click="pushToCloud" :disabled="isSyncing"
-            class="text-2xs font-bold px-2.5 py-1.5 rounded-lg border border-white/5 bg-slate-800 text-slate-400 hover:text-slate-200 disabled:opacity-40 transition-colors cursor-pointer">
+            class="text-2xs font-bold px-2.5 py-1.5 rounded-lg border border-hairline bg-elevated text-fg-secondary hover:text-fg disabled:opacity-40 transition-colors cursor-pointer">
             {{ isSyncing ? "…" : "↑ 上傳" }}
           </button>
         </div>
       </div>
 
       <div class="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
-        <div v-if="filtered.length === 0" class="text-slate-600 text-xs italic text-center py-12">無資料</div>
+        <div v-if="filtered.length === 0" class="text-muted text-xs italic text-center py-12">無資料</div>
         <button v-for="m in filtered" :key="m.id" @click="selected = m"
           class="w-full text-left px-4 py-3 rounded-xl border transition-all cursor-pointer group"
           :class="selected?.id === m.id 
             ? 'bg-purple-600/20 border-purple-500/50 text-white shadow-[0_0_15px_rgba(168,85,247,0.08)]' 
-            : 'bg-slate-950/40 border-white/5 text-slate-400 hover:border-white/10 hover:text-slate-200 hover:bg-slate-900/30'">
+            : 'bg-sunken/40 border-hairline text-fg-secondary hover:border-hairline hover:text-fg hover:bg-surface/30'">
           <div class="flex items-center gap-2">
             <span class="font-bold text-xs truncate flex-1">{{ m.name }}</span>
             <span v-if="m.his_code"
-              class="text-2xs font-mono shrink-0 opacity-70 bg-slate-950 px-1.5 py-0.5 rounded border border-white/5 text-slate-400 font-bold">
+              class="text-2xs font-mono shrink-0 opacity-70 bg-sunken px-1.5 py-0.5 rounded border border-hairline text-fg-secondary font-bold">
               {{ m.his_code }}
             </span>
           </div>
@@ -222,29 +222,29 @@ const tipCount = computed(() =>
     </div>
 
     <!-- ── 右側詳情 ─────────────────────────────── -->
-    <div class="flex-1 rounded-2xl bg-slate-900/40 backdrop-blur-md border border-white/5 p-6 overflow-y-auto flex flex-col shadow-xl">
-      <div v-if="!selected" class="flex-1 flex flex-col items-center justify-center gap-3 text-slate-500 py-12">
+    <div class="flex-1 rounded-2xl bg-surface/40 backdrop-blur-md border border-hairline p-6 overflow-y-auto flex flex-col shadow-xl">
+      <div v-if="!selected" class="flex-1 flex flex-col items-center justify-center gap-3 text-muted py-12">
         <span class="text-4xl animate-pulse">🔬</span>
         <p class="text-xs font-black">請選擇檢查項目，或點擊 ＋ 新增</p>
-        <span class="text-2xs text-center text-slate-600 max-w-xs mt-1 leading-relaxed">
+        <span class="text-2xs text-center text-muted max-w-xs mt-1 leading-relaxed">
           收錄 HIS 代碼、特殊開法、需搭配的項目、預約限制等細節。
         </span>
       </div>
       <div v-else class="space-y-6 flex-1 flex flex-col">
         <!-- Detail Header -->
-        <div class="flex items-start justify-between border-b border-white/5 pb-4 shrink-0">
+        <div class="flex items-start justify-between border-b border-hairline pb-4 shrink-0">
           <div class="min-w-0 flex-1 mr-4">
-            <h2 class="text-base font-black text-slate-200 tracking-wider">{{ selected.name }}</h2>
+            <h2 class="text-base font-black text-fg tracking-wider">{{ selected.name }}</h2>
             <div class="flex items-center gap-2 mt-2 flex-wrap font-mono">
               <span v-if="selected.category" class="text-2xs font-black uppercase bg-purple-500/10 border border-purple-500/30 text-purple-400 px-2 py-0.5 rounded-full">{{ selected.category }}</span>
-              <span v-if="selected.indication" class="text-slate-400 text-xs font-bold">{{ selected.indication }}</span>
+              <span v-if="selected.indication" class="text-fg-secondary text-xs font-bold">{{ selected.indication }}</span>
             </div>
           </div>
           <div class="flex gap-1.5 shrink-0">
             <button @click="copyTips"
-              class="px-3.5 py-2 rounded-xl border border-white/5 bg-slate-950/40 hover:bg-slate-800 text-slate-300 text-xs font-bold transition-all active:scale-95 cursor-pointer">📋 複製備忘</button>
+              class="px-3.5 py-2 rounded-xl border border-hairline bg-sunken/40 hover:bg-elevated text-fg-secondary text-xs font-bold transition-all active:scale-95 cursor-pointer">📋 複製備忘</button>
             <button @click="openEdit"
-              class="px-3.5 py-2 rounded-xl border border-white/5 bg-slate-950/40 hover:bg-slate-800 text-slate-300 text-xs font-bold transition-all active:scale-95 cursor-pointer">✏️ 編輯</button>
+              class="px-3.5 py-2 rounded-xl border border-hairline bg-sunken/40 hover:bg-elevated text-fg-secondary text-xs font-bold transition-all active:scale-95 cursor-pointer">✏️ 編輯</button>
             <button @click="showDeleteConfirm = true"
               class="px-3.5 py-2 rounded-xl border border-rose-950/30 bg-rose-950/20 hover:bg-rose-900/30 text-rose-400 text-xs font-bold transition-all active:scale-95 cursor-pointer">🗑 刪除</button>
           </div>
@@ -267,24 +267,24 @@ const tipCount = computed(() =>
         </div>
 
         <!-- 開單注意事項 -->
-        <div class="bg-slate-950/40 border border-white/5 rounded-2xl p-5 flex flex-col flex-1 overflow-hidden shadow-inner">
-          <p class="text-2xs font-black text-slate-500 mb-4">開單注意事項</p>
+        <div class="bg-sunken/40 border border-hairline rounded-2xl p-5 flex flex-col flex-1 overflow-hidden shadow-inner">
+          <p class="text-2xs font-black text-muted mb-4">開單注意事項</p>
           <div class="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
             <div v-for="(tip, i) in parseTips(selected.orders)" :key="i"
-              class="flex items-start gap-3 text-slate-300 text-xs font-mono bg-slate-950/60 border border-white/[0.03] rounded-xl px-4 py-3 hover:border-white/10 transition-colors">
+              class="flex items-start gap-3 text-fg-secondary text-xs font-mono bg-sunken/60 border border-hairline rounded-xl px-4 py-3 hover:border-hairline transition-colors">
               <span class="text-purple-400 text-xs font-bold pt-0.5 w-5 shrink-0 select-none">▸</span>
               <span class="leading-relaxed">{{ tip }}</span>
             </div>
-            <div v-if="parseTips(selected.orders).length === 0" class="text-slate-500 text-xs italic text-center py-12">
+            <div v-if="parseTips(selected.orders).length === 0" class="text-muted text-xs italic text-center py-12">
               尚無注意事項，點「✏️ 編輯」新增
             </div>
           </div>
         </div>
 
         <!-- 備註 -->
-        <div v-if="selected.notes" class="bg-slate-950/30 border border-white/5 rounded-2xl p-4 shrink-0 shadow-md">
-          <p class="text-xs font-black text-slate-500 mb-2">備註說明 / 注意事項</p>
-          <p class="text-slate-300 text-xs leading-relaxed whitespace-pre-line font-bold">{{ selected.notes }}</p>
+        <div v-if="selected.notes" class="bg-sunken/30 border border-hairline rounded-2xl p-4 shrink-0 shadow-md">
+          <p class="text-xs font-black text-muted mb-2">備註說明 / 注意事項</p>
+          <p class="text-fg-secondary text-xs leading-relaxed whitespace-pre-line font-bold">{{ selected.notes }}</p>
         </div>
       </div>
     </div>
@@ -292,21 +292,21 @@ const tipCount = computed(() =>
     <!-- ── Modal：新增 / 編輯 ──────────────────── -->
     <Teleport to="body">
       <div v-if="showModal"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-sunken/60 backdrop-blur-sm"
         @click.self="showModal = false">
-        <div class="w-full max-w-lg bg-slate-900 border border-white/10 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] text-slate-100 overflow-hidden">
-          <div class="flex items-center justify-between px-5 py-4 border-b border-white/5 shrink-0 bg-slate-950/30">
-            <h3 class="text-xs font-black text-slate-200">
+        <div class="w-full max-w-lg bg-surface border border-hairline rounded-2xl shadow-2xl flex flex-col max-h-[90vh] text-fg overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-4 border-b border-hairline shrink-0 bg-sunken/30">
+            <h3 class="text-xs font-black text-fg">
               {{ modalMode === "add" ? "新增 HIS 開單備忘" : "編輯 HIS 開單備忘" }}
             </h3>
-            <button @click="showModal = false" class="text-slate-500 hover:text-slate-200 text-xl leading-none cursor-pointer">×</button>
+            <button @click="showModal = false" class="text-muted hover:text-fg text-xl leading-none cursor-pointer">×</button>
           </div>
           
           <div class="overflow-y-auto px-6 py-5 space-y-4 flex-1 custom-scrollbar">
             <div>
-              <label class="text-slate-500 text-2xs font-black block mb-1.5">檢查名稱 <span class="text-rose-400">*</span></label>
+              <label class="text-muted text-2xs font-black block mb-1.5">檢查名稱 <span class="text-rose-400">*</span></label>
               <input v-model="form.name"
-                class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs outline-none focus:border-purple-500/50 font-bold"
+                class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-purple-500/50 font-bold"
                 placeholder="如：MRCP、無痛大腸鏡、Frozen Section" />
             </div>
             
@@ -319,39 +319,39 @@ const tipCount = computed(() =>
             
             <div class="flex gap-4">
               <div class="flex-1">
-                <label class="text-slate-500 text-2xs font-black block mb-1.5">分類</label>
+                <label class="text-muted text-2xs font-black block mb-1.5">分類</label>
                 <input v-model="form.category"
-                  class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs outline-none focus:border-purple-500/50 font-bold"
+                  class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-purple-500/50 font-bold"
                   placeholder="如：影像、內視鏡、病理、核醫" />
               </div>
               <div class="flex-1">
-                <label class="text-slate-500 text-2xs font-black block mb-1.5">適應症 / 說明</label>
+                <label class="text-muted text-2xs font-black block mb-1.5">適應症 / 說明</label>
                 <input v-model="form.indication"
-                  class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs outline-none focus:border-purple-500/50 font-bold"
+                  class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-purple-500/50 font-bold"
                   placeholder="如：膽道疾病評估" />
               </div>
             </div>
             
             <div>
-              <label class="text-slate-500 text-2xs font-black block mb-1.5">
+              <label class="text-muted text-2xs font-black block mb-1.5">
                 開單注意事項（每行一條）
-                <span class="text-slate-600 font-bold ml-2">({{ tipCount }} 條)</span>
+                <span class="text-muted font-bold ml-2">({{ tipCount }} 條)</span>
               </label>
               <textarea v-model="form.orders" rows="7"
                 placeholder="無痛需同時開 R7401 + R602&#10;需會診麻醉科後才可執行&#10;禁食 6 小時以上&#10;…"
-                class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs outline-none focus:border-purple-500/50 resize-none custom-scrollbar font-medium" />
+                class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-purple-500/50 resize-none custom-scrollbar font-medium" />
             </div>
             
             <div>
-              <label class="text-slate-500 text-2xs font-black block mb-1.5">備註（時間限制、預約方式等）</label>
+              <label class="text-muted text-2xs font-black block mb-1.5">備註（時間限制、預約方式等）</label>
               <textarea v-model="form.notes" rows="2"
                 placeholder="如：一三五才可預約 Frozen；需先打電話到病理科（分機 3456）"
-                class="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-xl text-slate-200 text-xs outline-none focus:border-purple-500/50 resize-none custom-scrollbar font-medium" />
+                class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-purple-500/50 resize-none custom-scrollbar font-medium" />
             </div>
           </div>
           
-          <div class="flex justify-end gap-3 px-6 py-4 border-t border-white/5 shrink-0 bg-slate-950/30">
-            <button @click="showModal = false" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl cursor-pointer">取消</button>
+          <div class="flex justify-end gap-3 px-6 py-4 border-t border-hairline shrink-0 bg-sunken/30">
+            <button @click="showModal = false" class="px-4 py-2 bg-elevated hover:bg-raised text-fg-secondary text-xs font-bold rounded-xl cursor-pointer">取消</button>
             <button @click="save" :disabled="!form.name.trim()"
               class="px-5 py-2 bg-purple-600 border border-purple-500/30 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-purple-500/10 cursor-pointer">
               儲存
@@ -364,13 +364,13 @@ const tipCount = computed(() =>
     <!-- ── 刪除確認 ───────────────────────────────── -->
     <Teleport to="body">
       <div v-if="showDeleteConfirm"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-sunken/60 backdrop-blur-sm"
         @click.self="showDeleteConfirm = false">
-        <div class="bg-slate-900 border border-white/10 rounded-2xl shadow-2xl p-6 w-full max-w-sm text-slate-100">
-          <p class="font-bold text-sm mb-1 text-slate-200">確認刪除</p>
-          <p class="text-slate-400 text-xs mb-5 font-medium">確定刪除「{{ selected?.name }}」？此操作無法復原。</p>
+        <div class="bg-surface border border-hairline rounded-2xl shadow-2xl p-6 w-full max-w-sm text-fg">
+          <p class="font-bold text-sm mb-1 text-fg">確認刪除</p>
+          <p class="text-fg-secondary text-xs mb-5 font-medium">確定刪除「{{ selected?.name }}」？此操作無法復原。</p>
           <div class="flex justify-end gap-3">
-            <button @click="showDeleteConfirm = false" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl cursor-pointer">取消</button>
+            <button @click="showDeleteConfirm = false" class="px-4 py-2 bg-elevated hover:bg-raised text-fg-secondary text-xs font-bold rounded-xl cursor-pointer">取消</button>
             <button @click="deleteSelected" class="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl cursor-pointer">確定刪除</button>
           </div>
         </div>
@@ -380,7 +380,7 @@ const tipCount = computed(() =>
     <!-- Toast -->
     <Teleport to="body">
       <Transition name="toast">
-        <div v-if="toastMsg" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-5 py-2.5 bg-slate-900/90 border border-white/10 text-slate-200 text-xs font-bold rounded-2xl shadow-2xl pointer-events-none z-50 backdrop-blur-md">
+        <div v-if="toastMsg" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-5 py-2.5 bg-surface/90 border border-hairline text-fg text-xs font-bold rounded-2xl shadow-2xl pointer-events-none z-50 backdrop-blur-md">
           {{ toastMsg }}
         </div>
       </Transition>
