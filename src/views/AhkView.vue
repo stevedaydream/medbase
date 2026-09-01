@@ -115,7 +115,7 @@ function showError(msg: string, err?: unknown) {
 onMounted(async () => { await loadAll(); });
 
 function openAhkSite() {
-  openUrl("https://www.autohotkey.com/download/");
+  openUrl("https://www.autohotkey.com");
 }
 
 async function loadAll() {
