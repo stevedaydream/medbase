@@ -128,14 +128,46 @@ const glu_target = ref<number | "">(140);
 const glu_tdd    = ref<number | "">("");
 const glu_isf    = ref<number | "">("");
 
+/** ISF 的計算基準三選一，避免使用者不知道欄位是互斥的 */
+type GluBasis = "tdd" | "weight" | "isf";
+const glu_basis  = ref<GluBasis>("tdd");
+const glu_weight = ref<number | "">("");
+const glu_ukg    = ref(0.5);
+
+/** 體重估算 TDD：常用起始 0.3–0.5 U/kg/day */
+const estimatedTdd = computed(() => {
+  const w = Number(glu_weight.value);
+  if (!w) return null;
+  return Math.round(w * glu_ukg.value * 10) / 10;
+});
+
+/** 依選定基準取得實際使用的 TDD（直接輸入 ISF 時不需要） */
+const effectiveTdd = computed<number | null>(() => {
+  if (glu_basis.value === "tdd")    return Number(glu_tdd.value) || null;
+  if (glu_basis.value === "weight") return estimatedTdd.value;
+  return null;
+});
+
 const insulinResult = computed(() => {
   const bg     = Number(glu_bg.value);
   const target = Number(glu_target.value);
-  const tdd    = Number(glu_tdd.value);
-  let isf      = Number(glu_isf.value);
   if (!bg || !target) return null;
-  if (!isf && tdd) isf = 1700 / tdd;
+
+  let isf = 0;
+  let tddNote = "";
+  if (glu_basis.value === "isf") {
+    isf = Number(glu_isf.value);
+  } else {
+    const tdd = effectiveTdd.value;
+    if (tdd) {
+      isf = 1700 / tdd;
+      tddNote = glu_basis.value === "weight"
+        ? `${tdd} U（體重估算 ${glu_ukg.value} U/kg）`
+        : `${tdd} U`;
+    }
+  }
   if (!isf) return null;
+
   const rawDose = (bg - target) / isf;
   const dose    = Math.max(0, Math.round(rawDose * 2) / 2); // round to 0.5U
   let status = "";
@@ -144,7 +176,12 @@ const insulinResult = computed(() => {
   else if (bg < 180)  status = "輕度偏高";
   else if (bg < 250)  status = "中度偏高";
   else                status = "嚴重偏高，注意 DKA/HHS";
-  return { dose, isf: isf.toFixed(0), status, bg, needCorr: rawDose > 0 };
+  return {
+    dose, isf: isf.toFixed(0), status, bg,
+    needCorr: rawDose > 0,
+    tddNote,
+    estimated: glu_basis.value === "weight",
+  };
 });
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -499,7 +536,7 @@ const fio2Result = computed(() => {
             <h2 class="text-lg font-bold text-fg flex items-center gap-2">
               <span class="text-accent">🩸</span> 血糖胰島素校正試算 (Insulin Correction)
             </h2>
-            <p class="text-xs text-muted mt-1 font-mono">Dose = (Current BG - Target BG) ÷ ISF | ISF ≈ 1700 ÷ TDD</p>
+            <p class="text-xs text-muted mt-1 font-mono">Dose = (BG − Target) ÷ ISF | ISF ≈ 1700 ÷ TDD | TDD ≈ 體重 × 0.3–0.5 U/kg</p>
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
@@ -533,32 +570,91 @@ const fio2Result = computed(() => {
               </div>
 
               <div class="border-t border-hairline pt-4">
-                <p class="text-xs font-semibold text-fg-secondary mb-3">胰島素敏感度 (ISF) 計算基準 <span class="text-muted font-normal">擇一</span></p>
-                <div class="grid grid-cols-2 gap-4">
-                  <div>
-                    <label class="block text-[0.6875rem] text-muted mb-1 font-medium">每日胰島素總劑量 (TDD)</label>
-                    <div class="relative">
-                      <input
-                        v-model.number="glu_tdd"
-                        type="number"
-                        placeholder="例：40"
-                        class="w-full text-xs px-3.5 py-2.5 bg-surface border border-hairline rounded-lg text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
-                      />
-                      <span class="absolute right-3 top-3 text-2xs text-muted font-mono">Units</span>
+                <p class="text-xs font-semibold text-fg-secondary mb-1">胰島素敏感度 (ISF) 從哪裡來？</p>
+                <p class="text-[0.6875rem] text-muted mb-2.5">三選一，選好只要填底下那一格</p>
+
+                <!-- 三選一，避免看不出欄位互斥 -->
+                <div class="grid grid-cols-3 gap-1.5 mb-3">
+                  <button
+                    v-for="b in [
+                      { key: 'tdd',    label: '已知 TDD' },
+                      { key: 'weight', label: '用體重估' },
+                      { key: 'isf',    label: '直接填 ISF' },
+                    ]"
+                    :key="b.key"
+                    @click="glu_basis = b.key as 'tdd' | 'weight' | 'isf'"
+                    class="px-2 py-2 rounded-lg text-2xs font-bold border transition-all cursor-pointer"
+                    :class="glu_basis === b.key
+                      ? 'bg-accent/10 border-accent/30 text-accent'
+                      : 'bg-sunken border-hairline text-muted hover:text-fg-secondary'"
+                  >{{ b.label }}</button>
+                </div>
+
+                <!-- ① 已知 TDD -->
+                <div v-if="glu_basis === 'tdd'">
+                  <label class="block text-[0.6875rem] text-muted mb-1 font-medium">每日胰島素總劑量 (TDD)</label>
+                  <div class="relative">
+                    <input
+                      v-model.number="glu_tdd"
+                      type="number"
+                      placeholder="例：40"
+                      class="w-full text-xs px-3.5 py-2.5 bg-surface border border-hairline rounded-lg text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
+                    />
+                    <span class="absolute right-3 top-3 text-2xs text-muted font-mono">Units</span>
+                  </div>
+                  <p class="text-[0.6875rem] text-muted mt-1.5">病人一天打的胰島素總單位：基礎（如 Lantus）＋ 三餐餐前全部加總。</p>
+                </div>
+
+                <!-- ② 用體重估 TDD（沒有現成 TDD 時用）-->
+                <div v-else-if="glu_basis === 'weight'">
+                  <div class="grid grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-[0.6875rem] text-muted mb-1 font-medium">體重</label>
+                      <div class="relative">
+                        <input
+                          v-model.number="glu_weight"
+                          type="number"
+                          placeholder="例：70"
+                          class="w-full text-xs px-3.5 py-2.5 bg-surface border border-hairline rounded-lg text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
+                        />
+                        <span class="absolute right-3 top-3 text-2xs text-muted font-mono">kg</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label class="block text-[0.6875rem] text-muted mb-1 font-medium">每公斤劑量</label>
+                      <select
+                        v-model.number="glu_ukg"
+                        class="w-full text-xs px-3.5 py-2.5 bg-surface border border-hairline rounded-lg text-fg outline-none focus:border-accent/50 transition-all font-mono cursor-pointer"
+                      >
+                        <option :value="0.3">0.3 — 年長 / 消瘦 / 腎功能不佳</option>
+                        <option :value="0.4">0.4 — 一般偏保守</option>
+                        <option :value="0.5">0.5 — 一般起始</option>
+                        <option :value="0.6">0.6 — 肥胖 / 類固醇 / 感染</option>
+                      </select>
                     </div>
                   </div>
-                  <div>
-                    <label class="block text-[0.6875rem] text-muted mb-1 font-medium">直接指定 ISF 數值</label>
-                    <div class="relative">
-                      <input
-                        v-model.number="glu_isf"
-                        type="number"
-                        placeholder="例：42"
-                        class="w-full text-xs px-3.5 py-2.5 bg-surface border border-hairline rounded-lg text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
-                      />
-                      <span class="absolute right-3 top-3 text-2xs text-muted font-mono">mg/dL/U</span>
-                    </div>
+                  <p v-if="estimatedTdd" class="text-[0.6875rem] text-fg-secondary mt-1.5">
+                    估算 TDD ≈ <span class="font-mono font-bold">{{ estimatedTdd }}</span> U/day
+                    → ISF ≈ <span class="font-mono font-bold">{{ Math.round(1700 / estimatedTdd) }}</span> mg/dL/U
+                  </p>
+                  <p class="text-[0.6875rem] text-warning mt-1.5">
+                    ⚠ 這是<span class="font-bold">起始估算值</span>，不等於病人實際的 TDD。已在打胰島素的病人請改用「已知 TDD」。
+                  </p>
+                </div>
+
+                <!-- ③ 直接填 ISF -->
+                <div v-else>
+                  <label class="block text-[0.6875rem] text-muted mb-1 font-medium">直接指定 ISF 數值</label>
+                  <div class="relative">
+                    <input
+                      v-model.number="glu_isf"
+                      type="number"
+                      placeholder="例：42"
+                      class="w-full text-xs px-3.5 py-2.5 bg-surface border border-hairline rounded-lg text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
+                    />
+                    <span class="absolute right-3 top-3 text-2xs text-muted font-mono">mg/dL/U</span>
                   </div>
+                  <p class="text-[0.6875rem] text-muted mt-1.5">打 1 單位速效胰島素可降多少 mg/dL。不確定就改選前兩項。</p>
                 </div>
               </div>
             </div>
@@ -589,15 +685,24 @@ const fio2Result = computed(() => {
                   </div>
                   
                   <div class="mt-6 pt-4 border-t border-hairline space-y-1 text-[0.6875rem] text-muted">
+                    <div v-if="insulinResult.tddNote" class="flex justify-between gap-3">
+                      <span class="shrink-0">採用 TDD：</span>
+                      <span class="font-mono text-fg-secondary text-right">{{ insulinResult.tddNote }}</span>
+                    </div>
                     <div class="flex justify-between"><span>估算敏感度 ISF：</span><span class="font-mono text-fg-secondary">{{ insulinResult.isf }} mg/dL / Unit</span></div>
                     <div class="flex justify-between"><span>當前血糖狀態：</span><span class="font-bold text-fg-secondary">{{ insulinResult.status }}</span></div>
                   </div>
+
+                  <p v-if="insulinResult.estimated"
+                    class="mt-3 px-3 py-2 rounded-lg bg-warning/10 border border-warning/20 text-warning text-[0.6875rem] leading-relaxed">
+                    TDD 由體重估算而來，此劑量僅供起始參考，須依實際血糖反應調整。
+                  </p>
                 </template>
               </div>
 
               <div v-else class="h-full min-h-[180px] flex flex-col items-center justify-center rounded-2xl border border-dashed border-hairline bg-surface text-muted text-xs text-center p-6">
                 <span class="text-3xl mb-3 opacity-30">🩸</span>
-                請填寫血糖值、目標血糖與敏感度計算基準 (TDD 或直接輸入 ISF)
+                請填寫血糖值、目標血糖，並在「ISF 從哪裡來？」三選一填入對應欄位
               </div>
             </div>
           </div>
@@ -606,6 +711,8 @@ const fio2Result = computed(() => {
             <p class="font-semibold text-fg-secondary mb-1">注意事項</p>
             <p>• 一般病房住院患者餐前血糖控制目標建議為 140–180 mg/dL，重症病房 (ICU) 同樣建議維持在 140–180 mg/dL。</p>
             <p>• 本試算之校正劑量已四捨五入至最接近的 0.5 單位 (Unit)，臨床醫囑開立仍需依患者個別胰島素抗性與臨床現狀進行細微調整。</p>
+            <p>• 「用體重估」採 0.3–0.5 U/kg/day 的起始估算範圍：年長、消瘦、腎功能不佳取低值；肥胖、使用類固醇、感染或明顯胰島素抗性取高值。此為<span class="font-semibold">起始參考</span>，病人已有胰島素治療時請直接填實際 TDD。</p>
+            <p>• 只有血糖值（一天 3–4 次）而沒有 TDD 時，數學上無法推得 ISF；請改用體重估算，或先確認病人目前的胰島素處方。</p>
           </div>
         </div>
       </template>

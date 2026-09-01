@@ -122,30 +122,34 @@
      violet  品項與套組      自費品項・套組管理
      cyan    人員與工具      通訊錄・常用分機・臨床工具・病歷潤飾
      blue    排班            排班表・規則備忘錄
-     indigo  系統            AHK・資料管理・設定
-     rose    危急情境        名實相符，識別色即語意色
+     indigo   系統            AHK・資料管理・設定
+     fuchsia  學術            論文專案
+     rose     危急情境        名實相符，識別色即語意色
    ──────────────────────────────────────────────────────────────── */
-.accent-teal   { --color-accent: #0f766e; --color-accent-hover: #115e59; }
-.accent-violet { --color-accent: #6d28d9; --color-accent-hover: #5b21b6; }
-.accent-cyan   { --color-accent: #0e7490; --color-accent-hover: #155e75; }
-.accent-blue   { --color-accent: #1d4ed8; --color-accent-hover: #1e40af; }
-.accent-indigo { --color-accent: #4338ca; --color-accent-hover: #312e81; }
-.accent-rose   { --color-accent: #be123c; --color-accent-hover: #9f1239; }
+.accent-teal    { --color-accent: #0f766e; --color-accent-hover: #115e59; }
+.accent-violet  { --color-accent: #6d28d9; --color-accent-hover: #5b21b6; }
+.accent-cyan    { --color-accent: #0e7490; --color-accent-hover: #155e75; }
+.accent-blue    { --color-accent: #1d4ed8; --color-accent-hover: #1e40af; }
+.accent-indigo  { --color-accent: #4338ca; --color-accent-hover: #312e81; }
+.accent-fuchsia { --color-accent: #a21caf; --color-accent-hover: #86198f; }
+.accent-rose    { --color-accent: #be123c; --color-accent-hover: #9f1239; }
 
-:root[data-theme="dark"] .accent-teal   { --color-accent: #2dd4bf; --color-accent-hover: #5eead4; }
-:root[data-theme="dark"] .accent-violet { --color-accent: #a78bfa; --color-accent-hover: #c4b5fd; }
-:root[data-theme="dark"] .accent-cyan   { --color-accent: #22d3ee; --color-accent-hover: #67e8f9; }
-:root[data-theme="dark"] .accent-blue   { --color-accent: #60a5fa; --color-accent-hover: #93c5fd; }
-:root[data-theme="dark"] .accent-indigo { --color-accent: #818cf8; --color-accent-hover: #c7d2fe; }
-:root[data-theme="dark"] .accent-rose   { --color-accent: #fb7185; --color-accent-hover: #fda4af; }
+:root[data-theme="dark"] .accent-teal    { --color-accent: #2dd4bf; --color-accent-hover: #5eead4; }
+:root[data-theme="dark"] .accent-violet  { --color-accent: #a78bfa; --color-accent-hover: #c4b5fd; }
+:root[data-theme="dark"] .accent-cyan    { --color-accent: #22d3ee; --color-accent-hover: #67e8f9; }
+:root[data-theme="dark"] .accent-blue    { --color-accent: #60a5fa; --color-accent-hover: #93c5fd; }
+:root[data-theme="dark"] .accent-indigo  { --color-accent: #818cf8; --color-accent-hover: #c7d2fe; }
+:root[data-theme="dark"] .accent-fuchsia { --color-accent: #e879f9; --color-accent-hover: #f0abfc; }
+:root[data-theme="dark"] .accent-rose    { --color-accent: #fb7185; --color-accent-hover: #fda4af; }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .accent-teal   { --color-accent: #2dd4bf; --color-accent-hover: #5eead4; }
-  :root:not([data-theme="light"]) .accent-violet { --color-accent: #a78bfa; --color-accent-hover: #c4b5fd; }
-  :root:not([data-theme="light"]) .accent-cyan   { --color-accent: #22d3ee; --color-accent-hover: #67e8f9; }
-  :root:not([data-theme="light"]) .accent-blue   { --color-accent: #60a5fa; --color-accent-hover: #93c5fd; }
-  :root:not([data-theme="light"]) .accent-indigo { --color-accent: #818cf8; --color-accent-hover: #c7d2fe; }
-  :root:not([data-theme="light"]) .accent-rose   { --color-accent: #fb7185; --color-accent-hover: #fda4af; }
+  :root:not([data-theme="light"]) .accent-teal    { --color-accent: #2dd4bf; --color-accent-hover: #5eead4; }
+  :root:not([data-theme="light"]) .accent-violet  { --color-accent: #a78bfa; --color-accent-hover: #c4b5fd; }
+  :root:not([data-theme="light"]) .accent-cyan    { --color-accent: #22d3ee; --color-accent-hover: #67e8f9; }
+  :root:not([data-theme="light"]) .accent-blue    { --color-accent: #60a5fa; --color-accent-hover: #93c5fd; }
+  :root:not([data-theme="light"]) .accent-indigo  { --color-accent: #818cf8; --color-accent-hover: #c7d2fe; }
+  :root:not([data-theme="light"]) .accent-fuchsia { --color-accent: #e879f9; --color-accent-hover: #f0abfc; }
+  :root:not([data-theme="light"]) .accent-rose    { --color-accent: #fb7185; --color-accent-hover: #fda4af; }
 }
 
 /* JS 尚未接手前（首屏）先跟隨系統，避免深色使用者看到白色閃爍 */

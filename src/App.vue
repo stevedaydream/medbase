@@ -114,15 +114,44 @@ async function applyCloudData(table: string, rows: Record<string, unknown>[]): P
   const db = await getDb();
   const tableName = getTableName(table);
   if (!tableName) return;
+
+  // 雲端回空陣列時不動本地資料。先 DELETE 再 INSERT 的順序下，
+  // 空回應會直接清空整張表（GAS 暫時失敗、Sheet 被清過都會發生）。
+  if (!rows.length) return;
+
+  // 只寫入本表實際存在的欄位。雲端 payload 常帶衍生欄位
+  // （例如 getItems 的 depts 陣列），照單全收會讓 INSERT 整批拋錯，
+  // 而 DELETE 已經執行完 —— 結果就是資料整張消失。
+  const tableCols = new Set(
+    (await db.select<{ name: string }[]>(`PRAGMA table_info(${tableName})`)).map(c => c.name)
+  );
+
   await db.execute(`DELETE FROM ${tableName}`, []);
   for (const row of rows) {
-    const cols = Object.keys(row);
+    const cols = Object.keys(row).filter(c => tableCols.has(c));
+    if (!cols.length) continue;
     const placeholders = cols.map(() => "?").join(", ");
     const vals = cols.map(c => row[c] ?? null);
     await db.execute(
       `INSERT OR REPLACE INTO ${tableName} (${cols.join(", ")}) VALUES (${placeholders})`,
       vals
     );
+  }
+
+  // items 的科別存在關聯表，需一併重建，否則科別篩選會全空
+  if (table === "items") {
+    await db.execute(`DELETE FROM item_depts`, []);
+    for (const row of rows) {
+      const code  = row.hospital_code as string | undefined;
+      const depts = row.depts as string[] | undefined;
+      if (!code || !Array.isArray(depts)) continue;
+      for (const d of depts) {
+        await db.execute(
+          "INSERT OR IGNORE INTO item_depts (hospital_code, dept) VALUES (?,?)",
+          [code, d]
+        );
+      }
+    }
   }
 }
 

@@ -493,4 +493,225 @@ async function initSchema(db: Database) {
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_note_records_patient ON note_records(patient_id);`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_note_records_name    ON note_records(patient_name);`);
 
+  // ── Research 論文專案管理 ─────────────────────────────────────
+  await initResearchSchema(db);
+}
+
+/**
+ * Research 模組（論文專案管理）schema v1。
+ *
+ * 命名：全表以 `research_` 前綴，與 scheduler_ / acp_ / ahk_ 等子系統一致，
+ *       避免 projects / authors 這類泛用名日後與其他模組相撞。
+ * 主鍵：TEXT（UUID v4），由 useResearch 的 newId() 產生。
+ * 版本：app_settings 的 research_schema_version，日後改欄位據此 migration。
+ *
+ * 去識別化（規格 §6）：本模組不得存放任何可識別病患資訊，
+ * 因此 schema 內刻意沒有姓名／病歷號／生日／住院日期／影像等欄位。
+ */
+async function initResearchSchema(db: Database) {
+  // ── 論文專案 ────────────────────────────────────────────────
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS research_projects (
+      id                TEXT PRIMARY KEY,
+      title             TEXT NOT NULL,
+      title_zh          TEXT,
+      study_type        TEXT,
+      specialty         TEXT,
+      stage             TEXT NOT NULL DEFAULT 'idea',
+      deident_confirmed INTEGER NOT NULL DEFAULT 0,
+      repo_path         TEXT,
+      irb_number        TEXT,
+      irb_approved_date TEXT,
+      created_at        TEXT DEFAULT (datetime('now','localtime')),
+      updated_at        TEXT DEFAULT (datetime('now','localtime')),
+      archived          INTEGER DEFAULT 0
+    );
+  `);
+
+  // ── 作者名冊（跨專案共用）────────────────────────────────────
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS research_authors (
+      id           TEXT PRIMARY KEY,
+      name_zh      TEXT NOT NULL,
+      name_en      TEXT,
+      title        TEXT,
+      department   TEXT,
+      affiliation  TEXT,
+      email        TEXT,
+      default_role TEXT,
+      orcid        TEXT,
+      created_at   TEXT DEFAULT (datetime('now','localtime')),
+      updated_at   TEXT DEFAULT (datetime('now','localtime'))
+    );
+  `);
+
+  // ── 專案作者（含 IRB 欄位）──────────────────────────────────
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS research_project_authors (
+      id               TEXT PRIMARY KEY,
+      project_id       TEXT NOT NULL REFERENCES research_projects(id) ON DELETE CASCADE,
+      author_id        TEXT NOT NULL REFERENCES research_authors(id)  ON DELETE CASCADE,
+      author_order     INTEGER DEFAULT 0,
+      is_corresponding INTEGER DEFAULT 0,
+      irb_category     TEXT,
+      work_months      INTEGER,
+      work_scope       TEXT,
+      contribution     TEXT
+    );
+  `);
+
+  // ── 期刊候選庫（跨專案共用）──────────────────────────────────
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS research_journals (
+      id                  TEXT PRIMARY KEY,
+      name                TEXT NOT NULL,
+      indexing            TEXT,
+      impact_factor       REAL,
+      quartile            TEXT,
+      accepts_case_report INTEGER,
+      apc_usd             INTEGER,
+      word_limit          INTEGER,
+      abstract_limit      INTEGER,
+      ref_style           TEXT,
+      guide_url           TEXT,
+      submission_url      TEXT,
+      notes               TEXT,
+      updated_at          TEXT DEFAULT (datetime('now','localtime'))
+    );
+  `);
+
+  // ── 專案的期刊候選（shortlisted / submitted / rejected_here / ruled_out）
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS research_project_journals (
+      id         TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES research_projects(id) ON DELETE CASCADE,
+      journal_id TEXT NOT NULL REFERENCES research_journals(id) ON DELETE CASCADE,
+      status     TEXT DEFAULT 'shortlisted',
+      sort_order INTEGER DEFAULT 0,
+      notes      TEXT
+    );
+  `);
+
+  // ── 投稿記錄（一專案可多筆：被拒後換期刊）────────────────────
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS research_submissions (
+      id             TEXT PRIMARY KEY,
+      project_id     TEXT NOT NULL REFERENCES research_projects(id) ON DELETE CASCADE,
+      journal_id     TEXT REFERENCES research_journals(id),
+      submitted_date TEXT,
+      manuscript_id  TEXT,
+      status         TEXT DEFAULT 'preparing',
+      decision_date  TEXT,
+      apc_paid_usd   INTEGER,
+      notes          TEXT
+    );
+  `);
+
+  // ── 狀態歷程（只新增不修改）──────────────────────────────────
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS research_submission_events (
+      id            TEXT PRIMARY KEY,
+      submission_id TEXT NOT NULL REFERENCES research_submissions(id) ON DELETE CASCADE,
+      event_date    TEXT,
+      from_status   TEXT,
+      to_status     TEXT,
+      note          TEXT
+    );
+  `);
+
+  // ── 送件檢核（範本 → 專案實例）──────────────────────────────
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS research_checklist_templates (
+      id          TEXT PRIMARY KEY,
+      name        TEXT NOT NULL,
+      source_url  TEXT,
+      description TEXT
+    );
+  `);
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS research_checklist_template_items (
+      id          TEXT PRIMARY KEY,
+      template_id TEXT NOT NULL REFERENCES research_checklist_templates(id) ON DELETE CASCADE,
+      item_no     TEXT,
+      section     TEXT,
+      description TEXT
+    );
+  `);
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS research_project_checklists (
+      id          TEXT PRIMARY KEY,
+      project_id  TEXT NOT NULL REFERENCES research_projects(id) ON DELETE CASCADE,
+      template_id TEXT NOT NULL REFERENCES research_checklist_templates(id),
+      created_at  TEXT DEFAULT (datetime('now','localtime'))
+    );
+  `);
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS research_project_checklist_items (
+      id                   TEXT PRIMARY KEY,
+      project_checklist_id TEXT NOT NULL REFERENCES research_project_checklists(id) ON DELETE CASCADE,
+      template_item_id     TEXT NOT NULL REFERENCES research_checklist_template_items(id),
+      status               TEXT DEFAULT 'pending',
+      location             TEXT,
+      note                 TEXT
+    );
+  `);
+
+  // ── 審稿回覆 ────────────────────────────────────────────────
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS research_review_rounds (
+      id            TEXT PRIMARY KEY,
+      submission_id TEXT NOT NULL REFERENCES research_submissions(id) ON DELETE CASCADE,
+      round_no      INTEGER DEFAULT 1,
+      received_date TEXT,
+      due_date      TEXT,
+      decision      TEXT
+    );
+  `);
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS research_review_comments (
+      id                TEXT PRIMARY KEY,
+      round_id          TEXT NOT NULL REFERENCES research_review_rounds(id) ON DELETE CASCADE,
+      reviewer_label    TEXT,
+      comment_no        INTEGER,
+      comment_text      TEXT,
+      response_text     TEXT,
+      manuscript_change TEXT,
+      status            TEXT DEFAULT 'pending'
+    );
+  `);
+
+  // ── 引用追蹤（verified=0 代表尚未回原文核對，用來擋幻覺引用）──
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS research_refs (
+      id           TEXT PRIMARY KEY,
+      project_id   TEXT NOT NULL REFERENCES research_projects(id) ON DELETE CASCADE,
+      citation_key TEXT,
+      title        TEXT,
+      journal      TEXT,
+      year         INTEGER,
+      doi          TEXT,
+      pmid         TEXT,
+      verified     INTEGER DEFAULT 0,
+      pdf_path     TEXT,
+      note         TEXT
+    );
+  `);
+
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_research_projects_stage   ON research_projects(stage);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_research_projects_updated ON research_projects(updated_at);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_research_pa_project       ON research_project_authors(project_id);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_research_pa_author        ON research_project_authors(author_id);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_research_pj_project       ON research_project_journals(project_id);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_research_sub_project      ON research_submissions(project_id);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_research_ev_submission    ON research_submission_events(submission_id);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_research_cti_template     ON research_checklist_template_items(template_id);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_research_pc_project       ON research_project_checklists(project_id);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_research_pci_checklist    ON research_project_checklist_items(project_checklist_id);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_research_rr_submission    ON research_review_rounds(submission_id);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_research_rc_round         ON research_review_comments(round_id);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_research_refs_project     ON research_refs(project_id);`);
+
+  await db.execute(
+    `INSERT OR IGNORE INTO app_settings (key, value) VALUES ('research_schema_version', '1')`
+  );
 }
