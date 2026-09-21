@@ -21,6 +21,7 @@ import {
 } from "@/composables/useXlsxSync";
 import { markLocalModified, pushTableToCloud } from "@/composables/useSyncMonitor";
 import { upsertPhysician, removePhysician, refreshPassAhk } from "@/composables/usePhysicians";
+import NpDutyDataManager from "@/components/NpDutyDataManager.vue";
 
 // ── 型別定義 ────────────────────────────────────────────────────
 interface Item {
@@ -46,7 +47,7 @@ interface ProtocolForm {
   contacts: { label: string; ext: string }[];
   notes: string;
 }
-type Tab = "items" | "physicians" | "emergency" | "backup";
+type Tab = "items" | "physicians" | "emergency" | "npDuty" | "backup";
 
 // ── 狀態 ────────────────────────────────────────────────────────
 const activeTab   = ref<Tab>("items");
@@ -950,6 +951,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
   { key: "items",      icon: "📦", label: "自費品項",   count: () => items.value.length },
   { key: "physicians", icon: "👤", label: "通訊錄", count: () => physicians.value.length },
   { key: "emergency",  icon: "🚨", label: "危急情境",   count: () => protocols.value.length },
+  { key: "npDuty",     icon: "🧑‍⚕️", label: "值班 NP",    count: () => 0 },
   { key: "backup",     icon: "💾", label: "備份 / 還原", count: () => 0 },
 ];
 </script>
@@ -982,7 +984,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
     <div class="flex flex-col flex-1 min-w-0 overflow-hidden bg-surface">
 
       <!-- Header -->
-      <div v-if="activeTab !== 'backup'" class="flex items-center gap-3 px-6 py-4 border-b border-hairline bg-surface shrink-0">
+      <div v-if="activeTab !== 'backup' && activeTab !== 'npDuty'" class="flex items-center gap-3 px-6 py-4 border-b border-hairline bg-surface shrink-0">
         <div class="relative flex-1">
           <input
             v-model="search"
@@ -1355,6 +1357,11 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
           </div>
         </div>
 
+      </div>
+
+      <!-- ── 值班 NP ─────────────────────────────── -->
+      <div v-if="activeTab === 'npDuty'" class="flex-1 overflow-y-auto px-8 py-6">
+        <NpDutyDataManager />
       </div>
 
       <!-- ── 備份 / 還原 ──────────────────────────── -->

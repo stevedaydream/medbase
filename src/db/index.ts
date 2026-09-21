@@ -388,6 +388,27 @@ async function initSchema(db: Database) {
     );
   `);
 
+  // ── 外科 NP 值班表（每月由 XLSX 匯入）────────────────────────
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS np_duty_assignments (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      duty_date    TEXT    NOT NULL,
+      ward         TEXT    NOT NULL,
+      np_name      TEXT    NOT NULL,
+      staff_code   TEXT,
+      extension    TEXT,
+      shift        TEXT    NOT NULL DEFAULT '值班',
+      notes        TEXT,
+      source_file  TEXT,
+      imported_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
+      UNIQUE (duty_date, ward, np_name, shift)
+    );
+  `);
+  try { await db.execute(`ALTER TABLE np_duty_assignments ADD COLUMN staff_code TEXT`); } catch { /* 已存在 */ }
+  try { await db.execute(`ALTER TABLE np_duty_assignments ADD COLUMN extension TEXT`); } catch { /* 已存在 */ }
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_np_duty_date ON np_duty_assignments(duty_date);`);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_np_duty_ward_date ON np_duty_assignments(ward, duty_date);`);
+
   // ── 輪序快照（每月池狀態 + 預算投影）────────────────────────
   await db.execute(`
     CREATE TABLE IF NOT EXISTS rotation_snapshots (

@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useUiSettings } from "@/stores/uiSettings";
+import NpDutySidebarCard from "@/components/NpDutySidebarCard.vue";
 
 const emit = defineEmits<{ "enter-compact": [] }>();
 
@@ -139,6 +140,7 @@ onUnmounted(() => {
     <div class="px-4 py-5 border-b border-hairline">
       <span class="text-lg font-bold tracking-tight text-fg">MedBase</span>
       <p class="text-xs mt-0.5 text-muted">臨床醫囑查詢系統</p>
+      <NpDutySidebarCard />
     </div>
 
     <!-- Emergency protocol link (fixed) -->
