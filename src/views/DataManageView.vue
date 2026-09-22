@@ -953,7 +953,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
   { key: "items",      icon: "📦", label: "自費品項",   count: () => items.value.length },
   { key: "physicians", icon: "👤", label: "通訊錄", count: () => physicians.value.length },
   { key: "emergency",  icon: "🚨", label: "危急情境",   count: () => protocols.value.length },
-  { key: "npDuty",     icon: "🧑‍⚕️", label: "值班 NP",    count: () => 0 },
+  { key: "npDuty",     icon: "🧑‍⚕️", label: "NP／VS 值班", count: () => 0 },
   { key: "backup",     icon: "💾", label: "備份 / 還原", count: () => 0 },
 ];
 </script>

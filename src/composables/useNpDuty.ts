@@ -1,9 +1,10 @@
 import { getDb, dbWrite } from "@/db";
+import type { DutyUnit } from "@/utils/npDutyXlsx";
 
 export interface NpDutyAssignment {
   id: number;
   duty_date: string;
-  ward: "9A" | "9B" | "8A";
+  ward: DutyUnit;
   np_name: string;
   staff_code: string | null;
   extension: string | null;
@@ -23,7 +24,11 @@ export async function loadNpDuty(date: string): Promise<NpDutyAssignment[]> {
   return db.select<NpDutyAssignment[]>(
     `SELECT * FROM np_duty_assignments
      WHERE duty_date=?
-     ORDER BY CASE ward WHEN '9A' THEN 1 WHEN '9B' THEN 2 ELSE 3 END,
+     ORDER BY CASE ward
+                WHEN '9A' THEN 1 WHEN '9B' THEN 2 WHEN '8A' THEN 3
+                WHEN 'ICU' THEN 4 WHEN '總值' THEN 5 WHEN 'GS' THEN 6 WHEN 'CRS' THEN 7
+                WHEN 'ORTHO' THEN 8 WHEN 'NS' THEN 9 WHEN 'PS' THEN 10 WHEN 'URO' THEN 11
+                WHEN 'CVS' THEN 12 WHEN 'Chest' THEN 13 WHEN 'Trauma' THEN 14 ELSE 99 END,
               CASE shift WHEN '白八' THEN 1 WHEN '夜八' THEN 2 ELSE 3 END,
               np_name`,
     [date],

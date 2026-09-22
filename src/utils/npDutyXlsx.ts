@@ -2,10 +2,22 @@ import * as XLSX from "xlsx";
 
 export const NP_WARDS = ["9A", "9B", "8A"] as const;
 export type NpWard = (typeof NP_WARDS)[number];
+export const VS_UNITS = ["ICU", "總值", "GS", "CRS", "ORTHO", "NS", "PS", "URO", "CVS", "Chest", "Trauma"] as const;
+export type VsDutyUnit = (typeof VS_UNITS)[number];
+export const DUTY_UNITS = [...NP_WARDS, ...VS_UNITS] as const;
+export type DutyUnit = (typeof DUTY_UNITS)[number];
+
+export function isNpWard(unit: string): unit is NpWard {
+  return (NP_WARDS as readonly string[]).includes(unit);
+}
+
+export function isVsDutyUnit(unit: string): unit is VsDutyUnit {
+  return (VS_UNITS as readonly string[]).includes(unit);
+}
 
 export interface NpDutyImportRow {
   dutyDate: string;
-  ward: NpWard;
+  ward: DutyUnit;
   npName: string;
   staffCode: string;
   extension: string;
@@ -25,7 +37,7 @@ type CellValue = string | number | boolean | Date | null | undefined;
 
 const DATE_HEADERS = /^(日期|值班日期|date|day)$/i;
 const WARD_HEADERS = /^(病房|病區|單位|ward|unit)$/i;
-const NAME_HEADERS = /^(np|姓名|人員|值班np|值班人員|專科護理師|護理師|name)$/i;
+const NAME_HEADERS = /^(np|vs|姓名|人員|值班np|值班vs|值班人員|專科護理師|護理師|醫師|name)$/i;
 const SHIFT_HEADERS = /^(班別|班次|時段|shift)$/i;
 const NOTES_HEADERS = /^(備註|說明|notes?|remarks?)$/i;
 const CODE_HEADERS = /^(代號|代碼|code)$/i;
@@ -94,9 +106,14 @@ function parseDate(value: CellValue, fallbackMonth: string): string | null {
   return null;
 }
 
-function wardsFrom(value: CellValue): NpWard[] {
-  const upper = text(value).toUpperCase().replace(/\s/g, "");
-  return NP_WARDS.filter(ward => upper.includes(ward));
+function unitsFrom(value: CellValue): DutyUnit[] {
+  const raw = text(value).replace(/\s/g, "");
+  const upper = raw.toUpperCase();
+  const aliases: Record<string, DutyUnit> = {
+    WARD: "總值", "WARD/總值": "總值", "病房總值": "總值", CV: "CVS",
+  };
+  if (aliases[upper]) return [aliases[upper]];
+  return DUTY_UNITS.filter(unit => upper === unit.toUpperCase());
 }
 
 function splitNames(value: CellValue): string[] {
@@ -110,8 +127,8 @@ function findColumn(headers: CellValue[], matcher: RegExp): number {
   return headers.findIndex(cell => matcher.test(normalizedHeader(cell)));
 }
 
-function inferWardFromSheet(sheetName: string): NpWard | null {
-  return wardsFrom(sheetName)[0] ?? null;
+function inferWardFromSheet(sheetName: string): DutyUnit | null {
+  return unitsFrom(sheetName)[0] ?? null;
 }
 
 function parseTableSheet(
@@ -138,7 +155,7 @@ function parseTableSheet(
       const row = values[rowIndex] ?? [];
       const dutyDate = parseDate(row[dateCol], fallbackMonth);
       const names = splitNames(row[nameCol]);
-      const wards = wardCol >= 0 ? wardsFrom(row[wardCol]) : inferredWard ? [inferredWard] : [];
+      const wards = wardCol >= 0 ? unitsFrom(row[wardCol]) : inferredWard ? [inferredWard] : [];
       if (!dutyDate || !names.length || !wards.length) continue;
 
       for (const ward of wards) {
@@ -179,7 +196,7 @@ function parseCalendarSheet(
     for (let rowIndex = headerRow + 1; rowIndex < values.length; rowIndex++) {
       const row = values[rowIndex] ?? [];
       const labelCells = row.slice(0, Math.max(1, dateColumns[0].index));
-      const rowWard = labelCells.flatMap(wardsFrom)[0] ?? inferredWard;
+      const rowWard = labelCells.flatMap(unitsFrom)[0] ?? inferredWard;
 
       if (rowWard) {
         for (const { index, date } of dateColumns) {
@@ -193,7 +210,7 @@ function parseCalendarSheet(
       const rowName = labelCells.map(text).find(value => value && !/姓名|人員|NP/i.test(value));
       if (!rowName) continue;
       for (const { index, date } of dateColumns) {
-        for (const ward of wardsFrom(row[index])) {
+        for (const ward of unitsFrom(row[index])) {
           parsed.push({ dutyDate: date, ward, npName: rowName, staffCode: "", extension: "", shift: "值班", notes: "", sourceSheet: sheetName });
         }
       }

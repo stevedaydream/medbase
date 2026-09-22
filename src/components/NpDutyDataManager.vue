@@ -9,7 +9,10 @@ import {
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { setGlobalSyncing } from "@/composables/useCloudSync";
 import { saveSyncTimestamp } from "@/composables/useSyncMonitor";
-import { NP_WARDS, parseNpDutyWorkbook, type NpDutyImportRow, type NpDutyParseResult } from "@/utils/npDutyXlsx";
+import {
+  DUTY_UNITS, NP_WARDS, isNpWard, isVsDutyUnit,
+  parseNpDutyWorkbook, type NpDutyImportRow, type NpDutyParseResult,
+} from "@/utils/npDutyXlsx";
 import { parseNpDutyPdf } from "@/utils/npDutyPdf";
 
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -22,10 +25,10 @@ const status = ref("");
 const lastImport = ref<{ source_file: string | null; imported_at: string; count: number } | null>(null);
 
 const previewMonths = computed(() => [...new Set((preview.value?.rows ?? []).map(row => row.dutyDate.slice(0, 7)))]);
-const previewSummary = computed(() => NP_WARDS.map(ward => ({
-  ward,
-  count: preview.value?.rows.filter(row => row.ward === ward).length ?? 0,
-})));
+const previewSummary = computed(() => [
+  ...NP_WARDS.map(ward => ({ ward, count: preview.value?.rows.filter(row => row.ward === ward).length ?? 0 })),
+  { ward: "VS", count: preview.value?.rows.filter(row => isVsDutyUnit(row.ward)).length ?? 0 },
+]);
 const previewRows = computed(() => preview.value?.rows.slice(0, 12) ?? []);
 const canImport = computed(() => Boolean(preview.value?.rows.length && !preview.value.errors.length && selectedFile.value));
 
@@ -56,16 +59,22 @@ async function saveUrl() {
 
 // ── 已匯入列表 ─────────────────────────────────────────
 const monthRows = ref<NpDutyAssignment[]>([]);
-const wardFilter = ref<"" | NpDutyAssignment["ward"]>("");
+const dutyGroupFilter = ref<"" | "NP" | "VS">("");
 const filteredMonthRows = computed(() =>
-  wardFilter.value ? monthRows.value.filter(r => r.ward === wardFilter.value) : monthRows.value);
+  dutyGroupFilter.value === "NP" ? monthRows.value.filter(r => isNpWard(r.ward))
+    : dutyGroupFilter.value === "VS" ? monthRows.value.filter(r => isVsDutyUnit(r.ward))
+      : monthRows.value);
 
 async function loadMonthRows() {
   const db = await getDb();
   monthRows.value = await db.select<NpDutyAssignment[]>(
     `SELECT * FROM np_duty_assignments WHERE substr(duty_date,1,7)=?
      ORDER BY duty_date,
-              CASE ward WHEN '9A' THEN 1 WHEN '9B' THEN 2 ELSE 3 END,
+              CASE ward
+                WHEN '9A' THEN 1 WHEN '9B' THEN 2 WHEN '8A' THEN 3
+                WHEN 'ICU' THEN 4 WHEN '總值' THEN 5 WHEN 'GS' THEN 6 WHEN 'CRS' THEN 7
+                WHEN 'ORTHO' THEN 8 WHEN 'NS' THEN 9 WHEN 'PS' THEN 10 WHEN 'URO' THEN 11
+                WHEN 'CVS' THEN 12 WHEN 'Chest' THEN 13 WHEN 'Trauma' THEN 14 ELSE 99 END,
               CASE shift WHEN '白八' THEN 1 WHEN '夜八' THEN 2 ELSE 3 END, np_name`,
     [rosterMonth.value],
   );
@@ -109,7 +118,7 @@ async function saveEdit() {
     }
   } catch (error) {
     const msg = (error as Error).message ?? String(error);
-    status.value = /UNIQUE/i.test(msg) ? "同一天、同病房、同班別已有此人" : `儲存失敗：${msg}`;
+    status.value = /UNIQUE/i.test(msg) ? "同一天、同單位、同班別已有此人" : `儲存失敗：${msg}`;
     return;
   }
   editingId.value = null;
@@ -260,21 +269,23 @@ async function confirmImport() {
 }
 
 function downloadTemplate() {
-  const headers = ["日期", "病房", "姓名", "代號", "分機", "班別", "備註"];
+  const headers = ["日期", "單位", "姓名", "代號", "分機", "班別", "備註"];
   const sample = [
     [`${rosterMonth.value}-01`, "9A", "王小明", "a", "62000", "白八", ""],
     [`${rosterMonth.value}-01`, "9A", "李小美", "b", "62001", "夜八", ""],
     [`${rosterMonth.value}-01`, "9B", "PGY 陳小華", "PGY", "62002", "值班", ""],
     [`${rosterMonth.value}-01`, "8A", "林小安", "c", "62003", "白八", ""],
+    [`${rosterMonth.value}-01`, "總值", "陳大明", "1", "61001", "值班", "VS"],
+    [`${rosterMonth.value}-01`, "GS", "李大華", "2", "61002", "值班", "VS"],
   ];
   const workbook = XLSX.utils.book_new();
   const sheet = XLSX.utils.aoa_to_sheet([headers, ...sample]);
-  XLSX.utils.book_append_sheet(workbook, sheet, "NP值班");
+  XLSX.utils.book_append_sheet(workbook, sheet, "NP與VS值班");
   const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
   const url = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
   const link = document.createElement("a");
   link.href = url;
-  link.download = `NP值班匯入範本_${rosterMonth.value}.xlsx`;
+  link.download = `NP與VS值班匯入範本_${rosterMonth.value}.xlsx`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -290,10 +301,10 @@ function rowLabel(row: NpDutyImportRow) {
       <div>
         <div class="flex items-center gap-2">
           <span class="text-lg">🧑‍⚕️</span>
-          <h3 class="font-bold text-fg text-sm">今日值班 NP</h3>
+          <h3 class="font-bold text-fg text-sm">NP／VS 值班</h3>
         </div>
         <p class="mt-1 text-xs leading-relaxed text-fg-secondary">
-          匯入外科秘書每月提供的 PDF 或 Excel，更新側邊欄 9A、9B、8A 值班人員。
+          匯入外科秘書每月提供的 PDF 或 Excel，更新側邊欄 NP 與各外科別 VS 值班人員。
         </p>
       </div>
       <div class="flex items-start gap-3">
@@ -338,13 +349,13 @@ function rowLabel(row: NpDutyImportRow) {
     </div>
 
     <p class="text-xs leading-relaxed text-muted">
-      PDF：支援外科值班表第一頁的 9A／9B／8A 欄位，斜線前為白八、斜線後為夜八，姓名與分機由第二頁 NP 代號表解析。Excel：欄位使用日期、病房、姓名、班別，可選填代號、分機與備註。
+      PDF：解析第一頁 9A／9B／8A 的 NP，以及 ICU、總值與各外科別 VS；姓名與分機由第二頁代號表帶入。NP 斜線前為白八、斜線後為夜八。Excel：欄位使用日期、單位、姓名、班別，可選填代號、分機與備註。
     </p>
 
     <div v-if="parsing" class="rounded-xl border border-hairline bg-sunken px-4 py-3 text-xs text-muted">正在解析班表…</div>
 
     <div v-if="preview" class="space-y-3 border-t border-hairline pt-4">
-      <div class="grid grid-cols-3 gap-2">
+      <div class="grid grid-cols-4 gap-2">
         <div v-for="item in previewSummary" :key="item.ward" class="rounded-xl border border-hairline bg-sunken px-3 py-2.5 text-center">
           <div class="text-xs font-bold text-accent">{{ item.ward }}</div>
           <div class="mt-0.5 text-xs text-fg-secondary">{{ item.count }} 筆班次</div>
@@ -362,7 +373,7 @@ function rowLabel(row: NpDutyImportRow) {
       <div v-if="previewRows.length" class="overflow-hidden rounded-xl border border-hairline">
         <table class="w-full text-xs">
           <thead class="bg-sunken text-fg-secondary">
-            <tr><th class="px-3 py-2 text-left">日期／病房／班別</th><th class="px-3 py-2 text-left">人員</th><th class="px-3 py-2 text-left">代號／分機</th></tr>
+            <tr><th class="px-3 py-2 text-left">日期／單位／班別</th><th class="px-3 py-2 text-left">人員</th><th class="px-3 py-2 text-left">代號／分機</th></tr>
           </thead>
           <tbody class="divide-y divide-hairline">
             <tr v-for="row in previewRows" :key="`${rowLabel(row)}-${row.npName}`">
@@ -378,7 +389,7 @@ function rowLabel(row: NpDutyImportRow) {
       </div>
 
       <p v-if="canImport" class="text-xs text-warning">
-        確認後將取代 {{ previewMonths.join('、') }} 的既有 NP 值班資料。
+        確認後將取代 {{ previewMonths.join('、') }} 的既有 NP／VS 值班資料。
       </p>
       <div class="flex gap-2">
         <button @click="confirmImport" :disabled="!canImport || importing"
@@ -398,9 +409,9 @@ function rowLabel(row: NpDutyImportRow) {
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h4 class="text-xs font-bold text-fg">{{ rosterMonth }} 已匯入 · {{ monthRows.length }} 筆</h4>
         <div class="flex items-center gap-1.5">
-          <button v-for="w in (['', '9A', '9B', '8A'] as const)" :key="w" @click="wardFilter = w"
+          <button v-for="w in (['', 'NP', 'VS'] as const)" :key="w" @click="dutyGroupFilter = w"
             class="rounded-full border px-2.5 py-0.5 text-2xs font-bold cursor-pointer"
-            :class="wardFilter === w ? 'bg-accent/10 border-accent/30 text-accent' : 'bg-sunken border-hairline text-muted hover:text-fg-secondary'">
+            :class="dutyGroupFilter === w ? 'bg-accent/10 border-accent/30 text-accent' : 'bg-sunken border-hairline text-muted hover:text-fg-secondary'">
             {{ w || '全部' }}
           </button>
           <button @click="startAdd" :disabled="editingId !== null"
@@ -414,7 +425,7 @@ function rowLabel(row: NpDutyImportRow) {
         <table class="w-full text-xs">
           <thead class="bg-sunken text-fg-secondary">
             <tr>
-              <th class="px-2 py-2 text-left">日期</th><th class="px-2 py-2 text-left">病房</th><th class="px-2 py-2 text-left">班別</th>
+              <th class="px-2 py-2 text-left">日期</th><th class="px-2 py-2 text-left">單位</th><th class="px-2 py-2 text-left">班別</th>
               <th class="px-2 py-2 text-left">姓名</th><th class="px-2 py-2 text-left">代號</th><th class="px-2 py-2 text-left">分機</th>
               <th class="px-2 py-2 text-left">備註</th><th class="px-2 py-2 w-24"></th>
             </tr>
@@ -425,7 +436,7 @@ function rowLabel(row: NpDutyImportRow) {
                 <td class="px-1 py-1"><input v-model="editForm.duty_date" type="date" class="w-full rounded border border-hairline bg-sunken px-1.5 py-1 text-fg" /></td>
                 <td class="px-1 py-1">
                   <select v-model="editForm.ward" class="rounded border border-hairline bg-sunken px-1 py-1 text-fg">
-                    <option v-for="w in NP_WARDS" :key="w" :value="w">{{ w }}</option>
+                    <option v-for="w in DUTY_UNITS" :key="w" :value="w">{{ w }}</option>
                   </select>
                 </td>
                 <td class="px-1 py-1"><input v-model="editForm.shift" list="np-shift-options" class="w-16 rounded border border-hairline bg-sunken px-1.5 py-1 text-fg" /></td>
