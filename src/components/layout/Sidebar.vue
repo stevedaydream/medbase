@@ -211,7 +211,7 @@ onUnmounted(() => {
       >
         <span class="text-sm">{{ ui.resolvedDark ? "☀" : "☾" }}</span>
       </button>
-      <span class="ml-auto text-xs text-muted">v1.0.0</span>
+      <span class="ml-auto text-xs text-muted">v1.0.1</span>
     </div>
 
     <!-- Drag ghost -->
