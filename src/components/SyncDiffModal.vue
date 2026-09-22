@@ -28,9 +28,11 @@ interface DiffRow {
 const meta = computed(() => SYNC_TABLE_META[props.table]);
 const label = computed(() => meta.value?.label ?? props.table);
 
+// 只比對雙方都有的欄位：本地 SELECT * 帶 id / created_at / updated_at，雲端沒有，
+// 聯集比對會讓每筆都變衝突且雲端欄全是「—」。null 與 "" 在 Sheet 中無法區分，視為相同。
 function getChangedKeys(a: Row, b: Row): string[] {
-  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
-  return [...keys].filter(k => JSON.stringify(a[k]) !== JSON.stringify(b[k]));
+  const norm = (v: unknown) => (v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
+  return Object.keys(b).filter(k => k in a && norm(a[k]) !== norm(b[k]));
 }
 
 const diffRows = computed((): DiffRow[] => {

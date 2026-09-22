@@ -69,16 +69,12 @@ const diffModalOpen = ref(false);
 const diffItems     = ref<AhkDiffItem[]>([]);
 
 async function applySelectedDiffs() {
-  const db = await getDb();
   let written = 0;
   for (const item of diffItems.value) {
     if (!item.selected) continue;
     try {
       await writeTextFile(item.targetPath, item.cloudContent);
-      await db.execute(
-        `INSERT OR REPLACE INTO ahk_scripts (id, name, file_path, description, updated_at) VALUES (?, ?, ?, ?, ?)`,
-        [item.id, item.name, item.targetPath, item.description, item.cloudTs || new Date().toISOString()]
-      );
+      await upsertAhkScript(item.id, item.name, item.targetPath, item.description, item.cloudTs || new Date().toISOString());
       written++;
     } catch (e) {
       console.error("[AHK diff apply] failed:", item.name, e);
@@ -497,6 +493,33 @@ async function generatePassAhk() {
 
 // ── 雲端備份 / 還原 ───────────────────────────────────────────────
 
+// Sheets 儲存格會把 \r\n 存成 \n，不正規化的話 Windows 檔案每一支都會被判定為有差異
+const normalizeEol = (s: string) => s.replace(/\r\n/g, "\n");
+
+// Sheets 會把 "2026-09-22 02:00:00" 自動轉成日期，舊版 GAS 回傳的是
+// "Tue Sep 22 2026 ..." —— 字串比對下永遠大於 "2026-..."，雲端因此永遠「較新」
+function normalizeTs(v: string): string {
+  if (!v || /^\d{4}-\d{2}-\d{2}/.test(v)) return v;
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return v;
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+// 不可用 INSERT OR REPLACE：REPLACE 是先刪再插，會觸發 ahk_group_scripts 的
+// ON DELETE CASCADE，還原一次套組裡的腳本就全部消失
+async function upsertAhkScript(id: number, name: string, filePath: string, description: string, updatedAt: string) {
+  const db = await getDb();
+  await db.execute(
+    `INSERT INTO ahk_scripts (id, name, file_path, description, updated_at) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET name=excluded.name, file_path=excluded.file_path,
+       description=excluded.description, updated_at=excluded.updated_at
+     ON CONFLICT(file_path) DO UPDATE SET name=excluded.name,
+       description=excluded.description, updated_at=excluded.updated_at`,
+    [id, name, filePath, description, updatedAt]
+  );
+}
+
 async function pushToCloud() {
   if (!cloud.gasUrl) { showToast("請先設定 GAS Web App URL"); return; }
   isSyncing.value = true; setGlobalSyncing("ahk", true);
@@ -538,7 +561,6 @@ async function pullFromCloud() {
     const cloudScripts: (AhkScript & { content: string })[] = json.scripts || [];
     if (!cloudScripts.length) { showToast("雲端無腳本資料"); return; }
 
-    const db = await getDb();
     const localMap = new Map(scripts.value.map(s => [s.id, s]));
 
     const docDir = await documentDir();
@@ -569,19 +591,17 @@ async function pullFromCloud() {
       let localContent = "";
       try { localContent = await readTextFile(targetPath); } catch { /* 不存在視為空 */ }
 
-      if (localContent === cs.content) {
+      const localTs = normalizeTs(localMap.get(cs.id)?.updated_at ?? "");
+      const cloudTs = normalizeTs(cs.updated_at ?? "");
+
+      if (normalizeEol(localContent) === normalizeEol(cs.content)) {
         // 內容相同，僅確保 DB 路徑正確
-        await db.execute(
-          `INSERT OR REPLACE INTO ahk_scripts (id, name, file_path, description, updated_at) VALUES (?, ?, ?, ?, ?)`,
-          [cs.id, cs.name, targetPath, cs.description ?? "", cs.updated_at || localMap.get(cs.id)?.updated_at || ""]
-        );
+        await upsertAhkScript(cs.id, cs.name, targetPath, cs.description ?? "", cloudTs || localTs);
         skipped++;
         continue;
       }
 
       // 內容不同，比對時間戳
-      const localTs = localMap.get(cs.id)?.updated_at ?? "";
-      const cloudTs = cs.updated_at ?? "";
 
       if (!localContent || cloudTs > localTs) {
         // 本地無內容，或雲端較新 → 加入 diff 確認清單

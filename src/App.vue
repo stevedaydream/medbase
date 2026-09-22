@@ -27,6 +27,7 @@ import { useLogger } from "@/composables/useLogger";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { startXlsxWatchFromSettings } from "@/composables/useXlsxSync";
+import { applyPhysicianRows, refreshPassAhk } from "@/composables/usePhysicians";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize, LogicalPosition } from "@tauri-apps/api/dpi";
 import { getDb } from "@/db";
@@ -111,6 +112,12 @@ function getTableName(table: string): string {
 
 async function applyCloudData(table: string, rows: Record<string, unknown>[]): Promise<void> {
   if (table === "ahk" || table === "sets") return; // complex tables: skip auto-apply
+  if (table === "physicians") {
+    if (!rows.length) return;
+    await applyPhysicianRows(rows as unknown as Parameters<typeof applyPhysicianRows>[0]);
+    await refreshPassAhk();
+    return;
+  }
   const db = await getDb();
   const tableName = getTableName(table);
   if (!tableName) return;

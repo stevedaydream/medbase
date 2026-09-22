@@ -137,6 +137,8 @@ async function pullFromCloud() {
   syncing.value = true; setGlobalSyncing("physicians", true);
   try {
     const { inserted, updated } = await pullPhysiciansFromCloud(cloud.gasUrl);
+    // 沒記下拉取時間，版本輪詢會一直認為雲端較新而再跳差異視窗
+    await saveSyncTimestamp("physicians");
     await load();
     // 拉下來的資料可能含新的／異動的 HIS 帳密，pass.ahk 必須跟著重建
     const ahkMessage = await refreshPassAhk();

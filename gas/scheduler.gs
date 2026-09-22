@@ -414,7 +414,11 @@ function doPost(e) {
         ]);
         sh.clearContents();
         sh.getRange(1,1,1,hd.length).setValues([hd]);
-        if (rw.length) sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        if (rw.length) {
+          // 設為純文字：否則 updated_at 會被轉成日期、以 = 開頭的內容會被當公式
+          sh.getRange(2, 1, rw.length, hd.length).setNumberFormat('@');
+          sh.getRange(2,1,rw.length,hd.length).setValues(rw);
+        }
         _setLastUpdated('ahk');
         return json({ ok: true });
       }
@@ -425,7 +429,10 @@ function doPost(e) {
         if (!sh || sh.getLastRow() < 2) return json({ ok: true, scripts: [] });
         const scripts = sh.getDataRange().getValues().slice(1).filter(r => r[0]).map(r => ({
           id: Number(r[0]), name: String(r[1]||''), file_path: String(r[2]||''),
-          description: String(r[3]||''), content: String(r[4]||''), updated_at: String(r[5]||'')
+          description: String(r[3]||''), content: String(r[4]||''),
+          updated_at: r[5] instanceof Date
+            ? Utilities.formatDate(r[5], ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd HH:mm:ss')
+            : String(r[5]||'')
         }));
         return json({ ok: true, scripts });
       }

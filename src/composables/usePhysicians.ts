@@ -105,7 +105,19 @@ export async function pullPhysiciansFromCloud(
 
   const rows: Omit<Physician, "id">[] = json.data ?? [];
   if (!rows.length) throw new Error("雲端無資料");
+  return applyPhysicianRows(rows);
+}
 
+/**
+ * 以姓名 upsert 雲端通訊錄，保留本地 id。
+ *
+ * 背景同步原本走通用的 DELETE + INSERT：雲端列沒有 id，重插後 id 全換，
+ * 而 sets.physician_id 參照 physicians(id)，DELETE 直接撞 FK 失敗且被靜默吞掉，
+ * 導致通訊錄永遠停在待同步、每次輪詢都跳差異視窗。
+ */
+export async function applyPhysicianRows(
+  rows: Omit<Physician, "id">[],
+): Promise<{ inserted: number; updated: number }> {
   const db = await getDb();
   let inserted = 0, updated = 0;
   for (const r of rows) {
