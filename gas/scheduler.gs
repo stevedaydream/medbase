@@ -68,6 +68,226 @@ function getVersions() {
   return json({ ok: true, data: versions });
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// 通用逐筆同步（syncTable）
+// 每張表：資料 Sheet（最後一欄 updated_at）＋ 共用的 Tombstones Sheet（table, key, deleted_at）。
+// 同一 key 以 updated_at 較新者為準；刪除與修改比時間，較晚者勝。
+// 新增資料表只需在 SYNC_TABLES 加一筆設定。
+// ─────────────────────────────────────────────────────────────────────
+const SYNC_TABLES = {
+  physicians: {
+    sheet: 'Physicians',
+    key: 'name',
+    fields:  ['name', 'department', 'title', 'ext', 'his_account', 'his_password', 'phs_account', 'phs_password', 'notes'],
+    headers: ['姓名', '科別', '職稱', '分機', 'HIS帳號', 'HIS密碼', 'PHS帳號', 'PHS密碼', '備註'],
+  },
+};
+
+function _cellStr(v, tz) {
+  if (v instanceof Date) return Utilities.formatDate(v, tz, 'yyyy-MM-dd HH:mm:ss');
+  return v == null ? '' : String(v);
+}
+
+function _syncRow(cfg, r, updatedAt) {
+  const row = {};
+  cfg.fields.forEach(f => { row[f] = r[f] == null ? '' : String(r[f]); });
+  row.updated_at = updatedAt == null ? '' : String(updatedAt);
+  return row;
+}
+
+/** 讀出 { rows: {key: row}, tombs: {key: deleted_at} } */
+function _readSyncTable(ss, table) {
+  const cfg = SYNC_TABLES[table];
+  const tz = ss.getSpreadsheetTimeZone();
+  const width = cfg.fields.length + 1;
+  const rows = {}, tombs = {};
+
+  const sh = ss.getSheetByName(cfg.sheet);
+  if (sh && sh.getLastRow() >= 2) {
+    sh.getRange(2, 1, sh.getLastRow() - 1, width).getValues().forEach(r => {
+      const row = {};
+      cfg.fields.forEach((f, i) => { row[f] = _cellStr(r[i], tz); });
+      row.updated_at = _cellStr(r[cfg.fields.length], tz);
+      if (row[cfg.key]) rows[row[cfg.key]] = row;
+    });
+  }
+
+  const shT = ss.getSheetByName('Tombstones');
+  if (shT && shT.getLastRow() >= 2) {
+    shT.getRange(2, 1, shT.getLastRow() - 1, 3).getValues().forEach(r => {
+      if (String(r[0]) === table && r[1] !== '') tombs[_cellStr(r[1], tz)] = _cellStr(r[2], tz);
+    });
+  }
+  return { rows, tombs };
+}
+
+function _writeSyncTable(ss, table, rows, tombs) {
+  const cfg = SYNC_TABLES[table];
+  const hd = cfg.headers.concat(['updated_at']);
+
+  const sh = ss.getSheetByName(cfg.sheet) || ss.insertSheet(cfg.sheet);
+  const rw = Object.keys(rows).map(k => cfg.fields.map(f => rows[k][f]).concat([rows[k].updated_at]));
+  sh.clearContents();
+  sh.getRange(1, 1, 1, hd.length).setValues([hd]);
+  if (rw.length) {
+    // 全部設純文字：防止前導零被吃掉、日期字串被轉型、= 開頭被當公式
+    const range = sh.getRange(2, 1, rw.length, hd.length);
+    range.setNumberFormat('@');
+    range.setValues(rw);
+  }
+
+  // Tombstones 為各表共用：保留其他表的列，只替換本表
+  const shT = ss.getSheetByName('Tombstones') || ss.insertSheet('Tombstones');
+  const tz = ss.getSpreadsheetTimeZone();
+  const others = shT.getLastRow() >= 2
+    ? shT.getRange(2, 1, shT.getLastRow() - 1, 3).getValues()
+        .filter(r => String(r[0]) !== table && r[0] !== '')
+        .map(r => [String(r[0]), _cellStr(r[1], tz), _cellStr(r[2], tz)])
+    : [];
+  const rwT = others.concat(Object.keys(tombs).map(k => [table, k, tombs[k]]));
+  shT.clearContents();
+  shT.getRange(1, 1, 1, 3).setValues([['table', 'key', 'deleted_at']]);
+  if (rwT.length) {
+    const rangeT = shT.getRange(2, 1, rwT.length, 3);
+    rangeT.setNumberFormat('@');
+    rangeT.setValues(rwT);
+  }
+}
+
+/**
+ * 合併本地送來的資料並寫回。呼叫方須持有 LockService 鎖。
+ * force = 「覆蓋」：本地全部以 now 為準，雲端有、本地沒有的寫入刪除紀錄。
+ */
+function _mergeSyncTable(ss, table, p) {
+  const cfg = SYNC_TABLES[table];
+  const cur = _readSyncTable(ss, table);
+  const before = JSON.stringify(cur);
+  const rows = cur.rows, tombs = cur.tombs;
+  const now = String(p.now || '');
+  const incoming = (p.rows || []).filter(r => r && r[cfg.key] != null && String(r[cfg.key]) !== '');
+
+  if (p.force) {
+    const keep = {};
+    incoming.forEach(r => { keep[String(r[cfg.key])] = true; });
+    Object.keys(rows).forEach(k => { if (!keep[k]) tombs[k] = now; });
+    incoming.forEach(r => {
+      const k = String(r[cfg.key]);
+      rows[k] = _syncRow(cfg, r, now);
+      delete tombs[k];
+    });
+  } else {
+    (p.tombstones || []).forEach(t => {
+      if (!t || t.key == null || t.key === '') return;
+      const k = String(t.key), ts = String(t.deleted_at || '');
+      if (!tombs[k] || ts > tombs[k]) tombs[k] = ts;
+    });
+    incoming.forEach(r => {
+      const k = String(r[cfg.key]);
+      const c = rows[k];
+      const ts = r.updated_at == null ? '' : String(r.updated_at);
+      if (!c || ts > c.updated_at) rows[k] = _syncRow(cfg, r, ts);
+    });
+  }
+
+  // 刪除 vs 修改：時間較晚者勝
+  Object.keys(tombs).forEach(k => {
+    const r = rows[k];
+    if (!r) return;
+    if (r.updated_at && r.updated_at > tombs[k]) delete tombs[k];
+    else delete rows[k];
+  });
+
+  if (JSON.stringify({ rows, tombs }) !== before) {
+    _writeSyncTable(ss, table, rows, tombs);
+    _setLastUpdated(table);
+  }
+  return { rows, tombs };
+}
+
+// ── 同步基準：某台電腦「覆蓋」後才允許一般同步 ──
+// 升級前的雲端資料沒有 updated_at，無法判斷新舊；在基準建立前放行一般同步，
+// 不是本地修改被舊資料改回去，就是舊資料蓋掉雲端。
+function _getConfigValue(key) {
+  const cfg = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Config');
+  if (!cfg) return '';
+  const row = cfg.getDataRange().getValues().find(r => r[0] === key);
+  return row ? String(row[1] || '') : '';
+}
+
+function _setConfigValue(key, value) {
+  const ss  = SpreadsheetApp.getActiveSpreadsheet();
+  const cfg = ss.getSheetByName('Config') || ss.insertSheet('Config');
+  const vals = cfg.getDataRange().getValues();
+  const idx  = vals.findIndex(r => r[0] === key);
+  if (idx >= 0) cfg.getRange(idx + 1, 2).setValue(value);
+  else cfg.appendRow([key, value]);
+}
+
+function _withLock(fn) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try { return fn(); } finally { lock.releaseLock(); }
+}
+
+// ── NP 值班表（NpDuty 資料 + NpDutyMonths 每月版本）──────────────────
+const NP_FIELDS = ['duty_date', 'ward', 'np_name', 'staff_code', 'extension', 'shift', 'notes', 'source_file'];
+
+function _npDutyRow(month, r) {
+  const row = { month };
+  NP_FIELDS.forEach(f => { row[f] = r[f] == null ? '' : String(r[f]); });
+  return row;
+}
+
+function _readNpDutyRows(ss) {
+  const sh = ss.getSheetByName('NpDuty');
+  if (!sh || sh.getLastRow() < 2) return [];
+  const tz = ss.getSpreadsheetTimeZone();
+  return sh.getRange(2, 1, sh.getLastRow() - 1, NP_FIELDS.length + 1).getValues()
+    .filter(r => r[0] !== '')
+    .map(r => {
+      const row = { month: _cellStr(r[0], tz) };
+      NP_FIELDS.forEach((f, i) => { row[f] = _cellStr(r[i + 1], tz); });
+      return row;
+    });
+}
+
+function _writeNpDutyRows(ss, rows) {
+  const sh = ss.getSheetByName('NpDuty') || ss.insertSheet('NpDuty');
+  const hd = ['month'].concat(NP_FIELDS);
+  sh.clearContents();
+  sh.getRange(1, 1, 1, hd.length).setValues([hd]);
+  if (rows.length) {
+    // 純文字：日期不被轉型、分機前導零保留
+    const range = sh.getRange(2, 1, rows.length, hd.length);
+    range.setNumberFormat('@');
+    range.setValues(rows.map(r => hd.map(f => r[f])));
+  }
+}
+
+function _readNpDutyVersions(ss) {
+  const sh = ss.getSheetByName('NpDutyMonths');
+  const out = {};
+  if (!sh || sh.getLastRow() < 2) return out;
+  const tz = ss.getSpreadsheetTimeZone();
+  sh.getRange(2, 1, sh.getLastRow() - 1, 2).getValues().forEach(r => {
+    const m = _cellStr(r[0], tz);
+    if (m) out[m] = _cellStr(r[1], tz);
+  });
+  return out;
+}
+
+function _writeNpDutyVersions(ss, versions) {
+  const sh = ss.getSheetByName('NpDutyMonths') || ss.insertSheet('NpDutyMonths');
+  const rw = Object.keys(versions).sort().map(m => [m, versions[m]]);
+  sh.clearContents();
+  sh.getRange(1, 1, 1, 2).setValues([['month', 'version']]);
+  if (rw.length) {
+    const range = sh.getRange(2, 1, rw.length, 2);
+    range.setNumberFormat('@');
+    range.setValues(rw);
+  }
+}
+
 function doPost(e) {
   const p  = JSON.parse(e.postData.contents);
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -258,40 +478,88 @@ function doPost(e) {
         return json({ ok: true, data });
       }
 
-      // ── 儲存醫師通訊錄（桌機端推送） ──────────────────────────────
-      case 'savePhysicians': {
-        let sh = ss.getSheetByName('Physicians') || ss.insertSheet('Physicians');
-        const hd = ['姓名', '科別', '職稱', '分機', 'HIS帳號', 'HIS密碼', 'PHS帳號', 'PHS密碼', '備註'];
-        const rw = (p.data || []).map(r => [
-          r.name, r.department, r.title, r.ext,
-          r.his_account, r.his_password, r.phs_account, r.phs_password, r.notes
-        ]);
-        sh.clearContents();
-        sh.getRange(1, 1, 1, hd.length).setValues([hd]);
-        if (rw.length) {
-          const dataRange = sh.getRange(2, 1, rw.length, hd.length);
-          // 將帳號/密碼欄（第5~8欄）設為純文字格式，防止前導零被吃掉
-          const textCols = [5, 6, 7, 8]; // his_account, his_password, phs_account, phs_password
-          textCols.forEach(col => {
-            sh.getRange(2, col, rw.length, 1).setNumberFormat('@');
-          });
-          dataRange.setValues(rw);
+      // ── 通用逐筆同步（桌機端，新版） ──────────────────────────────
+      // p: { table, rows, tombstones, now, force }，回傳合併後的完整結果
+      case 'syncTable': {
+        const cfg = SYNC_TABLES[p.table];
+        if (!cfg) return json({ ok: false, error: `Unknown sync table: ${p.table}` });
+        const baselineKey = p.table + '_sync_baseline';
+        const merged = _withLock(() => {
+          if (!p.force && !_getConfigValue(baselineKey)) return null;
+          const m = _mergeSyncTable(ss, p.table, p);
+          if (p.force) _setConfigValue(baselineKey, String(p.now || ''));
+          return m;
+        });
+        if (!merged) {
+          return json({ ok: false, code: 'NO_BASELINE', error: '尚未建立同步基準：請先在資料最完整的電腦按「覆蓋」' });
         }
-        _setLastUpdated('physicians');
-        return json({ ok: true });
+        return json({
+          ok: true,
+          rows: Object.keys(merged.rows).map(k => merged.rows[k]),
+          tombstones: Object.keys(merged.tombs).map(k => ({ key: k, deleted_at: merged.tombs[k] })),
+        });
       }
 
-      // ── 拉取醫師通訊錄（桌機端拉取） ──────────────────────────────
+      // ── 儲存醫師通訊錄（舊版桌機端） ──────────────────────────────
+      // 舊版會送整份本地資料全量覆寫；多台電腦並用時會互相蓋掉，且舊版送不出
+      // 刪除與時間戳。升級過渡期間改為「只新增雲端沒有、也未被刪除的人」。
+      case 'savePhysicians': {
+        const added = _withLock(() => {
+          const cur = _readSyncTable(ss, 'physicians');
+          let n = 0;
+          (p.data || []).forEach(r => {
+            if (!r || !r.name || cur.rows[r.name] || cur.tombs[r.name]) return;
+            cur.rows[r.name] = _syncRow(SYNC_TABLES.physicians, r, '');
+            n++;
+          });
+          if (n) {
+            _writeSyncTable(ss, 'physicians', cur.rows, cur.tombs);
+            _setLastUpdated('physicians');
+          }
+          return n;
+        });
+        return json({ ok: true, added });
+      }
+
+      // ── 拉取醫師通訊錄（舊版桌機端） ──────────────────────────────
       case 'getPhysicians': {
-        const sh = ss.getSheetByName('Physicians');
-        if (!sh || sh.getLastRow() < 2) return json({ ok: true, data: [] });
-        const rows = sh.getDataRange().getValues().slice(1);
-        const data = rows.map(r => ({
-          name: String(r[0] || ''), department: String(r[1] || ''), title: String(r[2] || ''),
-          ext: String(r[3] || ''), his_account: String(r[4] || ''), his_password: String(r[5] || ''),
-          phs_account: String(r[6] || ''), phs_password: String(r[7] || ''), notes: String(r[8] || '')
-        })).filter(r => r.name);
+        const rows = _readSyncTable(ss, 'physicians').rows;
+        return json({ ok: true, data: Object.keys(rows).map(k => rows[k]) });
+      }
+
+      // ── NP 值班表：以「月」為單位同步 ──────────────────────────────
+      // 班表是每月一份、重新匯入即整月取代，逐筆合併反而會把改掉的人留下來。
+      // NpDutyMonths 記每月版本；上傳時版本較新才取代整月。
+      case 'getNpDutyVersions': {
+        return json({ ok: true, data: _readNpDutyVersions(ss) });
+      }
+
+      case 'getNpDutyMonths': {
+        const want = {};
+        (p.months || []).forEach(m => { want[String(m)] = true; });
+        const versions = _readNpDutyVersions(ss);
+        const data = {};
+        Object.keys(want).forEach(m => { data[m] = { version: versions[m] || '', rows: [] }; });
+        _readNpDutyRows(ss).forEach(r => { if (want[r.month]) data[r.month].rows.push(r); });
         return json({ ok: true, data });
+      }
+
+      case 'saveNpDutyMonth': {
+        const month = String(p.month || ''), version = String(p.version || '');
+        if (!/^\d{4}-\d{2}$/.test(month) || !version) return json({ ok: false, error: 'month / version 格式錯誤' });
+        const result = _withLock(() => {
+          const versions = _readNpDutyVersions(ss);
+          if (versions[month] && versions[month] >= version) return { stale: versions[month] };
+          const kept = _readNpDutyRows(ss).filter(r => r.month !== month);
+          const added = (p.rows || []).map(r => _npDutyRow(month, r));
+          _writeNpDutyRows(ss, kept.concat(added));
+          versions[month] = version;
+          _writeNpDutyVersions(ss, versions);
+          _setLastUpdated('npDuty');
+          return { count: added.length };
+        });
+        if (result.stale) return json({ ok: false, code: 'STALE', version: result.stale, error: '雲端已有較新的版本' });
+        return json({ ok: true, count: result.count });
       }
 
       // ── 儲存自費品項（桌機端推送） ────────────────────────────────

@@ -1,8 +1,10 @@
 import { getDb, dbWrite } from "@/db";
 import { autoUpdatePassAhk, getPassAhkPath } from "@/composables/usePassAhk";
-import { markLocalModified, pushTableToCloud } from "@/composables/useSyncMonitor";
-import { exportToXlsx, autoCloudSync, xlsxPath } from "@/composables/useXlsxSync";
+import { markLocalModified } from "@/composables/useSyncMonitor";
+import { exportToXlsx, xlsxPath } from "@/composables/useXlsxSync";
 import { useCloudSettings } from "@/stores/cloudSettings";
+import { useLogger } from "@/composables/useLogger";
+import { syncTable, markDeleted, NoBaselineError } from "@/composables/useTableSync";
 
 /**
  * physicians 表的唯一寫入入口。
@@ -21,6 +23,8 @@ export interface Physician {
   ext: string | null;
   his_account: string | null;
   his_password: string | null;
+  phs_account?: string | null;
+  phs_password?: string | null;
   notes: string | null;
 }
 
@@ -36,21 +40,15 @@ async function afterWrite(): Promise<string | null> {
   const ahkMessage = await autoUpdatePassAhk();
   await markLocalModified("physicians");
 
-  if (xlsxPath.value) {
-    exportToXlsx();
-    autoCloudSync();
-  }
+  if (xlsxPath.value) exportToXlsx();
 
+  // 逐筆同步，不再整份覆蓋雲端（多台電腦並用會互相蓋掉，見 useTableSync）
   const gasUrl = useCloudSettings().gasUrl;
   if (gasUrl) {
-    const db = await getDb();
-    const all = await db.select<Physician[]>("SELECT * FROM physicians");
-    pushTableToCloud(
-      "physicians",
-      gasUrl,
-      { action: "savePhysicians", data: all },
-      all.length,
-    ).catch(() => {});
+    syncTable("physicians", gasUrl).catch((e) => {
+      if (e instanceof NoBaselineError) useLogger().addLog("info", "[雲端同步] 通訊錄尚未建立同步基準，暫停自動同步");
+      else useLogger().addLog("warn", "[雲端同步] 通訊錄同步失敗", String(e));
+    });
   }
 
   return ahkMessage;
@@ -75,70 +73,14 @@ async function missingAccountNotice(f: PhysicianForm, base: string | null): Prom
 /**
  * 批次寫入（雲端拉取、XLSX 匯入、備份還原）之後重建 pass.ahk 並 Reload。
  *
- * 刻意不走 afterWrite()：那會 markLocalModified 並把整份資料推回雲端，
- * 但這些情境的資料正是剛從雲端／檔案拉進來的 —— 推回去不只多餘，還可能
- * 覆蓋掉別人在這段期間存進雲端的內容。此處只做本機端的 pass.ahk 重建。
+ * 刻意不走 afterWrite()：那會 markLocalModified 並觸發雲端同步，
+ * 但這些情境的資料正是剛從雲端／檔案拉進來的，再同步一次是多餘的。
+ * 此處只做本機端的 pass.ahk 重建。
  */
 export async function refreshPassAhk(): Promise<string | null> {
   // 這些情境多半在背景發生，不能順手 Reload —— 見 autoUpdatePassAhk 的說明。
   // 需要立即生效請用 AHK 管理頁 pass.ahk 的刷新鈕。
   return await autoUpdatePassAhk({ reload: false });
-}
-
-/**
- * 從雲端拉取通訊錄並寫入 physicians。
- *
- * 原本內嵌在 PhysiciansView，AhkView 的 pass.ahk 刷新也要用同一套邏輯，
- * 故抽到此處。刻意不做 pass.ahk 重建與 Reload —— 呼叫方對「要不要 Reload」
- * 的需求不同（背景拉取不該 Reload，手動刷新則該 Reload）。
- */
-export async function pullPhysiciansFromCloud(
-  gasUrl: string,
-): Promise<{ inserted: number; updated: number }> {
-  const res = await fetch(gasUrl, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain" },
-    body: JSON.stringify({ action: "getPhysicians" }),
-  });
-  const json = await res.json();
-  if (!json.ok) throw new Error(json.error);
-
-  const rows: Omit<Physician, "id">[] = json.data ?? [];
-  if (!rows.length) throw new Error("雲端無資料");
-  return applyPhysicianRows(rows);
-}
-
-/**
- * 以姓名 upsert 雲端通訊錄，保留本地 id。
- *
- * 背景同步原本走通用的 DELETE + INSERT：雲端列沒有 id，重插後 id 全換，
- * 而 sets.physician_id 參照 physicians(id)，DELETE 直接撞 FK 失敗且被靜默吞掉，
- * 導致通訊錄永遠停在待同步、每次輪詢都跳差異視窗。
- */
-export async function applyPhysicianRows(
-  rows: Omit<Physician, "id">[],
-): Promise<{ inserted: number; updated: number }> {
-  const db = await getDb();
-  let inserted = 0, updated = 0;
-  for (const r of rows) {
-    const existing = await db.select<{ id: number }[]>(
-      "SELECT id FROM physicians WHERE name = ?", [r.name]
-    );
-    if (existing.length) {
-      await db.execute(
-        `UPDATE physicians SET department=?, title=?, ext=?, his_account=?, his_password=?, notes=? WHERE id=?`,
-        [r.department, r.title, r.ext ?? null, r.his_account, r.his_password, r.notes, existing[0].id]
-      );
-      updated++;
-    } else {
-      await db.execute(
-        `INSERT INTO physicians (name, department, title, ext, his_account, his_password, notes) VALUES (?,?,?,?,?,?,?)`,
-        [r.name, r.department, r.title, r.ext ?? null, r.his_account, r.his_password, r.notes]
-      );
-      inserted++;
-    }
-  }
-  return { inserted, updated };
 }
 
 /** 新增（無 id）或更新（有 id）一筆醫師資料 */
@@ -147,6 +89,10 @@ export async function upsertPhysician(f: PhysicianForm): Promise<WriteResult> {
   if (!name) throw new Error("姓名為必填");
 
   if (f.id) {
+    // 改名在其他電腦看來是「舊名刪除、新名新增」，舊名要留刪除紀錄
+    const db = await getDb();
+    const old = await db.select<{ name: string }[]>("SELECT name FROM physicians WHERE id = ?", [f.id]);
+    if (old[0] && old[0].name !== name) await markDeleted("physicians", old[0].name);
     await dbWrite(
       `UPDATE physicians
           SET name=?, department=?, title=?, ext=?,
@@ -174,6 +120,9 @@ export async function removePhysician(id: number): Promise<WriteResult> {
   // 先解除套組對此醫師的 FK 參照，否則 SQLite 會噴
   // FOREIGN KEY constraint failed (code 787)
   await dbWrite("UPDATE sets SET physician_id = NULL WHERE physician_id = ?", [id]);
+  const db = await getDb();
+  const row = await db.select<{ name: string }[]>("SELECT name FROM physicians WHERE id = ?", [id]);
+  if (row[0]) await markDeleted("physicians", row[0].name);
   await dbWrite("DELETE FROM physicians WHERE id=?", [id]);
   return { ahkMessage: await afterWrite() };
 }

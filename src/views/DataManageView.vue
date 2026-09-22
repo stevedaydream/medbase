@@ -186,6 +186,8 @@ const importResults    = ref<ImportResult[] | null>(null);
 const xlsxInput        = ref<HTMLInputElement | null>(null);
 
 function n(v: any): any { return (v === undefined || v === "" || v === null) ? null : v; }
+// 備份檔沒有時間戳的資料視為最舊：同步時以雲端為準，避免還原舊備份蓋掉其他電腦較新的修改
+const EPOCH = "1970-01-01 00:00:00";
 function isNum(v: any): v is number { return typeof v === "number" && isFinite(v); }
 
 async function handleXlsx(e: Event) {
@@ -311,17 +313,17 @@ async function handleXlsx(e: Event) {
         if (isNum(r.id)) {
           await dbWrite(
             `INSERT OR REPLACE INTO physicians
-             (id,name,department,title,ext,his_account,his_password,notes)
-             VALUES (?,?,?,?,?,?,?,?)`,
+             (id,name,department,title,ext,his_account,his_password,notes,updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?)`,
             [r.id, r.name, n(r.department), n(r.title), n(r.ext),
-             n(r.his_account), n(r.his_password), n(r.notes)]);
+             n(r.his_account), n(r.his_password), n(r.notes), n(r.updated_at) ?? EPOCH]);
         } else {
           await dbWrite(
             `INSERT INTO physicians
-             (name,department,title,ext,his_account,his_password,notes)
-             VALUES (?,?,?,?,?,?,?)`,
+             (name,department,title,ext,his_account,his_password,notes,updated_at)
+             VALUES (?,?,?,?,?,?,?,?)`,
             [r.name, n(r.department), n(r.title), n(r.ext),
-             n(r.his_account), n(r.his_password), n(r.notes)]);
+             n(r.his_account), n(r.his_password), n(r.notes), n(r.updated_at) ?? EPOCH]);
         }
         ok++; tick();
       }

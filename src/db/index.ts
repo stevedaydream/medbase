@@ -408,6 +408,18 @@ async function initSchema(db: Database) {
   try { await db.execute(`ALTER TABLE np_duty_assignments ADD COLUMN extension TEXT`); } catch { /* 已存在 */ }
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_np_duty_date ON np_duty_assignments(duty_date);`);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_np_duty_ward_date ON np_duty_assignments(ward, duty_date);`);
+  // 每月版本（雲端同步以月為單位，見 useNpDuty.syncNpDuty）
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS np_duty_months (
+      month   TEXT PRIMARY KEY,
+      version TEXT NOT NULL
+    );
+  `);
+  // 升級前已匯入的月份以匯入時間當版本，首次同步時才會上傳
+  await db.execute(`
+    INSERT OR IGNORE INTO np_duty_months (month, version)
+    SELECT substr(duty_date,1,7), MAX(imported_at) FROM np_duty_assignments GROUP BY substr(duty_date,1,7)
+  `);
 
   // ── 輪序快照（每月池狀態 + 預算投影）────────────────────────
   await db.execute(`
@@ -460,7 +472,18 @@ async function initSchema(db: Database) {
   // ── 雙軌同步：補 updated_at 欄位（舊資料庫兼容）────────────
   try { await db.execute(`ALTER TABLE physicians ADD COLUMN updated_at TEXT`); } catch { /* 已存在 */ }
   try { await db.execute(`ALTER TABLE contacts   ADD COLUMN updated_at TEXT`); } catch { /* 已存在 */ }
-  await db.execute(`UPDATE physicians SET updated_at = datetime('now','localtime') WHERE updated_at IS NULL`);
+  // 不可補「現在」：新裝機 seed 進來的資料會比雲端所有人都新，一同步就蓋掉雲端。
+  // 來源不明的資料一律視為最舊，讓雲端版本優先。
+  await db.execute(`UPDATE physicians SET updated_at = '1970-01-01 00:00:00' WHERE updated_at IS NULL`);
+  // 逐筆同步的刪除紀錄：同步時據此把刪除傳到其他電腦（見 useTableSync）
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS sync_tombstones (
+      tbl        TEXT NOT NULL,
+      key        TEXT NOT NULL,
+      deleted_at TEXT NOT NULL,
+      PRIMARY KEY (tbl, key)
+    )
+  `);
   await db.execute(`UPDATE contacts   SET updated_at = datetime('now','localtime') WHERE updated_at IS NULL`);
 
   // ── 病歷潤飾格式範本（v2：加入 profile 欄位，複合主鍵）────────

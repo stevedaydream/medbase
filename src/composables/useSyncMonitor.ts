@@ -19,6 +19,7 @@ export const SYNC_TABLE_META: Record<string, {
   ahk:           { label: "AHK 管理",   getAction: "getAhkScripts",    extractData: r => r.scripts as unknown[], primaryKey: "id" },
   shiftMemos:    { label: "規則備忘錄", getAction: "getShiftMemos",    extractData: r => r.data as unknown[], primaryKey: "id" },
   sets:          { label: "套組管理",   getAction: "getSets",          extractData: r => r.sets as unknown[], primaryKey: "id" },
+  npDuty:        { label: "值班 NP",    getAction: "getNpDutyVersions", extractData: () => [], primaryKey: "month" },
 };
 
 // ── Module-level singletons ─────────────────────────────────────────────

@@ -3,9 +3,8 @@ import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { setGlobalSyncing } from "@/composables/useCloudSync";
-import { saveSyncTimestamp } from "@/composables/useSyncMonitor";
-import { upsertPhysician, removePhysician, refreshPassAhk, pullPhysiciansFromCloud } from "@/composables/usePhysicians";
-import { useLogger } from "@/composables/useLogger";
+import { upsertPhysician, removePhysician } from "@/composables/usePhysicians";
+import { syncTable } from "@/composables/useTableSync";
 
 interface Physician { id: number; name: string; department: string; title: string; ext: string; his_account: string; his_password: string; notes: string; }
 
@@ -58,97 +57,34 @@ function copy(text: string) {
   showToast(`已複製：${text}`);
 }
 
-// 合併推送：先拉雲端，本地有雲端無的才上傳（以雲端為主，key = his_account 或 name）
-async function pushToCloud() {
+// 逐筆同步：本地與雲端以姓名對應、updated_at 較新者為準，刪除會傳到其他電腦
+async function syncWithCloud(force = false) {
   if (!cloud.gasUrl) { showToast("請先在排班設定填入 GAS Web App URL"); return; }
   syncing.value = true; setGlobalSyncing("physicians", true);
   try {
-    // 1. 拉雲端現有資料
-    const pullRes = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "getPhysicians" }),
-    });
-    const pullJson = await pullRes.json();
-    if (!pullJson.ok) throw new Error(pullJson.error ?? "拉取雲端失敗");
-    const cloudData: Omit<Physician, "id">[] = pullJson.data ?? [];
-
-    // 2. 建立雲端 key set（his_account 非空 → 用帳號比對；否則用姓名）
-    const cloudAccounts = new Set(cloudData.map(r => r.his_account).filter(Boolean));
-    const cloudNames    = new Set(cloudData.map(r => r.name).filter(Boolean));
-
-    // 3. 找出「本地有、雲端無」的新筆數
-    const newLocal = physicians.value.filter(p => {
-      if (p.his_account && cloudAccounts.has(p.his_account)) return false;
-      if (cloudNames.has(p.name)) return false;
-      return true;
-    });
-
-    if (newLocal.length === 0) {
-      showToast("無新資料需上傳（雲端已有所有本地筆數）");
-      return;
-    }
-
-    // 4. 合併：雲端資料 + 本地新增，送回雲端（savePhysicians 會全量覆寫）
-    const merged = [...cloudData, ...newLocal];
-    const pushRes = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "savePhysicians", data: merged }),
-    });
-    const pushJson = await pushRes.json();
-    if (!pushJson.ok) throw new Error(pushJson.error);
-    showToast(`已上傳 ${newLocal.length} 筆新資料（跳過 ${physicians.value.length - newLocal.length} 筆重複）`);
-    await saveSyncTimestamp("physicians");
-    useLogger().addLog("info", `[雲端同步] push 醫師 — ${newLocal.length} 筆`, JSON.stringify({ table: "physicians", action: "push", timestamp: new Date().toISOString() }));
-  } catch (err) {
-    showToast(`推送失敗：${(err as Error).message}`);
-    useLogger().addLog("warn", "[雲端同步] push 醫師 失敗", String(err));
-  } finally {
-    syncing.value = false; setGlobalSyncing("physicians", false);
-  }
-}
-
-// 強制覆蓋雲端：以本地為主，完整替換雲端
-async function overwriteCloud() {
-  if (!cloud.gasUrl) { showToast("請先在排班設定填入 GAS Web App URL"); return; }
-  syncing.value = true; setGlobalSyncing("physicians", true);
-  try {
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "savePhysicians", data: physicians.value }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error);
-    showToast(`已覆蓋雲端（共 ${physicians.value.length} 筆）`);
-    await saveSyncTimestamp("physicians");
-    useLogger().addLog("info", `[雲端同步] overwrite 醫師 — ${physicians.value.length} 筆`, JSON.stringify({ table: "physicians", action: "push", timestamp: new Date().toISOString() }));
-  } catch (err) {
-    showToast(`覆蓋失敗：${(err as Error).message}`);
-    useLogger().addLog("warn", "[雲端同步] overwrite 醫師 失敗", String(err));
-  } finally {
-    syncing.value = false; setGlobalSyncing("physicians", false);
-  }
-}
-
-async function pullFromCloud() {
-  if (!cloud.gasUrl) { showToast("請先在排班設定填入 GAS Web App URL"); return; }
-  syncing.value = true; setGlobalSyncing("physicians", true);
-  try {
-    const { inserted, updated } = await pullPhysiciansFromCloud(cloud.gasUrl);
-    // 沒記下拉取時間，版本輪詢會一直認為雲端較新而再跳差異視窗
-    await saveSyncTimestamp("physicians");
+    const r = await syncTable("physicians", cloud.gasUrl, { force });
     await load();
-    // 拉下來的資料可能含新的／異動的 HIS 帳密，pass.ahk 必須跟著重建
-    const ahkMessage = await refreshPassAhk();
-    const summary = `拉取完成：新增 ${inserted} 筆，更新 ${updated} 筆`;
-    showToast(ahkMessage ? `${summary}｜${ahkMessage}` : summary);
+    const summary = `${force ? "已覆蓋雲端" : "同步完成"}：新增 ${r.inserted}、更新 ${r.updated}、刪除 ${r.deleted}`;
+    showToast(r.message ? `${summary}｜${r.message}` : summary);
   } catch (err) {
-    showToast(`拉取失敗：${(err as Error).message}`);
+    showToast(`${force ? "覆蓋" : "同步"}失敗：${(err as Error).message}`);
   } finally {
     syncing.value = false; setGlobalSyncing("physicians", false);
   }
+}
+
+// 覆蓋會讓雲端有、本地沒有的人在所有電腦上被刪除，需再按一次確認
+const confirmOverwrite = ref(false);
+let confirmTimer: ReturnType<typeof setTimeout> | null = null;
+function onOverwriteClick() {
+  if (!confirmOverwrite.value) {
+    confirmOverwrite.value = true;
+    if (confirmTimer) clearTimeout(confirmTimer);
+    confirmTimer = setTimeout(() => { confirmOverwrite.value = false; }, 3000);
+    return;
+  }
+  confirmOverwrite.value = false;
+  syncWithCloud(true);
 }
 
 function onTagsWheel(e: WheelEvent) {
@@ -215,20 +151,16 @@ async function saveForm() {
           <button v-if="search" @click="search = ''" class="absolute right-2.5 top-2 text-muted hover:text-fg-secondary text-lg leading-none cursor-pointer">×</button>
         </div>
         <div class="flex-1" />
-        <button @click="pullFromCloud" :disabled="syncing"
+        <button @click="syncWithCloud()" :disabled="syncing"
           class="px-3 py-1.5 rounded-xl bg-accent/10 border border-accent/20 text-accent text-xs font-bold hover:bg-accent/20 disabled:opacity-50 transition-colors cursor-pointer"
-          title="從雲端拉取">
-          {{ syncing ? '…' : '↓' }} 拉取
+          title="與雲端逐筆同步：較新的版本為準，刪除會傳到其他電腦">
+          {{ syncing ? '…' : '⇅' }} 同步
         </button>
-        <button @click="pushToCloud" :disabled="syncing"
-          class="px-3 py-1.5 rounded-xl bg-accent/10 border border-accent/20 text-accent text-xs font-bold hover:bg-accent/20 disabled:opacity-50 transition-colors cursor-pointer"
-          title="本地有、雲端無才上傳">
-          {{ syncing ? '…' : '↑' }} 推送
-        </button>
-        <button @click="overwriteCloud" :disabled="syncing"
-          class="px-3 py-1.5 rounded-xl bg-danger/5 border border-danger/20 text-danger text-xs font-bold hover:bg-danger/15 disabled:opacity-50 transition-colors cursor-pointer"
-          title="以本地資料完整覆蓋雲端">
-          覆蓋
+        <button @click="onOverwriteClick" :disabled="syncing"
+          class="px-3 py-1.5 rounded-xl border text-xs font-bold disabled:opacity-50 transition-colors cursor-pointer"
+          :class="confirmOverwrite ? 'bg-danger text-white border-danger' : 'bg-danger/5 border-danger/20 text-danger hover:bg-danger/15'"
+          title="以本地為準覆蓋雲端：雲端有、本地沒有的人會在所有電腦上被刪除">
+          {{ confirmOverwrite ? '確定覆蓋？' : '覆蓋' }}
         </button>
         <div class="w-px h-5 bg-overlay/10" />
         <button @click="openAdd"

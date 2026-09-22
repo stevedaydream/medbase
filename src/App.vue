@@ -27,7 +27,8 @@ import { useLogger } from "@/composables/useLogger";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { startXlsxWatchFromSettings } from "@/composables/useXlsxSync";
-import { applyPhysicianRows, refreshPassAhk } from "@/composables/usePhysicians";
+import { syncTable } from "@/composables/useTableSync";
+import { syncNpDuty } from "@/composables/useNpDuty";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize, LogicalPosition } from "@tauri-apps/api/dpi";
 import { getDb } from "@/db";
@@ -62,6 +63,21 @@ async function syncPendingTables() {
     if (table === "ahk" || table === "sets") continue; // 手動同步表，不碰時間戳
     setGlobalSyncing(table, true);
     try {
+      // 逐筆同步的表：由 GAS 以時間戳合併，不需差異視窗（見 useTableSync）
+      if (table === "physicians") {
+        await syncTable(table, cloud.gasUrl);
+        pendingTables.value = pendingTables.value.filter(t => t !== table);
+        syncedLabels.push(SYNC_TABLE_META[table]?.label ?? table);
+        continue;
+      }
+      // 以月為單位同步（見 useNpDuty）
+      if (table === "npDuty") {
+        await syncNpDuty(cloud.gasUrl);
+        await saveSyncTimestamp(table);
+        pendingTables.value = pendingTables.value.filter(t => t !== table);
+        syncedLabels.push(SYNC_TABLE_META[table]?.label ?? table);
+        continue;
+      }
       const conflict = await hasConflict(table);
       const cloudRows = await fetchCloudTable(table, cloud.gasUrl);
       if (!cloudRows) continue;
@@ -112,12 +128,6 @@ function getTableName(table: string): string {
 
 async function applyCloudData(table: string, rows: Record<string, unknown>[]): Promise<void> {
   if (table === "ahk" || table === "sets") return; // complex tables: skip auto-apply
-  if (table === "physicians") {
-    if (!rows.length) return;
-    await applyPhysicianRows(rows as unknown as Parameters<typeof applyPhysicianRows>[0]);
-    await refreshPassAhk();
-    return;
-  }
   const db = await getDb();
   const tableName = getTableName(table);
   if (!tableName) return;

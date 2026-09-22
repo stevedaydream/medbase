@@ -15,6 +15,7 @@ import { readFile, writeFile, watch as watchFs } from "@tauri-apps/plugin-fs";
 import { getDb } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { setGlobalSyncing } from "@/composables/useCloudSync";
+import { syncTable } from "@/composables/useTableSync";
 
 // ── 型別 ─────────────────────────────────────────────────────────────
 
@@ -358,19 +359,9 @@ export async function autoCloudSync(): Promise<void> {
 
   const db = await getDb();
 
-  // ① Physicians：merge（雲端為主，本地有雲端無的才補上）
+  // ① Physicians：逐筆同步（見 useTableSync）
   try {
-    const localPhys = await db.select<any[]>("SELECT * FROM physicians");
-    const pullJson  = await gasPost({ action: "getPhysicians" });
-    const cloudPhys: any[] = pullJson.ok ? (pullJson.data ?? []) : [];
-    const cloudAccounts = new Set(cloudPhys.map((r: any) => r.his_account).filter(Boolean));
-    const cloudNames    = new Set(cloudPhys.map((r: any) => r.name).filter(Boolean));
-    const newLocal = localPhys.filter(p =>
-      !(p.his_account && cloudAccounts.has(p.his_account)) && !cloudNames.has(p.name)
-    );
-    if (newLocal.length > 0) {
-      await gasPost({ action: "savePhysicians", data: [...cloudPhys, ...newLocal] });
-    }
+    await syncTable("physicians", gasUrl);
   } catch { /* 雲端失敗不阻斷 */ }
 
   // ② Contacts：merge（雲端為主，本地有雲端無的才補上，key = label）

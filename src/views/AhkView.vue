@@ -16,7 +16,7 @@ import {
   PASS_AHK_MODES, PASS_AHK_MODE_LABEL, PASS_AHK_MODE_HINT,
   type PassAhkMode,
 } from "@/composables/usePassAhk";
-import { pullPhysiciansFromCloud } from "@/composables/usePhysicians";
+import { syncTable, NoBaselineError } from "@/composables/useTableSync";
 
 interface AhkScript {
   id: number;
@@ -372,14 +372,22 @@ async function refreshPassAhkNow() {
 
   isRefreshingPass.value = true;
   try {
-    const { inserted, updated } = await pullPhysiciansFromCloud(cloud.gasUrl);
+    // 雲端未建立同步基準時仍用本機資料重建，不讓刷新鈕整個失效
+    let pulled = "";
+    try {
+      const { inserted, updated } = await syncTable("physicians", cloud.gasUrl);
+      pulled = `已同步 ${inserted} 新增／${updated} 更新，`;
+    } catch (e) {
+      if (!(e instanceof NoBaselineError)) throw e;
+      pulled = "雲端未建立同步基準，使用本機資料，";
+    }
 
     const result = await buildPassAhkContent();
     if (!result) { showToast("通訊錄中無帳號資料"); return; }
 
     const path = await writePassAhkFile(result.content);
 
-    const summary = `已拉取 ${inserted} 新增／${updated} 更新，產生 ${result.hisCount} 筆帳密`;
+    const summary = `${pulled}產生 ${result.hisCount} 筆帳密`;
     if (ahkExePath.value) {
       await triggerReload(path);
       showToast(`${summary}｜已 Reload ✓`);
