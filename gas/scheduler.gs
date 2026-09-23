@@ -122,7 +122,7 @@ function _syncRow(cfg, r, updatedAt) {
 }
 
 /** 讀出 { rows: {key: row}, tombs: {key: deleted_at} } */
-function _readSyncTable(ss, table) {
+function _readSyncTable(ss, table, skipTombs) {
   const cfg = SYNC_TABLES[table];
   const tz = ss.getSpreadsheetTimeZone();
   const width = cfg.fields.length + 1;
@@ -138,7 +138,7 @@ function _readSyncTable(ss, table) {
     });
   }
 
-  const shT = ss.getSheetByName('Tombstones');
+  const shT = skipTombs ? null : ss.getSheetByName('Tombstones');
   if (shT && shT.getLastRow() >= 2) {
     shT.getRange(2, 1, shT.getLastRow() - 1, 3).getValues().forEach(r => {
       if (String(r[0]) === table && r[1] !== '') tombs[_cellStr(r[1], tz)] = _cellStr(r[2], tz);
@@ -284,7 +284,7 @@ function _mobileFp(his, password) {
 }
 
 function _findPhysicianByHis(ss, his) {
-  const rows = _readSyncTable(ss, 'physicians').rows;
+  const rows = _readSyncTable(ss, 'physicians', true).rows;
   const key = String(his || '').trim();
   if (!key) return null;
   for (const k in rows) {
@@ -1117,7 +1117,7 @@ function doPost(e) {
       // 讀取逐筆同步表的目前內容（手機唯讀快取用；不含刪除紀錄）
       case 'readTable': {
         if (!SYNC_TABLES[p.table]) return json({ ok: false, error: `Unknown sync table: ${p.table}` });
-        const rows = _readSyncTable(ss, p.table).rows;
+        const rows = _readSyncTable(ss, p.table, true).rows;
         return json({ ok: true, rows: Object.keys(rows).map(k => rows[k]) });
       }
 
