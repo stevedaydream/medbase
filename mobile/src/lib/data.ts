@@ -65,23 +65,46 @@ export async function refresh(force = false): Promise<void> {
   try {
     const v = await gas<{ data: Record<string, string> }>('getVersions')
     const versions = v.data ?? {}
+    // 逐表各自處理：單一張表逾時或失敗不能讓後面的表都不更新
+    const failed: string[] = []
     for (const t of TABLES) {
       const remote = versions[`${t}_last_updated`] ?? ''
       const local = data.meta[t]
       if (!force && local && local.version === remote && data.tables[t].length) continue
-      const r = await gas<{ rows: Row[] }>('readTable', { table: t })
-      data.tables[t] = r.rows ?? []
-      await kvSet(`table:${t}`, r.rows ?? [])
-      data.meta[t] = { version: remote, fetchedAt: new Date().toISOString() }
-      await saveMeta()
+      try {
+        const r = await withRetry(() => gas<{ rows: Row[] }>('readTable', { table: t }))
+        data.tables[t] = r.rows ?? []
+        await kvSet(`table:${t}`, r.rows ?? [])
+        data.meta[t] = { version: remote, fetchedAt: new Date().toISOString() }
+        await saveMeta()
+      } catch (e) {
+        if (e instanceof ApiError && (e.code === 'OFFLINE' || e.code === 'AUTH')) throw e
+        failed.push(TABLE_LABELS[t])
+      }
     }
-    await refreshDuty(force)
+    try {
+      await withRetry(() => refreshDuty(force))
+    } catch (e) {
+      if (e instanceof ApiError && (e.code === 'OFFLINE' || e.code === 'AUTH')) throw e
+      failed.push(TABLE_LABELS.npDuty)
+    }
     data.offline = false
+    if (failed.length) data.error = `部分資料更新失敗：${failed.join('、')}，請稍後再試`
   } catch (e) {
     if (e instanceof ApiError && e.code === 'OFFLINE') data.offline = true
     else if (!(e instanceof ApiError && e.code === 'AUTH')) data.error = (e as Error).message
   } finally {
     data.refreshing = false
+  }
+}
+
+/** 伺服器暫時失敗（GAS 冷啟動逾時等）重試一次 */
+async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (e) {
+    if (e instanceof ApiError && (e.code === 'OFFLINE' || e.code === 'AUTH' || e.code === 'FORBIDDEN')) throw e
+    return fn()
   }
 }
 
