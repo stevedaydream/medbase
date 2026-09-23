@@ -385,7 +385,7 @@ async function restorePhysicianExts() {
           <span class="font-mono tabular-nums text-fg select-all truncate">{{ e.hisAccount }}</span>
           <span class="font-mono tabular-nums text-fg select-all truncate">{{ e.hisPassword }}</span>
           <span class="text-xs text-muted truncate" :title="e.notes">{{ e.notes }}</span>
-          <span class="flex justify-end gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+          <span class="flex justify-end gap-1 opacity-50 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
             <button @click="openEdit(e)"
               class="px-2 py-0.5 rounded-lg text-xs font-bold text-fg-secondary hover:bg-elevated hover:text-fg cursor-pointer">編輯</button>
             <button @click="deleteTarget = e"
@@ -502,8 +502,8 @@ async function restorePhysicianExts() {
 /* 名稱｜科別／分類｜職稱｜分機｜HIS 帳號｜HIS 密碼｜備註｜操作 */
 .contact-grid {
   display: grid;
-  grid-template-columns: minmax(8rem, 1.3fr) minmax(6rem, 1fr) minmax(5rem, 0.8fr) 5.5rem 6.5rem 6.5rem minmax(0, 1.4fr) 6rem;
-  column-gap: 0.75rem;
+  grid-template-columns: minmax(5.5rem, 1.3fr) minmax(4rem, 1fr) minmax(3.5rem, 0.8fr) 4.5rem 5.5rem 5.5rem minmax(0, 1.4fr) 5.5rem;
+  column-gap: 0.5rem;
 }
 .toast-enter-active, .toast-leave-active { transition: opacity 0.25s, transform 0.25s; }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateX(-50%) translateY(8px); }
