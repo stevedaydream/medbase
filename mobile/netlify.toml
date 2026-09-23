@@ -1,9 +1,12 @@
+# 手機版已改部署到 Vercel（ADR-013）。Netlify 不再建置，舊網址一律轉到新網址。
+# 若 Vercel 專案名稱不是 medbase-mobile，請同步修改下方網址。
 [build]
   base    = "mobile"
-  command = "npm run build"
-  publish = "dist"
+  command = "echo 'MedBase mobile moved to Vercel'"
+  publish = "public"
 
 [[redirects]]
   from   = "/*"
-  to     = "/index.html"
-  status = 200
+  to     = "https://medbase-mobile.vercel.app/:splat"
+  status = 301
+  force  = true

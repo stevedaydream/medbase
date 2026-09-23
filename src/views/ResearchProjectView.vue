@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import ManuscriptPanel from "@/components/ManuscriptPanel.vue";
 import {
   getProject, updateProject, setStage, setArchived, deleteProject,
   listProjectAuthors, addProjectAuthor, updateProjectAuthor,
@@ -22,6 +23,7 @@ const loading = ref(true);
 
 const TABS = [
   { key: "overview",   label: "概要" },
+  { key: "manuscript", label: "稿件" },
   { key: "authors",    label: "作者" },
   { key: "submission", label: "投稿" },
   { key: "checklist",  label: "檢核" },
@@ -411,8 +413,8 @@ const currentIndex = computed(() =>
         </button>
       </div>
 
-      <!-- Tab body -->
-      <div class="flex-1 overflow-y-auto px-6 py-5">
+      <!-- Tab body（稿件頁籤由編輯器自行捲動，外層不捲） -->
+      <div class="flex-1 px-6 py-5" :class="tab === 'manuscript' ? 'min-h-0 overflow-hidden' : 'overflow-y-auto'">
 
         <!-- ══ 概要 ══════════════════════════════════════════════ -->
         <div v-if="tab === 'overview'" class="max-w-3xl space-y-5">
@@ -615,6 +617,11 @@ const currentIndex = computed(() =>
             <option v-for="c in IRB_CATEGORIES" :key="c" :value="c" />
           </datalist>
         </div>
+
+        <!-- ══ 稿件 ══════════════════════════════════════════════ -->
+        <ManuscriptPanel v-else-if="tab === 'manuscript' && project"
+          :project-id="project.id" :project-title="project.title" :study-type="project.study_type"
+          @toast="showToast" />
 
         <!-- ══ 尚未實作的頁籤 ══════════════════════════════════════ -->
         <div v-else class="text-center py-20 rounded-2xl border border-dashed border-hairline bg-surface">

@@ -1,68 +1,60 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { gasApi } from '../api'
-import type { SessionUser } from '../api'
-import { sha256 } from '../utils/sha256'
+import { useRoute, useRouter } from 'vue-router'
+import { apiLogin, ApiError } from '../lib/api'
+import { session, setLoggedIn } from '../lib/session'
 
-const emit = defineEmits<{ login: [user: SessionUser] }>()
-
-const code    = ref('')
-const pw      = ref('')
-const errMsg  = ref('')
+/** 以通訊錄的 HIS 帳號＋HIS 密碼登入（ADR-013） */
+const route = useRoute()
+const router = useRouter()
+const his = ref('')
+const password = ref('')
 const loading = ref(false)
+const error = ref('')
 
-async function doLogin() {
-  if (!code.value.trim() || !pw.value) { errMsg.value = '請輸入代號與密碼'; return }
+async function submit() {
+  if (!his.value.trim() || !password.value || loading.value) return
   loading.value = true
-  errMsg.value  = ''
-  const hash = await sha256(pw.value)
-  const r = await gasApi<SessionUser>('login', { code: code.value.trim(), pwHash: hash })
-  loading.value = false
-  if (!r.ok || !r.data) { errMsg.value = r.error ?? '代號或密碼錯誤'; return }
-  emit('login', r.data)
+  error.value = ''
+  try {
+    const { token, user } = await apiLogin(his.value.trim(), password.value)
+    await setLoggedIn(token, user, password.value)
+    password.value = ''
+    router.replace(typeof route.query.next === 'string' ? route.query.next : '/')
+  } catch (e) {
+    error.value = e instanceof ApiError ? e.message : '登入失敗'
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
 <template>
-  <div class="min-h-dvh bg-gray-950 flex flex-col items-center justify-center p-6">
-    <div class="w-full max-w-xs bg-gray-900 border border-gray-800 rounded-2xl p-8 shadow-xl">
-      <h1 class="text-xl font-bold text-center text-gray-100 mb-1">排班系統</h1>
-      <p class="text-xs text-gray-500 text-center mb-7">員工登入</p>
-
-      <div class="space-y-4">
-        <div>
-          <label class="block text-xs text-gray-500 mb-1.5">員工代號</label>
-          <input
-            v-model="code"
-            @keyup.enter="doLogin"
-            type="text"
-            autocomplete="username"
-            autocorrect="off"
-            autocapitalize="none"
-            class="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 text-sm outline-none focus:border-blue-500 transition-colors"
-          />
-        </div>
-        <div>
-          <label class="block text-xs text-gray-500 mb-1.5">密碼</label>
-          <input
-            v-model="pw"
-            @keyup.enter="doLogin"
-            type="password"
-            autocomplete="current-password"
-            class="w-full px-3 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-gray-100 text-sm outline-none focus:border-blue-500 transition-colors"
-          />
-        </div>
+  <div class="min-h-dvh flex flex-col items-center justify-center p-6 bg-sunken safe-top">
+    <form @submit.prevent="submit" class="w-full max-w-sm bg-surface border border-hairline rounded-2xl p-6 space-y-4 shadow-xl">
+      <div class="text-center">
+        <h1 class="text-2xl font-black text-fg">MedBase</h1>
+        <p class="mt-1 text-sm text-fg-secondary">以 HIS 帳號與密碼登入</p>
       </div>
-
-      <p class="text-red-400 text-xs text-center min-h-4 mt-3">{{ errMsg }}</p>
-
-      <button
-        @click="doLogin"
-        :disabled="loading"
-        class="mt-2 w-full py-2.5 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
-      >
-        {{ loading ? '驗證中…' : '登入' }}
+      <p v-if="session.notice" class="px-3 py-2 rounded-xl bg-warning/10 text-warning text-sm font-bold">{{ session.notice }}</p>
+      <div>
+        <label class="block text-xs font-bold text-muted mb-1.5">HIS 帳號（員工編號）</label>
+        <input v-model="his" inputmode="numeric" autocomplete="username" autocapitalize="off" autocorrect="off"
+          class="w-full h-12 px-4 rounded-xl bg-sunken border border-hairline text-base text-fg font-mono outline-none focus:border-accent/60" />
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-muted mb-1.5">HIS 密碼</label>
+        <input v-model="password" type="password" autocomplete="current-password"
+          class="w-full h-12 px-4 rounded-xl bg-sunken border border-hairline text-base text-fg outline-none focus:border-accent/60" />
+      </div>
+      <p v-if="error" class="text-sm text-danger font-bold">{{ error }}</p>
+      <button type="submit" :disabled="loading || !his.trim() || !password"
+        class="w-full h-12 rounded-xl bg-accent text-white text-base font-bold disabled:opacity-40">
+        {{ loading ? '登入中…' : '登入' }}
       </button>
-    </div>
+      <p class="text-xs text-muted leading-relaxed">
+        帳密與院內 HIS 相同，須已登錄於 MedBase 通訊錄。醫院變更密碼後，請同步更新通訊錄。
+      </p>
+    </form>
   </div>
 </template>

@@ -1,19 +1,10 @@
 import * as XLSX from "xlsx";
 
-export const NP_WARDS = ["9A", "9B", "8A"] as const;
-export type NpWard = (typeof NP_WARDS)[number];
-export const VS_UNITS = ["ICU", "總值", "GS", "CRS", "ORTHO", "NS", "PS", "URO", "CVS", "Chest", "Trauma"] as const;
-export type VsDutyUnit = (typeof VS_UNITS)[number];
-export const DUTY_UNITS = [...NP_WARDS, ...VS_UNITS] as const;
-export type DutyUnit = (typeof DUTY_UNITS)[number];
-
-export function isNpWard(unit: string): unit is NpWard {
-  return (NP_WARDS as readonly string[]).includes(unit);
-}
-
-export function isVsDutyUnit(unit: string): unit is VsDutyUnit {
-  return (VS_UNITS as readonly string[]).includes(unit);
-}
+// 科別常數與判斷移到 shared（手機共用，ADR-013），此處轉出以維持既有 import
+export { NP_WARDS, VS_UNITS, DUTY_UNITS, isNpWard, isVsDutyUnit } from "@/shared/duty";
+export type { NpWard, VsDutyUnit, DutyUnit } from "@/shared/duty";
+import type { DutyUnit } from "@/shared/duty";
+import { NP_WARDS, DUTY_UNITS } from "@/shared/duty";
 
 export interface NpDutyImportRow {
   dutyDate: string;

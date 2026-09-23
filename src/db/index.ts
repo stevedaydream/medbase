@@ -896,5 +896,17 @@ async function initResearchSchema(db: Database) {
       last_synced_at        TEXT
     );
   `);
+  // 稿件草稿：依段落（Title / Abstract / Introduction…）分區塊儲存，純文字，隨個人雲端備份
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS research_manuscript_sections (
+      id         TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES research_projects(id) ON DELETE CASCADE,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      title      TEXT NOT NULL,
+      body       TEXT NOT NULL DEFAULT '',
+      updated_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+  `);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_research_ms_project ON research_manuscript_sections(project_id);`);
   await db.execute(`UPDATE app_settings SET value = '2' WHERE key = 'research_schema_version' AND value = '1'`);
 }

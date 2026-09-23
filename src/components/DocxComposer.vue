@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted } from "vue";
-import PizZip from "pizzip";
-import Docxtemplater from "docxtemplater";
-import { unzipSync, strFromU8 } from "fflate";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import { getDb } from "@/db";
-import { DOCX_TEMPLATES, dayCount } from "@/utils/docxTemplates";
-import type { MetaValues, BlockValues, MetaField } from "@/utils/docxTemplates";
+import { DOCX_TEMPLATES, dayCount } from "@/shared/docxTemplates";
+import type { MetaValues, BlockValues, MetaField } from "@/shared/docxTemplates";
+// 檔案讀取、提示組裝、模板填充見 shared/docxCompose（手機共用，ADR-013）
+import { readSourceFile, buildGeminiParts, generateBlocks, renderDocx, type SourceFile } from "@/shared/docxCompose";
 
 const props = defineProps<{
   template: "case" | "leave";
@@ -16,12 +15,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ (e: "toast", msg: string): void }>();
 
-interface UploadedFile {
-  name: string;
-  kind: "pdf" | "pptx";
-  base64?: string; // PDF
-  text?: string;   // PPTX 抽取文字
-}
+type UploadedFile = SourceFile;
 
 const tpl = computed(() => DOCX_TEMPLATES[props.template]);
 
@@ -84,51 +78,15 @@ watch(() => meta.date_from, (nv) => {
 const hasSource = computed(() => files.value.length > 0 || manualText.value.trim().length > 0);
 
 // ── 檔案處理 ────────────────────────────────────────────────────────────
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)));
-  }
-  return btoa(binary);
-}
-
-function decodeXml(s: string): string {
-  return s.replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-          .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
-}
-
-function extractPptxText(bytes: Uint8Array): string {
-  const zip = unzipSync(bytes);
-  const names = Object.keys(zip)
-    .filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n))
-    .sort((a, b) => parseInt(a.match(/\d+/)![0]) - parseInt(b.match(/\d+/)![0]));
-  const out: string[] = [];
-  for (const n of names) {
-    const xml = strFromU8(zip[n]);
-    const runs = [...xml.matchAll(/<a:t>([\s\S]*?)<\/a:t>/g)]
-      .map(m => decodeXml(m[1])).filter(Boolean);
-    if (runs.length) out.push(`【投影片 ${n.match(/\d+/)![0]}】\n${runs.join("\n")}`);
-  }
-  return out.join("\n\n");
-}
-
 async function onFilesSelected(e: Event) {
   const list = (e.target as HTMLInputElement).files;
   if (!list) return;
   for (const file of Array.from(list)) {
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const lower = file.name.toLowerCase();
-      if (lower.endsWith(".pdf")) {
-        files.value.push({ name: file.name, kind: "pdf", base64: bytesToBase64(bytes) });
-      } else if (lower.endsWith(".pptx")) {
-        const text = extractPptxText(bytes);
-        if (!text.trim()) { emit("toast", `「${file.name}」未抽取到文字`); continue; }
-        files.value.push({ name: file.name, kind: "pptx", text });
-      } else {
-        emit("toast", `不支援的格式：${file.name}`);
-      }
+      const src = readSourceFile(file.name, new Uint8Array(await file.arrayBuffer()));
+      if (!src) { emit("toast", `不支援的格式：${file.name}`); continue; }
+      if (src.kind === "pptx" && !src.text?.trim()) { emit("toast", `「${file.name}」未抽取到文字`); continue; }
+      files.value.push(src);
     } catch (err) {
       emit("toast", `讀取失敗：${(err as Error).message}`);
     }
@@ -144,61 +102,8 @@ async function generate() {
   if (!hasSource.value) { emit("toast", "請先上傳檔案或輸入文字"); return; }
   isGenerating.value = true;
   try {
-    const blockSpec = tpl.value.blocks
-      .map(b => `- "${b.key}"：${b.instruction}`).join("\n");
-
-    const promptLines = [
-      `你是醫療文件整理助手。請根據提供的簡報、PDF 或文字資料，整理出「${tpl.value.heading}」所需的結構化內容。`,
-      "輸出語言為繁體中文，內容須條理分明、用詞專業且忠於原始資料，不得杜撰。",
-    ];
-    if (deidentify.value) {
-      promptLines.push("重要：輸出中不得包含可識別個人身份的資訊（真實姓名、病歷號、身分證字號、電話、地址等），一律以 [姓名]、[病歷號] 等標記代替。");
-    }
-    promptLines.push(
-      "",
-      "請僅輸出一個 JSON 物件，鍵與值如下（值為整理後的繁體中文段落文字，可含換行）：",
-      blockSpec,
-      "",
-      "不要輸出 JSON 以外的任何文字或 markdown 標記。",
-    );
-
-    const parts: any[] = [{ text: promptLines.join("\n") }];
-    for (const f of files.value) {
-      if (f.kind === "pdf" && f.base64) {
-        parts.push({ inline_data: { mime_type: "application/pdf", data: f.base64 } });
-      } else if (f.kind === "pptx" && f.text) {
-        parts.push({ text: `【簡報檔：${f.name}】\n${f.text}` });
-      }
-    }
-    if (manualText.value.trim()) parts.push({ text: `【補充文字】\n${manualText.value.trim()}` });
-
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${props.model}:generateContent?key=${props.apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 8192, responseMimeType: "application/json" },
-        }),
-      }
-    );
-    if (!res.ok) {
-      const errBody = await res.json().catch(() => ({})) as { error?: { message?: string } };
-      if (res.status === 429) throw new Error("請求頻率超限（429），請稍候約 1 分鐘後再試。");
-      throw new Error(errBody?.error?.message ?? `API 錯誤 HTTP ${res.status}`);
-    }
-    const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-    if (!text) throw new Error("API 回傳空白結果");
-
-    let parsed: Record<string, string>;
-    try { parsed = JSON.parse(text); }
-    catch { throw new Error("AI 回傳格式非預期 JSON，請重試"); }
-
-    for (const b of tpl.value.blocks) {
-      if (typeof parsed[b.key] === "string") blocks[b.key] = parsed[b.key];
-    }
+    const parts = buildGeminiParts(props.template, files.value, manualText.value, deidentify.value);
+    Object.assign(blocks, await generateBlocks(props.template, props.apiKey, props.model, parts));
     emit("toast", "AI 整理完成，可於下方微調後匯出");
   } catch (e) {
     emit("toast", `整理失敗：${(e as Error).message}`);
@@ -212,18 +117,7 @@ async function exportDocx() {
   isExporting.value = true;
   try {
     const t = tpl.value;
-    const zip = new PizZip(t.templateB64, { base64: true });
-    const dt = new Docxtemplater(zip, {
-      paragraphLoop: true,
-      linebreaks: true,        // 內容中的 \n 轉為換行
-      nullGetter: () => "",    // 缺值填空字串
-    });
-    dt.render(t.buildData({ ...meta }, { ...blocks }));
-    const blob = dt.getZip().generate({
-      type: "blob",
-      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    });
-    const buf = new Uint8Array(await blob.arrayBuffer());
+    const buf = renderDocx(props.template, { ...meta }, { ...blocks });
     const path = await saveDialog({
       defaultPath: t.fileName(meta),
       filters: [{ name: "Word 文件", extensions: ["docx"] }],

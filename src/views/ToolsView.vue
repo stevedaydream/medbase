@@ -1,5 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
+import {
+  correctedCalcium, calciumStatus, interpretAbg, estimateTdd, insulinCorrection,
+  nutrition, fio2Estimate, STRESS_OPTIONS, PROTEIN_OPTIONS, VENTURI_FLOW, VENTURI_OPTIONS, DEVICE_LABELS,
+  type Tone, type GluBasis, type O2Device,
+} from "@/shared/clinicalCalc";
+
+// 公式見 shared/clinicalCalc（手機共用，ADR-013）；此處只保留輸入狀態與樣式對應
 
 type ToolId = "calcium" | "abg" | "glucose" | "nutrition" | "fio2";
 
@@ -13,30 +20,35 @@ const tools: { id: ToolId; icon: string; label: string; sub: string }[] = [
   { id: "fio2",      icon: "💨", label: "FiO₂ 換算", sub: "氧氣裝置對照" },
 ];
 
-// ─────────────────────────────────────────────────────────────────────────
-// Tool 1 — 校正鈣（Corrected Calcium for Albumin）
-// ─────────────────────────────────────────────────────────────────────────
+const TONE_CLASS: Record<Tone, string> = {
+  "danger-strong": "text-danger font-semibold",
+  "danger":        "text-danger",
+  "warning":       "text-warning",
+  "caution":       "text-yellow-400",
+  "accent-strong": "text-accent font-semibold",
+  "accent":        "text-accent",
+  "success":       "text-success",
+  "secondary":     "text-fg-secondary",
+  "muted":         "text-muted",
+};
+
+// ── Tool 1 — 校正鈣 ────────────────────────────────────────────────
 const ca_total   = ref<number | "">("");
 const ca_albumin = ref<number | "">("");
 
-const correctedCa = computed(() => {
-  const ca  = Number(ca_total.value);
-  const alb = Number(ca_albumin.value);
-  if (!ca || !alb) return null;
-  return ca + 0.8 * (4.0 - alb);
-});
+const correctedCa = computed(() => correctedCalcium(ca_total.value, ca_albumin.value));
 
+const CA_STYLE = {
+  low:    { color: "text-accent",  bg: "bg-accent/10 border-accent/20" },
+  high:   { color: "text-danger",  bg: "bg-danger/10 border-danger/20" },
+  normal: { color: "text-success", bg: "bg-success/10 border-success/20" },
+};
 const caStatus = computed(() => {
-  const v = correctedCa.value;
-  if (v === null) return null;
-  if (v < 8.5)  return { label: "低血鈣 (Hypocalcemia)",  color: "text-accent",  bg: "bg-accent/10 border-accent/20" };
-  if (v > 10.5) return { label: "高血鈣 (Hypercalcemia)", color: "text-danger",   bg: "bg-danger/10 border-danger/20"  };
-  return           { label: "正常 (Normal)",               color: "text-success", bg: "bg-success/10 border-success/20" };
+  const st = calciumStatus(correctedCa.value);
+  return st ? { label: st.label, ...CA_STYLE[st.level] } : null;
 });
 
-// ─────────────────────────────────────────────────────────────────────────
-// Tool 2 — ABG 判讀
-// ─────────────────────────────────────────────────────────────────────────
+// ── Tool 2 — ABG 判讀 ──────────────────────────────────────────────
 const abg_ph   = ref<number | "">("");
 const abg_co2  = ref<number | "">("");
 const abg_hco3 = ref<number | "">("");
@@ -45,148 +57,30 @@ const abg_fio2 = ref<number | "">(21);
 
 interface AbgLine { text: string; color: string }
 
-const abgResult = computed((): AbgLine[] | null => {
-  const pH   = Number(abg_ph.value);
-  const co2  = Number(abg_co2.value);
-  const hco3 = Number(abg_hco3.value);
-  if (!pH || !co2 || !hco3) return null;
+const abgResult = computed((): AbgLine[] | null =>
+  interpretAbg({ ph: abg_ph.value, co2: abg_co2.value, hco3: abg_hco3.value, pao2: abg_pao2.value, fio2: abg_fio2.value })
+    ?.map(l => ({ text: l.text, color: TONE_CLASS[l.tone] })) ?? null);
 
-  const lines: AbgLine[] = [];
-
-  // Step 1 — pH
-  if (pH < 7.35)      lines.push({ text: `① pH ${pH} → 酸血症 (Acidosis)`,   color: "text-danger font-semibold" });
-  else if (pH > 7.45) lines.push({ text: `① pH ${pH} → 鹼血症 (Alkalosis)`,  color: "text-accent font-semibold" });
-  else                lines.push({ text: `① pH ${pH} → 正常範圍`,             color: "text-success" });
-
-  // Step 2 — Primary disorder
-  const co2Hi  = co2  > 45;  const co2Lo  = co2  < 35;
-  const hco3Hi = hco3 > 26;  const hco3Lo = hco3 < 22;
-
-  if (pH < 7.35) {
-    if (co2Hi && !hco3Lo)      lines.push({ text: `② PaCO₂ ${co2} mmHg ↑ → 呼吸性酸中毒`,      color: "text-warning" });
-    else if (hco3Lo && !co2Hi) lines.push({ text: `② HCO₃⁻ ${hco3} mEq/L ↓ → 代謝性酸中毒`,   color: "text-warning" });
-    else if (co2Hi && hco3Lo)  lines.push({ text: `② CO₂↑ + HCO₃⁻↓ → 混合型酸中毒`,           color: "text-danger font-semibold" });
-    else                       lines.push({ text: `② 參數矛盾，請確認數值`,                     color: "text-yellow-400" });
-  } else if (pH > 7.45) {
-    if (co2Lo && !hco3Hi)      lines.push({ text: `② PaCO₂ ${co2} mmHg ↓ → 呼吸性鹼中毒`,      color: "text-accent" });
-    else if (hco3Hi && !co2Lo) lines.push({ text: `② HCO₃⁻ ${hco3} mEq/L ↑ → 代謝性鹼中毒`,   color: "text-accent" });
-    else if (co2Lo && hco3Hi)  lines.push({ text: `② CO₂↓ + HCO₃⁻↑ → 混合型鹼中毒`,           color: "text-accent" });
-    else                       lines.push({ text: `② 參數矛盾，請確認數值`,                     color: "text-yellow-400" });
-  }
-
-  // Step 3 — Expected compensation
-  if (pH < 7.35 && co2Hi) {
-    const expAcute   = (24 + (co2 - 40) * 0.1).toFixed(1);
-    const expChronic = (24 + (co2 - 40) * 0.35).toFixed(1);
-    lines.push({ text: `③ 預期 HCO₃⁻：${expAcute}（急性）~ ${expChronic}（慢性）`, color: "text-fg-secondary" });
-    if      (hco3 > Number(expChronic) + 2) lines.push({ text: "   ↳ HCO₃⁻ 過高 → 合併代謝性鹼中毒",    color: "text-warning" });
-    else if (hco3 < Number(expAcute) - 2)   lines.push({ text: "   ↳ HCO₃⁻ 過低 → 合併代謝性酸中毒",    color: "text-warning" });
-    else                                     lines.push({ text: "   ↳ 代償在預期範圍內",                  color: "text-muted" });
-  } else if (pH < 7.35 && hco3Lo) {
-    const expCo2 = 1.5 * hco3 + 8;
-    lines.push({ text: `③ Winter 公式：預期 PaCO₂ = ${(expCo2 - 2).toFixed(0)} ~ ${(expCo2 + 2).toFixed(0)} mmHg`, color: "text-fg-secondary" });
-    if      (co2 > expCo2 + 2) lines.push({ text: "   ↳ CO₂ 過高 → 合併呼吸性酸中毒", color: "text-warning" });
-    else if (co2 < expCo2 - 2) lines.push({ text: "   ↳ CO₂ 過低 → 合併呼吸性鹼中毒", color: "text-warning" });
-    else                        lines.push({ text: "   ↳ 代償在預期範圍內",             color: "text-muted" });
-  } else if (pH > 7.45 && co2Lo) {
-    const expA = (24 - (40 - co2) * 0.2).toFixed(1);
-    const expC = (24 - (40 - co2) * 0.5).toFixed(1);
-    lines.push({ text: `③ 預期 HCO₃⁻：${expC}（慢性）~ ${expA}（急性）`, color: "text-fg-secondary" });
-    if      (hco3 < Number(expC) - 2) lines.push({ text: "   ↳ HCO₃⁻ 過低 → 合併代謝性酸中毒", color: "text-warning" });
-    else if (hco3 > Number(expA) + 2) lines.push({ text: "   ↳ HCO₃⁻ 過高 → 合併代謝性鹼中毒", color: "text-warning" });
-    else                               lines.push({ text: "   ↳ 代償在預期範圍內",                color: "text-muted" });
-  } else if (pH > 7.45 && hco3Hi) {
-    const expCo2 = 0.7 * hco3 + 21;
-    lines.push({ text: `③ 預期 PaCO₂：${(expCo2 - 2).toFixed(0)} ~ ${(expCo2 + 2).toFixed(0)} mmHg`, color: "text-fg-secondary" });
-    if      (co2 < expCo2 - 2) lines.push({ text: "   ↳ CO₂ 過低 → 合併呼吸性鹼中毒", color: "text-warning" });
-    else if (co2 > expCo2 + 2) lines.push({ text: "   ↳ CO₂ 過高 → 合併呼吸性酸中毒", color: "text-warning" });
-    else                        lines.push({ text: "   ↳ 代償在預期範圍內",              color: "text-muted" });
-  }
-
-  // Step 4 — Oxygenation (optional)
-  const pao2 = Number(abg_pao2.value);
-  const fio2 = Number(abg_fio2.value);
-  if (pao2 && fio2) {
-    const pAlv = (fio2 / 100) * (760 - 47) - co2 / 0.8;
-    const aa   = pAlv - pao2;
-    const pf   = pao2 / (fio2 / 100);
-    const aaOk = aa <= 20;
-    lines.push({ text: `④ A-a 梯度：${aa.toFixed(0)} mmHg${aaOk ? "（正常）" : "（↑ 異常，考慮 V/Q mismatch 或分流）"}`, color: aaOk ? "text-fg-secondary" : "text-warning" });
-    const pfColor = pf >= 300 ? "text-success" : pf >= 200 ? "text-warning" : "text-danger font-semibold";
-    const pfLabel = pf >= 300 ? "" : pf >= 200 ? "（中度缺氧 ARDS 標準）" : "（重度缺氧 ARDS 標準）";
-    lines.push({ text: `   P/F ratio：${pf.toFixed(0)}${pfLabel}`, color: pfColor });
-  }
-
-  return lines;
-});
-
-// ─────────────────────────────────────────────────────────────────────────
-// Tool 3 — 血糖胰島素校正試算
-// ─────────────────────────────────────────────────────────────────────────
+// ── Tool 3 — 血糖胰島素校正試算 ────────────────────────────────────
 const glu_bg     = ref<number | "">("");
 const glu_target = ref<number | "">(140);
 const glu_tdd    = ref<number | "">("");
 const glu_isf    = ref<number | "">("");
 
 /** ISF 的計算基準三選一，避免使用者不知道欄位是互斥的 */
-type GluBasis = "tdd" | "weight" | "isf";
 const glu_basis  = ref<GluBasis>("tdd");
 const glu_weight = ref<number | "">("");
 const glu_ukg    = ref(0.5);
 
 /** 體重估算 TDD：常用起始 0.3–0.5 U/kg/day */
-const estimatedTdd = computed(() => {
-  const w = Number(glu_weight.value);
-  if (!w) return null;
-  return Math.round(w * glu_ukg.value * 10) / 10;
-});
+const estimatedTdd = computed(() => estimateTdd(glu_weight.value, glu_ukg.value));
 
-/** 依選定基準取得實際使用的 TDD（直接輸入 ISF 時不需要） */
-const effectiveTdd = computed<number | null>(() => {
-  if (glu_basis.value === "tdd")    return Number(glu_tdd.value) || null;
-  if (glu_basis.value === "weight") return estimatedTdd.value;
-  return null;
-});
+const insulinResult = computed(() => insulinCorrection({
+  bg: glu_bg.value, target: glu_target.value, basis: glu_basis.value,
+  tdd: glu_tdd.value, weight: glu_weight.value, ukg: glu_ukg.value, isf: glu_isf.value,
+}));
 
-const insulinResult = computed(() => {
-  const bg     = Number(glu_bg.value);
-  const target = Number(glu_target.value);
-  if (!bg || !target) return null;
-
-  let isf = 0;
-  let tddNote = "";
-  if (glu_basis.value === "isf") {
-    isf = Number(glu_isf.value);
-  } else {
-    const tdd = effectiveTdd.value;
-    if (tdd) {
-      isf = 1700 / tdd;
-      tddNote = glu_basis.value === "weight"
-        ? `${tdd} U（體重估算 ${glu_ukg.value} U/kg）`
-        : `${tdd} U`;
-    }
-  }
-  if (!isf) return null;
-
-  const rawDose = (bg - target) / isf;
-  const dose    = Math.max(0, Math.round(rawDose * 2) / 2); // round to 0.5U
-  let status = "";
-  if (bg < 70)        status = "低血糖！請立即處理";
-  else if (bg < 140)  status = "血糖達標，不需校正";
-  else if (bg < 180)  status = "輕度偏高";
-  else if (bg < 250)  status = "中度偏高";
-  else                status = "嚴重偏高，注意 DKA/HHS";
-  return {
-    dose, isf: isf.toFixed(0), status, bg,
-    needCorr: rawDose > 0,
-    tddNote,
-    estimated: glu_basis.value === "weight",
-  };
-});
-
-// ─────────────────────────────────────────────────────────────────────────
-// Tool 4 — 每日營養需求
-// ─────────────────────────────────────────────────────────────────────────
+// ── Tool 4 — 每日營養需求 ──────────────────────────────────────────
 const nut_weight  = ref<number | "">("");
 const nut_height  = ref<number | "">("");
 const nut_age     = ref<number | "">("");
@@ -194,114 +88,29 @@ const nut_gender  = ref<"M" | "F">("M");
 const nut_stress  = ref(1.2);
 const nut_protein = ref(1.2);
 
-const stressOptions = [
-  { label: "正常 / 術後恢復",     value: 1.0 },
-  { label: "輕度感染 / 小手術",   value: 1.2 },
-  { label: "中度感染 / 大手術",   value: 1.5 },
-  { label: "重度感染 / 大面積燒傷", value: 2.0 },
-];
+const stressOptions = STRESS_OPTIONS;
+const proteinOptions = PROTEIN_OPTIONS;
 
-const proteinOptions = [
-  { label: "一般維持  0.8 g/kg", value: 0.8 },
-  { label: "術後恢復  1.2 g/kg", value: 1.2 },
-  { label: "重症患者  1.5 g/kg", value: 1.5 },
-  { label: "燒傷 / 高分解  2.0 g/kg", value: 2.0 },
-];
+const nutResult = computed(() => nutrition({
+  weight: nut_weight.value, height: nut_height.value, age: nut_age.value,
+  gender: nut_gender.value, stress: nut_stress.value, proteinPerKg: nut_protein.value,
+}));
 
-const nutResult = computed(() => {
-  const w = Number(nut_weight.value);
-  const h = Number(nut_height.value);
-  const a = Number(nut_age.value);
-  if (!w || !h || !a) return null;
-
-  // Harris-Benedict
-  const bmr = nut_gender.value === "M"
-    ? 88.362  + 13.397 * w + 4.799 * h - 5.677 * a
-    : 447.593 +  9.247 * w + 3.098 * h - 4.330 * a;
-
-  const tdee    = bmr * nut_stress.value;
-  const protein = w * nut_protein.value;
-  const fat     = (tdee * 0.3) / 9;
-  const carb    = (tdee - protein * 4 - fat * 9) / 4;
-  const bmi     = w / (h / 100) ** 2;
-  const ibw     = nut_gender.value === "M" ? 50 + 2.3 * ((h - 152.4) / 2.54) : 45.5 + 2.3 * ((h - 152.4) / 2.54);
-
-  return {
-    bmr:     Math.round(bmr),
-    tdee:    Math.round(tdee),
-    protein: Math.round(protein),
-    fat:     Math.round(fat),
-    carb:    Math.round(Math.max(0, carb)),
-    bmi:     bmi.toFixed(1),
-    ibw:     Math.round(ibw),
-  };
-});
-
-// ─────────────────────────────────────────────────────────────────────────
-// Tool 5 — FiO₂ 換算
-// ─────────────────────────────────────────────────────────────────────────
-type O2Device = "nc" | "sm" | "nrb" | "venturi" | "hfnc";
+// ── Tool 5 — FiO₂ 換算 ─────────────────────────────────────────────
 const o2_device  = ref<O2Device>("nc");
 const o2_flow    = ref<number | "">("");
 const o2_venturi = ref(28);
 const o2_pao2    = ref<number | "">("");
 const o2_hfnc_fio2 = ref<number | "">(40);
 
-const venturiMap: Record<number, number> = {
-  24: 2, 28: 4, 31: 6, 35: 8, 40: 10, 60: 15,
-};
-const venturiOptions = [24, 28, 31, 35, 40, 60];
+const venturiMap = VENTURI_FLOW;
+const venturiOptions = VENTURI_OPTIONS;
+const deviceLabels = DEVICE_LABELS;
 
-const deviceLabels: Record<O2Device, string> = {
-  nc:      "鼻導管 (NC)",
-  sm:      "一般面罩 (SM)",
-  nrb:     "不重吸入面罩 (NRB)",
-  venturi: "文氏面罩 (Venturi)",
-  hfnc:    "高流量鼻導管 (HFNC)",
-};
-
-const fio2Result = computed(() => {
-  const flow = Number(o2_flow.value);
-  let fio2   = 0;
-  let note   = "";
-
-  if (o2_device.value === "nc") {
-    if (!flow) return null;
-    fio2 = Math.min(21 + 4 * flow, 44);
-    note = "每升流速大約增加 4% FiO₂（常規限制在 1–6 L/min）";
-  } else if (o2_device.value === "sm") {
-    if (!flow || flow < 5) return null;
-    if (flow <= 6)      { fio2 = 40; note = "建議 5–6 L/min"; }
-    else if (flow <= 7) { fio2 = 50; note = "建議 6–7 L/min"; }
-    else                { fio2 = 60; note = "建議 7–10 L/min"; }
-  } else if (o2_device.value === "nrb") {
-    if (!flow) return null;
-    if (flow <= 10)      { fio2 = 80;  note = "流量建議 ≤ 10 L/min"; }
-    else if (flow <= 12) { fio2 = 90;  note = "流量建議 10–12 L/min"; }
-    else                 { fio2 = 95;  note = "流量建議 > 12 L/min"; }
-  } else if (o2_device.value === "venturi") {
-    fio2 = o2_venturi.value;
-    note = `建議流速 ≥ ${venturiMap[o2_venturi.value] ?? "—"} L/min`;
-  } else if (o2_device.value === "hfnc") {
-    fio2 = Number(o2_hfnc_fio2.value) || 0;
-    if (!fio2) return null;
-    note = `流速設定 ${flow || "—"} L/min`;
-  }
-
-  const pao2 = Number(o2_pao2.value);
-  const pf   = pao2 ? Math.round(pao2 / (fio2 / 100)) : null;
-
-  let pfLabel = "";
-  if (pf !== null) {
-    if (pf >= 400)      pfLabel = "正常 (Normal)";
-    else if (pf >= 300) pfLabel = "輕度缺氧 (Mild Hypoxia)";
-    else if (pf >= 200) pfLabel = "中度缺氧 (ARDS 輕度標準)";
-    else if (pf >= 100) pfLabel = "重度缺氧 (ARDS 中/重度標準)";
-    else                pfLabel = "極重度缺氧 (Severe Hypoxia)";
-  }
-
-  return { fio2, note, pf, pfLabel };
-});
+const fio2Result = computed(() => fio2Estimate({
+  device: o2_device.value, flow: o2_flow.value, venturi: o2_venturi.value,
+  hfncFio2: o2_hfnc_fio2.value, pao2: o2_pao2.value,
+}));
 
 </script>
 

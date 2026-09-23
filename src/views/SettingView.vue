@@ -379,6 +379,42 @@ async function saveSettings() {
   showToast("設定已儲存");
 }
 
+// ── GAS 金鑰檢查開關（ADR-013）───────────────────────────────────────
+// 金鑰本身在 Apps Script 編輯器執行 setupApiKey() 產生；開關存在 GAS 的 Script Properties，
+// 只有帶正確金鑰的請求才能切換。每台電腦都填好金鑰後才打開開關。
+const keyStatus = ref<{ configured: boolean; required: boolean; valid: boolean } | null>(null);
+const keyBusy = ref(false);
+
+async function gasPost(body: object) {
+  const res = await fetch(cloud.gasUrl, { method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json() as Promise<{ ok: boolean; error?: string; configured?: boolean; required?: boolean; valid?: boolean }>;
+}
+
+async function checkKeyStatus() {
+  if (!cloud.gasUrl) { showToast("請先填入 GAS Web App URL"); return; }
+  keyBusy.value = true;
+  try {
+    const r = await gasPost({ action: "apiKeyStatus" });
+    if (!r.ok) throw new Error(r.error ?? "GAS 錯誤");
+    keyStatus.value = { configured: !!r.configured, required: !!r.required, valid: !!r.valid };
+  } catch (e) { showToast(`檢查失敗：${(e as Error).message}`); }
+  finally { keyBusy.value = false; }
+}
+
+async function toggleRequireKey() {
+  if (!keyStatus.value?.valid) { showToast("本機金鑰不正確，無法切換"); return; }
+  const enabled = !keyStatus.value.required;
+  keyBusy.value = true;
+  try {
+    const r = await gasPost({ action: "setRequireApiKey", enabled });
+    if (!r.ok) throw new Error(r.error ?? "GAS 錯誤");
+    showToast(enabled ? "已開啟金鑰檢查：未帶金鑰的請求將被拒絕" : "已關閉金鑰檢查");
+    await checkKeyStatus();
+  } catch (e) { showToast(`切換失敗：${(e as Error).message}`); }
+  finally { keyBusy.value = false; }
+}
+
 // ── 從雲端還原設定（換電腦時：只需先填 GAS URL） ─────────────────────
 const isPullingSettings = ref(false);
 async function pullSettingsFromCloud() {
@@ -490,6 +526,29 @@ async function pullSettingsFromCloud() {
             <label class="block text-2xs font-bold text-muted mb-1">GAS Web App URL (回寫閘道連結)</label>
             <input v-model="cloud.gasUrl" placeholder="https://script.google.com/macros/s/.../exec"
               class="w-full text-xs px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg font-mono outline-none focus:border-accent/50" />
+          </div>
+          <div class="col-span-2">
+            <label class="block text-2xs font-bold text-muted mb-1">GAS 金鑰（每台電腦各自填入，不會存到雲端）</label>
+            <div class="flex items-center gap-2 flex-wrap">
+              <input v-model="cloud.gasApiKey" type="password" placeholder="在 Apps Script 編輯器執行 setupApiKey() 取得"
+                class="flex-1 min-w-[16rem] text-xs px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg font-mono outline-none focus:border-accent/50" />
+              <button @click="checkKeyStatus" :disabled="keyBusy || !cloud.gasUrl"
+                class="text-xs px-3 py-2 rounded-xl border border-hairline bg-elevated text-fg-secondary hover:text-fg disabled:opacity-40 font-bold cursor-pointer">
+                檢查
+              </button>
+              <button v-if="keyStatus?.valid" @click="toggleRequireKey" :disabled="keyBusy"
+                class="text-xs px-3 py-2 rounded-xl font-bold cursor-pointer disabled:opacity-40"
+                :class="keyStatus.required ? 'border border-hairline bg-elevated text-fg-secondary hover:text-fg' : 'bg-accent text-white hover:bg-accent-hover'">
+                {{ keyStatus.required ? '關閉金鑰檢查' : '開啟金鑰檢查' }}
+              </button>
+            </div>
+            <p v-if="keyStatus" class="text-2xs mt-1 font-medium"
+              :class="!keyStatus.configured || !keyStatus.valid ? 'text-warning' : 'text-muted'">
+              {{ !keyStatus.configured ? 'GAS 尚未設定金鑰：請先在 Apps Script 編輯器執行 setupApiKey()'
+                : !keyStatus.valid ? '本機填入的金鑰與 GAS 不符'
+                : keyStatus.required ? '金鑰正確；金鑰檢查已開啟（未帶金鑰的請求會被拒絕）'
+                : '金鑰正確；金鑰檢查尚未開啟。所有電腦都填好金鑰後再開啟' }}
+            </p>
           </div>
           <div>
             <label class="block text-2xs font-bold text-muted mb-1">班表 Sheet 分頁前綴</label>

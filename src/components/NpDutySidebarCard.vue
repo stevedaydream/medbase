@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { getNpDutyUrl, loadNpDuty, localDateKey, NP_DUTY_UPDATED_EVENT, type NpDutyAssignment } from "@/composables/useNpDuty";
-import { NP_WARDS, VS_UNITS } from "@/utils/npDutyXlsx";
+import { NP_WARDS, VS_UNITS, VS_PRIMARY, VS_OTHERS, addDays, withCarriedNight, isOnDuty, isTimedShift, shiftLabel, normName } from "@/shared/duty";
 import { getDb } from "@/db";
 
 type Ward = NpDutyAssignment["ward"];
@@ -22,55 +22,27 @@ const showOtherVs = ref(false);
 const hisByName = ref<Record<string, string>>({});
 let timer: ReturnType<typeof setInterval> | null = null;
 
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
-}
-
 const viewDate = computed(() => addDays(now.value, view.value === "today" ? 0 : 1));
 const displayDate = computed(() => `${viewDate.value.getMonth() + 1}/${viewDate.value.getDate()}`);
 const activeUnits = computed<readonly Ward[]>(() => group.value === "NP" ? NP_WARDS : VS_UNITS);
 const activeRows = computed(() => rows.value.filter(row => activeUnits.value.includes(row.ward)));
 /** VS 只常駐顯示總值，其餘科別收折 */
-const otherVsUnits = VS_UNITS.filter(unit => unit !== "總值");
+const otherVsUnits = VS_OTHERS;
 const visibleUnits = computed<readonly Ward[]>(() => {
   if (group.value === "NP") return NP_WARDS;
-  return showOtherVs.value ? ["總值", ...otherVsUnits] : ["總值"];
+  return showOtherVs.value ? [VS_PRIMARY, ...otherVsUnits] : [VS_PRIMARY];
 });
 
-/** 白八 08–20、夜八 20–隔日 08；凌晨時在班的是昨天的夜八 */
-function isCurrent(row: DisplayRow): boolean {
-  if (view.value !== "today") return false;
-  const h = now.value.getHours();
-  if (row.carried) return h < 8;
-  if (row.shift === "白八") return h >= 8 && h < 20;
-  if (row.shift === "夜八") return h >= 20;
-  return false;
-}
-
-/** 只有白八／夜八有時間，其他班（例如 PGY 值班）不淡化 */
-function isTimed(row: DisplayRow): boolean {
-  return row.carried || row.shift === "白八" || row.shift === "夜八";
-}
+// 在班判定與班別標籤見 shared/duty（手機首頁共用）
+const isCurrent = (row: DisplayRow) => isOnDuty(row, now.value, view.value === "today");
+const isTimed = isTimedShift;
 
 function wardRows(ward: Ward) {
   return rows.value.filter(row => row.ward === ward);
 }
 
-function shiftLabel(row: DisplayRow): string {
-  if (row.carried) return "昨夜";
-  if (row.shift === "白八") return "白";
-  if (row.shift === "夜八") return "夜";
-  return row.shift;
-}
-
 function rowKey(row: DisplayRow) {
   return `${row.id}-${row.carried ? "c" : ""}`;
-}
-
-function normName(name: string): string {
-  return name.replace(/\s+/g, "");
 }
 
 function hisAccount(row: DisplayRow): string {
@@ -89,13 +61,9 @@ async function refresh() {
   now.value = new Date();
   try {
     const date = localDateKey(viewDate.value);
-    const list: DisplayRow[] = (await loadNpDuty(date)).map(r => ({ ...r, carried: false }));
-    if (view.value === "today" && now.value.getHours() < 8) {
-      const yesterday = await loadNpDuty(localDateKey(addDays(now.value, -1)));
-      const carried = yesterday.filter(r => r.shift === "夜八").map(r => ({ ...r, carried: true }));
-      list.unshift(...carried);
-    }
-    rows.value = list;
+    const viewingToday = view.value === "today";
+    const yesterday = viewingToday && now.value.getHours() < 8 ? await loadNpDuty(localDateKey(addDays(now.value, -1))) : [];
+    rows.value = withCarriedNight(await loadNpDuty(date), yesterday, now.value, viewingToday);
     try { await loadHisAccounts(); } catch { hisByName.value = {}; }
     downloadUrl.value = await getNpDutyUrl();
   } catch {

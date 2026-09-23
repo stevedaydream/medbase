@@ -4,6 +4,11 @@ import { refDebounced } from "@vueuse/core";
 import { getDb } from "@/db";
 import { touchTable, markDeletedById, onTableSynced } from "@/composables/useTableSync";
 import CloudSyncButtons from "@/components/CloudSyncButtons.vue";
+import {
+  NO_DOCTOR, buildHaystacks, searchItems, makeMatcher, facetOptions, sectionize,
+  doctorState as doctorStateOf, toggleDoctor as toggleDoctorOf, activeChips as chipsOf,
+  filterSurgeryOptions, filterSetGroups, type Dim, type Key, type FilterContext,
+} from "@/shared/itemsSearch";
 
 /**
  * 自費品項查詢。
@@ -27,12 +32,6 @@ interface Item {
 interface SurgeryType { id: number; name: string; dept: string | null; notes: string | null }
 interface SetEntry { setId: number; setName: string; doctorName: string; codes: Set<string> }
 
-const PURPOSE_LIST = [
-  "止血劑", "Mesh人工網膜", "骨板", "骨釘", "骨水泥",
-  "關節假體", "傷口敷料", "引流耗材", "縫合材料", "內視鏡耗材", "其他",
-];
-const DEPT_LIST = ["骨科", "一般外科", "胸腔外科", "泌尿科", "乳房外科", "其他科"];
-const NO_DOCTOR = "未指定醫師";
 
 const items     = ref<Item[]>([]);
 const searchRaw = ref("");
@@ -45,8 +44,8 @@ let copiedTimer: ReturnType<typeof setTimeout> | null = null;
 // ── 篩選狀態 ─────────────────────────────────────────────────────
 const activeDepts     = ref(new Set<string>());
 const activePurposes  = ref(new Set<string>());
-const activeSurgeries = ref(new Set<number>());
-const activeSets      = ref(new Set<number>());
+const activeSurgeries = ref(new Set<Key>());
+const activeSets      = ref(new Set<Key>());
 
 // ── 手術術式／套組資料 ───────────────────────────────────────────
 const surgeryTypes       = ref<SurgeryType[]>([]);
@@ -96,7 +95,7 @@ async function loadSets() {
     setEntries.value = [...map.values()].sort((a, b) =>
       a.doctorName.localeCompare(b.doctorName, "zh-TW") || a.setName.localeCompare(b.setName, "zh-TW"));
     // 已不存在的套組從篩選中移除
-    const alive = new Set(setEntries.value.map(e => e.setId));
+    const alive = new Set<Key>(setEntries.value.map(e => e.setId));
     if ([...activeSets.value].some(id => !alive.has(id)))
       activeSets.value = new Set([...activeSets.value].filter(id => alive.has(id)));
   } catch { /* 套組資料載入失敗不影響主要品項功能 */ }
@@ -129,174 +128,49 @@ async function copyCode(code: string) {
   } catch { /* clipboard denied */ }
 }
 
-// ── 比對 ─────────────────────────────────────────────────────────
-type Dim = "dept" | "purpose" | "surgery" | "set";
+// ── 比對（邏輯見 shared/itemsSearch，手機共用）──────────────────
+const haystacks = computed(() => buildHaystacks(items.value, setEntries.value));
+const searched = computed(() => searchItems(items.value, haystacks.value, search.value));
 
-// 每個品項的搜尋字串（含所屬套組名稱與醫師）
-const haystacks = computed(() => {
-  const setText = new Map<string, string[]>();
-  for (const e of setEntries.value)
-    for (const c of e.codes) {
-      if (!setText.has(c)) setText.set(c, []);
-      setText.get(c)!.push(e.setName, e.doctorName);
-    }
-  const map = new Map<string, string>();
-  for (const m of items.value) {
-    map.set(m.hospital_code, [
-      m.hospital_code, m.name_zh, m.name_en, m.purpose, m.supplier, m.unit, m.notes,
-      ...m.depts, ...(setText.get(m.hospital_code) ?? []),
-    ].filter(Boolean).join(" ").toLowerCase());
-  }
-  return map;
+const ctx = computed<FilterContext>(() => ({
+  filters: { dept: activeDepts.value, purpose: activePurposes.value, surgery: activeSurgeries.value, set: activeSets.value },
+  surgeryItems: surgeryTypeItemMap.value,
+  sets: setEntries.value,
+}));
+
+const filtered = computed(() => {
+  const passes = makeMatcher(ctx.value);
+  return searched.value.filter(m => passes(m));
 });
 
-const terms = computed(() => search.value.toLowerCase().split(/\s+/).filter(Boolean));
-
-const searched = computed(() => {
-  if (!terms.value.length) return items.value;
-  return items.value.filter(m => {
-    const h = haystacks.value.get(m.hospital_code) ?? "";
-    return terms.value.every(t => h.includes(t));
-  });
-});
-
-const surgeryCodes = computed(() => {
-  if (!activeSurgeries.value.size) return null;
-  const codes = new Set<string>();
-  for (const id of activeSurgeries.value) surgeryTypeItemMap.value.get(id)?.forEach(c => codes.add(c));
-  return codes;
-});
-
-const setCodes = computed(() => {
-  if (!activeSets.value.size) return null;
-  const codes = new Set<string>();
-  for (const e of setEntries.value) if (activeSets.value.has(e.setId)) e.codes.forEach(c => codes.add(c));
-  return codes;
-});
-
-const purposeOf = (m: Item) => m.purpose || "其他";
-
-/** 除了 skip 這個區塊以外，其他區塊條件都符合 */
-function passes(m: Item, skip?: Dim): boolean {
-  if (skip !== "dept" && activeDepts.value.size && !m.depts.some(d => activeDepts.value.has(d))) return false;
-  if (skip !== "purpose" && activePurposes.value.size && !activePurposes.value.has(purposeOf(m))) return false;
-  if (skip !== "surgery" && surgeryCodes.value && !surgeryCodes.value.has(m.hospital_code)) return false;
-  if (skip !== "set" && setCodes.value && !setCodes.value.has(m.hospital_code)) return false;
-  return true;
-}
-
-const filtered = computed(() => searched.value.filter(m => passes(m)));
-
-/**
- * 結果分段：有勾套組時依「醫師・套組」分段，同一品項屬於多個已勾套組會在各段出現；
- * 沒勾套組時為單一清單（title 為 null）。
- */
-const sections = computed(() => {
-  if (!activeSets.value.size) return [{ key: "all", title: null as string | null, items: filtered.value }];
-  return setEntries.value
-    .filter(e => activeSets.value.has(e.setId))
-    .map(e => ({
-      key: `set-${e.setId}`,
-      title: `${e.doctorName}・${e.setName}` as string | null,
-      items: filtered.value.filter(m => e.codes.has(m.hospital_code)),
-    }))
-    .filter(sec => sec.items.length);
-});
-
-function baseFor(dim: Dim) {
-  return searched.value.filter(m => passes(m, dim));
-}
+/** 結果分段：有勾套組時依「醫師・套組」分段，同一品項屬於多個已勾套組會在各段出現 */
+const sections = computed(() => sectionize(filtered.value, setEntries.value, activeSets.value));
 
 // ── 各區塊選項與筆數 ─────────────────────────────────────────────
-interface Option<K> { key: K; label: string; sub?: string; count: number }
+const facets = computed(() => facetOptions(items.value, searched.value, ctx.value, surgeryTypes.value));
+const deptOptions = computed(() => facets.value.dept);
+const purposeOptions = computed(() => facets.value.purpose);
+const surgeryOptions = computed(() => facets.value.surgery);
+const setGroups = computed(() => facets.value.setGroups);
 
-function orderByPreset(keys: string[], preset: string[]) {
-  return [...preset.filter(k => keys.includes(k)), ...keys.filter(k => !preset.includes(k)).sort((a, b) => a.localeCompare(b, "zh-TW"))];
-}
-
-const deptOptions = computed<Option<string>[]>(() => {
-  const all = new Set(items.value.flatMap(m => m.depts));
-  const counts = new Map<string, number>();
-  for (const m of baseFor("dept")) for (const d of m.depts) counts.set(d, (counts.get(d) ?? 0) + 1);
-  return orderByPreset([...all], DEPT_LIST).map(d => ({ key: d, label: d, count: counts.get(d) ?? 0 }));
-});
-
-const purposeOptions = computed<Option<string>[]>(() => {
-  const all = new Set(items.value.map(purposeOf));
-  const counts = new Map<string, number>();
-  for (const m of baseFor("purpose")) counts.set(purposeOf(m), (counts.get(purposeOf(m)) ?? 0) + 1);
-  return orderByPreset([...all], PURPOSE_LIST).map(p => ({ key: p, label: p, count: counts.get(p) ?? 0 }));
-});
-
-const surgeryOptions = computed<Option<number>[]>(() => {
-  const base = new Set(baseFor("surgery").map(m => m.hospital_code));
-  return surgeryTypes.value.map(st => {
-    const linked = surgeryTypeItemMap.value.get(st.id) ?? new Set<string>();
-    return { key: st.id, label: st.name, sub: st.dept ?? "", count: [...linked].filter(c => base.has(c)).length };
-  });
-});
-
-const setGroups = computed(() => {
-  const base = new Set(baseFor("set").map(m => m.hospital_code));
-  const groups = new Map<string, { options: Option<number>[]; codes: Set<string> }>();
-  for (const e of setEntries.value) {
-    if (!groups.has(e.doctorName)) groups.set(e.doctorName, { options: [], codes: new Set() });
-    const g = groups.get(e.doctorName)!;
-    g.options.push({ key: e.setId, label: e.setName, count: [...e.codes].filter(c => base.has(c)).length });
-    e.codes.forEach(c => g.codes.add(c));
-  }
-  // 醫師的筆數＝其所有套組品項的聯集（同一品項在多個套組只算一次）
-  return [...groups.entries()].map(([doctor, g]) => ({
-    doctor,
-    options: g.options,
-    setIds: g.options.map(o => o.key),
-    count: [...g.codes].filter(c => base.has(c)).length,
-  }));
-});
-
-/** 醫師勾選狀態：全部套組已勾／部分已勾／未勾 */
-function doctorState(setIds: number[]): "all" | "some" | "none" {
-  const n = setIds.filter(id => activeSets.value.has(id)).length;
-  return n === 0 ? "none" : n === setIds.length ? "all" : "some";
-}
-
-/** 勾醫師＝勾他所有套組；已全勾時再按一次則全部取消 */
-function toggleDoctor(setIds: number[]) {
-  const next = new Set(activeSets.value);
-  if (doctorState(setIds) === "all") setIds.forEach(id => next.delete(id));
-  else setIds.forEach(id => next.add(id));
-  activeSets.value = next;
+const doctorState = (setIds: Key[]) => doctorStateOf(activeSets.value, setIds);
+function toggleDoctor(setIds: Key[]) {
+  activeSets.value = toggleDoctorOf(activeSets.value, setIds);
 }
 
 // ── 區塊內搜尋（術式、套組選項多時）────────────────────────────
 const surgeryQuery = ref("");
 const setQuery     = ref("");
-const visibleSurgeryOptions = computed(() => {
-  const q = surgeryQuery.value.trim().toLowerCase();
-  if (!q) return surgeryOptions.value;
-  return surgeryOptions.value.filter(o =>
-    o.label.toLowerCase().includes(q) || (o.sub ?? "").toLowerCase().includes(q) || activeSurgeries.value.has(o.key));
-});
-const visibleSetGroups = computed(() => {
-  const q = setQuery.value.trim().toLowerCase();
-  if (!q) return setGroups.value;
-  return setGroups.value
-    .map(g => ({
-      ...g,
-      options: g.doctor.toLowerCase().includes(q)
-        ? g.options
-        : g.options.filter(o => o.label.toLowerCase().includes(q) || activeSets.value.has(o.key)),
-    }))
-    .filter(g => g.options.length);
-});
+const visibleSurgeryOptions = computed(() => filterSurgeryOptions(surgeryOptions.value, surgeryQuery.value, activeSurgeries.value));
+const visibleSetGroups = computed(() => filterSetGroups(setGroups.value, setQuery.value, activeSets.value));
 
 // ── 勾選 ─────────────────────────────────────────────────────────
-const TARGETS: Record<Dim, Ref<Set<string>> | Ref<Set<number>>> = {
+const TARGETS: Record<Dim, Ref<Set<string>> | Ref<Set<Key>>> = {
   dept: activeDepts, purpose: activePurposes, surgery: activeSurgeries, set: activeSets,
 };
 
-function toggle(dim: Dim, key: string | number) {
-  const target = TARGETS[dim] as Ref<Set<string | number>>;
+function toggle(dim: Dim, key: Key) {
+  const target = TARGETS[dim] as Ref<Set<Key>>;
   const next = new Set(target.value);
   if (next.has(key)) next.delete(key); else next.add(key);
   target.value = next;
@@ -309,29 +183,9 @@ function resetAllFilters() {
   activeSets.value      = new Set();
 }
 
-const activeChips = computed(() => {
-  const chips: { dim: Dim; key: string | number; label: string; type: string; setIds?: number[] }[] = [];
-  for (const d of activeDepts.value) chips.push({ dim: "dept", key: d, label: d, type: "科別" });
-  for (const p of activePurposes.value) chips.push({ dim: "purpose", key: p, label: p, type: "用途" });
-  for (const id of activeSurgeries.value) {
-    const st = surgeryTypes.value.find(s => s.id === id);
-    if (st) chips.push({ dim: "surgery", key: id, label: st.name, type: "術式" });
-  }
-  // 醫師的套組全勾時合併成一個標籤，避免套組多時擠滿整列
-  for (const g of setGroups.value) {
-    const state = doctorState(g.setIds);
-    if (state === "all" && g.setIds.length > 1) {
-      chips.push({ dim: "set", key: `doctor:${g.doctor}`, label: `${g.doctor}（全部套組）`, type: "套組", setIds: g.setIds });
-      continue;
-    }
-    if (state === "none") continue;
-    for (const o of g.options)
-      if (activeSets.value.has(o.key)) chips.push({ dim: "set", key: o.key, label: `${g.doctor}・${o.label}`, type: "套組" });
-  }
-  return chips;
-});
+const activeChips = computed(() => chipsOf(ctx.value.filters, surgeryTypes.value, setGroups.value));
 
-function removeChip(c: { dim: Dim; key: string | number; setIds?: number[] }) {
+function removeChip(c: { dim: Dim; key: Key; setIds?: Key[] }) {
   if (c.setIds) toggleDoctor(c.setIds);
   else toggle(c.dim, c.key);
 }
@@ -500,7 +354,7 @@ function showSurgToast(msg: string) {
           <div v-if="sectionOpen.dept" class="pb-2">
             <label v-for="o in deptOptions" :key="o.key" class="flex items-center gap-2 px-3 py-1 text-xs cursor-pointer hover:bg-overlay/5"
               :class="o.count === 0 && !activeDepts.has(o.key) ? 'opacity-40' : ''">
-              <input type="checkbox" class="accent-[var(--color-accent)]" :checked="activeDepts.has(o.key)" @change="toggle('dept', o.key)" />
+              <input type="checkbox" class="accent-accent" :checked="activeDepts.has(o.key)" @change="toggle('dept', o.key)" />
               <span class="flex-1 min-w-0" :class="activeDepts.has(o.key) ? 'text-accent font-bold' : 'text-fg'">{{ o.label }}</span>
               <span class="text-2xs tabular-nums text-muted">{{ o.count }}</span>
             </label>
@@ -517,7 +371,7 @@ function showSurgToast(msg: string) {
           <div v-if="sectionOpen.purpose" class="pb-2">
             <label v-for="o in purposeOptions" :key="o.key" class="flex items-center gap-2 px-3 py-1 text-xs cursor-pointer hover:bg-overlay/5"
               :class="o.count === 0 && !activePurposes.has(o.key) ? 'opacity-40' : ''">
-              <input type="checkbox" class="accent-[var(--color-accent)]" :checked="activePurposes.has(o.key)" @change="toggle('purpose', o.key)" />
+              <input type="checkbox" class="accent-accent" :checked="activePurposes.has(o.key)" @change="toggle('purpose', o.key)" />
               <span class="flex-1 min-w-0" :class="activePurposes.has(o.key) ? 'text-accent font-bold' : 'text-fg'">{{ o.label }}</span>
               <span class="text-2xs tabular-nums text-muted">{{ o.count }}</span>
             </label>
@@ -541,7 +395,7 @@ function showSurgToast(msg: string) {
             <p v-if="!surgeryOptions.length" class="px-3 py-1 text-xs text-muted">尚無術式，按 ⚙ 新增</p>
             <label v-for="o in visibleSurgeryOptions" :key="o.key" class="flex items-center gap-2 px-3 py-1 text-xs cursor-pointer hover:bg-overlay/5"
               :class="o.count === 0 && !activeSurgeries.has(o.key) ? 'opacity-40' : ''">
-              <input type="checkbox" class="accent-[var(--color-accent)]" :checked="activeSurgeries.has(o.key)" @change="toggle('surgery', o.key)" />
+              <input type="checkbox" class="accent-accent" :checked="activeSurgeries.has(o.key)" @change="toggle('surgery', o.key)" />
               <span class="flex-1 min-w-0" :class="activeSurgeries.has(o.key) ? 'text-accent font-bold' : 'text-fg'">
                 {{ o.label }}<span v-if="o.sub" class="ml-1 text-2xs text-muted font-normal">{{ o.sub }}</span>
               </span>
@@ -565,7 +419,7 @@ function showSurgToast(msg: string) {
               <label class="flex items-center gap-2 px-3 pt-1.5 pb-0.5 text-xs cursor-pointer hover:bg-overlay/5"
                 :class="g.count === 0 && doctorState(g.setIds) === 'none' ? 'opacity-40' : ''"
                 :title="`勾選 ${g.doctor} 的全部套組`">
-                <input type="checkbox" class="accent-[var(--color-accent)]"
+                <input type="checkbox" class="accent-accent"
                   :checked="doctorState(g.setIds) === 'all'"
                   :indeterminate="doctorState(g.setIds) === 'some'"
                   @change="toggleDoctor(g.setIds)" />
@@ -574,7 +428,7 @@ function showSurgToast(msg: string) {
               </label>
               <label v-for="o in g.options" :key="o.key" class="flex items-center gap-2 pl-5 pr-3 py-1 text-xs cursor-pointer hover:bg-overlay/5"
                 :class="o.count === 0 && !activeSets.has(o.key) ? 'opacity-40' : ''">
-                <input type="checkbox" class="accent-[var(--color-accent)]" :checked="activeSets.has(o.key)" @change="toggle('set', o.key)" />
+                <input type="checkbox" class="accent-accent" :checked="activeSets.has(o.key)" @change="toggle('set', o.key)" />
                 <span class="flex-1 min-w-0" :class="activeSets.has(o.key) ? 'text-accent font-bold' : 'text-fg'">{{ o.label }}</span>
                 <span class="text-2xs tabular-nums text-muted">{{ o.count }}</span>
               </label>

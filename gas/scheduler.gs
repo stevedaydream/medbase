@@ -255,6 +255,53 @@ function _withLock(fn) {
   try { return fn(); } finally { lock.releaseLock(); }
 }
 
+// ── GAS 金鑰與手機登入（ADR-013）────────────────────────────────────
+// 金鑰與開關存 Script Properties，不存 Config（開關打開前 getConfig 任何人都讀得到）。
+// 首次設定：在 Apps Script 編輯器選 setupApiKey 執行，從「執行記錄」複製金鑰。
+const MOBILE_FAIL_TTL = 900;          // 15 分鐘
+const MOBILE_MAX_ACCOUNT_FAILS = 5;
+const MOBILE_MAX_IP_FAILS = 20;
+// 手機（經 Vercel）專用的 action：不論開關，一律要帶金鑰
+const KEY_ALWAYS_REQUIRED = { mobileLogin: true, setRequireApiKey: true };
+
+function setupApiKey() {
+  const props = PropertiesService.getScriptProperties();
+  let key = props.getProperty('API_KEY');
+  if (!key) {
+    key = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
+    props.setProperty('API_KEY', key);
+  }
+  Logger.log('GAS 金鑰：' + key);
+  return key;
+}
+
+function _apiKey() { return PropertiesService.getScriptProperties().getProperty('API_KEY') || ''; }
+function _requireApiKey() { return PropertiesService.getScriptProperties().getProperty('REQUIRE_API_KEY') === 'true'; }
+
+/** 手機憑證指紋：HIS 密碼一改就不同，舊憑證隨之失效 */
+function _mobileFp(his, password) {
+  return _researchHash(_apiKey(), 'mobile:' + his + ':' + password).slice(0, 32);
+}
+
+function _findPhysicianByHis(ss, his) {
+  const rows = _readSyncTable(ss, 'physicians').rows;
+  const key = String(his || '').trim();
+  if (!key) return null;
+  for (const k in rows) {
+    if (String(rows[k].his_account || '').trim() === key) return rows[k];
+  }
+  return null;
+}
+
+/** Staff 表：代號[0] 姓名[1] 角色[2] pw_hash[3] 啟用[4] 員工編號[5]；HIS 帳號＝員工編號 */
+function _findStaffByEmployeeId(ss, his) {
+  const sh = ss.getSheetByName('Staff');
+  if (!sh || sh.getLastRow() < 2) return null;
+  const r = sh.getDataRange().getValues().slice(1).find(r => String(r[5] || '') === String(his) && r[4] !== 0);
+  return r ? { code: String(r[0]), name: String(r[1]) } : null;
+}
+
+
 // ── 論文專案：個人雲端備份（ADR-012）──────────────────────────────────
 // ResearchUsers：his / salt / pin_hash / failed / locked_until / created_at
 // ResearchBackups：his / day / updated_at / chunk / data（依日期保留最近 3 天，每格上限 5 萬字故分段）
@@ -403,6 +450,23 @@ function doPost(e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
   try {
+    // ── 金鑰檢查（ADR-013）──────────────────────────────────────────
+    const apiKey = _apiKey();
+    const keyOk = !!apiKey && p.api_key === apiKey;
+    if (p.action === 'apiKeyStatus') {
+      return json({ ok: true, configured: !!apiKey, required: _requireApiKey(), valid: keyOk });
+    }
+    if ((_requireApiKey() || KEY_ALWAYS_REQUIRED[p.action] || p._mobile) && !keyOk) {
+      return json({ ok: false, code: 'UNAUTHORIZED', error: '缺少或錯誤的 GAS 金鑰' });
+    }
+    // 手機請求（Vercel 代為附上 _mobile）：每次都比對目前通訊錄的 HIS 密碼
+    if (p._mobile) {
+      const person = _findPhysicianByHis(ss, p._mobile.his);
+      if (!person || !person.his_password || _mobileFp(String(p._mobile.his), person.his_password) !== p._mobile.fp) {
+        return json({ ok: false, code: 'MOBILE_AUTH', error: '登入已失效，請重新登入' });
+      }
+    }
+
     const legacyTable = LEGACY_SYNC_ACTIONS[p.action];
     if (legacyTable && _getConfigValue(legacyTable + '_sync_baseline')) {
       return json({ ok: false, code: 'OUTDATED', error: '此資料已改為逐筆同步，請更新 MedBase 至最新版本' });
@@ -1020,6 +1084,43 @@ function doPost(e) {
         return json({ ok: true, surgeryTypes, surgeryTypeItems });
       }
 
+      // ── GAS 金鑰開關與手機登入（ADR-013）──────────────────────────
+      case 'setRequireApiKey': {
+        PropertiesService.getScriptProperties().setProperty('REQUIRE_API_KEY', p.enabled ? 'true' : 'false');
+        return json({ ok: true, required: !!p.enabled });
+      }
+
+      // 以通訊錄 HIS 帳密登入；同帳號連錯 5 次、同 IP 失敗 20 次皆暫停 15 分鐘
+      case 'mobileLogin': {
+        const his = String(p.his || '').trim(), password = String(p.password || ''), ip = String(p.ip || 'unknown');
+        const cache = CacheService.getScriptCache();
+        const ipKey = 'mlogin_ip_' + ip, accKey = 'mlogin_acc_' + his;
+        const ipFails = Number(cache.get(ipKey) || 0), accFails = Number(cache.get(accKey) || 0);
+        if (ipFails >= MOBILE_MAX_IP_FAILS || accFails >= MOBILE_MAX_ACCOUNT_FAILS) {
+          return json({ ok: false, code: 'LOCKED', error: '嘗試次數過多，請 15 分鐘後再試' });
+        }
+        const person = _findPhysicianByHis(ss, his);
+        if (!person || !person.his_password || person.his_password !== password) {
+          cache.put(ipKey, String(ipFails + 1), MOBILE_FAIL_TTL);
+          cache.put(accKey, String(accFails + 1), MOBILE_FAIL_TTL);
+          return json({ ok: false, code: 'BAD_LOGIN', error: '帳號或密碼錯誤' });
+        }
+        cache.remove(accKey);
+        const staff = _findStaffByEmployeeId(ss, his);
+        return json({
+          ok: true,
+          user: { his: his, name: person.name, staffCode: staff ? staff.code : '', staffName: staff ? staff.name : '' },
+          fp: _mobileFp(his, password),
+        });
+      }
+
+      // 讀取逐筆同步表的目前內容（手機唯讀快取用；不含刪除紀錄）
+      case 'readTable': {
+        if (!SYNC_TABLES[p.table]) return json({ ok: false, error: `Unknown sync table: ${p.table}` });
+        const rows = _readSyncTable(ss, p.table).rows;
+        return json({ ok: true, rows: Object.keys(rows).map(k => rows[k]) });
+      }
+
       // ── 論文專案：個人雲端備份（ADR-012）────────────────────────────
       // 驗證 PIN；連錯 5 次鎖 15 分鐘。成功回傳憑證與最新一份備份的日期
       case 'researchLogin': {
@@ -1119,6 +1220,8 @@ function json(obj) {
 // ─────────────────────────────────────────────────────────────────────
 function handleApi(p) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  // 與 doPost 相同的金鑰檢查（ADR-013）
+  if (_requireApiKey() && p.api_key !== _apiKey()) return { ok: false, code: 'UNAUTHORIZED', error: '缺少或錯誤的 GAS 金鑰' };
   try {
     switch (p.action) {
       case 'login': {

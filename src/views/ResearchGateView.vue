@@ -261,7 +261,7 @@ async function confirmRestore() {
           <label v-for="b in backups" :key="b.day"
             class="flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer text-sm"
             :class="restoreTarget === b.day ? 'border-accent/50 bg-accent/10' : 'border-hairline hover:bg-overlay/5'">
-            <input type="radio" v-model="restoreTarget" :value="b.day" class="accent-[var(--color-accent)]" />
+            <input type="radio" v-model="restoreTarget" :value="b.day" class="accent-accent" />
             <span class="font-bold text-fg">{{ b.day }}</span>
             <span class="text-xs text-muted">最後備份 {{ fmtTime(b.updated_at) }}</span>
           </label>

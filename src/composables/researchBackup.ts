@@ -40,6 +40,7 @@ const OWNED: { table: string; where: string }[] = [
   { table: "research_project_checklists",      where: `project_id IN (${PROJECTS})` },
   { table: "research_project_checklist_items", where: `project_checklist_id IN (${CHECKLISTS})` },
   { table: "research_refs",                    where: `project_id IN (${PROJECTS})` },
+  { table: "research_manuscript_sections",     where: `project_id IN (${PROJECTS})` },
   { table: "research_checklist_templates",     where: `id IN (${TEMPLATES})` },
   { table: "research_checklist_template_items", where: `template_id IN (${TEMPLATES})` },
 ];
@@ -76,7 +77,7 @@ async function deleteOwned(owner: string): Promise<void> {
   const order = [
     "research_review_comments", "research_review_rounds", "research_submission_events",
     "research_project_checklist_items", "research_project_checklists",
-    "research_project_authors", "research_project_journals", "research_refs",
+    "research_project_authors", "research_project_journals", "research_refs", "research_manuscript_sections",
     "research_submissions",
   ];
   for (const table of order) {
