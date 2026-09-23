@@ -33,6 +33,8 @@ export const data = reactive({
   error: '',
 })
 
+export type RefreshKey = TableName | 'npDuty'
+
 let loadPromise: Promise<void> | null = null
 
 /** 從手機快取載入（App 啟動時呼叫一次） */
@@ -56,18 +58,39 @@ function monthKey(offset: number) {
 
 async function saveMeta() { await kvSet('meta', JSON.parse(JSON.stringify(data.meta))) }
 
-/** 背景更新；force 時全部重新下載 */
-export async function refresh(force = false): Promise<void> {
-  if (data.refreshing) return
+// 同時觸發的更新（開啟時的背景更新、下拉、設定頁）依序執行，不互相略過
+let queue: Promise<unknown> = Promise.resolve()
+
+/**
+ * 更新資料。only 省略＝全部（開啟 App、設定頁）；指定時只更新這幾張（各頁下拉）。
+ * force 時不比對版本、直接重新下載。
+ */
+export function refresh(opts: { force?: boolean; only?: RefreshKey[] } = {}): Promise<void> {
+  const next = queue.catch(() => {}).then(() => runRefresh(!!opts.force, opts.only))
+  queue = next
+  return next
+}
+
+/** 下拉更新：強制重新下載指定的表（省略＝全部），回傳給使用者看的結果 */
+export async function pullRefresh(only?: RefreshKey[]): Promise<string> {
+  await refresh({ force: true, only })
+  if (data.offline) return '目前離線，無法更新'
+  if (data.error) return data.error
+  return only ? `已更新：${only.map(k => TABLE_LABELS[k]).join('、')}` : '全部資料已更新'
+}
+
+async function runRefresh(force: boolean, only?: RefreshKey[]): Promise<void> {
   await loadCache()
   data.refreshing = true
   data.error = ''
+  const tables = only ? TABLES.filter(t => only.includes(t)) : [...TABLES]
+  const withDuty = !only || only.includes('npDuty')
   try {
-    const v = await gas<{ data: Record<string, string> }>('getVersions')
+    const v = tables.length ? await gas<{ data: Record<string, string> }>('getVersions') : { data: {} as Record<string, string> }
     const versions = v.data ?? {}
     // 逐表各自處理：單一張表逾時或失敗不能讓後面的表都不更新
     const failed: string[] = []
-    for (const t of TABLES) {
+    for (const t of tables) {
       const remote = versions[`${t}_last_updated`] ?? ''
       const local = data.meta[t]
       if (!force && local && local.version === remote && data.tables[t].length) continue
@@ -82,11 +105,13 @@ export async function refresh(force = false): Promise<void> {
         failed.push(TABLE_LABELS[t])
       }
     }
-    try {
-      await withRetry(() => refreshDuty(force))
-    } catch (e) {
-      if (e instanceof ApiError && (e.code === 'OFFLINE' || e.code === 'AUTH')) throw e
-      failed.push(TABLE_LABELS.npDuty)
+    if (withDuty) {
+      try {
+        await withRetry(() => refreshDuty(force))
+      } catch (e) {
+        if (e instanceof ApiError && (e.code === 'OFFLINE' || e.code === 'AUTH')) throw e
+        failed.push(TABLE_LABELS.npDuty)
+      }
     }
     data.offline = false
     if (failed.length) data.error = `部分資料更新失敗：${failed.join('、')}，請稍後再試`

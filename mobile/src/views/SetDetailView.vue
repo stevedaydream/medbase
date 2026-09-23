@@ -2,7 +2,8 @@
 import { computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
-import { data, type Row, type TableName } from '../lib/data'
+import { data, type Row, type TableName, pullRefresh } from '../lib/data'
+import { usePullRefresh } from '../lib/pull'
 import { steps, setItemsOf, itemByCode, pushRecent } from '../lib/records'
 import { copy } from '../lib/ui'
 
@@ -41,6 +42,8 @@ const setLines = computed(() => row.value && kind.value === 'sets'
     })
   : [])
 const setTotal = computed(() => setLines.value.filter(l => !l.is_optional).reduce((n, l) => n + (l.subtotal ?? 0), 0))
+
+usePullRefresh(() => pullRefresh(['prescriptions', 'surgery', 'examination', 'disease', 'sets', 'items']))
 </script>
 
 <template>

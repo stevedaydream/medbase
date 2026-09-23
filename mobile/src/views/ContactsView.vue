@@ -5,7 +5,8 @@ import PageHeader from '../components/PageHeader.vue'
 import BottomSearch from '../components/BottomSearch.vue'
 import SideDrawer from '../components/SideDrawer.vue'
 import SecretText from '../components/SecretText.vue'
-import { data } from '../lib/data'
+import { data, pullRefresh } from '../lib/data'
+import { usePullRefresh } from '../lib/pull'
 import { matchTerms, copy } from '../lib/ui'
 
 /**
@@ -57,6 +58,8 @@ function setTab(t: Tab) {
   if (groupFilter.value && !groups.value.includes(groupFilter.value)) groupFilter.value = ''
   if (t === 'unit') titleFilter.value = ''
 }
+
+usePullRefresh(() => pullRefresh(['physicians', 'contacts']))
 </script>
 
 <template>

@@ -2,7 +2,8 @@
 import { computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
-import { data } from '../lib/data'
+import { data, pullRefresh } from '../lib/data'
+import { usePullRefresh } from '../lib/pull'
 import { pushRecent } from '../lib/records'
 import { sanitizeHtml } from '../lib/sanitize'
 
@@ -10,6 +11,8 @@ const route = useRoute()
 const memo = computed(() => data.tables.shiftMemos.find(m => m.uid === route.params.id))
 const html = computed(() => sanitizeHtml(memo.value?.content || ''))
 watch(memo, m => { if (m) pushRecent({ to: route.fullPath, title: m.title, type: '備忘' }) }, { immediate: true })
+
+usePullRefresh(() => pullRefresh(['shiftMemos']))
 </script>
 
 <template>

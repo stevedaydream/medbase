@@ -3,7 +3,8 @@ import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
 import BottomSearch from '../components/BottomSearch.vue'
-import { data, type Row } from '../lib/data'
+import { data, type Row, pullRefresh } from '../lib/data'
+import { usePullRefresh } from '../lib/pull'
 import { matchTerms } from '../lib/ui'
 
 /** 套組：處方／手術／疾病／檢查／品項套組五個分頁（與桌機 SetsHubView 相同） */
@@ -49,6 +50,8 @@ const groups = computed(() => {
   return [...map.entries()]
 })
 const total = computed(() => groups.value.reduce((n, [, rs]) => n + rs.length, 0))
+
+usePullRefresh(() => pullRefresh(['prescriptions', 'surgery', 'examination', 'disease', 'sets', 'items']))
 </script>
 
 <template>

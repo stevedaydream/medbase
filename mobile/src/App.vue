@@ -5,6 +5,9 @@ import TabBar from './components/TabBar.vue'
 import { session, unlock, logout } from './lib/session'
 import { loadCache, refresh } from './lib/data'
 import { toastMsg } from './lib/ui'
+import { installPullRefresh, pullDistance, pulling, PULL_THRESHOLD } from './lib/pull'
+
+installPullRefresh()
 
 const route = useRoute()
 const router = useRouter()
@@ -31,7 +34,7 @@ async function doUnlock() {
     <TabBar v-if="session.user && route.path !== '/login'" />
 
     <!-- 閒置上鎖 -->
-    <div v-if="session.user && session.locked" class="fixed inset-0 z-[100] bg-sunken flex items-center justify-center p-6">
+    <div v-if="session.user && session.locked" data-no-pull class="fixed inset-0 z-[100] bg-sunken flex items-center justify-center p-6">
       <form @submit.prevent="doUnlock" class="w-full max-w-xs bg-surface border border-hairline rounded-2xl p-6 space-y-4 shadow-xl">
         <div class="text-center">
           <div class="text-3xl">🔒</div>
@@ -45,6 +48,14 @@ async function doUnlock() {
         <button type="submit" :disabled="!pw" class="w-full h-12 rounded-xl bg-accent text-white font-bold disabled:opacity-40">解鎖</button>
         <button type="button" @click="logout()" class="w-full text-sm text-muted">改用其他帳號登入</button>
       </form>
+    </div>
+
+    <!-- 下拉更新 -->
+    <div v-if="pullDistance > 0" class="fixed left-1/2 z-[90] -translate-x-1/2 pointer-events-none"
+      :style="{ top: `calc(var(--safe-t) + ${pullDistance - 36}px)` }">
+      <div class="w-9 h-9 rounded-full bg-surface border border-hairline shadow-lg flex items-center justify-center text-accent text-lg"
+        :class="{ 'animate-spin': pulling }"
+        :style="pulling ? {} : { transform: `rotate(${pullDistance / PULL_THRESHOLD * 270}deg)`, opacity: Math.min(1, pullDistance / PULL_THRESHOLD) }">↻</div>
     </div>
 
     <!-- 提示 -->

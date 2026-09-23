@@ -3,7 +3,8 @@ import { ref, computed } from 'vue'
 import PageHeader from '../components/PageHeader.vue'
 import BottomSearch from '../components/BottomSearch.vue'
 import SideDrawer from '../components/SideDrawer.vue'
-import { data, type Row } from '../lib/data'
+import { data, type Row, pullRefresh } from '../lib/data'
+import { usePullRefresh } from '../lib/pull'
 import { matchTerms } from '../lib/ui'
 
 /** 規則備忘錄（唯讀）：搜尋標題與內文，☰ 依分類篩選 */
@@ -26,6 +27,8 @@ function snippet(text: string): string {
   const i = text.toLowerCase().indexOf(term)
   return i < 0 ? text.slice(0, 80) : `${i > 20 ? '…' : ''}${text.slice(Math.max(0, i - 20), i + 60)}`
 }
+
+usePullRefresh(() => pullRefresh(['shiftMemos']))
 </script>
 
 <template>

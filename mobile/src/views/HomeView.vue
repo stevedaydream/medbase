@@ -4,7 +4,8 @@ import { useRouter } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
 import BottomSearch from '../components/BottomSearch.vue'
 import DutyCard from '../components/DutyCard.vue'
-import { data } from '../lib/data'
+import { data, pullRefresh } from '../lib/data'
+import { usePullRefresh } from '../lib/pull'
 import { recentList } from '../lib/records'
 import { matchTerms, copy } from '../lib/ui'
 import { session } from '../lib/session'
@@ -37,6 +38,8 @@ const results = computed(() => {
 })
 
 const empty = computed(() => data.loaded && Object.values(data.tables).every(t => !t.length))
+
+usePullRefresh(() => pullRefresh(['npDuty', 'physicians']))
 </script>
 
 <template>

@@ -10,6 +10,8 @@ import {
   buildHaystacks, searchItems, makeMatcher, facetOptions, sectionize, activeChips, doctorState, toggleDoctor,
   filterSurgeryOptions, filterSetGroups, filterCount, type Dim, type Key, type Filters, type FilterContext,
 } from '@shared/itemsSearch'
+import { pullRefresh } from '../lib/data'
+import { usePullRefresh } from '../lib/pull'
 
 /** 自費品項（篩選與搜尋邏輯與桌機共用 shared/itemsSearch） */
 const route = useRoute()
@@ -46,6 +48,8 @@ const setQ = ref('')
 const visibleSurgery = computed(() => filterSurgeryOptions(facets.value.surgery, surgeryQ.value, filters.value.surgery))
 const visibleGroups = computed(() => filterSetGroups(facets.value.setGroups, setQ.value, filters.value.set))
 const has = (dim: Dim, key: Key) => (filters.value[dim] as Set<Key>).has(key)
+
+usePullRefresh(() => pullRefresh(['items', 'sets', 'surgeryTypes']))
 </script>
 
 <template>

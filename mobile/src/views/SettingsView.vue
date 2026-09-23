@@ -2,7 +2,8 @@
 import { ref } from 'vue'
 import PageHeader from '../components/PageHeader.vue'
 import { session, logout } from '../lib/session'
-import { data, refresh, lastFetched, TABLES, TABLE_LABELS } from '../lib/data'
+import { data, refresh, pullRefresh, lastFetched, TABLES, TABLE_LABELS } from '../lib/data'
+import { usePullRefresh } from '../lib/pull'
 import { themeMode, applyTheme, fmtTime, toast, type ThemeMode } from '../lib/ui'
 import { geminiKey, saveGeminiKey } from '../lib/gemini'
 
@@ -16,9 +17,12 @@ function saveKey() {
 }
 
 async function doRefresh() {
-  await refresh(true)
+  await refresh({ force: true })
   toast(data.error ? `更新失敗：${data.error}` : data.offline ? '目前離線，無法更新' : '資料已更新')
 }
+
+// 設定頁下拉＝全部重新下載
+usePullRefresh(() => pullRefresh())
 
 const confirmLogout = ref(false)
 const THEMES: { key: ThemeMode; label: string }[] = [

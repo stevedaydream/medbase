@@ -5,6 +5,7 @@ import { gas, ApiError } from '../lib/api'
 import { kvGet, kvSet } from '../lib/kv'
 import { session } from '../lib/session'
 import { toast } from '../lib/ui'
+import { usePullRefresh } from '../lib/pull'
 
 /** 班表（唯讀，快取可離線）＋預約（第一版唯一可寫入的功能，身分由伺服器從憑證帶入） */
 const tab = ref<'schedule' | 'booking'>('schedule')
@@ -129,6 +130,12 @@ async function loadRequests() {
   }
 }
 watch([tab, bYM], loadRequests)
+
+// 下拉只更新班表頁：班別設定、目前月份班表、預約分頁時的預約狀況
+usePullRefresh(async () => {
+  await Promise.all([loadConfig(), loadSchedule(), loadRequests()])
+  return sError.value || (sCachedOnly.value ? '目前離線，顯示手機裡的班表' : '已更新：班表')
+})
 
 const pickerDay = ref(0)
 function openPicker(d: number) {
