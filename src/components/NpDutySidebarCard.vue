@@ -16,9 +16,8 @@ const rows = ref<DisplayRow[]>([]);
 const loaded = ref(false);
 const downloadUrl = ref("");
 const now = ref(new Date());
-const copiedId = ref<string | null>(null);
+const showOtherVs = ref(false);
 let timer: ReturnType<typeof setInterval> | null = null;
-let copiedTimer: ReturnType<typeof setTimeout> | null = null;
 
 function addDays(date: Date, days: number): Date {
   const d = new Date(date);
@@ -30,6 +29,12 @@ const viewDate = computed(() => addDays(now.value, view.value === "today" ? 0 : 
 const displayDate = computed(() => `${viewDate.value.getMonth() + 1}/${viewDate.value.getDate()}`);
 const activeUnits = computed<readonly Ward[]>(() => group.value === "NP" ? NP_WARDS : VS_UNITS);
 const activeRows = computed(() => rows.value.filter(row => activeUnits.value.includes(row.ward)));
+/** VS 只常駐顯示總值，其餘科別收折 */
+const otherVsUnits = VS_UNITS.filter(unit => unit !== "總值");
+const visibleUnits = computed<readonly Ward[]>(() => {
+  if (group.value === "NP") return NP_WARDS;
+  return showOtherVs.value ? ["總值", ...otherVsUnits] : ["總值"];
+});
 
 /** 白八 08–20、夜八 20–隔日 08；凌晨時在班的是昨天的夜八 */
 function isCurrent(row: DisplayRow): boolean {
@@ -85,16 +90,6 @@ function switchView(v: "today" | "tomorrow") {
   refresh();
 }
 
-async function copy(row: DisplayRow) {
-  const text = row.extension || row.np_name;
-  try {
-    await navigator.clipboard.writeText(text);
-    copiedId.value = rowKey(row);
-    if (copiedTimer) clearTimeout(copiedTimer);
-    copiedTimer = setTimeout(() => { copiedId.value = null; }, 1200);
-  } catch { /* 剪貼簿不可用時不處理 */ }
-}
-
 function openDownload() {
   if (downloadUrl.value) openUrl(downloadUrl.value);
 }
@@ -110,7 +105,6 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener(NP_DUTY_UPDATED_EVENT, onUpdated);
   if (timer) clearInterval(timer);
-  if (copiedTimer) clearTimeout(copiedTimer);
 });
 </script>
 
@@ -151,29 +145,32 @@ onUnmounted(() => {
     </div>
 
     <div v-else class="space-y-1.5">
-      <div v-for="ward in activeUnits" :key="ward" class="flex items-start gap-2 text-xs">
-        <span class="shrink-0 rounded bg-accent/10 px-1 py-0.5 text-center font-bold text-accent"
-          :class="group === 'NP' ? 'w-6' : 'w-11 text-2xs'">{{ ward }}</span>
+      <!-- VS 科別名稱較長，改為科別在上、醫師在下，讓姓名能用滿整行寬度 -->
+      <div v-for="ward in visibleUnits" :key="ward" class="flex text-xs"
+        :class="group === 'NP' ? 'items-start gap-2' : 'flex-col gap-0.5'">
+        <span class="shrink-0 self-start rounded bg-accent/10 px-1 py-0.5 text-center font-bold text-accent"
+          :class="group === 'NP' ? 'w-6' : 'text-2xs'">{{ ward }}</span>
         <div v-if="wardRows(ward).length" class="min-w-0 flex-1 space-y-0.5">
-          <button
+          <div
             v-for="person in wardRows(ward)"
             :key="rowKey(person)"
-            @click="copy(person)"
-            class="flex w-full min-w-0 items-baseline gap-1 rounded px-1 -mx-1 text-left transition-colors cursor-pointer hover:bg-accent/10"
+            class="flex w-full min-w-0 items-baseline gap-1 rounded px-1 -mx-1"
             :class="[
               isCurrent(person) ? 'bg-accent/15' : '',
               view === 'today' && isTimed(person) && !isCurrent(person) ? 'opacity-45' : '',
             ]"
-            :title="person.extension ? `點擊複製分機 ${person.extension}` : `點擊複製姓名`"
           >
             <span class="shrink-0 text-2xs font-bold" :class="isCurrent(person) ? 'text-accent' : 'text-muted'">{{ shiftLabel(person) }}</span>
-            <span class="truncate font-semibold" :class="isCurrent(person) ? 'text-fg' : 'text-fg-secondary'">{{ person.np_name }}</span>
-            <span v-if="copiedId === rowKey(person)" class="ml-auto shrink-0 text-2xs font-bold text-success">✓</span>
-            <span v-else-if="person.extension" class="ml-auto shrink-0 text-2xs tabular-nums text-muted">{{ person.extension }}</span>
-          </button>
+            <span class="min-w-0 break-words font-semibold" :class="isCurrent(person) ? 'text-fg' : 'text-fg-secondary'">{{ person.np_name }}</span>
+            <span v-if="person.extension" class="ml-auto shrink-0 text-2xs tabular-nums text-muted">{{ person.extension }}</span>
+          </div>
         </div>
         <span v-else class="py-0.5 text-xs text-muted">未排</span>
       </div>
+      <button v-if="group === 'VS'" @click="showOtherVs = !showOtherVs"
+        class="w-full rounded px-1 py-0.5 text-2xs font-bold text-muted hover:bg-accent/10 hover:text-accent transition-colors cursor-pointer">
+        {{ showOtherVs ? '▴ 收合其他科別' : `▾ 其他科別（${otherVsUnits.length}）` }}
+      </button>
     </div>
   </section>
 </template>
