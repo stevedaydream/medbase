@@ -1,5 +1,5 @@
-import { callGas, clientIp, json } from "./_lib/gas";
-import { signToken } from "./_lib/token";
+import { callGas, clientIp, json } from "./_lib/gas.js";
+import { signToken } from "./_lib/token.js";
 
 /**
  * POST /api/login  { his, password } → { ok, token, user }

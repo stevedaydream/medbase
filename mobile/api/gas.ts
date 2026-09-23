@@ -1,5 +1,5 @@
-import { callGas, json } from "./_lib/gas";
-import { signToken, verifyToken, type TokenPayload } from "./_lib/token";
+import { callGas, json } from "./_lib/gas.js";
+import { signToken, verifyToken, type TokenPayload } from "./_lib/token.js";
 
 /**
  * POST /api/gas  { action, ...args }  （Authorization: Bearer <token>）
