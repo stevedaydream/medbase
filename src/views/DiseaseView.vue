@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
-import { useCloudSettings } from "@/stores/cloudSettings";
-import { setGlobalSyncing } from "@/composables/useCloudSync";
-import { markLocalModified, saveSyncTimestamp } from "@/composables/useSyncMonitor";
-import { useLogger } from "@/composables/useLogger";
+import { touchTable, markDeletedById, onTableSynced } from "@/composables/useTableSync";
+import CloudSyncButtons from "@/components/CloudSyncButtons.vue";
 
 interface Disease {
   id: number; name: string; icd10: string; category: string;
@@ -23,8 +21,6 @@ const showModal = ref(false);
 const modalMode = ref<"add" | "edit">("add");
 const form = ref<Form>({ name: "", icd10: "", category: "", workup: "", treatment_orders: "", consult_flow: "", notes: "" });
 const showDeleteConfirm = ref(false);
-const cloud     = useCloudSettings();
-const isSyncing = ref(false);
 const toastMsg  = ref("");
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 function toast(msg: string) {
@@ -33,7 +29,15 @@ function toast(msg: string) {
   toastTimer = setTimeout(() => { toastMsg.value = ""; }, 2000);
 }
 
-onMounted(async () => { cloud.load(); await reload(); });
+onMounted(reload);
+
+// 背景或其他頁面同步後重新載入，保留目前選取
+async function onSynced() {
+  const prevId = selected.value?.id;
+  await reload();
+  selected.value = items.value.find(m => m.id === prevId) ?? null;
+}
+onTableSynced("disease", onSynced);
 
 async function reload() {
   const db = await getDb();
@@ -109,66 +113,20 @@ async function save() {
   const prevId = selected.value?.id;
   await reload();
   selected.value = items.value.find((m) => m.id === prevId) ?? null;
-  await markLocalModified("disease");
-  pushToCloud().catch(() => {});
+  await touchTable("disease");
 }
 
 async function deleteSelected() {
   if (!selected.value) return;
   const db = await getDb();
+  await markDeletedById("disease", selected.value.id);
   await db.execute("DELETE FROM disease WHERE id=?", [selected.value.id]);
   selected.value = null;
   showDeleteConfirm.value = false;
   await reload();
+  await touchTable("disease");
 }
 
-async function pushToCloud() {
-  if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true; setGlobalSyncing("disease", true);
-  try {
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST", headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "saveDisease", data: items.value }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error ?? "GAS 錯誤");
-    toast(`已上傳 ${items.value.length} 筆至雲端`);
-    await saveSyncTimestamp("disease");
-    useLogger().addLog("info", `[雲端同步] push 疾病常規 — ${items.value.length} 筆`, JSON.stringify({ table: "disease", action: "push", timestamp: new Date().toISOString() }));
-  } catch (e) {
-    toast(`上傳失敗：${(e as Error).message}`);
-    useLogger().addLog("warn", "[雲端同步] push 疾病常規 失敗", String(e));
-  }
-  finally { isSyncing.value = false; setGlobalSyncing("disease", false); }
-}
-
-async function pullFromCloud() {
-  if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true; setGlobalSyncing("disease", true);
-  try {
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST", headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "getDisease" }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
-    const data: Disease[] = json.data;
-    if (!data.length) { toast("雲端無資料"); return; }
-    const db = await getDb();
-    await db.execute("DELETE FROM disease");
-    for (const r of data) {
-      await db.execute(
-        "INSERT INTO disease (id, name, icd10, category, workup, treatment_orders, consult_flow, notes) VALUES (?,?,?,?,?,?,?,?)",
-        [r.id, r.name, r.icd10 ?? "", r.category ?? "", r.workup ?? "[]", r.treatment_orders ?? "[]", r.consult_flow ?? "", r.notes ?? ""]
-      );
-    }
-    const prevId = selected.value?.id;
-    await reload();
-    selected.value = items.value.find(m => m.id === prevId) ?? null;
-    toast(`已從雲端同步 ${data.length} 筆`);
-  } catch (e) { toast(`下載失敗：${(e as Error).message}`); }
-  finally { isSyncing.value = false; setGlobalSyncing("disease", false); }
-}
 </script>
 
 <template>
@@ -187,14 +145,7 @@ async function pullFromCloud() {
       <div class="flex items-center justify-between px-1.5 mb-3 shrink-0">
         <span class="text-muted text-2xs font-black uppercase tracking-widest font-mono">{{ filtered.length }} RECORDS</span>
         <div class="flex gap-1">
-          <button @click="pullFromCloud" :disabled="isSyncing"
-            class="text-2xs font-bold px-2.5 py-1.5 rounded-lg border border-accent/30 text-accent hover:border-accent/30 hover:bg-accent/10 disabled:opacity-40 transition-colors cursor-pointer">
-            {{ isSyncing ? "…" : "↓ 同步" }}
-          </button>
-          <button @click="pushToCloud" :disabled="isSyncing"
-            class="text-2xs font-bold px-2.5 py-1.5 rounded-lg border border-hairline bg-elevated text-fg-secondary hover:text-fg disabled:opacity-40 transition-colors cursor-pointer">
-            {{ isSyncing ? "…" : "↑ 上傳" }}
-          </button>
+          <CloudSyncButtons table="disease" @synced="onSynced" @message="toast" />
         </div>
       </div>
 

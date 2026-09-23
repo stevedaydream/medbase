@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
+import { onRouteChange as onResearchRouteChange } from "@/composables/useResearchSession";
 
 declare module "vue-router" {
   interface RouteMeta { title?: string; fullHeight?: boolean }
@@ -7,16 +8,18 @@ declare module "vue-router" {
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: "/", redirect: "/prescriptions" },
-    { path: "/prescriptions", component: () => import("@/views/PrescriptionsView.vue"), meta: { title: "處方套組" } },
-    { path: "/surgery", component: () => import("@/views/SurgeryView.vue"), meta: { title: "手術處置" } },
-    { path: "/disease", component: () => import("@/views/DiseaseView.vue"), meta: { title: "疾病常規" } },
-    { path: "/examination", component: () => import("@/views/ExaminationView.vue"), meta: { title: "檢查處置" } },
+    { path: "/", redirect: "/sets" },
+    // 處方套組／手術處置／疾病常規／檢查處置已併入套組管理的分頁，保留舊網址轉址
+    { path: "/prescriptions", redirect: { path: "/sets", query: { tab: "prescriptions" } } },
+    { path: "/surgery",       redirect: { path: "/sets", query: { tab: "surgery" } } },
+    { path: "/disease",       redirect: { path: "/sets", query: { tab: "disease" } } },
+    { path: "/examination",   redirect: { path: "/sets", query: { tab: "examination" } } },
     { path: "/emergency", component: () => import("@/views/EmergencyView.vue"), meta: { title: "危急情境" } },
     { path: "/items", component: () => import("@/views/ItemsView.vue"), meta: { title: "自費品項" } },
     { path: "/physicians", component: () => import("@/views/PhysiciansView.vue"), meta: { title: "通訊錄" } },
-    { path: "/contacts",   component: () => import("@/views/ContactsView.vue"),   meta: { title: "常用分機" } },
-    { path: "/sets",  component: () => import("@/views/SetsView.vue"),      meta: { title: "套組管理" } },
+    // 常用分機已併入通訊錄，保留舊網址轉址
+    { path: "/contacts",   redirect: "/physicians" },
+    { path: "/sets",  component: () => import("@/views/SetsHubView.vue"),   meta: { title: "套組管理" } },
     { path: "/data",  component: () => import("@/views/DataManageView.vue"), meta: { title: "資料管理" } },
     { path: "/acp",   component: () => import("@/views/AcpView.vue"),        meta: { title: "ACP 評估" } },
     { path: "/acp/settings", component: () => import("@/views/AcpSettingsView.vue"), meta: { title: "ACP 設定", fullHeight: true } },
@@ -26,9 +29,20 @@ const router = createRouter({
     { path: "/shift-memos",  component: () => import("@/views/ShiftMemosView.vue"),  meta: { title: "規則備忘錄", fullHeight: true } },
     { path: "/settings",     component: () => import("@/views/SettingView.vue"),     meta: { title: "設定" } },
     { path: "/note-polish",  component: () => import("@/views/NotePolishView.vue"),  meta: { title: "病歷潤飾", fullHeight: true } },
-    { path: "/research",     component: () => import("@/views/ResearchView.vue"),    meta: { title: "論文專案", fullHeight: true } },
-    { path: "/research/:id", component: () => import("@/views/ResearchProjectView.vue"), meta: { title: "論文專案", fullHeight: true } },
+    // 論文專案需先以 HIS 帳號＋PIN 登入（ADR-012）：外層 ResearchGateView 未登入時不掛載子頁面
+    {
+      path: "/research",
+      component: () => import("@/views/ResearchGateView.vue"),
+      meta: { title: "論文專案", fullHeight: true },
+      children: [
+        { path: "",    component: () => import("@/views/ResearchView.vue") },
+        { path: ":id", component: () => import("@/views/ResearchProjectView.vue") },
+      ],
+    },
   ],
 });
+
+// 離開論文專案超過 30 分鐘，回來需重新輸入 PIN
+router.afterEach((to, from) => onResearchRouteChange(to.path, from.path));
 
 export default router;

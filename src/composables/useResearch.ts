@@ -5,60 +5,23 @@
  * 寫一律走 dbWrite()（見 project_conventions.md §3）。本模組不新增 Rust command。
  *
  * 規格 §4「查詢走 SQL，不在前端做全表過濾」：篩選條件全部下推到 WHERE。
+ *
+ * 人員歸屬（ADR-012）：專案與作者名冊只讀寫登入者（requireOwner）的資料；
+ * 每個寫入函式最後呼叫 markChanged() 觸發自動雲端備份。
  */
 
 import { getDb, dbWrite } from "@/db";
+import { requireOwner, markChanged } from "@/composables/useResearchSession";
 
 // ── 常數 ────────────────────────────────────────────────────────────
 
-export type Stage =
-  | "idea" | "irb" | "drafting" | "submitted"
-  | "under_review" | "revision" | "accepted" | "published" | "rejected";
+// 階段與研究類型常數移到 shared（手機共用，ADR-013）
+export {
+  STAGE_FLOW, STAGE_REJECTED, ALL_STAGES, stageMeta, stageIndex, STUDY_TYPES, studyTypeLabel,
+} from "@/shared/researchMeta";
+export type { Stage, StageTone, StageMeta } from "@/shared/researchMeta";
+import type { Stage } from "@/shared/researchMeta";
 
-/** 語意色只有三種（規格 §4）：中性＝進行中、警示＝需行動、成功＝已完成 */
-export type StageTone = "neutral" | "warn" | "success";
-
-export interface StageMeta { key: Stage; label: string; tone: StageTone }
-
-/** 主線階段，UI 進度條依此順序繪製 */
-export const STAGE_FLOW: StageMeta[] = [
-  { key: "idea",         label: "構想",   tone: "neutral" },
-  { key: "irb",          label: "IRB",    tone: "neutral" },
-  { key: "drafting",     label: "撰稿",   tone: "neutral" },
-  { key: "submitted",    label: "已投稿", tone: "neutral" },
-  { key: "under_review", label: "審稿中", tone: "neutral" },
-  { key: "revision",     label: "修改中", tone: "warn"    },
-  { key: "accepted",     label: "已接受", tone: "success" },
-  { key: "published",    label: "已刊登", tone: "success" },
-];
-
-/** rejected 是分支不是終點：拒稿後可回到 submitted 換期刊（規格 §2.2） */
-export const STAGE_REJECTED: StageMeta = { key: "rejected", label: "被拒", tone: "warn" };
-
-export const ALL_STAGES: StageMeta[] = [...STAGE_FLOW, STAGE_REJECTED];
-
-export function stageMeta(stage: string): StageMeta {
-  return ALL_STAGES.find(s => s.key === stage) ?? { key: "idea", label: stage, tone: "neutral" };
-}
-
-export function stageIndex(stage: string): number {
-  return STAGE_FLOW.findIndex(s => s.key === stage);
-}
-
-export const STUDY_TYPES = [
-  { key: "case_report",   label: "個案報告" },
-  { key: "case_series",   label: "系列個案" },
-  { key: "retrospective", label: "回溯性研究" },
-  { key: "prospective",   label: "前瞻性研究" },
-  { key: "review",        label: "文獻回顧" },
-  { key: "other",         label: "其他" },
-];
-
-export function studyTypeLabel(key: string | null): string {
-  return STUDY_TYPES.find(t => t.key === key)?.label ?? "—";
-}
-
-/** IRB 表格的角色分類（規格 §2.4） */
 export const IRB_CATEGORIES = ["主持人", "協同主持人", "研究護理師", "研究助理"];
 
 /** 停滯門檻（規格 §3.1） */
@@ -193,6 +156,7 @@ export function buildIrbText(rows: ProjectAuthorRow[]): string {
 // ── 專案 CRUD ───────────────────────────────────────────────────────
 
 export async function listProjects(filter: ProjectFilter = {}): Promise<ProjectListRow[]> {
+  const owner = requireOwner();
   const db = await getDb();
   const search    = (filter.search ?? "").trim();
   const like      = `%${search}%`;
@@ -211,20 +175,21 @@ export async function listProjects(filter: ProjectFilter = {}): Promise<ProjectL
             CAST(julianday('now','localtime') - julianday(p.updated_at)
                  AS INTEGER)                                               AS days_since_update
        FROM research_projects p
-      WHERE p.archived = ?
+      WHERE p.owner_his = ?
+        AND p.archived = ?
         AND (? = ''  OR p.stage = ?)
         AND (? = ''  OR p.study_type = ?)
         AND (? = ''  OR p.title LIKE ? OR IFNULL(p.title_zh,'') LIKE ?
                      OR IFNULL(p.irb_number,'') LIKE ?)
       ORDER BY p.updated_at DESC`,
-    [archived, stage, stage, studyType, studyType, search, like, like, like]
+    [owner, archived, stage, stage, studyType, studyType, search, like, like, like]
   );
 }
 
 export async function getProject(id: string): Promise<ResearchProject | null> {
   const db = await getDb();
   const rows = await db.select<ResearchProject[]>(
-    "SELECT * FROM research_projects WHERE id = ?", [id]
+    "SELECT * FROM research_projects WHERE id = ? AND owner_his = ?", [id, requireOwner()]
   );
   return rows[0] ?? null;
 }
@@ -246,20 +211,22 @@ export async function createProject(input: NewProjectInput): Promise<string> {
   if (!input.deident_confirmed) throw new Error("必須先勾選去識別化確認才能建立專案");
   if (!input.title.trim())      throw new Error("論文標題不可空白");
 
+  const owner = requireOwner();
   const id = newId();
   const ts = nowLocal();
   await dbWrite(
     `INSERT INTO research_projects
        (id, title, title_zh, study_type, specialty, stage, deident_confirmed,
-        repo_path, irb_number, irb_approved_date, created_at, updated_at, archived)
-     VALUES (?,?,?,?,?,?,1,?,?,?,?,?,0)`,
+        repo_path, irb_number, irb_approved_date, created_at, updated_at, archived, owner_his)
+     VALUES (?,?,?,?,?,?,1,?,?,?,?,?,0,?)`,
     [
       id, input.title.trim(), input.title_zh || null, input.study_type || null,
       input.specialty || null, input.stage ?? "idea",
       input.repo_path || null, input.irb_number || null, input.irb_approved_date || null,
-      ts, ts,
+      ts, ts, owner,
     ]
   );
+  await markChanged();
   return id;
 }
 
@@ -279,9 +246,10 @@ export async function updateProject(
   const sets = cols.map(c => `${c} = ?`).join(", ");
   const vals = cols.map(c => (patch as Record<string, unknown>)[c] ?? null);
   await dbWrite(
-    `UPDATE research_projects SET ${sets}, updated_at = ? WHERE id = ?`,
-    [...vals, nowLocal(), id]
+    `UPDATE research_projects SET ${sets}, updated_at = ? WHERE id = ? AND owner_his = ?`,
+    [...vals, nowLocal(), id, requireOwner()]
   );
+  await markChanged();
 }
 
 export async function setStage(id: string, stage: Stage): Promise<void> {
@@ -294,6 +262,7 @@ export async function setArchived(id: string, archived: boolean): Promise<void> 
 
 /** 硬刪除。子表全部 ON DELETE CASCADE，但 plugin-sql 預設不開 FK，故手動清。 */
 export async function deleteProject(id: string): Promise<void> {
+  if (!(await getProject(id))) return;
   const subs = await (await getDb()).select<{ id: string }[]>(
     "SELECT id FROM research_submissions WHERE project_id = ?", [id]
   );
@@ -318,15 +287,17 @@ export async function deleteProject(id: string): Promise<void> {
   await dbWrite("DELETE FROM research_project_journals   WHERE project_id = ?", [id]);
   await dbWrite("DELETE FROM research_project_authors    WHERE project_id = ?", [id]);
   await dbWrite("DELETE FROM research_refs               WHERE project_id = ?", [id]);
+  await dbWrite("DELETE FROM research_manuscript_sections WHERE project_id = ?", [id]);
   await dbWrite("DELETE FROM research_projects           WHERE id = ?",         [id]);
+  await markChanged();
 }
 
-// ── 作者名冊 CRUD（跨專案共用）──────────────────────────────────────
+// ── 作者名冊 CRUD（同一人員的專案之間共用）─────────────────────────
 
 export async function listAuthors(): Promise<ResearchAuthor[]> {
   const db = await getDb();
   return db.select<ResearchAuthor[]>(
-    "SELECT * FROM research_authors ORDER BY name_zh"
+    "SELECT * FROM research_authors WHERE owner_his = ? ORDER BY name_zh", [requireOwner()]
   );
 }
 
@@ -334,18 +305,20 @@ export type AuthorInput = Omit<ResearchAuthor, "id">;
 
 export async function createAuthor(input: AuthorInput): Promise<string> {
   if (!input.name_zh.trim()) throw new Error("姓名不可空白");
+  const owner = requireOwner();
   const id = newId();
   const ts = nowLocal();
   await dbWrite(
     `INSERT INTO research_authors
-       (id, name_zh, name_en, title, department, affiliation, email, default_role, orcid, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+       (id, name_zh, name_en, title, department, affiliation, email, default_role, orcid, created_at, updated_at, owner_his)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       id, input.name_zh.trim(), input.name_en || null, input.title || null,
       input.department || null, input.affiliation || null, input.email || null,
-      input.default_role || null, input.orcid || null, ts, ts,
+      input.default_role || null, input.orcid || null, ts, ts, owner,
     ]
   );
+  await markChanged();
   return id;
 }
 
@@ -354,19 +327,25 @@ export async function updateAuthor(id: string, input: AuthorInput): Promise<void
     `UPDATE research_authors
         SET name_zh=?, name_en=?, title=?, department=?, affiliation=?,
             email=?, default_role=?, orcid=?, updated_at=?
-      WHERE id=?`,
+      WHERE id=? AND owner_his=?`,
     [
       input.name_zh.trim(), input.name_en || null, input.title || null,
       input.department || null, input.affiliation || null, input.email || null,
-      input.default_role || null, input.orcid || null, nowLocal(), id,
+      input.default_role || null, input.orcid || null, nowLocal(), id, requireOwner(),
     ]
   );
+  await markChanged();
 }
 
 /** 名冊刪除會連帶把該作者從所有專案移除 */
 export async function deleteAuthor(id: string): Promise<void> {
-  await dbWrite("DELETE FROM research_project_authors WHERE author_id = ?", [id]);
-  await dbWrite("DELETE FROM research_authors         WHERE id = ?",        [id]);
+  const owner = requireOwner();
+  await dbWrite(
+    "DELETE FROM research_project_authors WHERE author_id IN (SELECT id FROM research_authors WHERE id = ? AND owner_his = ?)",
+    [id, owner],
+  );
+  await dbWrite("DELETE FROM research_authors WHERE id = ? AND owner_his = ?", [id, owner]);
+  await markChanged();
 }
 
 /** 這位作者被幾篇論文掛名（刪除前提示用） */
@@ -461,4 +440,5 @@ async function touchProject(projectId: string): Promise<void> {
     "UPDATE research_projects SET updated_at = ? WHERE id = ?",
     [nowLocal(), projectId]
   );
+  await markChanged();
 }

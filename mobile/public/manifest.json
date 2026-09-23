@@ -1,10 +1,12 @@
 {
-  "name": "排班系統",
-  "short_name": "排班",
+  "name": "MedBase",
+  "short_name": "MedBase",
+  "description": "MedBase 行動版：套組、通訊錄、班表、自費品項查詢",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#030712",
-  "theme_color": "#111827",
+  "background_color": "#eef2f7",
+  "theme_color": "#f8fafc",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }

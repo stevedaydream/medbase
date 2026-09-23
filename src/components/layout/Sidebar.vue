@@ -13,15 +13,10 @@ const ui     = useUiSettings();
 interface NavItem { path: string; icon: string; label: string }
 
 const DEFAULT_NAV: NavItem[] = [
-  { path: "/prescriptions", icon: "📋", label: "處方套組" },
-  { path: "/surgery",     icon: "🔪", label: "手術處置" },
-  { path: "/disease",     icon: "🏥", label: "疾病常規" },
-  { path: "/examination", icon: "🔬", label: "檢查處置" },
-  { path: "/items",       icon: "📦", label: "自費品項" },
   { path: "/sets",        icon: "🗂️", label: "套組管理" },
+  { path: "/items",       icon: "📦", label: "自費品項" },
   { path: "/acp",         icon: "📜", label: "ACP 評估" },
   { path: "/physicians",  icon: "👤", label: "通訊錄" },
-  { path: "/contacts",    icon: "📞", label: "常用分機" },
   { path: "/schedule",    icon: "📅", label: "排班表" },
   { path: "/shift-memos", icon: "📝", label: "規則備忘錄" },
   { path: "/tools",       icon: "🧮", label: "臨床工具" },
@@ -211,7 +206,7 @@ onUnmounted(() => {
       >
         <span class="text-sm">{{ ui.resolvedDark ? "☀" : "☾" }}</span>
       </button>
-      <span class="ml-auto text-xs text-muted">v1.0.0</span>
+      <span class="ml-auto text-xs text-muted">v1.1.0</span>
     </div>
 
     <!-- Drag ghost -->

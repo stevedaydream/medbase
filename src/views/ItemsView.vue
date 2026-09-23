@@ -1,11 +1,22 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch, type Ref } from "vue";
 import { refDebounced } from "@vueuse/core";
 import { getDb } from "@/db";
-import { useCloudSettings } from "@/stores/cloudSettings";
-import { setGlobalSyncing } from "@/composables/useCloudSync";
-import { saveSyncTimestamp } from "@/composables/useSyncMonitor";
-import { useLogger } from "@/composables/useLogger";
+import { touchTable, markDeletedById, onTableSynced } from "@/composables/useTableSync";
+import CloudSyncButtons from "@/components/CloudSyncButtons.vue";
+import {
+  NO_DOCTOR, buildHaystacks, searchItems, makeMatcher, facetOptions, sectionize,
+  doctorState as doctorStateOf, toggleDoctor as toggleDoctorOf, activeChips as chipsOf,
+  filterSurgeryOptions, filterSetGroups, type Dim, type Key, type FilterContext,
+} from "@/shared/itemsSearch";
+
+/**
+ * 自費品項查詢。
+ * 左側篩選欄：科別／用途／手術術式／醫師套組四個區塊，同區塊內勾選為「或」、區塊之間為「且」；
+ * 每個選項的筆數以「其他區塊條件＋搜尋」計算，勾下去前就知道會剩幾筆。
+ * 搜尋：空白分隔的多個關鍵字須全部符合，比對品名、院內碼、用途、科別、廠商、單位、備註，以及含此品項的套組名稱與醫師。
+ * 結果：兩行式清單，窄寬度也能看到所有欄位。
+ */
 
 interface Item {
   hospital_code: string;
@@ -19,51 +30,34 @@ interface Item {
   depts: string[];
 }
 interface SurgeryType { id: number; name: string; dept: string | null; notes: string | null }
-interface DoctorWithSets { id: number; name: string; sets: { id: number; name: string }[] }
-interface SetSearchEntry { setId: number; setName: string; doctorName: string; codes: string[] }
+interface SetEntry { setId: number; setName: string; doctorName: string; codes: Set<string> }
 
-const PURPOSE_LIST = [
-  "止血劑", "Mesh人工網膜", "骨板", "骨釘", "骨水泥",
-  "關節假體", "傷口敷料", "引流耗材", "縫合材料", "內視鏡耗材", "其他",
-];
-const DEPT_LIST = ["骨科", "一般外科", "胸腔外科", "泌尿科", "乳房外科", "其他科"];
 
 const items     = ref<Item[]>([]);
 const searchRaw = ref("");
-const search    = refDebounced(searchRaw, 300);
+const search    = refDebounced(searchRaw, 200);
 const loading   = ref(true);
 const errMsg    = ref("");
 const copiedCode = ref<string | null>(null);
 let copiedTimer: ReturnType<typeof setTimeout> | null = null;
 
-// ── 篩選狀態（多選，三維度同時生效）────────────────────────────
-type FilterMode = "dept" | "purpose" | "surgery";
-const filterMode      = ref<FilterMode>("dept");
+// ── 篩選狀態 ─────────────────────────────────────────────────────
 const activeDepts     = ref(new Set<string>());
 const activePurposes  = ref(new Set<string>());
-const activeSurgeries = ref(new Set<number>());
+const activeSurgeries = ref(new Set<Key>());
+const activeSets      = ref(new Set<Key>());
 
-// ── 手術術式資料 ─────────────────────────────────────────────────
+// ── 手術術式／套組資料 ───────────────────────────────────────────
 const surgeryTypes       = ref<SurgeryType[]>([]);
 const surgeryTypeItemMap = ref(new Map<number, Set<string>>());
-
-// ── 醫師 / 套組快捷 ──────────────────────────────────────────────
-const doctorsWithSets = ref<DoctorWithSets[]>([]);
-const activeDoctorId  = ref<number | null>(null);
-const activeSetId     = ref<number | null>(null);
-const activeSetCodes  = ref<Set<string>>(new Set());
-const setSearchIndex  = ref<SetSearchEntry[]>([]);
-
-const activeDoctorSets = computed(() =>
-  doctorsWithSets.value.find(d => d.id === activeDoctorId.value)?.sets ?? []
-);
+const setEntries         = ref<SetEntry[]>([]);
 
 onUnmounted(() => { if (copiedTimer) clearTimeout(copiedTimer); });
 
 onMounted(async () => {
   try {
     await loadItems();
-    await loadDoctorsAndSets();
+    await loadSets();
     await loadSurgeryTypes();
   } catch (e) { errMsg.value = `載入失敗：${(e as Error).message}`; }
   finally { loading.value = false; }
@@ -83,32 +77,27 @@ async function loadItems() {
   items.value = raw.map(it => ({ ...it, depts: deptMap.get(it.hospital_code) ?? [] }));
 }
 
-async function loadDoctorsAndSets() {
+async function loadSets() {
   try {
     const db = await getDb();
-    const docs = await db.select<{ id: number; name: string }[]>(
-      `SELECT DISTINCT p.id, p.name FROM physicians p
-       JOIN sets s ON s.physician_id = p.id ORDER BY p.name`
-    );
-    const setsData = await db.select<{ id: number; name: string; physician_id: number }[]>(
-      "SELECT id, name, physician_id FROM sets ORDER BY name"
-    );
-    doctorsWithSets.value = docs.map(d => ({
-      ...d, sets: setsData.filter(s => s.physician_id === d.id),
-    }));
-    const rows = await db.select<{ set_id: number; set_name: string; doctor_name: string; hospital_code: string }[]>(`
+    const rows = await db.select<{ set_id: number; set_name: string; doctor_name: string; hospital_code: string | null }[]>(`
       SELECT si.set_id, s.name AS set_name, COALESCE(p.name,'') AS doctor_name, si.hospital_code
       FROM set_items si
       JOIN sets s ON s.id = si.set_id
       LEFT JOIN physicians p ON p.id = s.physician_id
     `);
-    const map = new Map<number, SetSearchEntry>();
+    const map = new Map<number, SetEntry>();
     for (const r of rows) {
       if (!map.has(r.set_id))
-        map.set(r.set_id, { setId: r.set_id, setName: r.set_name, doctorName: r.doctor_name, codes: [] });
-      map.get(r.set_id)!.codes.push(r.hospital_code);
+        map.set(r.set_id, { setId: r.set_id, setName: r.set_name, doctorName: r.doctor_name || NO_DOCTOR, codes: new Set() });
+      if (r.hospital_code) map.get(r.set_id)!.codes.add(r.hospital_code);
     }
-    setSearchIndex.value = [...map.values()];
+    setEntries.value = [...map.values()].sort((a, b) =>
+      a.doctorName.localeCompare(b.doctorName, "zh-TW") || a.setName.localeCompare(b.setName, "zh-TW"));
+    // 已不存在的套組從篩選中移除
+    const alive = new Set<Key>(setEntries.value.map(e => e.setId));
+    if ([...activeSets.value].some(id => !alive.has(id)))
+      activeSets.value = new Set([...activeSets.value].filter(id => alive.has(id)));
   } catch { /* 套組資料載入失敗不影響主要品項功能 */ }
 }
 
@@ -130,42 +119,6 @@ async function loadSurgeryTypes() {
   } catch { /* table not yet initialised */ }
 }
 
-// ── 重置所有維度篩選 ─────────────────────────────────────────────
-function resetAllFilters() {
-  activeDepts.value     = new Set();
-  activePurposes.value  = new Set();
-  activeSurgeries.value = new Set();
-}
-
-function selectDoctor(id: number) {
-  if (activeDoctorId.value === id) {
-    activeDoctorId.value = null;
-    activeSetId.value    = null;
-    activeSetCodes.value = new Set();
-  } else {
-    activeDoctorId.value = id;
-    activeSetId.value    = null;
-    activeSetCodes.value = new Set();
-    resetAllFilters();
-  }
-}
-
-async function selectSet(setId: number) {
-  if (activeSetId.value === setId) {
-    activeSetId.value    = null;
-    activeSetCodes.value = new Set();
-    resetAllFilters();
-    return;
-  }
-  activeSetId.value = setId;
-  resetAllFilters();
-  const db = await getDb();
-  const rows = await db.select<{ hospital_code: string }[]>(
-    "SELECT hospital_code FROM set_items WHERE set_id = ?", [setId]
-  );
-  activeSetCodes.value = new Set(rows.map(r => r.hospital_code));
-}
-
 async function copyCode(code: string) {
   try {
     await navigator.clipboard.writeText(code);
@@ -175,152 +128,89 @@ async function copyCode(code: string) {
   } catch { /* clipboard denied */ }
 }
 
-// ── 套組篩選層（基底）────────────────────────────────────────────
-const setFiltered = computed(() => {
-  if (activeSetId.value && activeSetCodes.value.size > 0)
-    return items.value.filter(m => activeSetCodes.value.has(m.hospital_code));
-  return items.value;
-});
+// ── 比對（邏輯見 shared/itemsSearch，手機共用）──────────────────
+const haystacks = computed(() => buildHaystacks(items.value, setEntries.value));
+const searched = computed(() => searchItems(items.value, haystacks.value, search.value));
 
-// ── 各維度標籤（計數以 setFiltered 為底，不受其他維度影響）──────
-const deptTagList = computed(() => {
-  const base = setFiltered.value;
-  const counts = new Map<string, number>();
-  for (const it of base)
-    for (const d of it.depts) counts.set(d, (counts.get(d) ?? 0) + 1);
-  return [
-    { key: "__all__", label: "全部", count: base.length, sub: "" },
-    ...DEPT_LIST.filter(d => counts.has(d)).map(d => ({ key: d, label: d, count: counts.get(d)!, sub: "" })),
-    ...[...counts.entries()].filter(([k]) => !DEPT_LIST.includes(k))
-      .sort((a, b) => b[1] - a[1]).map(([key, count]) => ({ key, label: key, count, sub: "" })),
-  ];
-});
+const ctx = computed<FilterContext>(() => ({
+  filters: { dept: activeDepts.value, purpose: activePurposes.value, surgery: activeSurgeries.value, set: activeSets.value },
+  surgeryItems: surgeryTypeItemMap.value,
+  sets: setEntries.value,
+}));
 
-const purposeTagList = computed(() => {
-  const base = setFiltered.value;
-  const counts = new Map<string, number>();
-  for (const it of base) {
-    const key = it.purpose ?? "其他";
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return [
-    { key: "__all__", label: "全部", count: base.length, sub: "" },
-    ...PURPOSE_LIST.filter(p => counts.has(p)).map(p => ({ key: p, label: p, count: counts.get(p) ?? 0, sub: "" })),
-    ...[...counts.entries()].filter(([k]) => !PURPOSE_LIST.includes(k))
-      .sort((a, b) => b[1] - a[1]).map(([key, count]) => ({ key, label: key, count, sub: "" })),
-  ];
-});
-
-const surgeryTagList = computed(() => {
-  const baseCodes = new Set(setFiltered.value.map(m => m.hospital_code));
-  return surgeryTypes.value.map(st => {
-    const linked = surgeryTypeItemMap.value.get(st.id) ?? new Set<string>();
-    const count  = [...linked].filter(c => baseCodes.has(c)).length;
-    return { key: st.id as string | number, label: st.name, count, sub: st.dept ?? "" };
-  }).filter(t => t.count > 0);
-});
-
-const currentTags = computed(() => {
-  if (filterMode.value === "dept")    return deptTagList.value;
-  if (filterMode.value === "purpose") return purposeTagList.value;
-  return surgeryTagList.value;
-});
-
-// 目前模式下「全部」是否等同未選任何值
-const isAllActive = computed(() => {
-  if (filterMode.value === "dept")    return activeDepts.value.size === 0;
-  if (filterMode.value === "purpose") return activePurposes.value.size === 0;
-  return activeSurgeries.value.size === 0;
-});
-
-function isActiveFilter(key: string | number): boolean {
-  if (filterMode.value === "dept")    return activeDepts.value.has(key as string);
-  if (filterMode.value === "purpose") return activePurposes.value.has(key as string);
-  return activeSurgeries.value.has(key as number);
-}
-
-function toggleFilter(key: string | number) {
-  if (key === "__all__") { resetAllFilters(); return; }
-  if (filterMode.value === "dept") {
-    const s = new Set(activeDepts.value);
-    s.has(key as string) ? s.delete(key as string) : s.add(key as string);
-    activeDepts.value = s;
-  } else if (filterMode.value === "purpose") {
-    const s = new Set(activePurposes.value);
-    s.has(key as string) ? s.delete(key as string) : s.add(key as string);
-    activePurposes.value = s;
-  } else {
-    const s = new Set(activeSurgeries.value);
-    s.has(key as number) ? s.delete(key as number) : s.add(key as number);
-    activeSurgeries.value = s;
-  }
-}
-
-// ── 已選篩選 Chips ────────────────────────────────────────────────
-const activeFilterChips = computed(() => {
-  const chips: { label: string; typeLabel: string; mode: FilterMode; key: string | number }[] = [];
-  for (const d of activeDepts.value)
-    chips.push({ label: d, typeLabel: "科", mode: "dept", key: d });
-  for (const p of activePurposes.value)
-    chips.push({ label: p, typeLabel: "途", mode: "purpose", key: p });
-  for (const sid of activeSurgeries.value) {
-    const st = surgeryTypes.value.find(s => s.id === sid);
-    if (st) chips.push({ label: st.name, typeLabel: "術", mode: "surgery", key: sid });
-  }
-  return chips;
-});
-
-function removeChip(chip: typeof activeFilterChips.value[0]) {
-  if (chip.mode === "dept") {
-    const s = new Set(activeDepts.value); s.delete(chip.key as string); activeDepts.value = s;
-  } else if (chip.mode === "purpose") {
-    const s = new Set(activePurposes.value); s.delete(chip.key as string); activePurposes.value = s;
-  } else {
-    const s = new Set(activeSurgeries.value); s.delete(chip.key as number); activeSurgeries.value = s;
-  }
-}
-
-// ── 最終篩選 ─────────────────────────────────────────────────────
 const filtered = computed(() => {
-  let list = setFiltered.value;
-
-  if (activeDepts.value.size > 0)
-    list = list.filter(m => m.depts.some(d => activeDepts.value.has(d)));
-
-  if (activePurposes.value.size > 0)
-    list = list.filter(m => activePurposes.value.has(m.purpose ?? "其他"));
-
-  if (activeSurgeries.value.size > 0) {
-    const codes = new Set<string>();
-    for (const sid of activeSurgeries.value)
-      surgeryTypeItemMap.value.get(sid)?.forEach(c => codes.add(c));
-    list = list.filter(m => codes.has(m.hospital_code));
-  }
-
-  const q = search.value.toLowerCase().trim();
-  if (q) {
-    const setMatchCodes = new Set<string>();
-    for (const entry of setSearchIndex.value) {
-      if (entry.setName.toLowerCase().includes(q) || entry.doctorName.toLowerCase().includes(q))
-        entry.codes.forEach(c => setMatchCodes.add(c));
-    }
-    list = list.filter(m =>
-      m.name_zh?.toLowerCase().includes(q) ||
-      m.name_en?.toLowerCase().includes(q) ||
-      m.hospital_code?.toLowerCase().includes(q) ||
-      m.purpose?.toLowerCase().includes(q) ||
-      m.supplier?.toLowerCase().includes(q) ||
-      m.depts.some(d => d.toLowerCase().includes(q)) ||
-      setMatchCodes.has(m.hospital_code)
-    );
-  }
-  return list;
+  const passes = makeMatcher(ctx.value);
+  return searched.value.filter(m => passes(m));
 });
+
+/** 結果分段：有勾套組時依「醫師・套組」分段，同一品項屬於多個已勾套組會在各段出現 */
+const sections = computed(() => sectionize(filtered.value, setEntries.value, activeSets.value));
+
+// ── 各區塊選項與筆數 ─────────────────────────────────────────────
+const facets = computed(() => facetOptions(items.value, searched.value, ctx.value, surgeryTypes.value));
+const deptOptions = computed(() => facets.value.dept);
+const purposeOptions = computed(() => facets.value.purpose);
+const surgeryOptions = computed(() => facets.value.surgery);
+const setGroups = computed(() => facets.value.setGroups);
+
+const doctorState = (setIds: Key[]) => doctorStateOf(activeSets.value, setIds);
+function toggleDoctor(setIds: Key[]) {
+  activeSets.value = toggleDoctorOf(activeSets.value, setIds);
+}
+
+// ── 區塊內搜尋（術式、套組選項多時）────────────────────────────
+const surgeryQuery = ref("");
+const setQuery     = ref("");
+const visibleSurgeryOptions = computed(() => filterSurgeryOptions(surgeryOptions.value, surgeryQuery.value, activeSurgeries.value));
+const visibleSetGroups = computed(() => filterSetGroups(setGroups.value, setQuery.value, activeSets.value));
+
+// ── 勾選 ─────────────────────────────────────────────────────────
+const TARGETS: Record<Dim, Ref<Set<string>> | Ref<Set<Key>>> = {
+  dept: activeDepts, purpose: activePurposes, surgery: activeSurgeries, set: activeSets,
+};
+
+function toggle(dim: Dim, key: Key) {
+  const target = TARGETS[dim] as Ref<Set<Key>>;
+  const next = new Set(target.value);
+  if (next.has(key)) next.delete(key); else next.add(key);
+  target.value = next;
+}
+
+function resetAllFilters() {
+  activeDepts.value     = new Set();
+  activePurposes.value  = new Set();
+  activeSurgeries.value = new Set();
+  activeSets.value      = new Set();
+}
+
+const activeChips = computed(() => chipsOf(ctx.value.filters, surgeryTypes.value, setGroups.value));
+
+function removeChip(c: { dim: Dim; key: Key; setIds?: Key[] }) {
+  if (c.setIds) toggleDoctor(c.setIds);
+  else toggle(c.dim, c.key);
+}
+
+function clearAll() {
+  searchRaw.value = "";
+  resetAllFilters();
+}
+
+// ── 篩選欄：收合狀態（記在本機）────────────────────────────────
+const PANEL_KEY = "items-filter-panel";
+const panelOpen = ref(true);
+const sectionOpen = ref<Record<Dim, boolean>>({ dept: true, purpose: true, surgery: false, set: false });
+try {
+  const saved = JSON.parse(localStorage.getItem(PANEL_KEY) ?? "null");
+  if (saved) {
+    panelOpen.value = saved.panelOpen ?? true;
+    sectionOpen.value = { ...sectionOpen.value, ...(saved.sectionOpen ?? {}) };
+  }
+} catch { /* 無法讀取時用預設 */ }
+watch([panelOpen, sectionOpen], () => {
+  try { localStorage.setItem(PANEL_KEY, JSON.stringify({ panelOpen: panelOpen.value, sectionOpen: sectionOpen.value })); } catch { /* 忽略 */ }
+}, { deep: true });
 
 // ── 雲端同步 ─────────────────────────────────────────────────────
-const cloud = useCloudSettings();
-onMounted(() => cloud.load());
-const isSyncing = ref(false);
 const syncToast = ref("");
 let syncToastTimer: ReturnType<typeof setTimeout> | null = null;
 function showSyncToast(msg: string) {
@@ -328,68 +218,9 @@ function showSyncToast(msg: string) {
   if (syncToastTimer) clearTimeout(syncToastTimer);
   syncToastTimer = setTimeout(() => { syncToast.value = ""; }, 3000);
 }
-
-async function pushToCloud() {
-  if (!cloud.gasUrl) { showSyncToast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true; setGlobalSyncing("items", true);
-  try {
-    const db = await getDb();
-    const raw = await db.select<Omit<Item, "depts">[]>("SELECT * FROM items ORDER BY name_zh");
-    const deptRows = await db.select<{ hospital_code: string; dept: string }[]>("SELECT hospital_code, dept FROM item_depts");
-    const deptMap = new Map<string, string[]>();
-    for (const r of deptRows) {
-      if (!deptMap.has(r.hospital_code)) deptMap.set(r.hospital_code, []);
-      deptMap.get(r.hospital_code)!.push(r.dept);
-    }
-    const data = raw.map(it => ({ ...it, depts: deptMap.get(it.hospital_code) ?? [] }));
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "saveItems", data }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error ?? "GAS 錯誤");
-    showSyncToast(`已上傳 ${data.length} 筆品項至雲端`);
-    await saveSyncTimestamp("items");
-    useLogger().addLog("info", `[雲端同步] push 自費品項 — ${data.length} 筆`, JSON.stringify({ table: "items", action: "push", timestamp: new Date().toISOString() }));
-  } catch (e) {
-    showSyncToast(`上傳失敗：${(e as Error).message}`);
-    useLogger().addLog("warn", "[雲端同步] push 自費品項 失敗", String(e));
-  } finally { isSyncing.value = false; setGlobalSyncing("items", false); }
-}
-
-async function pullFromCloud() {
-  if (!cloud.gasUrl) { showSyncToast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true; setGlobalSyncing("items", true);
-  try {
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "getItems" }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
-    const data: (Omit<Item, "depts"> & { depts: string[] })[] = json.data;
-    if (!data.length) { showSyncToast("雲端無品項資料"); return; }
-    const db = await getDb();
-    for (const it of data) {
-      await db.execute(
-        `INSERT OR REPLACE INTO items (hospital_code, name_en, name_zh, purpose, unit, price, supplier, notes)
-         VALUES (?,?,?,?,?,?,?,?)`,
-        [it.hospital_code, it.name_en||null, it.name_zh||null, it.purpose||null,
-         it.unit||null, it.price ?? null, it.supplier||null, it.notes||null]
-      );
-      await db.execute("DELETE FROM item_depts WHERE hospital_code = ?", [it.hospital_code]);
-      for (const d of (it.depts ?? [])) {
-        await db.execute("INSERT OR IGNORE INTO item_depts (hospital_code, dept) VALUES (?,?)", [it.hospital_code, d]);
-      }
-    }
-    await loadItems();
-    showSyncToast(`已從雲端同步 ${data.length} 筆品項`);
-  } catch (e) {
-    showSyncToast(`下載失敗：${(e as Error).message}`);
-  } finally { isSyncing.value = false; setGlobalSyncing("items", false); }
-}
+onTableSynced("items", loadItems);
+onTableSynced("sets", loadSets);
+onTableSynced("surgeryTypes", loadSurgeryTypes);
 
 // ── 手術術式 CRUD ─────────────────────────────────────────────────
 const showSurgeryMgmt  = ref(false);
@@ -452,14 +283,18 @@ async function mgmtSaveForm() {
   }
   mgmtShowForm.value = false;
   await loadSurgeryTypes();
+  await touchTable("surgeryTypes");
 }
 
 async function mgmtDeleteSurgery(id: number) {
   const db = await getDb();
+  await markDeletedById("surgeryTypes", id);
+  await db.execute("DELETE FROM surgery_type_items WHERE surgery_type_id=?", [id]);
   await db.execute("DELETE FROM surgery_types WHERE id=?", [id]);
   if (mgmtSelId.value === id) { mgmtSelId.value = null; mgmtSelCodes.value = new Set(); }
   const s = new Set(activeSurgeries.value); s.delete(id); activeSurgeries.value = s;
   await loadSurgeryTypes();
+  await touchTable("surgeryTypes");
 }
 
 async function mgmtToggleItem(code: string) {
@@ -479,10 +314,10 @@ async function mgmtToggleItem(code: string) {
   const newMap = new Map(surgeryTypeItemMap.value);
   newMap.set(mgmtSelId.value, next);
   surgeryTypeItemMap.value = newMap;
+  await touchTable("surgeryTypes");
 }
 
 // ── 手術術式 雲端同步 ─────────────────────────────────────────────
-const isSurgSyncing  = ref(false);
 const surgSyncToast  = ref("");
 let surgSyncTimer: ReturnType<typeof setTimeout> | null = null;
 function showSurgToast(msg: string) {
@@ -490,93 +325,192 @@ function showSurgToast(msg: string) {
   if (surgSyncTimer) clearTimeout(surgSyncTimer);
   surgSyncTimer = setTimeout(() => { surgSyncToast.value = ""; }, 3000);
 }
-
-async function pushSurgeryTypesToCloud() {
-  if (!cloud.gasUrl) { showSurgToast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSurgSyncing.value = true;
-  try {
-    const db = await getDb();
-    const surgTypes = await db.select<{ id: number; name: string; dept: string | null; notes: string | null }[]>(
-      "SELECT id, name, dept, notes FROM surgery_types ORDER BY id"
-    );
-    const surgTypeItems = await db.select<{ surgery_type_id: number; hospital_code: string }[]>(
-      "SELECT surgery_type_id, hospital_code FROM surgery_type_items"
-    );
-    await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "saveSurgeryTypes", surgeryTypes: surgTypes, surgeryTypeItems: surgTypeItems }),
-      mode: "no-cors",
-    });
-    showSurgToast(`已上傳 ${surgTypes.length} 個手術術式至雲端`);
-  } catch (e) {
-    showSurgToast(`上傳失敗：${(e as Error).message}`);
-  } finally { isSurgSyncing.value = false; }
-}
-
-async function pullSurgeryTypesFromCloud() {
-  if (!cloud.gasUrl) { showSurgToast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSurgSyncing.value = true;
-  try {
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "getSurgeryTypes" }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
-    const cloudTypes: { id: number; name: string; dept: string; notes: string }[] = json.surgeryTypes ?? [];
-    const cloudItems: { surgery_type_id: number; hospital_code: string }[] = json.surgeryTypeItems ?? [];
-    if (!cloudTypes.length) { showSurgToast("雲端無手術術式資料"); return; }
-
-    const db = await getDb();
-    // 以雲端為主：先清空再重建
-    await db.execute("DELETE FROM surgery_type_items");
-    await db.execute("DELETE FROM surgery_types");
-    for (const t of cloudTypes) {
-      await db.execute(
-        "INSERT INTO surgery_types (id, name, dept, notes) VALUES (?,?,?,?)",
-        [t.id, t.name, t.dept || null, t.notes || null]
-      );
-    }
-    for (const si of cloudItems) {
-      await db.execute(
-        "INSERT OR IGNORE INTO surgery_type_items (surgery_type_id, hospital_code) VALUES (?,?)",
-        [si.surgery_type_id, si.hospital_code]
-      );
-    }
-    await loadSurgeryTypes();
-    showSurgToast(`已從雲端同步 ${cloudTypes.length} 個手術術式`);
-  } catch (e) {
-    showSurgToast(`同步失敗：${(e as Error).message}`);
-  } finally { isSurgSyncing.value = false; }
-}
 </script>
 
 <template>
-  <div class="accent-violet flex flex-col h-full gap-4 text-fg select-none bg-sunken">
+  <div class="accent-violet flex h-full gap-3 text-fg bg-sunken">
 
-    <!-- ── 搜尋列 ──────────────────────────────────────────── -->
-    <div class="flex items-center gap-3 bg-surface border border-hairline rounded-2xl p-4 shadow-lg shrink-0">
-      <div class="relative flex-1">
-        <span class="absolute left-3.5 top-3 text-muted text-sm">🔍</span>
-        <input
-          v-model="searchRaw"
-          placeholder="搜尋品名 / 院內碼 / 用途 / 科別 / 廠商 / 醫師 / 套組名…"
-          class="w-full pl-9 pr-4 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs placeholder-muted outline-none focus:border-accent/50 font-bold"
-        />
+    <!-- ── 左側篩選欄 ──────────────────────────────────────── -->
+    <aside v-if="panelOpen"
+      class="w-60 shrink-0 flex flex-col bg-surface border border-hairline rounded-2xl overflow-hidden">
+      <div class="flex items-center justify-between px-3 py-2.5 border-b border-hairline shrink-0">
+        <span class="text-xs font-bold text-fg-secondary">篩選</span>
+        <div class="flex items-center gap-2">
+          <button v-if="activeChips.length" @click="resetAllFilters"
+            class="text-xs text-muted hover:text-accent cursor-pointer">清除</button>
+          <button @click="panelOpen = false" title="收起篩選欄"
+            class="text-muted hover:text-fg text-sm leading-none cursor-pointer">⟨</button>
+        </div>
       </div>
-      <span class="text-2xs font-mono font-bold text-muted shrink-0 bg-sunken px-3 py-2 rounded-xl border border-hairline">{{ filtered.length }} / {{ items.length }} ITEMS</span>
-      
-      <div class="flex gap-1.5 shrink-0">
-        <button @click="pullFromCloud" :disabled="isSyncing"
-          class="text-xs px-4 py-2 bg-accent/10 hover:bg-accent border border-accent/30 text-accent hover:text-white rounded-xl font-bold transition-all cursor-pointer">
-          {{ isSyncing ? "…" : "↓ 雲端同步" }}
-        </button>
-        <button @click="pushToCloud" :disabled="isSyncing"
-          class="text-xs px-4 py-2 bg-elevated hover:bg-raised border border-hairline text-fg-secondary rounded-xl font-bold transition-all cursor-pointer">
-          {{ isSyncing ? "…" : "↑ 上傳雲端" }}
-        </button>
+
+      <div class="flex-1 overflow-y-auto custom-scrollbar py-1">
+        <!-- 科別 -->
+        <section class="border-b border-hairline">
+          <button @click="sectionOpen.dept = !sectionOpen.dept" class="w-full flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-fg-secondary hover:text-fg cursor-pointer">
+            <span class="w-3 text-muted">{{ sectionOpen.dept ? '▾' : '▸' }}</span>
+            科別
+            <span v-if="activeDepts.size" class="rounded-full bg-accent/15 text-accent px-1.5 text-2xs tabular-nums">{{ activeDepts.size }}</span>
+          </button>
+          <div v-if="sectionOpen.dept" class="pb-2">
+            <label v-for="o in deptOptions" :key="o.key" class="flex items-center gap-2 px-3 py-1 text-xs cursor-pointer hover:bg-overlay/5"
+              :class="o.count === 0 && !activeDepts.has(o.key) ? 'opacity-40' : ''">
+              <input type="checkbox" class="accent-accent" :checked="activeDepts.has(o.key)" @change="toggle('dept', o.key)" />
+              <span class="flex-1 min-w-0" :class="activeDepts.has(o.key) ? 'text-accent font-bold' : 'text-fg'">{{ o.label }}</span>
+              <span class="text-2xs tabular-nums text-muted">{{ o.count }}</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- 用途 -->
+        <section class="border-b border-hairline">
+          <button @click="sectionOpen.purpose = !sectionOpen.purpose" class="w-full flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-fg-secondary hover:text-fg cursor-pointer">
+            <span class="w-3 text-muted">{{ sectionOpen.purpose ? '▾' : '▸' }}</span>
+            用途
+            <span v-if="activePurposes.size" class="rounded-full bg-accent/15 text-accent px-1.5 text-2xs tabular-nums">{{ activePurposes.size }}</span>
+          </button>
+          <div v-if="sectionOpen.purpose" class="pb-2">
+            <label v-for="o in purposeOptions" :key="o.key" class="flex items-center gap-2 px-3 py-1 text-xs cursor-pointer hover:bg-overlay/5"
+              :class="o.count === 0 && !activePurposes.has(o.key) ? 'opacity-40' : ''">
+              <input type="checkbox" class="accent-accent" :checked="activePurposes.has(o.key)" @change="toggle('purpose', o.key)" />
+              <span class="flex-1 min-w-0" :class="activePurposes.has(o.key) ? 'text-accent font-bold' : 'text-fg'">{{ o.label }}</span>
+              <span class="text-2xs tabular-nums text-muted">{{ o.count }}</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- 手術術式 -->
+        <section class="border-b border-hairline">
+          <div class="flex items-center">
+            <button @click="sectionOpen.surgery = !sectionOpen.surgery" class="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-fg-secondary hover:text-fg cursor-pointer flex-1">
+              <span class="w-3 text-muted">{{ sectionOpen.surgery ? '▾' : '▸' }}</span>
+              手術術式
+              <span class="text-2xs text-muted font-normal">{{ surgeryTypes.length }}</span>
+              <span v-if="activeSurgeries.size" class="rounded-full bg-accent/15 text-accent px-1.5 text-2xs tabular-nums">{{ activeSurgeries.size }}</span>
+            </button>
+            <button @click="showSurgeryMgmt = true" title="管理手術術式"
+              class="px-3 text-xs text-muted hover:text-accent cursor-pointer">⚙</button>
+          </div>
+          <div v-if="sectionOpen.surgery" class="pb-2">
+            <input v-if="surgeryOptions.length > 8" v-model="surgeryQuery" placeholder="篩選術式…" class="mx-3 mb-1 w-[calc(100%-1.5rem)] px-2 py-1 rounded-lg bg-sunken border border-hairline text-xs text-fg outline-none focus:border-accent/50" />
+            <p v-if="!surgeryOptions.length" class="px-3 py-1 text-xs text-muted">尚無術式，按 ⚙ 新增</p>
+            <label v-for="o in visibleSurgeryOptions" :key="o.key" class="flex items-center gap-2 px-3 py-1 text-xs cursor-pointer hover:bg-overlay/5"
+              :class="o.count === 0 && !activeSurgeries.has(o.key) ? 'opacity-40' : ''">
+              <input type="checkbox" class="accent-accent" :checked="activeSurgeries.has(o.key)" @change="toggle('surgery', o.key)" />
+              <span class="flex-1 min-w-0" :class="activeSurgeries.has(o.key) ? 'text-accent font-bold' : 'text-fg'">
+                {{ o.label }}<span v-if="o.sub" class="ml-1 text-2xs text-muted font-normal">{{ o.sub }}</span>
+              </span>
+              <span class="text-2xs tabular-nums text-muted">{{ o.count }}</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- 醫師套組 -->
+        <section>
+          <button @click="sectionOpen.set = !sectionOpen.set" class="w-full flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-fg-secondary hover:text-fg cursor-pointer">
+            <span class="w-3 text-muted">{{ sectionOpen.set ? '▾' : '▸' }}</span>
+            醫師套組
+            <span class="text-2xs text-muted font-normal">{{ setEntries.length }}</span>
+            <span v-if="activeSets.size" class="rounded-full bg-accent/15 text-accent px-1.5 text-2xs tabular-nums">{{ activeSets.size }}</span>
+          </button>
+          <div v-if="sectionOpen.set" class="pb-2">
+            <input v-if="setEntries.length > 8" v-model="setQuery" placeholder="篩選醫師或套組…" class="mx-3 mb-1 w-[calc(100%-1.5rem)] px-2 py-1 rounded-lg bg-sunken border border-hairline text-xs text-fg outline-none focus:border-accent/50" />
+            <p v-if="!setEntries.length" class="px-3 py-1 text-xs text-muted">尚無套組</p>
+            <div v-for="g in visibleSetGroups" :key="g.doctor">
+              <label class="flex items-center gap-2 px-3 pt-1.5 pb-0.5 text-xs cursor-pointer hover:bg-overlay/5"
+                :class="g.count === 0 && doctorState(g.setIds) === 'none' ? 'opacity-40' : ''"
+                :title="`勾選 ${g.doctor} 的全部套組`">
+                <input type="checkbox" class="accent-accent"
+                  :checked="doctorState(g.setIds) === 'all'"
+                  :indeterminate="doctorState(g.setIds) === 'some'"
+                  @change="toggleDoctor(g.setIds)" />
+                <span class="flex-1 min-w-0 text-sm font-bold" :class="doctorState(g.setIds) === 'none' ? 'text-fg' : 'text-accent'">{{ g.doctor }}</span>
+                <span class="text-2xs tabular-nums text-muted">{{ g.count }}</span>
+              </label>
+              <label v-for="o in g.options" :key="o.key" class="flex items-center gap-2 pl-5 pr-3 py-1 text-xs cursor-pointer hover:bg-overlay/5"
+                :class="o.count === 0 && !activeSets.has(o.key) ? 'opacity-40' : ''">
+                <input type="checkbox" class="accent-accent" :checked="activeSets.has(o.key)" @change="toggle('set', o.key)" />
+                <span class="flex-1 min-w-0" :class="activeSets.has(o.key) ? 'text-accent font-bold' : 'text-fg'">{{ o.label }}</span>
+                <span class="text-2xs tabular-nums text-muted">{{ o.count }}</span>
+              </label>
+            </div>
+          </div>
+        </section>
+      </div>
+    </aside>
+
+    <!-- ── 右側：搜尋與結果 ────────────────────────────────── -->
+    <div class="flex-1 min-w-0 flex flex-col gap-3">
+      <div class="shrink-0 flex flex-col gap-2 bg-surface border border-hairline rounded-2xl px-4 py-3">
+        <div class="flex items-center gap-3 flex-wrap">
+          <button v-if="!panelOpen" @click="panelOpen = true"
+            class="shrink-0 px-2.5 py-1.5 rounded-xl bg-sunken border border-hairline text-xs font-bold text-fg-secondary hover:text-fg cursor-pointer">
+            ⟩ 篩選<span v-if="activeChips.length" class="ml-1 text-accent">{{ activeChips.length }}</span>
+          </button>
+          <div class="relative flex-1 min-w-[12rem]">
+            <span class="absolute left-3 top-2 text-muted text-sm">🔍</span>
+            <input v-model="searchRaw" @keydown.esc="searchRaw = ''"
+              placeholder="搜尋品名、院內碼、用途、科別、廠商、醫師、套組…（空白分隔多個關鍵字）"
+              class="w-full pl-9 pr-8 py-2 rounded-xl bg-sunken border border-hairline text-fg text-sm placeholder-muted outline-none focus:border-accent/50" />
+            <button v-if="searchRaw" @click="searchRaw = ''"
+              class="absolute right-2.5 top-1.5 text-muted hover:text-fg-secondary text-lg leading-none cursor-pointer" title="清除">×</button>
+          </div>
+          <span class="shrink-0 text-xs text-muted tabular-nums">{{ filtered.length }} / {{ items.length }} 筆</span>
+          <CloudSyncButtons table="items" class="shrink-0" @synced="loadItems" @message="showSyncToast" />
+        </div>
+
+        <div v-if="activeChips.length" class="flex flex-wrap items-center gap-1.5">
+          <span v-for="c in activeChips" :key="`${c.dim}-${c.key}`"
+            class="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-xs bg-accent/10 text-accent">
+            <span class="text-2xs opacity-70">{{ c.type }}</span>
+            {{ c.label }}
+            <button @click="removeChip(c)" class="px-1 opacity-60 hover:opacity-100 cursor-pointer" :title="`移除 ${c.label}`">×</button>
+          </span>
+          <button @click="resetAllFilters" class="text-xs text-muted hover:text-accent cursor-pointer ml-1">清除全部</button>
+        </div>
+      </div>
+
+      <!-- 結果清單 -->
+      <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar bg-surface border border-hairline rounded-2xl">
+        <p v-if="errMsg" class="py-16 text-center text-danger text-sm font-bold">{{ errMsg }}</p>
+        <p v-else-if="loading" class="py-16 text-center text-muted text-sm">載入中…</p>
+        <div v-else-if="!filtered.length" class="py-16 text-center text-sm text-muted space-y-2">
+          <p>找不到符合條件的品項</p>
+          <button v-if="searchRaw || activeChips.length" @click="clearAll"
+            class="text-xs text-accent hover:underline cursor-pointer">清除搜尋與篩選</button>
+        </div>
+
+        <template v-else>
+          <section v-for="sec in sections" :key="sec.key">
+          <!-- 套組標題字級＝品項名稱（text-sm）的 1.5 倍 -->
+          <h3 v-if="sec.title"
+            class="sticky top-0 z-10 flex items-baseline gap-2 px-4 py-2 border-b border-hairline bg-sunken text-[calc(var(--text-sm)*1.5)] font-bold text-fg">
+            {{ sec.title }}
+            <span class="text-xs font-normal text-muted tabular-nums">{{ sec.items.length }} 筆</span>
+          </h3>
+          <div v-for="m in sec.items" :key="m.hospital_code"
+            class="px-4 py-2.5 border-b border-hairline hover:bg-overlay/5 transition-colors">
+            <div class="flex items-baseline gap-3">
+              <button @click="copyCode(m.hospital_code)" :title="`複製 ${m.hospital_code}`"
+                class="shrink-0 font-mono text-xs font-bold cursor-pointer transition-colors"
+                :class="copiedCode === m.hospital_code ? 'text-success' : 'text-accent hover:underline'">
+                {{ copiedCode === m.hospital_code ? '✓ 已複製' : m.hospital_code }}
+              </button>
+              <span class="flex-1 min-w-0 text-sm font-bold text-fg">{{ m.name_zh || m.name_en || '—' }}</span>
+              <span class="shrink-0 font-mono text-sm font-bold text-success tabular-nums">
+                {{ m.price != null ? `$${m.price.toLocaleString()}` : '—' }}
+              </span>
+            </div>
+            <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-secondary">
+              <span v-if="m.name_zh && m.name_en">{{ m.name_en }}</span>
+              <span v-if="m.purpose" class="rounded-full bg-accent/10 text-accent px-2 py-px text-2xs font-bold">{{ m.purpose }}</span>
+              <span v-for="d in m.depts" :key="d" class="rounded-full bg-sunken border border-hairline px-2 py-px text-2xs">{{ d }}</span>
+              <span v-if="m.unit" class="text-muted">單位 {{ m.unit }}</span>
+              <span v-if="m.supplier" class="text-muted">{{ m.supplier }}</span>
+              <span v-if="m.notes" class="text-muted">{{ m.notes }}</span>
+            </div>
+          </div>
+          </section>
+        </template>
       </div>
     </div>
 
@@ -587,181 +521,6 @@ async function pullSurgeryTypesFromCloud() {
         {{ syncToast }}
       </div>
     </Transition>
-
-    <!-- ── 醫師快捷 ─────────────────────────────────────────── -->
-    <div v-if="doctorsWithSets.length > 0" class="flex flex-wrap gap-2 shrink-0 bg-surface p-2 rounded-2xl border border-hairline">
-      <button
-        v-for="doc in doctorsWithSets" :key="doc.id"
-        @click="selectDoctor(doc.id)"
-        class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer"
-        :class="activeDoctorId === doc.id
-          ? 'bg-accent text-white shadow-lg shadow-accent/10 border border-accent/30'
-          : 'bg-sunken text-fg-secondary hover:text-fg border border-hairline'"
-      >
-        <span>👨‍⚕️</span>
-        <span>{{ doc.name }}</span>
-        <span class="rounded-full px-2 py-0.5 text-2xs font-mono font-bold"
-          :class="activeDoctorId === doc.id ? 'bg-accent text-white' : 'bg-surface text-muted'">
-          {{ doc.sets.length }}
-        </span>
-      </button>
-    </div>
-
-    <!-- ── 套組子按鈕 ───────────────────────────────────────── -->
-    <Transition name="slide-down">
-      <div v-if="activeDoctorId !== null && activeDoctorSets.length > 0"
-        class="flex flex-wrap gap-1.5 pl-3 border-l-2 border-accent/30 shrink-0 py-1">
-        <button
-          v-for="s in activeDoctorSets" :key="s.id"
-          @click="selectSet(s.id)"
-          class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer"
-          :class="activeSetId === s.id
-            ? 'bg-accent/10 border border-accent/50 text-white'
-            : 'bg-sunken text-fg-secondary hover:text-accent border border-hairline'"
-        >
-          <span>{{ s.name }}</span>
-          <span v-if="activeSetId === s.id && activeSetCodes.size > 0"
-            class="bg-accent text-white rounded-full px-1.5 py-0.5 text-2xs font-mono">
-            {{ activeSetCodes.size }}
-          </span>
-        </button>
-      </div>
-    </Transition>
-
-    <!-- ── 篩選維度 (L1) ─────────────────────────────────────── -->
-    <div class="space-y-3 bg-surface border border-hairline rounded-2xl p-4 shadow-lg shrink-0">
-      <div class="flex items-center gap-2 flex-wrap border-b border-hairline pb-3">
-        <button
-          v-for="mode in ([
-            { key: 'dept',    label: '科別' },
-            { key: 'purpose', label: '用途' },
-            { key: 'surgery', label: '手術術式' },
-          ] as const)"
-          :key="mode.key"
-          @click="filterMode = mode.key"
-          class="px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer"
-          :class="filterMode === mode.key
-            ? 'bg-elevated border border-hairline text-accent shadow-inner'
-            : 'bg-sunken text-muted hover:text-fg-secondary border border-hairline'"
-        >
-          {{ mode.label }}
-          <span v-if="mode.key === 'surgery' && surgeryTypes.length > 0"
-            class="ml-1 text-2xs font-mono bg-sunken px-1 py-0.5 rounded text-muted">{{ surgeryTypes.length }}</span>
-        </button>
-        <button v-if="filterMode === 'surgery'"
-          @click="showSurgeryMgmt = true"
-          class="ml-auto text-xs px-3 py-1.5 rounded-xl bg-sunken border border-hairline text-fg-secondary hover:text-fg transition-all cursor-pointer">
-          ⚙ 管理術式
-        </button>
-      </div>
-
-      <!-- L2：目前維度的標籤 ──────────────────────────────── -->
-      <div class="flex flex-wrap gap-2 max-h-24 overflow-y-auto pr-1 custom-scrollbar">
-        <button
-          v-for="tag in currentTags" :key="tag.key"
-          @click="toggleFilter(tag.key)"
-          class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer"
-          :class="tag.key === '__all__'
-            ? (isAllActive
-                ? 'bg-elevated border border-hairline text-fg shadow-inner'
-                : 'bg-sunken text-muted border border-hairline hover:text-fg-secondary')
-            : (isActiveFilter(tag.key)
-                ? (filterMode === 'dept' ? 'bg-accent/10 border-accent/50 text-accent shadow-[0_0_12px_rgba(6,182,212,0.1)]' : filterMode === 'purpose' ? 'bg-accent/10 border-accent/50 text-accent shadow-[0_0_12px_rgba(20,184,166,0.1)]' : 'bg-accent/10 border-accent/50 text-accent shadow-[0_0_12px_rgba(139,92,246,0.1)]')
-                : 'bg-sunken text-fg-secondary hover:text-fg border border-hairline')"
-        >
-          <span>{{ tag.label }}</span>
-          <span v-if="tag.sub" class="text-2xs opacity-60 font-mono font-medium">{{ tag.sub }}</span>
-          <span class="rounded-full px-2 py-0.5 text-2xs font-mono font-bold"
-            :class="(tag.key !== '__all__' && isActiveFilter(tag.key)) ? 'bg-sunken' : 'bg-sunken text-muted'">
-            {{ tag.count }}
-          </span>
-        </button>
-      </div>
-
-      <!-- 已選篩選 Chips ──────────────────────────────────── -->
-      <Transition name="slide-down">
-        <div v-if="activeFilterChips.length > 0" class="flex flex-wrap gap-2 items-center border-t border-hairline pt-3">
-          <span class="text-2xs font-black text-muted shrink-0">篩選項目:</span>
-          <span
-            v-for="chip in activeFilterChips" :key="`${chip.mode}-${chip.key}`"
-            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border
-                   bg-accent/10 border-accent/20 text-accent"
-          >
-            <span class="text-2xs font-black uppercase opacity-60">{{ chip.typeLabel }}</span>
-            <span>{{ chip.label }}</span>
-            <button @click="removeChip(chip)" class="opacity-50 hover:opacity-100 cursor-pointer text-sm leading-none ml-1">×</button>
-          </span>
-          <button @click="resetAllFilters" class="text-xs text-muted hover:text-fg-secondary font-bold ml-auto cursor-pointer">
-            清除全部篩選
-          </button>
-        </div>
-      </Transition>
-    </div>
-
-    <!-- ── 表格 ─────────────────────────────────────────────── -->
-    <div class="flex-1 rounded-2xl bg-surface border border-hairline overflow-auto min-h-0 shadow-xl custom-scrollbar">
-      <table class="w-full text-xs border-collapse">
-        <thead class="sticky top-0 bg-surface z-10 border-b border-hairline">
-          <tr class="text-fg-secondary text-2xs font-black">
-            <th class="text-left px-5 py-4.5 font-bold">院內碼</th>
-            <th class="text-left px-5 py-4.5 font-bold">中文品名</th>
-            <th class="text-left px-5 py-4.5 font-bold">英文品名</th>
-            <th class="text-left px-5 py-4.5 font-bold">用途</th>
-            <th class="text-left px-5 py-4.5 font-bold">適用科別</th>
-            <th class="text-right px-5 py-4.5 font-bold">自費金額</th>
-            <th class="text-left px-5 py-4.5 font-bold">單位</th>
-            <th class="text-left px-5 py-4.5 font-bold">廠商</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="errMsg">
-            <td colspan="8" class="text-center text-danger py-16 font-bold">{{ errMsg }}</td>
-          </tr>
-          <tr v-else-if="loading">
-            <td colspan="8" class="text-center text-muted py-16 italic font-bold">載入中…</td>
-          </tr>
-          <tr v-else-if="filtered.length === 0">
-            <td colspan="8" class="text-center text-muted py-16 italic">
-              {{ search ? "找不到符合的品項" : "此條件無資料" }}
-            </td>
-          </tr>
-          <tr
-            v-for="m in filtered" :key="m.hospital_code"
-            class="border-b border-hairline hover:bg-surface/40 transition-colors"
-          >
-            <td
-              class="px-5 py-3.5 text-xs cursor-pointer select-none transition-colors"
-              :class="copiedCode === m.hospital_code ? 'text-success font-bold' : 'text-fg-secondary hover:text-accent'"
-              :title="'複製 ' + m.hospital_code"
-              @click="copyCode(m.hospital_code)"
-            >
-              {{ copiedCode === m.hospital_code ? "✓ 已複製" : m.hospital_code }}
-            </td>
-            <td class="px-5 py-3.5 text-fg font-bold">{{ m.name_zh || "—" }}</td>
-            <td class="px-5 py-3.5 text-fg-secondary text-xs leading-normal">{{ m.name_en || "—" }}</td>
-            <td class="px-5 py-3.5">
-              <span v-if="m.purpose" class="text-2xs bg-accent/10 border border-accent/30 text-accent px-2 py-0.5 rounded-full font-bold">
-                {{ m.purpose }}
-              </span>
-              <span v-else class="text-muted text-xs">—</span>
-            </td>
-            <td class="px-5 py-3.5">
-              <div class="flex flex-wrap gap-1">
-                <span v-for="d in m.depts" :key="d"
-                  class="text-2xs font-bold bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 rounded-full">{{ d }}</span>
-                <span v-if="m.depts.length === 0" class="text-muted text-xs">—</span>
-              </div>
-            </td>
-            <td class="px-5 py-3.5 text-right text-success font-mono font-bold">
-              {{ m.price ? `$${m.price.toLocaleString()}` : "—" }}
-            </td>
-            <td class="px-5 py-3.5 text-fg-secondary text-xs">{{ m.unit || "—" }}</td>
-            <td class="px-5 py-3.5 text-muted text-xs">{{ m.supplier || "—" }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
   </div>
 
   <!-- ── 手術術式管理 Modal ──────────────────────────────────── -->
@@ -776,14 +535,7 @@ async function pullSurgeryTypesFromCloud() {
           <div class="flex items-center gap-3">
             <h3 class="text-xs font-black text-fg">管理手術術式</h3>
             <div class="flex items-center gap-1.5">
-              <button @click="pullSurgeryTypesFromCloud" :disabled="isSurgSyncing"
-                class="text-2xs font-bold px-3 py-1.5 rounded-lg border border-accent/30 text-accent hover:bg-accent/20 disabled:opacity-40 transition-colors cursor-pointer">
-                {{ isSurgSyncing ? '…' : '↓ 雲端同步' }}
-              </button>
-              <button @click="pushSurgeryTypesToCloud" :disabled="isSurgSyncing"
-                class="text-2xs font-bold px-3 py-1.5 rounded-lg border border-hairline bg-elevated text-fg-secondary hover:text-fg disabled:opacity-40 transition-colors cursor-pointer">
-                {{ isSurgSyncing ? '…' : '↑ 上傳雲端' }}
-              </button>
+              <CloudSyncButtons table="surgeryTypes" @synced="loadSurgeryTypes" @message="showSurgToast" />
               <span v-if="surgSyncToast" class="text-2xs text-muted font-bold font-mono ml-2">{{ surgSyncToast }}</span>
             </div>
           </div>

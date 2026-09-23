@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import { getDb } from "@/db";
 
@@ -16,7 +16,8 @@ interface Result {
   copyCode?: string;   // 自費品項可直接複製院內碼
 }
 
-// 模組級快取：關閉再開 Ctrl+K 不重新查詢
+// 上次的索引：開啟時先顯示避免空白，同時重新查詢資料庫，
+// 否則本次開啟 app 期間新增或修改的資料要重開才搜得到
 let _searchCache: Result[] | null = null;
 
 const allItems = ref<Result[]>([]);
@@ -29,11 +30,11 @@ onUnmounted(() => {
 
 onMounted(async () => {
   inputRef.value?.focus();
-  if (_searchCache) { allItems.value = _searchCache; return; }
+  if (_searchCache) allItems.value = _searchCache;
   try {
     const db = await getDb();
 
-    const [rxs, diseases, exams, surgeries, protos, items, physicians, sets] =
+    const [rxs, diseases, exams, surgeries, protos, items, physicians, sets, contacts] =
       await Promise.all([
         db.select<{ name: string; category: string }[]>(
           "SELECT name, category FROM prescriptions"),
@@ -47,19 +48,21 @@ onMounted(async () => {
           "SELECT name FROM emergency_protocols"),
         db.select<{ hospital_code: string; name_zh: string; name_en: string; purpose: string; price: number }[]>(
           "SELECT hospital_code, name_zh, name_en, purpose, price FROM items"),
-        db.select<{ name: string; department: string; title: string; ext: string }[]>(
-          "SELECT name, department, title, ext FROM physicians"),
+        db.select<{ name: string; department: string; title: string; ext: string; his_account: string | null }[]>(
+          "SELECT name, department, title, ext, his_account FROM physicians"),
         db.select<{ name: string; surgery_type: string; doctor: string }[]>(`
           SELECT s.name, s.surgery_type,
                  COALESCE(p.name, '') as doctor
           FROM sets s LEFT JOIN physicians p ON s.physician_id = p.id`),
+        db.select<{ label: string; ext: string; category: string | null; notes: string | null }[]>(
+          "SELECT label, ext, category, notes FROM contacts"),
       ]);
 
     _searchCache = [
-      ...rxs.map((m) => ({ type: "處方", label: m.name, sub: m.category ?? "", route: "/prescriptions" })),
-      ...diseases.map((m) => ({ type: "疾病", label: m.name, sub: m.icd10 ?? "", route: "/disease" })),
-      ...exams.map((m) => ({ type: "檢查", label: m.name, sub: m.category ?? "", route: "/examination" })),
-      ...surgeries.map((m) => ({ type: "手術", label: m.name, sub: m.category ?? "", route: "/surgery" })),
+      ...rxs.map((m) => ({ type: "處方", label: m.name, sub: m.category ?? "", route: "/sets?tab=prescriptions" })),
+      ...diseases.map((m) => ({ type: "疾病", label: m.name, sub: m.icd10 ?? "", route: "/sets?tab=disease" })),
+      ...exams.map((m) => ({ type: "檢查", label: m.name, sub: m.category ?? "", route: "/sets?tab=examination" })),
+      ...surgeries.map((m) => ({ type: "手術", label: m.name, sub: m.category ?? "", route: "/sets?tab=surgery" })),
       ...protos.map((m) => ({ type: "急救", label: m.name, sub: "Emergency Protocol", route: "/emergency" })),
       ...items.map((m) => ({
         type: "自費",
@@ -71,14 +74,20 @@ onMounted(async () => {
       ...physicians.map((m) => ({
         type: "醫師",
         label: m.name,
-        sub: [m.department, m.title, m.ext ? `分機 ${m.ext}` : ""].filter(Boolean).join(" · "),
+        sub: [m.department, m.title, m.ext ? `分機 ${m.ext}` : "", m.his_account ? `HIS ${m.his_account}` : ""].filter(Boolean).join(" · "),
         route: "/physicians",
       })),
       ...sets.map((m) => ({
         type: "套組",
         label: m.name,
         sub: [m.surgery_type, m.doctor].filter(Boolean).join(" · "),
-        route: "/sets",
+        route: "/sets?tab=sets",
+      })),
+      ...contacts.map((m) => ({
+        type: "分機",
+        label: m.label,
+        sub: [m.category, m.ext ? `分機 ${m.ext}` : "", m.notes].filter(Boolean).join(" · "),
+        route: "/physicians",
       })),
     ];
     allItems.value = _searchCache;
@@ -100,6 +109,8 @@ const results = computed(() => {
 });
 
 const activeIdx = ref(0);
+// 輸入改變或索引重新載入後，選取回到第一筆，避免停在已不存在的位置而按 Enter 沒反應
+watch(results, () => { activeIdx.value = 0; });
 
 function onKeydown(e: KeyboardEvent) {
   if (e.key === "ArrowDown") { activeIdx.value = Math.min(activeIdx.value + 1, results.value.length - 1); e.preventDefault(); }
@@ -129,6 +140,7 @@ const typeColors: Record<string, string> = {
   "自費": "bg-accent/10 text-accent",
   "醫師": "bg-accent/10 text-accent",
   "套組": "bg-accent/10 text-accent",
+  "分機": "bg-accent/10 text-accent",
 };
 </script>
 

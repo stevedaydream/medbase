@@ -1,6 +1,7 @@
 import Database from "@tauri-apps/plugin-sql";
 import { seedPhysicians, seedContacts, seedAppSettings, seedNoteTemplates } from "./seed";
 import { sha256 } from "@/utils/sha256";
+import { legacyUid } from "@/utils/syncUid";
 
 let db: Database | null = null;
 let _writeChain: Promise<void> = Promise.resolve();
@@ -33,8 +34,124 @@ export async function getDb(): Promise<Database> {
     await db.execute("PRAGMA busy_timeout=5000");
     await initSchema(db);
     await seedIfEmpty(db);
+    // 必須在 seed 之後：新裝機的種子資料要拿到固定 uid 與最舊時間戳
+    await initSyncSchema(db);
   }
   return db;
+}
+
+/**
+ * 逐筆同步（ADR-011）需要的欄位與 trigger。
+ * natural：舊資料算固定 uid 用的名稱運算式（見 legacyUid）；js 為同一規則的 JS 版，供還原備份使用。
+ */
+type Row = Record<string, unknown>;
+const txt = (v: unknown) => (v == null ? "" : String(v));
+const SYNC_UID_TABLES: { table: string; natural: string; js: (r: Row) => string }[] = [
+  { table: "prescriptions", natural: "name", js: r => txt(r.name) },
+  { table: "surgery",       natural: "name", js: r => txt(r.name) },
+  { table: "examination",   natural: "name", js: r => txt(r.name) },
+  { table: "disease",       natural: "name", js: r => txt(r.name) },
+  { table: "shift_memos",   natural: "category || char(1) || title", js: r => r.category == null || r.title == null ? "" : `${r.category}\u0001${r.title}` },
+  { table: "contacts",      natural: "label || char(1) || ext",      js: r => r.label == null || r.ext == null ? "" : `${r.label}\u0001${r.ext}` },
+  { table: "sets",          natural: "name || char(1) || COALESCE(surgery_type, '')", js: r => r.name == null ? "" : `${r.name}\u0001${txt(r.surgery_type)}` },
+  { table: "surgery_types", natural: "name", js: r => txt(r.name) },
+  { table: "ahk_scripts",   natural: "name", js: r => txt(r.name) },
+];
+
+/**
+ * 還原舊備份（沒有 uid）時補上與遷移相同的固定 uid 與最舊時間戳；
+ * 否則 trigger 會給每筆新的隨機 uid，同步後雲端每筆都多一份。
+ * rows 須依原本的 id 排序。
+ */
+export function fillLegacySyncKeys(table: string, rows: Row[]): Row[] {
+  if (table === "items") return rows.map(r => ({ ...r, updated_at: r.updated_at || EPOCH }));
+  const def = SYNC_UID_TABLES.find(d => d.table === table);
+  if (!def) return rows;
+  const seen = new Map<string, number>();
+  return rows.map(r => {
+    const nk = def.js(r);
+    const n = seen.get(nk) ?? 0;
+    seen.set(nk, n + 1);
+    if (r.uid) return r;
+    return { ...r, uid: legacyUid(table, nk, n), updated_at: r.updated_at || EPOCH };
+  });
+}
+
+/** 子表異動時更新主表 updated_at，主表才會被同步出去 */
+const SYNC_CHILD_TABLES: { child: string; parent: string; fk: string; pk: string }[] = [
+  { child: "set_items",          parent: "sets",          fk: "set_id",          pk: "id" },
+  { child: "item_depts",         parent: "items",         fk: "hospital_code",   pk: "hospital_code" },
+  { child: "surgery_type_items", parent: "surgery_types", fk: "surgery_type_id", pk: "id" },
+];
+
+const NOW_LOCAL = "datetime('now','localtime')";
+const EPOCH = "1970-01-01 00:00:00";
+
+async function initSyncSchema(db: Database) {
+  for (const { table } of SYNC_UID_TABLES) {
+    try { await db.execute(`ALTER TABLE ${table} ADD COLUMN uid TEXT`); } catch { /* 已存在 */ }
+    try { await db.execute(`ALTER TABLE ${table} ADD COLUMN updated_at TEXT`); } catch { /* 已存在 */ }
+  }
+  try { await db.execute(`ALTER TABLE items ADD COLUMN updated_at TEXT`); } catch { /* 已存在 */ }
+
+  // 一次性：舊資料補固定 uid，時間戳一律視為最舊，讓雲端版本優先（同 physicians）
+  const done = await db.select<{ value: string }[]>("SELECT value FROM app_settings WHERE key='sync_v2_migrated'");
+  if (!done.length) {
+    for (const { table, natural } of SYNC_UID_TABLES) {
+      const rows = await db.select<{ id: number; nk: string | null }[]>(
+        `SELECT id, ${natural} AS nk FROM ${table} ORDER BY id`,
+      );
+      const seen = new Map<string, number>();
+      for (const r of rows) {
+        const nk = r.nk ?? "";
+        const n = seen.get(nk) ?? 0;
+        seen.set(nk, n + 1);
+        await db.execute(`UPDATE ${table} SET uid=?, updated_at=? WHERE id=?`, [legacyUid(table, nk, n), EPOCH, r.id]);
+      }
+    }
+    await db.execute(`UPDATE items SET updated_at=?`, [EPOCH]);
+    await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('sync_v2_migrated', '1')");
+  }
+
+  for (const { table } of SYNC_UID_TABLES) {
+    await db.execute(`UPDATE ${table} SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL`);
+    await db.execute(`CREATE UNIQUE INDEX IF NOT EXISTS idx_${table}_uid ON ${table}(uid)`);
+    // 本機新增（不帶 uid）：補隨機 uid 與現在時間；雲端寫回的列一定帶 uid，不受影響
+    await db.execute(`
+      CREATE TRIGGER IF NOT EXISTS trg_${table}_sync_ins AFTER INSERT ON ${table}
+      WHEN NEW.uid IS NULL
+      BEGIN
+        UPDATE ${table} SET uid = lower(hex(randomblob(16))), updated_at = ${NOW_LOCAL} WHERE rowid = NEW.rowid;
+      END`);
+    await db.execute(`
+      CREATE TRIGGER IF NOT EXISTS trg_${table}_sync_upd AFTER UPDATE ON ${table}
+      WHEN NEW.updated_at IS OLD.updated_at
+      BEGIN
+        UPDATE ${table} SET updated_at = ${NOW_LOCAL} WHERE rowid = NEW.rowid;
+      END`);
+  }
+  await db.execute(`
+    CREATE TRIGGER IF NOT EXISTS trg_items_sync_ins AFTER INSERT ON items
+    WHEN NEW.updated_at IS NULL
+    BEGIN
+      UPDATE items SET updated_at = ${NOW_LOCAL} WHERE rowid = NEW.rowid;
+    END`);
+  await db.execute(`
+    CREATE TRIGGER IF NOT EXISTS trg_items_sync_upd AFTER UPDATE ON items
+    WHEN NEW.updated_at IS OLD.updated_at
+    BEGIN
+      UPDATE items SET updated_at = ${NOW_LOCAL} WHERE rowid = NEW.rowid;
+    END`);
+
+  for (const { child, parent, fk, pk } of SYNC_CHILD_TABLES) {
+    for (const [ev, ref] of [["INSERT", "NEW"], ["UPDATE", "NEW"], ["DELETE", "OLD"]] as const) {
+      await db.execute(`
+        CREATE TRIGGER IF NOT EXISTS trg_${child}_touch_${ev.toLowerCase()} AFTER ${ev} ON ${child}
+        BEGIN
+          UPDATE ${parent} SET updated_at = ${NOW_LOCAL} WHERE ${pk} = ${ref}.${fk};
+        END`);
+    }
+  }
 }
 
 /** 只在第一次（items 為空時）匯入種子資料 */
@@ -758,4 +875,38 @@ async function initResearchSchema(db: Database) {
   await db.execute(
     `INSERT OR IGNORE INTO app_settings (key, value) VALUES ('research_schema_version', '1')`
   );
+
+  // ── v2：人員歸屬 + 雲端備份（ADR-012）───────────────────────────
+  // 專案、作者名冊、期刊庫依 HIS 帳號區分擁有者；子表跟著專案走，檢核表範本為共用參考資料。
+  // 升級前的資料 owner_his 為 NULL，第一位登入者可選擇認領（見 useResearchSession）。
+  for (const t of ["research_projects", "research_authors", "research_journals"]) {
+    try { await db.execute(`ALTER TABLE ${t} ADD COLUMN owner_his TEXT`); } catch { /* 已存在 */ }
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_${t}_owner ON ${t}(owner_his);`);
+  }
+  // 本機 PIN（加鹽雜湊，供離線登入）與備份狀態。時間戳：
+  //   last_change_at / last_backup_change_at：本機 ISO 時間，前者較新代表有未上傳的修改
+  //   last_synced_at：最後一次上傳或還原時「雲端」的 updated_at，與雲端最新備份比較用
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS research_users (
+      his_account           TEXT PRIMARY KEY,
+      pin_salt              TEXT NOT NULL,
+      pin_hash              TEXT NOT NULL,
+      last_change_at        TEXT,
+      last_backup_change_at TEXT,
+      last_synced_at        TEXT
+    );
+  `);
+  // 稿件草稿：依段落（Title / Abstract / Introduction…）分區塊儲存，純文字，隨個人雲端備份
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS research_manuscript_sections (
+      id         TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES research_projects(id) ON DELETE CASCADE,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      title      TEXT NOT NULL,
+      body       TEXT NOT NULL DEFAULT '',
+      updated_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+  `);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_research_ms_project ON research_manuscript_sections(project_id);`);
+  await db.execute(`UPDATE app_settings SET value = '2' WHERE key = 'research_schema_version' AND value = '1'`);
 }

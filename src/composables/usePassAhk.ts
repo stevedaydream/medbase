@@ -173,7 +173,7 @@ export async function autoUpdatePassAhk(
 
   const db = await getDb();
   await db.execute(
-    `UPDATE ahk_scripts SET updated_at = datetime('now') WHERE file_path = ?`, [path]
+    `UPDATE ahk_scripts SET updated_at = datetime('now','localtime') WHERE file_path = ?`, [path]
   );
 
   if (!reload) return "pass.ahk 已更新（未 Reload，請至 AHK 管理按刷新）";

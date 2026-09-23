@@ -3,10 +3,8 @@ import { ref, computed, onMounted } from "vue";
 import { useEditor, EditorContent } from "@tiptap/vue-3";
 import StarterKit from "@tiptap/starter-kit";
 import { getDb } from "@/db";
-import { useCloudSettings } from "@/stores/cloudSettings";
-import { setGlobalSyncing } from "@/composables/useCloudSync";
-import { markLocalModified, saveSyncTimestamp } from "@/composables/useSyncMonitor";
-import { useLogger } from "@/composables/useLogger";
+import { touchTable, markDeletedById, onTableSynced } from "@/composables/useTableSync";
+import CloudSyncButtons from "@/components/CloudSyncButtons.vue";
 
 interface ShiftMemo {
   id: number;
@@ -34,8 +32,6 @@ function toast(msg: string) {
   toastTimer = setTimeout(() => { toastMsg.value = ""; }, 2000);
 }
 
-const cloud     = useCloudSettings();
-const isSyncing = ref(false);
 
 // ── Tiptap editor ────────────────────────────────────────────
 let saveDebounce: ReturnType<typeof setTimeout> | null = null;
@@ -54,6 +50,7 @@ const editor = useEditor({
 });
 
 async function autoSave() {
+  saveDebounce = null;
   if (!activeMemo.value || !editor.value) return;
   const content = editor.value.getHTML();
   activeMemo.value.content = content;
@@ -64,10 +61,22 @@ async function autoSave() {
   );
   const idx = memos.value.findIndex(m => m.id === activeMemo.value!.id);
   if (idx >= 0) memos.value[idx].updated_at = new Date().toLocaleString("zh-TW");
+  await touchTable("shiftMemos");
 }
 
 // ── 載入 ─────────────────────────────────────────────────────
-onMounted(() => { cloud.load(); load(); });
+onMounted(load);
+
+// 背景或其他頁面同步後重新載入；編輯中的內容若被雲端更新，編輯器一併換成新版
+onTableSynced("shiftMemos", async () => {
+  const activeId = activeMemo.value?.id;
+  await load();
+  const fresh = memos.value.find(m => m.id === activeId) ?? null;
+  if (!fresh) { activeMemo.value = null; editor.value?.commands.setContent("", { emitUpdate: false }); return; }
+  const changed = fresh.content !== activeMemo.value?.content;
+  activeMemo.value = fresh;
+  if (changed && !saveDebounce) editor.value?.commands.setContent(fresh.content || "", { emitUpdate: false });
+});
 async function load() {
   const db = await getDb();
   memos.value = await db.select<ShiftMemo[]>(
@@ -90,7 +99,7 @@ const filteredMemos = computed(() => {
 function selectMemo(m: ShiftMemo) {
   if (saveDebounce) { clearTimeout(saveDebounce); autoSave(); }
   activeMemo.value = m;
-  editor.value?.commands.setContent(m.content || "");
+  editor.value?.commands.setContent(m.content || "", { emitUpdate: false });
 }
 
 // ── 新增備忘 ─────────────────────────────────────────────────
@@ -116,8 +125,7 @@ async function confirmAdd() {
   if (addForm.value.category && activeCategory.value !== "全部") {
     activeCategory.value = addForm.value.category.trim() || "一般";
   }
-  await markLocalModified("shiftMemos");
-  pushToCloud().catch(() => {});
+  await touchTable("shiftMemos");
 }
 
 // ── 刪除 ─────────────────────────────────────────────────────
@@ -125,67 +133,16 @@ const deleteTarget = ref<ShiftMemo | null>(null);
 async function doDelete() {
   if (!deleteTarget.value) return;
   const db = await getDb();
+  await markDeletedById("shiftMemos", deleteTarget.value.id);
   await db.execute("DELETE FROM shift_memos WHERE id=?", [deleteTarget.value.id]);
   if (activeMemo.value?.id === deleteTarget.value.id) {
     activeMemo.value = null;
-    editor.value?.commands.setContent("");
+    editor.value?.commands.setContent("", { emitUpdate: false });
   }
   deleteTarget.value = null;
   await load();
   toast("已刪除");
-}
-
-// ── 雲端同步 ─────────────────────────────────────────────────
-async function pushToCloud() {
-  if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  // 先儲存目前編輯中的內容
-  if (saveDebounce) { clearTimeout(saveDebounce); await autoSave(); }
-  isSyncing.value = true; setGlobalSyncing("shiftMemos", true);
-  try {
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "saveShiftMemos", data: memos.value }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error ?? "GAS 錯誤");
-    toast(`已上傳 ${memos.value.length} 筆至雲端`);
-    await saveSyncTimestamp("shiftMemos");
-    useLogger().addLog("info", `[雲端同步] push 規則備忘錄 — ${memos.value.length} 筆`, JSON.stringify({ table: "shiftMemos", action: "push", timestamp: new Date().toISOString() }));
-  } catch (e) {
-    toast(`上傳失敗：${(e as Error).message}`);
-    useLogger().addLog("warn", "[雲端同步] push 規則備忘錄 失敗", String(e));
-  } finally { isSyncing.value = false; setGlobalSyncing("shiftMemos", false); }
-}
-
-async function pullFromCloud() {
-  if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true; setGlobalSyncing("shiftMemos", true);
-  try {
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "getShiftMemos" }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
-    const data: ShiftMemo[] = json.data;
-    if (!data.length) { toast("雲端無備忘資料"); return; }
-    const db = await getDb();
-    await db.execute("DELETE FROM shift_memos");
-    for (const r of data) {
-      await db.execute(
-        "INSERT INTO shift_memos (id, category, title, content, sort_order, updated_at) VALUES (?,?,?,?,?,?)",
-        [r.id, r.category, r.title, r.content, r.sort_order ?? 0, r.updated_at ?? ""]
-      );
-    }
-    activeMemo.value = null;
-    editor.value?.commands.setContent("");
-    await load();
-    toast(`已從雲端同步 ${data.length} 筆備忘`);
-  } catch (e) {
-    toast(`下載失敗：${(e as Error).message}`);
-  } finally { isSyncing.value = false; setGlobalSyncing("shiftMemos", false); }
+  await touchTable("shiftMemos");
 }
 
 // ── 編輯標題 ─────────────────────────────────────────────────
@@ -199,8 +156,7 @@ async function saveTitle() {
   const idx = memos.value.findIndex(m => m.id === activeMemo.value!.id);
   if (idx >= 0) memos.value[idx].title = titleDraft.value.trim();
   editingTitle.value = false;
-  await markLocalModified("shiftMemos");
-  pushToCloud().catch(() => {});
+  await touchTable("shiftMemos");
 }
 </script>
 
@@ -248,18 +204,9 @@ async function saveTitle() {
 
       <!-- Sync + Add buttons -->
       <div class="px-4 py-4 border-t border-hairline bg-sunken shrink-0 space-y-2">
-        <div class="flex gap-2">
-          <button @click="pullFromCloud" :disabled="isSyncing"
-            class="flex-1 py-2 rounded-xl bg-accent/10 border border-accent/20 text-accent text-xs font-bold hover:bg-accent/20 disabled:opacity-40 transition-all cursor-pointer">
-            {{ isSyncing ? "…" : "↓ 同步" }}
-          </button>
-          <button @click="pushToCloud" :disabled="isSyncing"
-            class="flex-1 py-2 rounded-xl bg-elevated border border-hairline text-fg-secondary text-xs font-bold hover:bg-raised disabled:opacity-40 transition-all cursor-pointer">
-            {{ isSyncing ? "…" : "↑ 上傳" }}
-          </button>
-        </div>
+        <CloudSyncButtons table="shiftMemos" @synced="load" @message="toast" />
         <button @click="openAdd"
-          class="w-full py-2.5 rounded-xl bg-gradient-to-r from-accent to-accent text-fg text-xs font-bold hover:from-accent hover:to-accent transition-all shadow-lg shadow-accent/10 cursor-pointer">
+          class="w-full py-2.5 rounded-xl bg-accent text-white text-xs font-bold hover:bg-accent-hover transition-all shadow-lg shadow-accent/10 cursor-pointer">
           ＋ 新增備忘
         </button>
       </div>
@@ -351,7 +298,7 @@ async function saveTitle() {
         </div>
         <div class="flex gap-3 justify-end pt-2 border-t border-hairline">
           <button @click="showAddModal = false" class="px-4 py-2 text-xs font-bold bg-elevated border border-hairline text-fg-secondary rounded-xl hover:bg-raised hover:text-fg">取消</button>
-          <button @click="confirmAdd" class="px-5 py-2 text-xs font-bold bg-gradient-to-r from-accent to-accent text-fg rounded-xl hover:from-accent hover:to-accent transition-all shadow-lg">建立備忘</button>
+          <button @click="confirmAdd" class="px-5 py-2 text-xs font-bold bg-accent text-white rounded-xl hover:bg-accent-hover transition-all shadow-lg">建立備忘</button>
         </div>
       </div>
     </div>
@@ -384,17 +331,17 @@ async function saveTitle() {
 </style>
 
 <style>
-/* Tiptap prose overrides for clinical dark workspace theme */
-.ProseMirror { color: #cbd5e1; }
-.ProseMirror h3 { color: #f8fafc; font-size: 0.95rem; font-weight: 800; margin: 1rem 0 0.5rem; letter-spacing: 0.025em; border-left: 3px solid #06b6d4; padding-left: 0.5rem; }
+/* Tiptap prose：顏色跟隨淺色／深色主題變數 */
+.ProseMirror { color: var(--color-fg); }
+.ProseMirror h3 { color: var(--color-fg); font-size: 0.95rem; font-weight: 800; margin: 1rem 0 0.5rem; letter-spacing: 0.025em; border-left: 3px solid var(--color-accent); padding-left: 0.5rem; }
 .ProseMirror ul { list-style: disc; padding-left: 1.25rem; font-size: 0.8rem; line-height: 1.6; }
 .ProseMirror ol { list-style: decimal; padding-left: 1.25rem; font-size: 0.8rem; line-height: 1.6; }
-.ProseMirror li { margin: 0.25rem 0; color: #cbd5e1; }
-.ProseMirror strong { color: #f8fafc; font-weight: 700; }
+.ProseMirror li { margin: 0.25rem 0; }
+.ProseMirror strong { color: var(--color-fg); font-weight: 700; }
 .ProseMirror p { margin: 0.5rem 0; font-size: 0.8rem; line-height: 1.6; }
 .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
-  color: #475569;
+  color: var(--color-muted);
   float: left;
   height: 0;
   pointer-events: none;
