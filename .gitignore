@@ -43,6 +43,10 @@ src-tauri/target/
 # Claude Code worktrees (temporary branches, never commit)
 .claude/worktrees/
 
+# Claude Code personal permission overrides (machine-specific, never commit)
+.claude/settings.local.json
+.claude/*.bak
+
 # Dev/test scripts (keep locally, not tracked)
 test.py
 test2.py
