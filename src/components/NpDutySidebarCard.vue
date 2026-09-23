@@ -147,7 +147,7 @@ onUnmounted(() => {
       <button v-for="g in (['NP', 'VS'] as const)" :key="g" @click="group = g"
         class="rounded px-2 py-1 transition-colors cursor-pointer"
         :class="group === g ? 'bg-accent/15 text-accent' : 'text-muted hover:text-fg-secondary'">
-        {{ g }} 值班
+        {{ g }}
       </button>
     </div>
 

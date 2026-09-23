@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { setGlobalSyncing } from "@/composables/useCloudSync";
 import { syncTable, NoBaselineError, syncLabel } from "@/composables/useTableSync";
@@ -8,13 +8,15 @@ import { syncTable, NoBaselineError, syncLabel } from "@/composables/useTableSyn
  * 逐筆同步的共用按鈕（ADR-011）。
  * 「⇅ 同步」：較新的版本為準，刪除會傳到其他電腦。
  * 「覆蓋」：以本機為準，雲端有、本機沒有的資料會在所有電腦上被刪除，需按兩次確認。
+ * table 可傳多張表（例如通訊錄的人員＋單位分機），依序同步。
  */
-const props = defineProps<{ table: string }>();
+const props = defineProps<{ table: string | string[] }>();
 const emit = defineEmits<{
   (e: "synced"): void;
   (e: "message", msg: string): void;
 }>();
 
+const tables = computed(() => (Array.isArray(props.table) ? props.table : [props.table]));
 const cloud = useCloudSettings();
 const syncing = ref(false);
 const confirmOverwrite = ref(false);
@@ -23,18 +25,33 @@ let confirmTimer: ReturnType<typeof setTimeout> | null = null;
 async function run(force: boolean) {
   await cloud.load();
   if (!cloud.gasUrl) { emit("message", "請先在「設定」頁面填入 GAS Web App URL"); return; }
-  syncing.value = true; setGlobalSyncing(props.table, true);
-  try {
-    const r = await syncTable(props.table, cloud.gasUrl, { force });
-    emit("synced");
-    const summary = `${force ? "已覆蓋雲端" : "同步完成"}：新增 ${r.inserted}、更新 ${r.updated}、刪除 ${r.deleted}`;
-    emit("message", r.message ? `${summary}｜${r.message}` : summary);
-  } catch (e) {
-    if (e instanceof NoBaselineError) emit("message", `${syncLabel(props.table)}尚未建立同步基準：請先在資料最完整的電腦按「覆蓋」`);
-    else emit("message", `${force ? "覆蓋" : "同步"}失敗：${(e as Error).message}`);
-  } finally {
-    syncing.value = false; setGlobalSyncing(props.table, false);
+  syncing.value = true;
+  let inserted = 0, updated = 0, deleted = 0;
+  const notes: string[] = [];
+  const noBaseline: string[] = [];
+  const failed: string[] = [];
+  for (const t of tables.value) {
+    setGlobalSyncing(t, true);
+    try {
+      const r = await syncTable(t, cloud.gasUrl, { force });
+      inserted += r.inserted; updated += r.updated; deleted += r.deleted;
+      if (r.message) notes.push(r.message);
+    } catch (e) {
+      if (e instanceof NoBaselineError) noBaseline.push(syncLabel(t));
+      else failed.push(`${syncLabel(t)}：${(e as Error).message}`);
+    } finally {
+      setGlobalSyncing(t, false);
+    }
   }
+  syncing.value = false;
+  emit("synced");
+  if (failed.length) { emit("message", `${force ? "覆蓋" : "同步"}失敗｜${failed.join("；")}`); return; }
+  if (noBaseline.length) {
+    emit("message", `${noBaseline.join("、")}尚未建立同步基準：請先在資料最完整的電腦按「覆蓋」`);
+    return;
+  }
+  const summary = `${force ? "已覆蓋雲端" : "同步完成"}：新增 ${inserted}、更新 ${updated}、刪除 ${deleted}`;
+  emit("message", notes.length ? `${summary}｜${notes.join("｜")}` : summary);
 }
 
 function onOverwriteClick() {

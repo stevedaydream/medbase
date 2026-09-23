@@ -20,7 +20,7 @@ import {
   unbind as xlsxUnbind,
 } from "@/composables/useXlsxSync";
 import { touchTable, markDeleted } from "@/composables/useTableSync";
-import { upsertPhysician, removePhysician, refreshPassAhk } from "@/composables/usePhysicians";
+import { refreshPassAhk } from "@/composables/usePhysicians";
 import NpDutyDataManager from "@/components/NpDutyDataManager.vue";
 
 // ── 型別定義 ────────────────────────────────────────────────────
@@ -28,11 +28,6 @@ interface Item {
   hospital_code: string; name_en: string | null; name_zh: string | null;
   purpose: string | null; depts: string[]; unit: string | null;
   price: number | null; supplier: string | null; notes: string | null;
-}
-interface Physician {
-  id: number; name: string; department: string | null; title: string | null;
-  ext: string | null; his_account: string | null; his_password: string | null;
-  notes: string | null;
 }
 interface Protocol {
   id: number; name: string; triggers: string; immediate_actions: string;
@@ -47,7 +42,7 @@ interface ProtocolForm {
   contacts: { label: string; ext: string }[];
   notes: string;
 }
-type Tab = "items" | "physicians" | "emergency" | "npDuty" | "backup";
+type Tab = "items" | "emergency" | "npDuty" | "backup";
 
 // ── 狀態 ────────────────────────────────────────────────────────
 const activeTab   = ref<Tab>("items");
@@ -96,7 +91,6 @@ async function doXlsxUnbind() { await xlsxUnbind(); }
 
 // 資料
 const items       = ref<Item[]>([]);
-const physicians  = ref<Physician[]>([]);
 const protocols   = ref<Protocol[]>([]);
 
 // Emergency editing state
@@ -110,24 +104,11 @@ const protocolForm = ref<ProtocolForm>({
 // Modal
 const showModal   = ref(false);
 const modalMode   = ref<"add" | "edit">("add");
-const deleteTarget = ref<Item | Physician | null>(null);
+const deleteTarget = ref<Item | null>(null);
 const showConfirm  = ref(false);
 
 // 表單暫存
 const itemForm   = ref<Partial<Item>>({});
-const physForm      = ref<Partial<Physician>>({});
-const editingPhysId = ref<number | null>(null);
-const editBuf       = ref<Partial<Physician>>({});
-
-function startEditPhys(p: Physician) {
-  editingPhysId.value = p.id;
-  editBuf.value = { ...p };
-}
-function cancelEditPhys() {
-  editingPhysId.value = null;
-  editBuf.value = {};
-}
-
 // ── 批次新增品項 ─────────────────────────────────────────────────
 interface BatchItemRow {
   hospital_code: string; name_zh: string; purpose: string;
@@ -776,12 +757,13 @@ async function loadAll() {
     deptMap.get(r.hospital_code)!.push(r.dept);
   }
   items.value = rawItems.map(it => ({ ...it, depts: deptMap.get(it.hospital_code) ?? [] }));
-  physicians.value = await db.select<Physician[]>("SELECT * FROM physicians ORDER BY department, name");
   protocols.value  = await db.select<Protocol[]>("SELECT * FROM emergency_protocols ORDER BY name");
 
   // 由外部指定要開啟的分頁（?tab=）
-  if (route.query.tab) {
-    activeTab.value = route.query.tab as Tab;
+  // 通訊錄分頁已移除（改用 /physicians），舊網址的 ?tab=physicians 忽略
+  const qTab = route.query.tab;
+  if (typeof qTab === "string" && tabs.some(t => t.key === qTab)) {
+    activeTab.value = qTab as Tab;
   }
 }
 onMounted(loadAll);
@@ -802,13 +784,6 @@ const filteredItems = computed(() => {
     m.name_zh?.toLowerCase().includes(q) || m.name_en?.toLowerCase().includes(q) ||
     m.hospital_code?.toLowerCase().includes(q) || m.purpose?.toLowerCase().includes(q) ||
     m.supplier?.toLowerCase().includes(q) || m.depts.some(d => d.toLowerCase().includes(q)));
-});
-const filteredPhysicians = computed(() => {
-  const q = search.value.toLowerCase();
-  if (!q) return physicians.value;
-  return physicians.value.filter(p =>
-    p.name?.toLowerCase().includes(q) || p.department?.toLowerCase().includes(q) ||
-    p.ext?.includes(q) || p.title?.toLowerCase().includes(q));
 });
 const filteredProtocols = computed(() => {
   const q = search.value.toLowerCase();
@@ -880,13 +855,11 @@ function openAdd() {
   if (activeTab.value === "emergency") { newProtocol(); return; }
   modalMode.value = "add";
   if (activeTab.value === "items")       itemForm.value = {};
-  if (activeTab.value === "physicians")  physForm.value = {};
   showModal.value = true;
 }
 function openEdit(row: any) {
   modalMode.value = "edit";
   if (activeTab.value === "items")       itemForm.value = { ...row };
-  if (activeTab.value === "physicians")  physForm.value = { ...row };
   showModal.value = true;
 }
 function closeModal() { showModal.value = false; }
@@ -925,47 +898,18 @@ async function deleteItem(row: Item) {
   await touchTable("items");
 }
 
-// ── CRUD：physicians ─────────────────────────────────────────────
-async function savePhysician() {
-  const f = physForm.value;
-  if (!f.name?.trim()) return;
-  const { ahkMessage } = await upsertPhysician(
-    modalMode.value === "add" ? { ...f, id: undefined } : f
-  );
-  closeModal();
-  await loadAll();
-  if (ahkMessage) showToast("success", ahkMessage);
-}
-
-async function saveInlinePhys() {
-  const { ahkMessage } = await upsertPhysician(editBuf.value);
-  editingPhysId.value = null;
-  editBuf.value = {};
-  await loadAll();
-  if (ahkMessage) showToast("success", ahkMessage);
-}
-
-async function deletePhysician(row: Physician) {
-  // 刪除同樣要跑副作用：把此人的帳密從磁碟上的 pass.ahk 移除，並標記同步
-  const { ahkMessage } = await removePhysician(row.id);
-  await loadAll();
-  if (ahkMessage) showToast("success", ahkMessage);
-}
-
 // ── 確認刪除 ─────────────────────────────────────────────────────
-function confirmDelete(row: Item | Physician) { deleteTarget.value = row; showConfirm.value = true; }
+function confirmDelete(row: Item) { deleteTarget.value = row; showConfirm.value = true; }
 async function doDelete() {
   const row = deleteTarget.value;
   if (!row) return;
   if (activeTab.value === "items")      await deleteItem(row as Item);
-  if (activeTab.value === "physicians") await deletePhysician(row as Physician);
   if (activeTab.value === "emergency")  { await doDeleteProtocol(); return; }
   showConfirm.value = false; deleteTarget.value = null;
 }
 
 const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
   { key: "items",      icon: "📦", label: "自費品項",   count: () => items.value.length },
-  { key: "physicians", icon: "👤", label: "通訊錄", count: () => physicians.value.length },
   { key: "emergency",  icon: "🚨", label: "危急情境",   count: () => protocols.value.length },
   { key: "npDuty",     icon: "🧑‍⚕️", label: "NP／VS 值班", count: () => 0 },
   { key: "backup",     icon: "💾", label: "備份 / 還原", count: () => 0 },
@@ -1093,90 +1037,6 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
                   <div class="flex gap-2.5 justify-end transition-opacity">
                     <button @click="openEdit(m)" class="text-xs text-accent hover:text-accent-hover font-bold cursor-pointer">編輯</button>
                     <button @click="confirmDelete(m)" class="text-xs text-danger hover:text-danger-hover font-bold cursor-pointer">刪除</button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- ── 通訊錄 表格 ───────────────────────── -->
-      <div v-if="activeTab === 'physicians'" class="flex-1 overflow-auto px-6 py-4">
-        <div class="bg-surface rounded-2xl border border-hairline shadow-2xl overflow-hidden w-max min-w-full">
-          <table class="w-full text-left border-collapse">
-            <thead>
-              <tr class="border-b border-hairline bg-surface text-fg-secondary text-2xs font-bold">
-                <th class="px-4 py-3">姓名</th>
-                <th class="px-4 py-3">科別</th>
-                <th class="px-4 py-3">職稱</th>
-                <th class="px-4 py-3">分機</th>
-                <th class="px-4 py-3">HIS 帳號</th>
-                <th class="px-4 py-3">HIS 密碼</th>
-                <th class="w-24 px-4 py-3 text-right"></th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-hairline">
-              <tr v-if="filteredPhysicians.length === 0">
-                <td colspan="7" class="text-center text-muted py-12 italic text-xs">無匹配的醫師通訊錄資料</td>
-              </tr>
-              <tr v-for="p in filteredPhysicians" :key="p.id"
-                class="transition-all group"
-                :class="editingPhysId === p.id ? 'bg-accent/5' : 'hover:bg-overlay/[0.015]'">
-
-                <!-- 姓名 -->
-                <td class="px-4 py-2.5">
-                  <input v-if="editingPhysId === p.id" v-model="editBuf.name"
-                    class="w-full min-w-[5rem] px-2 py-1 bg-sunken border border-hairline rounded-lg text-xs font-bold text-fg outline-none focus:border-accent/50" />
-                  <span v-else class="text-fg font-bold text-xs">{{ p.name }}</span>
-                </td>
-
-                <!-- 科別 -->
-                <td class="px-4 py-2.5">
-                  <input v-if="editingPhysId === p.id" v-model="editBuf.department"
-                    class="w-full min-w-[4rem] px-2 py-1 bg-sunken border border-hairline rounded-lg text-xs text-fg-secondary outline-none focus:border-accent/50" />
-                  <span v-else class="text-fg-secondary text-xs font-semibold">{{ p.department || "—" }}</span>
-                </td>
-
-                <!-- 職稱 -->
-                <td class="px-4 py-2.5">
-                  <input v-if="editingPhysId === p.id" v-model="editBuf.title"
-                    class="w-full min-w-[4rem] px-2 py-1 bg-sunken border border-hairline rounded-lg text-xs text-fg-secondary outline-none focus:border-accent/50" />
-                  <span v-else class="text-muted text-xs font-medium">{{ p.title || "—" }}</span>
-                </td>
-
-                <!-- 分機 -->
-                <td class="px-4 py-2.5">
-                  <input v-if="editingPhysId === p.id" v-model="editBuf.ext"
-                    class="w-20 px-2 py-1 bg-sunken border border-hairline rounded-lg text-xs font-mono text-fg outline-none focus:border-accent/50" />
-                  <span v-else class="text-accent font-mono text-xs font-black">{{ p.ext || "—" }}</span>
-                </td>
-
-                <!-- HIS 帳號 -->
-                <td class="px-4 py-2.5">
-                  <input v-if="editingPhysId === p.id" v-model="editBuf.his_account"
-                    class="w-24 px-2 py-1 bg-sunken border border-hairline rounded-lg text-xs font-mono text-fg-secondary outline-none focus:border-accent/50" />
-                  <span v-else class="text-fg-secondary font-mono text-xs font-medium">{{ p.his_account || "—" }}</span>
-                </td>
-
-                <!-- HIS 密碼 -->
-                <td class="px-4 py-2.5">
-                  <input v-if="editingPhysId === p.id" v-model="editBuf.his_password"
-                    class="w-24 px-2 py-1 bg-sunken border border-hairline rounded-lg text-xs font-mono text-fg-secondary outline-none focus:border-accent/50" />
-                  <span v-else class="text-muted font-mono text-xs font-medium">{{ p.his_password || "—" }}</span>
-                </td>
-
-                <!-- 操作 -->
-                <td class="px-4 py-2.5 text-right">
-                  <div class="flex gap-2.5 justify-end whitespace-nowrap transition-opacity">
-                    <template v-if="editingPhysId === p.id">
-                      <button @click="saveInlinePhys" class="text-xs text-success hover:text-success-hover font-bold cursor-pointer">儲存</button>
-                      <button @click="cancelEditPhys" class="text-xs text-muted hover:text-fg-secondary cursor-pointer">取消</button>
-                    </template>
-                    <template v-else>
-                      <button @click="startEditPhys(p)" class="text-xs text-accent hover:text-accent-hover font-bold cursor-pointer">編輯</button>
-                      <button @click="confirmDelete(p)" class="text-xs text-danger hover:text-danger-hover font-bold cursor-pointer">刪除</button>
-                    </template>
                   </div>
                 </td>
               </tr>
@@ -1718,69 +1578,6 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         <div class="flex justify-end gap-2 px-6 py-4 border-t border-hairline bg-surface">
           <button @click="closeModal" class="px-4 py-2 rounded-xl text-xs font-bold text-fg-secondary hover:text-fg hover:bg-overlay/5 cursor-pointer transition-colors">取消</button>
           <button @click="saveItem" class="px-5 py-2 rounded-xl bg-accent border border-accent/30 hover:bg-accent text-white text-xs font-bold cursor-pointer shadow-lg shadow-accent/10">儲存品項</button>
-        </div>
-      </div>
-
-      <!-- ── 通訊錄 Modal ───────────────────── -->
-      <div v-if="activeTab === 'physicians'"
-        class="w-full max-w-lg bg-surface rounded-2xl border border-hairline shadow-2xl overflow-hidden">
-        <div class="flex items-center justify-between px-6 py-4 border-b border-hairline">
-          <h3 class="font-bold text-fg text-sm">{{ modalMode === "add" ? "新增" : "編輯" }}醫師</h3>
-          <button @click="closeModal" class="text-muted hover:text-fg-secondary text-lg leading-none cursor-pointer">✕</button>
-        </div>
-        <div class="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">姓名 *</label>
-              <input v-model="physForm.name"
-                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-bold focus:outline-none focus:border-accent/50"
-                placeholder="王大明" />
-            </div>
-            <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">所屬科別</label>
-              <input v-model="physForm.department"
-                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-bold focus:outline-none focus:border-accent/50"
-                placeholder="骨科 / 一般外科" />
-            </div>
-          </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">職稱 / 職等</label>
-              <input v-model="physForm.title"
-                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-bold focus:outline-none focus:border-accent/50"
-                placeholder="主治醫師 / 住院醫師" />
-            </div>
-            <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">院內電話分機</label>
-              <input v-model="physForm.ext"
-                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono font-bold focus:outline-none focus:border-accent/50"
-                placeholder="1234" />
-            </div>
-          </div>
-          <div class="border-t border-hairline pt-3">
-            <span class="text-2xs font-bold text-muted mb-3 block">資訊系統登入金鑰 (用於 AHK 自動登入)</span>
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="text-2xs font-bold text-muted mb-1 block">HIS 醫療系統帳號</label>
-                <input v-model="physForm.his_account"
-                  class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono focus:outline-none focus:border-accent/50" />
-              </div>
-              <div>
-                <label class="text-2xs font-bold text-muted mb-1 block">HIS 醫療系統密碼</label>
-                <input v-model="physForm.his_password" type="password"
-                  class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono focus:outline-none focus:border-accent/50" />
-              </div>
-            </div>
-          </div>
-          <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">備註說明</label>
-            <textarea v-model="physForm.notes" rows="2"
-              class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-medium focus:outline-none focus:border-accent/50 resize-none leading-relaxed" />
-          </div>
-        </div>
-        <div class="flex justify-end gap-2 px-6 py-4 border-t border-hairline bg-surface">
-          <button @click="closeModal" class="px-4 py-2 rounded-xl text-xs font-bold text-fg-secondary hover:text-fg hover:bg-overlay/5 cursor-pointer transition-colors">取消</button>
-          <button @click="savePhysician" class="px-5 py-2 rounded-xl bg-accent border border-accent/30 hover:bg-accent text-white text-xs font-bold cursor-pointer shadow-lg shadow-accent/10">儲存資料</button>
         </div>
       </div>
 

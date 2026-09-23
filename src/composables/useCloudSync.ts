@@ -3,14 +3,14 @@ import { ref, computed, type Ref, type ComputedRef } from "vue";
 const SYNC_META: Record<string, { label: string; route: string }> = {
   physicians:    { label: "通訊錄",     route: "/physicians" },
   sets:          { label: "套組管理",   route: "/sets" },
-  surgery:       { label: "手術處置",   route: "/surgery" },
+  surgery:       { label: "手術處置",   route: "/sets" },
   shiftMemos:    { label: "規則備忘錄", route: "/shift-memos" },
   ahk:           { label: "AHK 管理",   route: "/ahk" },
-  prescriptions: { label: "處方套組",   route: "/prescriptions" },
+  prescriptions: { label: "處方套組",   route: "/sets" },
   items:         { label: "自費品項",   route: "/items" },
-  examination:   { label: "檢查處置",   route: "/examination" },
-  disease:       { label: "疾病常規",   route: "/disease" },
-  contacts:      { label: "常用分機",   route: "/contacts" },
+  examination:   { label: "檢查處置",   route: "/sets" },
+  disease:       { label: "疾病常規",   route: "/sets" },
+  contacts:      { label: "常用分機",   route: "/physicians" },
   surgeryTypes:  { label: "手術術式",   route: "/items" },
 };
 
