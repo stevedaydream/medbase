@@ -3,23 +3,20 @@ import { getDb, dbWrite } from "@/db";
 import { useLogger } from "@/composables/useLogger";
 
 // ── Table metadata ──────────────────────────────────────────────────────
-export const SYNC_TABLE_META: Record<string, {
-  label: string;
-  getAction: string;
-  extractData: (res: Record<string, unknown>) => unknown[];
-  primaryKey: string;
-}> = {
-  items:         { label: "自費品項",   getAction: "getItems",         extractData: r => r.data as unknown[], primaryKey: "hospital_code" },
-  physicians:    { label: "通訊錄",     getAction: "getPhysicians",    extractData: r => r.data as unknown[], primaryKey: "name" },
-  prescriptions: { label: "處方套組",   getAction: "getPrescriptions", extractData: r => r.data as unknown[], primaryKey: "id" },
-  surgery:       { label: "手術處置",   getAction: "getSurgery",       extractData: r => r.data as unknown[], primaryKey: "id" },
-  examination:   { label: "檢查處置",   getAction: "getExamination",   extractData: r => r.data as unknown[], primaryKey: "id" },
-  disease:       { label: "疾病常規",   getAction: "getDisease",       extractData: r => r.data as unknown[], primaryKey: "id" },
-  contacts:      { label: "常用分機",   getAction: "getContacts",      extractData: r => r.data as unknown[], primaryKey: "label" },
-  ahk:           { label: "AHK 管理",   getAction: "getAhkScripts",    extractData: r => r.scripts as unknown[], primaryKey: "id" },
-  shiftMemos:    { label: "規則備忘錄", getAction: "getShiftMemos",    extractData: r => r.data as unknown[], primaryKey: "id" },
-  sets:          { label: "套組管理",   getAction: "getSets",          extractData: r => r.sets as unknown[], primaryKey: "id" },
-  npDuty:        { label: "值班 NP",    getAction: "getNpDutyVersions", extractData: () => [], primaryKey: "month" },
+// key 與 GAS Config 的 {table}_last_updated 對應；資料表的同步方式見 useTableSync（ADR-011）
+export const SYNC_TABLE_META: Record<string, { label: string }> = {
+  items:         { label: "自費品項" },
+  physicians:    { label: "通訊錄" },
+  prescriptions: { label: "處方套組" },
+  surgery:       { label: "手術處置" },
+  examination:   { label: "檢查處置" },
+  disease:       { label: "疾病常規" },
+  contacts:      { label: "常用分機" },
+  ahk:           { label: "AHK 管理" },
+  shiftMemos:    { label: "規則備忘錄" },
+  sets:          { label: "套組管理" },
+  surgeryTypes:  { label: "手術術式" },
+  npDuty:        { label: "值班 NP" },
 };
 
 // ── Module-level singletons ─────────────────────────────────────────────
@@ -84,122 +81,26 @@ export async function checkCloudVersions(gasUrl: string): Promise<string[]> {
       return [];
     }
 
-    const MANUAL_ONLY = new Set(["ahk", "sets"]);
     const pending: string[] = [];
-    const manualPending: string[] = [];
-
     for (const table of Object.keys(SYNC_TABLE_META)) {
       const remoteTs = json.data[`${table}_last_updated`];
       if (!remoteTs) continue;
       const localTs = await getLocalCloudTs(table);
-      if (!localTs || remoteTs > localTs) {
-        if (MANUAL_ONLY.has(table)) manualPending.push(table);
-        else pending.push(table);
-      }
+      if (!localTs || remoteTs > localTs) pending.push(table);
     }
     pendingTables.value = pending;
 
-    const allPending = [...pending, ...manualPending];
-    if (allPending.length === 0) {
+    if (pending.length === 0) {
       addLog("info", "[雲端同步] 版本檢查完成 — 所有表格已是最新");
     } else {
-      const autoLabels   = pending.map(t => SYNC_TABLE_META[t]?.label ?? t);
-      const manualLabels = manualPending.map(t => SYNC_TABLE_META[t]?.label ?? t);
-      const parts: string[] = [];
-      if (autoLabels.length)   parts.push(`待自動更新：${autoLabels.join("、")}`);
-      if (manualLabels.length) parts.push(`待手動更新：${manualLabels.join("、")}`);
-      addLog("info", `[雲端同步] 版本檢查完成 — ${parts.join("；")}`, JSON.stringify({ pending, manualPending }));
+      const labels = pending.map(t => SYNC_TABLE_META[t]?.label ?? t);
+      addLog("info", `[雲端同步] 版本檢查完成 — 待更新：${labels.join("、")}`, JSON.stringify({ pending }));
     }
-    for (const table of manualPending) {
-      addLog("info", `[雲端同步] ${SYNC_TABLE_META[table]?.label ?? table} 雲端有更新，請至對應頁面手動還原`);
-    }
-    return allPending;
+    return pending;
   } catch (e) {
     addLog("warn", "[雲端同步] checkVersions 失敗", String(e));
     return [];
   }
-}
-
-/** 向 GAS 拉取指定 table 的雲端資料 */
-export async function fetchCloudTable(
-  table: string,
-  gasUrl: string
-): Promise<unknown[] | null> {
-  const meta = SYNC_TABLE_META[table];
-  if (!meta || !gasUrl) return null;
-  try {
-    const res = await fetch(gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: meta.getAction }),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json() as Record<string, unknown>;
-    if (!json.ok) throw new Error(String(json.error ?? "GAS 錯誤"));
-    return meta.extractData(json);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * 推送 table 資料至 GAS，更新時間戳，寫入同步 log。
- * 呼叫方需自行組好 payload（含 action + data）。
- * 此函式不處理 isSyncing banner，由各 View 自行管理。
- */
-export async function pushTableToCloud(
-  table: string,
-  gasUrl: string,
-  payload: Record<string, unknown>,
-  rowCount?: number
-): Promise<boolean> {
-  if (!gasUrl) return false;
-  const { addLog } = useLogger();
-  try {
-    const res = await fetch(gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json() as { ok: boolean; error?: string };
-    if (!json.ok) throw new Error(json.error ?? "GAS 錯誤");
-    await saveSyncTimestamp(table);
-    addLog(
-      "info",
-      `[雲端同步] push ${SYNC_TABLE_META[table]?.label ?? table}${rowCount != null ? ` — ${rowCount} 筆` : ""}`,
-      JSON.stringify({ table, action: "push", timestamp: new Date().toISOString(), rows: rowCount })
-    );
-    return true;
-  } catch (e) {
-    addLog("warn", `[雲端同步] push ${SYNC_TABLE_META[table]?.label ?? table} 失敗`, String(e));
-    return false;
-  }
-}
-
-/**
- * 偵測衝突：若本地 modified_ts > cloud_ts，代表有未推送的本地變更
- * 且雲端也有更新 → 衝突
- */
-export async function hasConflict(table: string): Promise<boolean> {
-  const modifiedTs = await getLocalModifiedTs(table);
-  const cloudTs    = await getLocalCloudTs(table);
-  if (!modifiedTs || !cloudTs) return false;
-  return modifiedTs > cloudTs;
-}
-
-/** 寫入雲端 pull 的同步 log */
-export function logPullResult(
-  table: string,
-  updatedCount: number,
-  addedCount: number
-): void {
-  const { addLog } = useLogger();
-  addLog(
-    "info",
-    `[雲端同步] pull ${SYNC_TABLE_META[table]?.label ?? table} — 更新 ${updatedCount} 筆、新增 ${addedCount} 筆`,
-    JSON.stringify({ table, action: "pull", updatedRows: updatedCount, addedRows: addedCount, timestamp: new Date().toISOString() })
-  );
 }
 
 /** 啟動背景輪詢（預設每小時一次） */

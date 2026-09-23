@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
-import { useCloudSettings } from "@/stores/cloudSettings";
-import { setGlobalSyncing } from "@/composables/useCloudSync";
-import { markLocalModified, saveSyncTimestamp } from "@/composables/useSyncMonitor";
-import { useLogger } from "@/composables/useLogger";
+import { touchTable, markDeletedById, onTableSynced } from "@/composables/useTableSync";
+import CloudSyncButtons from "@/components/CloudSyncButtons.vue";
 
 interface Prescription {
   id: number; name: string; category: string;
@@ -22,8 +20,6 @@ const showModal = ref(false);
 const modalMode = ref<"add" | "edit">("add");
 const form = ref<Form>({ name: "", category: "", indication: "", orders: "", notes: "" });
 const showDeleteConfirm = ref(false);
-const cloud     = useCloudSettings();
-const isSyncing = ref(false);
 const toastMsg  = ref("");
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 function toast(msg: string) {
@@ -32,7 +28,15 @@ function toast(msg: string) {
   toastTimer = setTimeout(() => { toastMsg.value = ""; }, 2000);
 }
 
-onMounted(async () => { cloud.load(); await reload(); });
+onMounted(reload);
+
+// 背景或其他頁面同步後重新載入，保留目前選取
+async function onSynced() {
+  const prevId = selected.value?.id;
+  await reload();
+  selected.value = items.value.find(m => m.id === prevId) ?? null;
+}
+onTableSynced("prescriptions", onSynced);
 
 async function reload() {
   const db = await getDb();
@@ -99,65 +103,18 @@ async function save() {
   const prevId = selected.value?.id;
   await reload();
   selected.value = items.value.find((m) => m.id === prevId) ?? null;
-  await markLocalModified("prescriptions");
-  pushToCloud().catch(() => {});
+  await touchTable("prescriptions");
 }
 
 async function deleteSelected() {
   if (!selected.value) return;
   const db = await getDb();
+  await markDeletedById("prescriptions", selected.value.id);
   await db.execute("DELETE FROM prescriptions WHERE id=?", [selected.value.id]);
   selected.value = null;
   showDeleteConfirm.value = false;
   await reload();
-}
-
-async function pushToCloud() {
-  if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true; setGlobalSyncing("prescriptions", true);
-  try {
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST", headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "savePrescriptions", data: items.value }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error ?? "GAS 錯誤");
-    toast(`已上傳 ${items.value.length} 筆至雲端`);
-    await saveSyncTimestamp("prescriptions");
-    useLogger().addLog("info", `[雲端同步] push 處方套組 — ${items.value.length} 筆`, JSON.stringify({ table: "prescriptions", action: "push", timestamp: new Date().toISOString() }));
-  } catch (e) {
-    toast(`上傳失敗：${(e as Error).message}`);
-    useLogger().addLog("warn", "[雲端同步] push 處方套組 失敗", String(e));
-  }
-  finally { isSyncing.value = false; setGlobalSyncing("prescriptions", false); }
-}
-
-async function pullFromCloud() {
-  if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true; setGlobalSyncing("prescriptions", true);
-  try {
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST", headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "getPrescriptions" }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
-    const data: Prescription[] = json.data;
-    if (!data.length) { toast("雲端無資料"); return; }
-    const db = await getDb();
-    await db.execute("DELETE FROM prescriptions");
-    for (const r of data) {
-      await db.execute(
-        "INSERT INTO prescriptions (id, name, category, indication, orders, notes) VALUES (?,?,?,?,?,?)",
-        [r.id, r.name, r.category ?? "", r.indication ?? "", r.orders ?? "[]", r.notes ?? ""]
-      );
-    }
-    const prevId = selected.value?.id;
-    await reload();
-    selected.value = items.value.find(m => m.id === prevId) ?? null;
-    toast(`已從雲端同步 ${data.length} 筆`);
-  } catch (e) { toast(`下載失敗：${(e as Error).message}`); }
-  finally { isSyncing.value = false; setGlobalSyncing("prescriptions", false); }
+  await touchTable("prescriptions");
 }
 
 const stepCount = computed(() =>
@@ -188,16 +145,7 @@ const stepCount = computed(() =>
       <p class="text-muted text-2xs font-black mb-2 px-1">{{ filtered.length }} 筆資料</p>
 
       <!-- Sync Actions -->
-      <div class="grid grid-cols-2 gap-2 mb-3 shrink-0">
-        <button @click="pullFromCloud" :disabled="isSyncing"
-          class="flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl bg-sunken border border-hairline text-fg-secondary text-xs font-black hover:text-fg disabled:opacity-40 active:scale-95 transition-all cursor-pointer">
-          {{ isSyncing ? "…" : "↓ 雲端同步" }}
-        </button>
-        <button @click="pushToCloud" :disabled="isSyncing"
-          class="flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl bg-elevated border border-hairline text-fg-secondary text-xs font-black hover:text-fg disabled:opacity-40 active:scale-95 transition-all cursor-pointer">
-          {{ isSyncing ? "…" : "↑ 上傳備份" }}
-        </button>
-      </div>
+      <CloudSyncButtons class="mb-3 shrink-0" table="prescriptions" @synced="onSynced" @message="toast" />
 
       <!-- List Container -->
       <div class="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">

@@ -1,22 +1,19 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
-import { readTextFile, writeTextFile, remove as removeFile, exists, mkdir } from "@tauri-apps/plugin-fs";
-import { documentDir, join } from "@tauri-apps/api/path";
+import { readTextFile, writeTextFile, remove as removeFile } from "@tauri-apps/plugin-fs";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useCloudSettings } from "@/stores/cloudSettings";
-import { setGlobalSyncing } from "@/composables/useCloudSync";
-import { markLocalModified, saveSyncTimestamp } from "@/composables/useSyncMonitor";
-import { useLogger } from "@/composables/useLogger";
 import {
   buildPassAhkContent, getPassAhkPath, setPassAhkPath,
   getPassAhkMode, setPassAhkMode,
   PASS_AHK_MODES, PASS_AHK_MODE_LABEL, PASS_AHK_MODE_HINT,
   type PassAhkMode,
 } from "@/composables/usePassAhk";
-import { syncTable, NoBaselineError } from "@/composables/useTableSync";
+import { syncTable, NoBaselineError, touchTable, markDeletedById, onTableSynced } from "@/composables/useTableSync";
+import CloudSyncButtons from "@/components/CloudSyncButtons.vue";
 
 interface AhkScript {
   id: number;
@@ -52,39 +49,6 @@ let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
 const cloud = useCloudSettings();
 onMounted(() => cloud.load());
-const isSyncing = ref(false);
-
-// ── AHK Diff Modal ─────────────────────────────────────────────────────
-interface AhkDiffItem {
-  id: number;
-  name: string;
-  targetPath: string;
-  description: string;
-  localContent: string;
-  cloudContent: string;
-  cloudTs: string;
-  selected: boolean;
-}
-const diffModalOpen = ref(false);
-const diffItems     = ref<AhkDiffItem[]>([]);
-
-async function applySelectedDiffs() {
-  let written = 0;
-  for (const item of diffItems.value) {
-    if (!item.selected) continue;
-    try {
-      await writeTextFile(item.targetPath, item.cloudContent);
-      await upsertAhkScript(item.id, item.name, item.targetPath, item.description, item.cloudTs || new Date().toISOString());
-      written++;
-    } catch (e) {
-      console.error("[AHK diff apply] failed:", item.name, e);
-    }
-  }
-  diffModalOpen.value = false;
-  await loadAll();
-  showToast(`已套用 ${written} 個腳本更新`);
-}
-
 const scriptForm = ref({ name: "", file_path: "", description: "" });
 const showDeleteConfirm = ref(false);
 const groupForm = ref({ name: "", description: "" });
@@ -109,6 +73,15 @@ function showError(msg: string, err?: unknown) {
 }
 
 onMounted(async () => { await loadAll(); });
+
+// 背景或其他頁面同步後重新載入；目前開啟的腳本被雲端更新時，編輯器改讀新內容
+onTableSynced("ahk", async () => {
+  const selectedId = selectedScript.value?.id;
+  await loadAll();
+  const fresh = scripts.value.find(x => x.id === selectedId);
+  if (fresh) await selectScript(fresh);
+  else if (selectedId != null) { selectedScript.value = null; scriptContent.value = ""; }
+});
 
 function openAhkSite() {
   openUrl("https://www.autohotkey.com");
@@ -155,6 +128,7 @@ async function newScript() {
       [name, path]
     );
     await loadAll();
+    await touchTable("ahk");
     const created = scripts.value.find((s) => s.file_path === path);
     if (created) {
       selectedScript.value = created;
@@ -182,6 +156,7 @@ async function importFile() {
       [name, path]
     );
     await loadAll();
+    await touchTable("ahk");
     const script = scripts.value.find((s) => s.file_path === path);
     if (script) await selectScript(script);
     showToast("已匯入");
@@ -214,12 +189,11 @@ async function saveScript(andReload: boolean) {
     await writeTextFile(scriptForm.value.file_path, scriptContent.value);
     const db = await getDb();
     await db.execute(
-      `UPDATE ahk_scripts SET name=?, file_path=?, description=?, updated_at=datetime('now') WHERE id=?`,
+      `UPDATE ahk_scripts SET name=?, file_path=?, description=?, updated_at=datetime('now','localtime') WHERE id=?`,
       [scriptForm.value.name, scriptForm.value.file_path, scriptForm.value.description, selectedScript.value!.id]
     );
     await loadAll();
-    await markLocalModified("ahk");
-    pushToCloud().catch(() => {});
+    await touchTable("ahk");
 
     if (andReload) {
       await triggerReload(scriptForm.value.file_path);
@@ -258,6 +232,7 @@ async function deleteScript(alsoDeleteFile = false) {
     }
   }
   const db = await getDb();
+  await markDeletedById("ahk", selectedScript.value.id);
   await db.execute("DELETE FROM ahk_scripts WHERE id = ?", [selectedScript.value.id]);
   selectedScript.value = null;
   scriptContent.value = "";
@@ -265,6 +240,7 @@ async function deleteScript(alsoDeleteFile = false) {
   showDeleteConfirm.value = false;
   await loadAll();
   showToast(alsoDeleteFile ? "已移除紀錄與檔案" : "已移除紀錄");
+  await touchTable("ahk");
 }
 
 // ── 套組管理 ─────────────────────────────────────────────
@@ -408,7 +384,7 @@ async function writePassAhkFile(content: string): Promise<string> {
 
   const db = await getDb();
   await db.execute(
-    `UPDATE ahk_scripts SET updated_at = datetime('now') WHERE file_path = ?`, [path]
+    `UPDATE ahk_scripts SET updated_at = datetime('now','localtime') WHERE file_path = ?`, [path]
   );
   await loadAll();
   if (selectedScript.value?.file_path === path) scriptContent.value = content;
@@ -479,7 +455,7 @@ async function generatePassAhk() {
        ON CONFLICT(file_path) DO UPDATE SET
          name = excluded.name,
          description = excluded.description,
-         updated_at = datetime('now')`,
+         updated_at = datetime('now','localtime')`,
       [
         "pass.ahk（自動產生）",
         path,
@@ -497,151 +473,6 @@ async function generatePassAhk() {
   } catch (e) {
     showError(`產生失敗：${(e as Error).message}`, e);
   }
-}
-
-// ── 雲端備份 / 還原 ───────────────────────────────────────────────
-
-// Sheets 儲存格會把 \r\n 存成 \n，不正規化的話 Windows 檔案每一支都會被判定為有差異
-const normalizeEol = (s: string) => s.replace(/\r\n/g, "\n");
-
-// Sheets 會把 "2026-09-22 02:00:00" 自動轉成日期，舊版 GAS 回傳的是
-// "Tue Sep 22 2026 ..." —— 字串比對下永遠大於 "2026-..."，雲端因此永遠「較新」
-function normalizeTs(v: string): string {
-  if (!v || /^\d{4}-\d{2}-\d{2}/.test(v)) return v;
-  const d = new Date(v);
-  if (isNaN(d.getTime())) return v;
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-}
-
-// 不可用 INSERT OR REPLACE：REPLACE 是先刪再插，會觸發 ahk_group_scripts 的
-// ON DELETE CASCADE，還原一次套組裡的腳本就全部消失
-async function upsertAhkScript(id: number, name: string, filePath: string, description: string, updatedAt: string) {
-  const db = await getDb();
-  await db.execute(
-    `INSERT INTO ahk_scripts (id, name, file_path, description, updated_at) VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET name=excluded.name, file_path=excluded.file_path,
-       description=excluded.description, updated_at=excluded.updated_at
-     ON CONFLICT(file_path) DO UPDATE SET name=excluded.name,
-       description=excluded.description, updated_at=excluded.updated_at`,
-    [id, name, filePath, description, updatedAt]
-  );
-}
-
-async function pushToCloud() {
-  if (!cloud.gasUrl) { showToast("請先設定 GAS Web App URL"); return; }
-  isSyncing.value = true; setGlobalSyncing("ahk", true);
-  try {
-    const payload: { id: number; name: string; file_path: string; description: string; content: string; updated_at: string }[] = [];
-    for (const s of scripts.value) {
-      let content = "";
-      try { content = await readTextFile(s.file_path); } catch { /* 讀不到就帶空字串 */ }
-      payload.push({ id: s.id, name: s.name, file_path: s.file_path, description: s.description ?? "", content, updated_at: s.updated_at ?? "" });
-    }
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "saveAhkScripts", scripts: payload }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error ?? "GAS 錯誤");
-    showToast(`已備份 ${payload.length} 個腳本至雲端`);
-    await saveSyncTimestamp("ahk");
-    useLogger().addLog("info", `[雲端同步] push AHK 管理 — ${payload.length} 筆`, JSON.stringify({ table: "ahk", action: "push", timestamp: new Date().toISOString() }));
-  } catch (e) {
-    showError(`備份失敗：${(e as Error).message}`, e);
-    useLogger().addLog("warn", "[雲端同步] push AHK 管理 失敗", String(e));
-  }
-  finally { isSyncing.value = false; setGlobalSyncing("ahk", false); }
-}
-
-async function pullFromCloud() {
-  if (!cloud.gasUrl) { showToast("請先設定 GAS Web App URL"); return; }
-  isSyncing.value = true; setGlobalSyncing("ahk", true);
-  try {
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "getAhkScripts" }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
-    const cloudScripts: (AhkScript & { content: string })[] = json.scripts || [];
-    if (!cloudScripts.length) { showToast("雲端無腳本資料"); return; }
-
-    const localMap = new Map(scripts.value.map(s => [s.id, s]));
-
-    const docDir = await documentDir();
-    const ahkDir = await join(docDir, "MedBase", "ahk");
-
-    const toShowDiff: AhkDiffItem[] = [];
-    const localNewerNames: string[] = [];
-    let skipped = 0, remapped = 0;
-
-    for (const cs of cloudScripts) {
-      let targetPath = cs.file_path;
-
-      // 路徑不存在，改放預設資料夾
-      const pathOk = cs.file_path ? await exists(cs.file_path).catch(() => false) : false;
-      if (!pathOk) {
-        try { await mkdir(ahkDir, { recursive: true }); } catch (e) {
-          throw new Error(`無法建立資料夾 ${ahkDir}：${e instanceof Error ? e.message : String(e)}`);
-        }
-        const filename = (cs.file_path?.split(/[\\/]/).pop()) || `script_${cs.id}.ahk`;
-        const candidate = await join(ahkDir, filename);
-        targetPath = await exists(candidate).catch(() => false)
-          ? await join(ahkDir, `${cs.id}_${filename}`)
-          : candidate;
-        remapped++;
-      }
-
-      // 讀本地檔案內容
-      let localContent = "";
-      try { localContent = await readTextFile(targetPath); } catch { /* 不存在視為空 */ }
-
-      const localTs = normalizeTs(localMap.get(cs.id)?.updated_at ?? "");
-      const cloudTs = normalizeTs(cs.updated_at ?? "");
-
-      if (normalizeEol(localContent) === normalizeEol(cs.content)) {
-        // 內容相同，僅確保 DB 路徑正確
-        await upsertAhkScript(cs.id, cs.name, targetPath, cs.description ?? "", cloudTs || localTs);
-        skipped++;
-        continue;
-      }
-
-      // 內容不同，比對時間戳
-
-      if (!localContent || cloudTs > localTs) {
-        // 本地無內容，或雲端較新 → 加入 diff 確認清單
-        toShowDiff.push({
-          id: cs.id, name: cs.name, targetPath,
-          description: cs.description ?? "",
-          localContent, cloudContent: cs.content,
-          cloudTs, selected: true,
-        });
-      } else {
-        // 本地較新 → toast 提示，略過
-        localNewerNames.push(cs.name);
-      }
-    }
-
-    if (localNewerNames.length > 0) {
-      showToast(`本地版本較新，已略過：${localNewerNames.join("、")}`);
-    }
-    const parts: string[] = [];
-    if (skipped > 0)  parts.push(`${skipped} 個已是最新`);
-    if (remapped > 0) parts.push(`${remapped} 個路徑已重新對應`);
-
-    if (toShowDiff.length > 0) {
-      diffItems.value = toShowDiff;
-      diffModalOpen.value = true;
-      if (parts.length) showToast(parts.join("，"));
-    } else {
-      await loadAll();
-      showToast(parts.length ? parts.join("，") : "所有腳本皆已是最新");
-    }
-  } catch (e) { showError(`還原失敗：${(e as Error).message}`, e); }
-  finally { isSyncing.value = false; setGlobalSyncing("ahk", false); }
 }
 
 async function pickExePath() {
@@ -890,16 +721,7 @@ function insertBuilderToScript() {
           >
             <span>⚡</span> 產生帳密腳本
           </button>
-          <div class="grid grid-cols-2 gap-2">
-            <button @click="pullFromCloud" :disabled="isSyncing"
-              class="text-2xs py-1.5 bg-sunken border border-hairline text-fg-secondary rounded-xl hover:text-fg disabled:opacity-40 transition-colors font-bold cursor-pointer">
-              {{ isSyncing ? '…' : '☁️↓ 還原' }}
-            </button>
-            <button @click="pushToCloud" :disabled="isSyncing"
-              class="text-2xs py-1.5 bg-elevated border border-hairline text-fg-secondary rounded-xl hover:text-fg disabled:opacity-40 transition-colors font-bold cursor-pointer">
-              {{ isSyncing ? '…' : '☁️↑ 備份' }}
-            </button>
-          </div>
+          <CloudSyncButtons table="ahk" @synced="loadAll" @message="showToast" />
         </div>
         <div class="flex-1 overflow-y-auto pr-1 custom-scrollbar">
           <button
@@ -1583,83 +1405,6 @@ function insertBuilderToScript() {
                 </button>
               </div>
 
-            </div>
-          </div>
-        </div>
-      </div>
-    </Teleport>
-
-    <!-- AHK Diff Modal -->
-    <Teleport to="body">
-      <div v-if="diffModalOpen"
-        class="fixed inset-0 z-[9000] flex items-center justify-center bg-sunken/70 backdrop-blur-sm"
-        @click.self="diffModalOpen = false">
-        <div class="bg-surface border border-hairline rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-          style="width: 940px; max-width: 96vw; max-height: 88vh">
-
-          <!-- Header -->
-          <div class="flex items-center gap-3 px-6 py-4 border-b border-hairline bg-sunken shrink-0">
-            <span class="text-warning text-sm">⚡</span>
-            <h3 class="text-xs font-black text-warning">雲端 AHK 版本較新</h3>
-            <span class="text-2xs text-muted font-medium">以下腳本雲端版本較本地新，請確認是否套用</span>
-            <label class="ml-auto flex items-center gap-1.5 text-2xs text-fg-secondary cursor-pointer select-none">
-              <input type="checkbox"
-                :checked="diffItems.every(i => i.selected)"
-                :indeterminate="diffItems.some(i => i.selected) && !diffItems.every(i => i.selected)"
-                @change="(e) => diffItems.forEach(i => i.selected = (e.target as HTMLInputElement).checked)"
-                class="cursor-pointer" />
-              全選
-            </label>
-            <button @click="diffModalOpen = false" class="ml-3 text-muted hover:text-fg text-xl leading-none cursor-pointer transition-colors">×</button>
-          </div>
-
-          <!-- Script list -->
-          <div class="flex-1 overflow-y-auto divide-y divide-hairline">
-            <div v-for="item in diffItems" :key="item.id" class="p-5">
-              <!-- Script header -->
-              <div class="flex items-center gap-3 mb-3">
-                <input type="checkbox" v-model="item.selected" class="cursor-pointer shrink-0" />
-                <span class="text-xs font-bold text-fg">{{ item.name }}</span>
-                <span class="text-2xs text-muted font-mono truncate">{{ item.targetPath }}</span>
-                <span v-if="!item.localContent"
-                  class="shrink-0 text-2xs font-bold px-2 py-0.5 bg-success/10 border border-success/20 text-success rounded-full">
-                  新檔案
-                </span>
-              </div>
-              <!-- Content diff -->
-              <div class="grid grid-cols-2 gap-3">
-                <div class="flex flex-col gap-1">
-                  <p class="text-2xs font-black text-muted">本地版本</p>
-                  <pre class="text-2xs text-fg-secondary bg-sunken border border-hairline rounded-xl px-3 py-2.5 max-h-52 overflow-y-auto font-mono leading-relaxed whitespace-pre-wrap custom-scrollbar">{{
-                    item.localContent || '（檔案不存在）'
-                  }}</pre>
-                </div>
-                <div class="flex flex-col gap-1">
-                  <p class="text-2xs font-black text-success">雲端版本</p>
-                  <pre class="text-2xs text-fg bg-success/20 border border-success/20 rounded-xl px-3 py-2.5
-                               max-h-52 overflow-y-auto font-mono leading-relaxed whitespace-pre-wrap custom-scrollbar">{{
-                    item.cloudContent
-                  }}</pre>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Footer -->
-          <div class="px-6 py-4 border-t border-hairline bg-sunken shrink-0 flex items-center justify-between">
-            <span class="text-2xs text-muted">
-              已選 {{ diffItems.filter(i => i.selected).length }} / {{ diffItems.length }} 個腳本
-            </span>
-            <div class="flex gap-3">
-              <button @click="diffModalOpen = false"
-                class="text-xs px-4 py-2 rounded-xl border border-hairline text-fg-secondary hover:text-fg cursor-pointer transition-colors">
-                全部略過
-              </button>
-              <button @click="applySelectedDiffs"
-                :disabled="diffItems.filter(i => i.selected).length === 0"
-                class="text-xs px-5 py-2 rounded-xl bg-success hover:bg-success disabled:opacity-40 text-white font-bold cursor-pointer transition-colors">
-                套用選取 ({{ diffItems.filter(i => i.selected).length }})
-              </button>
             </div>
           </div>
         </div>

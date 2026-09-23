@@ -346,35 +346,10 @@ export async function autoCloudSync(): Promise<void> {
   await cloud.load();
   if (!cloud.gasUrl) return;
 
-  const gasUrl = cloud.gasUrl;
-
-  async function gasPost(body: object): Promise<any> {
-    const res = await fetch(gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify(body),
-    });
-    return res.json();
+  // 通訊錄、常用分機皆為逐筆同步（見 useTableSync），雲端失敗不阻斷
+  for (const table of ["physicians", "contacts"]) {
+    try { await syncTable(table, cloud.gasUrl); } catch { /* 雲端失敗不阻斷 */ }
   }
-
-  const db = await getDb();
-
-  // ① Physicians：逐筆同步（見 useTableSync）
-  try {
-    await syncTable("physicians", gasUrl);
-  } catch { /* 雲端失敗不阻斷 */ }
-
-  // ② Contacts：merge（雲端為主，本地有雲端無的才補上，key = label）
-  try {
-    const localContacts = await db.select<any[]>("SELECT * FROM contacts");
-    const pullJson      = await gasPost({ action: "getContacts" });
-    const cloudContacts: any[] = pullJson.ok ? (pullJson.data ?? []) : [];
-    const cloudLabels = new Set(cloudContacts.map((r: any) => r.label).filter(Boolean));
-    const newLocal = localContacts.filter(c => !cloudLabels.has(c.label));
-    if (newLocal.length > 0) {
-      await gasPost({ action: "saveContacts", data: [...cloudContacts, ...newLocal] });
-    }
-  } catch { /* 雲端失敗不阻斷 */ }
 }
 
 // ── 監看控制 ──────────────────────────────────────────────────────────

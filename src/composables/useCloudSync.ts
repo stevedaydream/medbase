@@ -11,6 +11,7 @@ const SYNC_META: Record<string, { label: string; route: string }> = {
   examination:   { label: "檢查處置",   route: "/examination" },
   disease:       { label: "疾病常規",   route: "/disease" },
   contacts:      { label: "常用分機",   route: "/contacts" },
+  surgeryTypes:  { label: "手術術式",   route: "/items" },
 };
 
 const syncingRecord = ref<Record<string, boolean>>({});

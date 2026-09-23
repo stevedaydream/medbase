@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
-import { useCloudSettings } from "@/stores/cloudSettings";
-import { setGlobalSyncing } from "@/composables/useCloudSync";
-import { markLocalModified, saveSyncTimestamp } from "@/composables/useSyncMonitor";
-import { useLogger } from "@/composables/useLogger";
+import { touchTable, markDeletedById, onTableSynced } from "@/composables/useTableSync";
+import CloudSyncButtons from "@/components/CloudSyncButtons.vue";
 
 // ── 型別 ────────────────────────────────────────────────────────
 interface Physician { id: number; name: string; department: string | null; is_vs: number; }
@@ -70,8 +68,7 @@ async function saveRename() {
     const idx = sets.value.findIndex(s => s.id === activeSet.value!.id);
     if (idx >= 0) sets.value[idx] = { ...sets.value[idx], name: newName };
     toast("套組名稱已更新");
-    await markLocalModified("sets");
-    pushToCloud().catch(() => {});
+    await touchTable("sets");
   } catch (e) { toast(`更新失敗：${(e as Error).message}`); }
 }
 
@@ -195,8 +192,7 @@ async function saveSet() {
       if (updated) activeSet.value = updated;
     }
     toast(wasEdit ? "套組已更新" : "套組已新增");
-    await markLocalModified("sets");
-    pushToCloud().catch(() => {});
+    await touchTable("sets");
   } catch (e) { toast(`儲存失敗：${(e as Error).message}`); }
 }
 
@@ -229,6 +225,7 @@ async function addItem() {
     showAddItem.value = false;
     await loadSetItems(activeSet.value.id);
     toast("品項已加入");
+    await touchTable("sets");
   } catch (e) { toast(`新增失敗：${(e as Error).message}`); }
 }
 
@@ -238,6 +235,7 @@ async function updateQty(si: SetItem, delta: number) {
     const db = await getDb();
     await db.execute("UPDATE set_items SET quantity=? WHERE id=?", [newQty, si.id]);
     si.quantity = newQty;
+    await touchTable("sets");
   } catch (e) { toast(`更新失敗：${(e as Error).message}`); }
 }
 
@@ -247,6 +245,7 @@ async function toggleOptional(si: SetItem) {
     const newVal = si.is_optional ? 0 : 1;
     await db.execute("UPDATE set_items SET is_optional=? WHERE id=?", [newVal, si.id]);
     si.is_optional = newVal;
+    await touchTable("sets");
   } catch (e) { toast(`更新失敗：${(e as Error).message}`); }
 }
 
@@ -256,306 +255,35 @@ async function removeItem(si: SetItem) {
     await db.execute("DELETE FROM set_items WHERE id=?", [si.id]);
     setItems.value = setItems.value.filter(x => x.id !== si.id);
     toast("品項已移除");
+    await touchTable("sets");
   } catch (e) { toast(`刪除失敗：${(e as Error).message}`); }
 }
 
 // ── 雲端同步 ──────────────────────────────────────────────────────
-const cloud = useCloudSettings();
-onMounted(() => cloud.load());
-const isSyncing = ref(false);
-
-async function pushToCloud() {
-  if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true; setGlobalSyncing("sets", true);
-  try {
-    const db = await getDb();
-    const localSets = await db.select<SetRow[]>(`
-      SELECT s.*, p.name AS phys_name
-      FROM sets s LEFT JOIN physicians p ON s.physician_id = p.id
-    `);
-    const localSetItems = await db.select<SetItem[]>("SELECT * FROM set_items ORDER BY set_id, sort_order");
-
-    // 先拉取雲端現有資料（失敗則中止，不允許靜默覆蓋雲端）
-    const getRes = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "getSets" }),
-    });
-    const getJson = await getRes.json();
-    if (!getJson.ok) throw new Error(getJson.error ?? "拉取雲端資料失敗");
-    const cloudSets: SetRow[] = getJson.sets || [];
-    const cloudSetItems: SetItem[] = getJson.setItems || [];
-
-    // 合併套組：雲端獨有的保留，本地有的（新增或修改）更新至雲端
-    const mergedSets: SetRow[] = [...cloudSets];
-    let addCount = 0, updateCount = 0;
-    for (const ls of localSets) {
-      const idx = mergedSets.findIndex(cs => cs.id === ls.id);
-      if (idx >= 0) {
-        const cs = mergedSets[idx];
-        if (cs.name !== ls.name || cs.surgery_type !== ls.surgery_type ||
-            cs.physician_id !== ls.physician_id || cs.notes !== ls.notes) {
-          mergedSets[idx] = ls;
-          updateCount++;
-        }
-      } else {
-        mergedSets.push(ls);
-        addCount++;
-      }
-    }
-
-    // 合併品項：雲端獨有的保留，本地有的更新至雲端
-    const mergedSetItems: SetItem[] = [...cloudSetItems];
-    for (const li of localSetItems) {
-      const idx = mergedSetItems.findIndex(ci => ci.id === li.id);
-      if (idx >= 0) {
-        const ci = mergedSetItems[idx];
-        if (ci.hospital_code !== li.hospital_code || ci.quantity !== li.quantity ||
-            ci.is_optional !== li.is_optional || ci.sort_order !== li.sort_order || ci.notes !== li.notes) {
-          mergedSetItems[idx] = li;
-        }
-      } else {
-        mergedSetItems.push(li);
-      }
-    }
-
-    // 收集 mergedSets 中被參照的醫師資料（在本地有完整記錄）
-    const physIdSet = new Set(mergedSets.map(s => s.physician_id).filter(Boolean) as number[]);
-    const referencedPhysicians = physicians.value
-      .filter(p => physIdSet.has(p.id))
-      .map(p => ({ id: p.id, name: p.name, department: p.department || "", title: (p as any).title || "" }));
-
-    const pushRes = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "saveSets", sets: mergedSets, setItems: mergedSetItems, physicians: referencedPhysicians }),
-    });
-    const pushJson = await pushRes.json();
-    if (!pushJson.ok) throw new Error(pushJson.error ?? "GAS 錯誤");
-    toast(`已上傳至雲端（新增 ${addCount}、更新 ${updateCount} 個套組）`);
-    await saveSyncTimestamp("sets");
-    useLogger().addLog("info", `[雲端同步] push 套組 — 新增 ${addCount}、更新 ${updateCount} 筆`, JSON.stringify({ table: "sets", action: "push", timestamp: new Date().toISOString() }));
-  } catch (e) {
-    toast(`上傳失敗：${(e as Error).message}`);
-    useLogger().addLog("warn", "[雲端同步] push 套組 失敗", String(e));
-  }
-  finally { isSyncing.value = false; setGlobalSyncing("sets", false); }
+// 背景或其他頁面同步後重新載入，保留目前選取的套組
+async function onSynced() {
+  const activeId = activeSet.value?.id;
+  await loadAll();
+  activeSet.value = sets.value.find(x => x.id === activeId) ?? null;
+  if (activeSet.value) await loadSetItems(activeSet.value.id);
+  else setItems.value = [];
 }
-
-// ── 單套組強制覆蓋雲端 ────────────────────────────────────────────
-const showOverwriteConfirm = ref(false);
-
-async function overwriteSetToCloud() {
-  if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  if (!activeSet.value) return;
-  isSyncing.value = true; setGlobalSyncing("sets", true);
-  try {
-    // 1. 拉取雲端現有資料
-    const getRes = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "getSets" }),
-    });
-    const getJson = await getRes.json();
-    if (!getJson.ok) throw new Error(getJson.error ?? "拉取雲端資料失敗");
-    const cloudSets: SetRow[] = getJson.sets || [];
-    const cloudSetItems: SetItem[] = getJson.setItems || [];
-
-    // 2. 以本地版本替換（或新增）該套組
-    const localSet = sets.value.find(s => s.id === activeSet.value!.id)!;
-    const newSets = cloudSets.filter(cs => cs.id !== localSet.id);
-    newSets.push(localSet);
-
-    // 3. 以本地品項替換該套組的所有品項
-    const newSetItems = cloudSetItems.filter(ci => ci.set_id !== localSet.id);
-    const db = await getDb();
-    const localItems = await db.select<SetItem[]>(
-      "SELECT * FROM set_items WHERE set_id=? ORDER BY sort_order, id",
-      [localSet.id]
-    );
-    newSetItems.push(...localItems);
-
-    // 4. 更新醫師清單
-    const physIdSet = new Set(newSets.map(s => s.physician_id).filter(Boolean) as number[]);
-    const referencedPhysicians = physicians.value
-      .filter(p => physIdSet.has(p.id))
-      .map(p => ({ id: p.id, name: p.name, department: p.department || "", title: (p as any).title || "" }));
-
-    const ovRes = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "saveSets", sets: newSets, setItems: newSetItems, physicians: referencedPhysicians }),
-    });
-    const ovJson = await ovRes.json();
-    if (!ovJson.ok) throw new Error(ovJson.error ?? "GAS 錯誤");
-    showOverwriteConfirm.value = false;
-    toast(`「${localSet.name}」已覆蓋上傳至雲端`);
-    await saveSyncTimestamp("sets");
-    useLogger().addLog("info", `[雲端同步] overwrite 套組「${localSet.name}」`, JSON.stringify({ table: "sets", action: "push", timestamp: new Date().toISOString() }));
-  } catch (e) {
-    toast(`覆蓋失敗：${(e as Error).message}`);
-    useLogger().addLog("warn", "[雲端同步] overwrite 套組 失敗", String(e));
-  }
-  finally { isSyncing.value = false; setGlobalSyncing("sets", false); }
-}
-
-async function pullFromCloud() {
-  if (!cloud.gasUrl) { toast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true; setGlobalSyncing("sets", true);
-  try {
-    // 同步前預檢：醫師資料是否已在本地
-    const db0 = await getDb();
-    const physCount = (await db0.select<{ c: number }[]>("SELECT COUNT(*) AS c FROM physicians"))[0].c;
-    const itemCount = (await db0.select<{ c: number }[]>("SELECT COUNT(*) AS c FROM items"))[0].c;
-    const prereqWarnings: string[] = [];
-    if (physCount === 0) prereqWarnings.push("通訊錄");
-    if (itemCount === 0) prereqWarnings.push("自費品項");
-    if (prereqWarnings.length) {
-      toast(`⚠ 本地尚無「${prereqWarnings.join("、")}」，同步後醫師名稱可能顯示為佔位文字，建議先在原電腦重新上傳套組`, 5000);
-      // 延遲 1.5 秒讓 toast 顯示後繼續執行（不中斷同步）
-      await new Promise(r => setTimeout(r, 1500));
-    }
-
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "getSets" }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
-    const cloudSets: SetRow[] = json.sets || [];
-    const cloudSetItems: SetItem[] = json.setItems || [];
-    if (!cloudSets.length) { toast("雲端無套組資料"); return; }
-
-    const db = await getDb();
-    const localRows    = await db.select<{ id: number }[]>("SELECT id FROM sets");
-    const localSetIds  = new Set(localRows.map(r => r.id));
-
-    // 載入本地醫師：id 集合 + 姓名→id 對照表（供名稱比對用）
-    const localPhysRows = await db.select<{ id: number; name: string }[]>(
-      "SELECT id, name FROM physicians"
-    );
-    const localPhysIds    = new Set(localPhysRows.map(r => r.id));
-    const localPhysByName = new Map(localPhysRows.map(r => [r.name.trim(), r.id]));
-
-    // physIdRemap：雲端 physician_id → 實際要寫入的本地 physician_id
-    // （ID 不同但姓名相同時，指向本地既有記錄，不新建）
-    const physIdRemap = new Map<number, number>();
-    let physCreated = 0;
-    let physMatched = 0;
-
-    // 優先以雲端隨附的醫師清單建立/修正本地醫師記錄
-    const cloudPhysicians: { id: number; name: string; department: string; title: string }[] =
-      json.physicians || [];
-    for (const cp of cloudPhysicians) {
-      if (!cp.id || !cp.name) continue;
-      const cpName = cp.name.trim();
-      if (localPhysIds.has(cp.id)) {
-        // ID 完全吻合：若是佔位名稱才覆蓋
-        await db.execute(
-          "UPDATE physicians SET name=? WHERE id=? AND name LIKE '醫師 #%'",
-          [cpName, cp.id]
-        );
-        physIdRemap.set(cp.id, cp.id);
-      } else if (localPhysByName.has(cpName)) {
-        // ID 不同但姓名相同 → 直接對應到本地既有醫師，不新建
-        const localId = localPhysByName.get(cpName)!;
-        physIdRemap.set(cp.id, localId);
-        physMatched++;
-      } else {
-        // 全新醫師 → 依雲端 ID 建立
-        await db.execute(
-          "INSERT INTO physicians (id, name, department) VALUES (?, ?, ?)",
-          [cp.id, cpName, cp.department || null]
-        );
-        localPhysIds.add(cp.id);
-        localPhysByName.set(cpName, cp.id);
-        physIdRemap.set(cp.id, cp.id);
-        physCreated++;
-      }
-    }
-
-    // 以雲端為主：更新本地已有套組，新增本地沒有的雲端套組
-    let addCount = 0, updateCount = 0;
-    for (const cs of cloudSets) {
-      let physId: number | null = cs.physician_id || null;
-      if (physId !== null) {
-        if (physIdRemap.has(physId)) {
-          // 已在上面處理過（含名稱比對 remap）
-          physId = physIdRemap.get(physId)!;
-        } else if (!localPhysIds.has(physId)) {
-          // 不在雲端 physicians 清單也不在本地：嘗試用 phys_name 姓名比對
-          const fallbackName = cs.phys_name?.trim();
-          if (fallbackName && localPhysByName.has(fallbackName)) {
-            const localId = localPhysByName.get(fallbackName)!;
-            physIdRemap.set(physId, localId);
-            physId = localId;
-            physMatched++;
-          } else {
-            // 最後手段：建立最小化佔位記錄
-            const placeholderName = fallbackName || `醫師 #${physId}`;
-            await db.execute(
-              "INSERT OR IGNORE INTO physicians (id, name) VALUES (?, ?)",
-              [physId, placeholderName]
-            );
-            localPhysIds.add(physId);
-            localPhysByName.set(placeholderName, physId);
-            physIdRemap.set(physId, physId);
-            physCreated++;
-          }
-        } else {
-          physIdRemap.set(physId, physId);
-        }
-      }
-      if (localSetIds.has(cs.id)) {
-        await db.execute(
-          "UPDATE sets SET name=?, surgery_type=?, physician_id=?, notes=? WHERE id=?",
-          [cs.name, cs.surgery_type || null, physId, cs.notes || null, cs.id]
-        );
-        updateCount++;
-      } else {
-        await db.execute(
-          "INSERT INTO sets (id, name, surgery_type, physician_id, notes) VALUES (?,?,?,?,?)",
-          [cs.id, cs.name, cs.surgery_type || null, physId, cs.notes || null]
-        );
-        addCount++;
-      }
-    }
-
-    // 品項同步：對雲端有品項紀錄的套組，以雲端版本替換本地；本地獨有套組的品項不動
-    const cloudManagedSetIds = [...new Set(cloudSetItems.map(ci => ci.set_id))];
-    for (const sid of cloudManagedSetIds) {
-      await db.execute("DELETE FROM set_items WHERE set_id=?", [sid]);
-    }
-    for (const si of cloudSetItems) {
-      await db.execute(
-        "INSERT INTO set_items (id, set_id, hospital_code, quantity, is_optional, sort_order, notes) VALUES (?,?,?,?,?,?,?)",
-        [si.id, si.set_id, si.hospital_code || null, si.quantity, si.is_optional, si.sort_order, si.notes || null]
-      );
-    }
-
-    await loadAll();
-    const physParts = [
-      physMatched ? `比對 ${physMatched} 位` : "",
-      physCreated ? `新增 ${physCreated} 位` : "",
-    ].filter(Boolean).join("、");
-    const physNote = physParts ? `、醫師${physParts}` : "";
-    toast(`雲端同步完成（新增 ${addCount} 個套組、更新 ${updateCount} 個套組${physNote}）`);
-  } catch (e) { toast(`下載失敗：${(e as Error).message}`); }
-  finally { isSyncing.value = false; setGlobalSyncing("sets", false); }
-}
+onTableSynced("sets", onSynced);
 
 async function doDelete() {
   if (!deleteTarget.value) return;
   try {
     const db = await getDb();
     if (deleteTarget.value.type === "set") {
+      await markDeletedById("sets", deleteTarget.value.row.id);
+      await db.execute("DELETE FROM set_items WHERE set_id=?", [deleteTarget.value.row.id]);
       await db.execute("DELETE FROM sets WHERE id=?", [deleteTarget.value.row.id]);
       if (activeSet.value?.id === deleteTarget.value.row.id) {
         activeSet.value = null; setItems.value = [];
       }
       await loadAll();
       toast("套組已刪除");
+      await touchTable("sets");
     }
   } catch (e) { toast(`刪除失敗：${(e as Error).message}`); }
   finally { deleteTarget.value = null; }
@@ -577,16 +305,7 @@ async function doDelete() {
       </div>
 
       <!-- 雲端同步 -->
-      <div class="grid grid-cols-2 gap-2 mb-3 shrink-0">
-        <button @click="pullFromCloud" :disabled="isSyncing"
-          class="flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl bg-sunken border border-hairline text-fg-secondary text-xs font-black hover:text-fg disabled:opacity-40 active:scale-95 transition-all cursor-pointer">
-          {{ isSyncing ? '…' : '↓ 雲端同步' }}
-        </button>
-        <button @click="pushToCloud" :disabled="isSyncing"
-          class="flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl bg-elevated border border-hairline text-fg-secondary text-xs font-black hover:text-fg disabled:opacity-40 active:scale-95 transition-all cursor-pointer">
-          {{ isSyncing ? '…' : '↑ 上傳' }}
-        </button>
-      </div>
+      <CloudSyncButtons table="sets" class="mb-3 shrink-0" @synced="onSynced" @message="toast" />
 
       <!-- 分組列表 -->
       <div class="flex-1 overflow-y-auto pr-1 custom-scrollbar">
@@ -664,10 +383,6 @@ async function doDelete() {
               {{ setItems.filter(i => !i.is_optional).length }} 必用 /
               {{ setItems.filter(i => i.is_optional).length }} PRN
             </span>
-            <button @click="showOverwriteConfirm = true"
-              class="px-3.5 py-2 rounded-xl bg-warning/10 border border-warning/30 text-warning text-xs font-bold hover:bg-warning/20 hover:text-warning transition-all cursor-pointer">
-              ↑ 覆蓋上傳
-            </button>
             <button @click="openEditSet(activeSet)"
               class="px-3.5 py-2 rounded-xl bg-elevated border border-hairline text-fg-secondary text-xs font-bold hover:text-fg hover:bg-raised transition-all cursor-pointer">
               編輯套組
@@ -874,33 +589,6 @@ async function doDelete() {
             :disabled="!itemForm.hospital_code"
             class="px-5 py-2 text-xs font-black bg-accent hover:bg-accent border border-accent/30 text-white rounded-xl transition-all disabled:opacity-40 cursor-pointer">
             確認加入
-          </button>
-        </div>
-      </div>
-    </div>
-  </Teleport>
-
-  <!-- ════ 覆蓋上傳確認 ════ -->
-  <Teleport to="body">
-    <div v-if="showOverwriteConfirm"
-      class="fixed inset-0 z-[9000] flex items-center justify-center p-4 bg-sunken/60 backdrop-blur-sm"
-      @click.self="showOverwriteConfirm = false">
-      <div class="w-full max-w-sm bg-surface border border-warning/30 shadow-2xl p-6 rounded-2xl space-y-4 text-fg">
-        <h3 class="text-warning font-black text-xs flex items-center gap-1.5">
-          <span>⚠️</span> 覆蓋上傳確認
-        </h3>
-        <p class="text-xs text-fg-secondary leading-normal">
-          將以本機的
-          <span class="text-warning font-bold">「{{ activeSet?.name }}」</span>
-          強行覆蓋雲端上的同名套組及其所有品項。<br/>
-          <span class="text-muted block mt-1">注意：其他人的套組不受影響，但此動作將完全覆寫雲端上對應的套組內容。</span>
-        </p>
-        <div class="flex gap-2.5 justify-end pt-2">
-          <button @click="showOverwriteConfirm = false"
-            class="px-4 py-2 text-xs font-bold bg-elevated text-fg-secondary hover:text-fg hover:bg-raised border border-hairline rounded-xl cursor-pointer">取消</button>
-          <button @click="overwriteSetToCloud" :disabled="isSyncing"
-            class="px-5 py-2 text-xs font-black bg-warning hover:bg-warning border border-warning/30 text-white rounded-xl disabled:opacity-40 cursor-pointer">
-            {{ isSyncing ? '同步中…' : '確定覆蓋上傳' }}
           </button>
         </div>
       </div>

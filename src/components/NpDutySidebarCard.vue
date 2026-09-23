@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { getNpDutyUrl, loadNpDuty, localDateKey, NP_DUTY_UPDATED_EVENT, type NpDutyAssignment } from "@/composables/useNpDuty";
 import { NP_WARDS, VS_UNITS } from "@/utils/npDutyXlsx";
+import { getDb } from "@/db";
 
 type Ward = NpDutyAssignment["ward"];
 interface DisplayRow extends NpDutyAssignment {
@@ -17,6 +18,8 @@ const loaded = ref(false);
 const downloadUrl = ref("");
 const now = ref(new Date());
 const showOtherVs = ref(false);
+/** 通訊錄（physicians）姓名 → HIS 帳號，姓名去空白後比對 */
+const hisByName = ref<Record<string, string>>({});
 let timer: ReturnType<typeof setInterval> | null = null;
 
 function addDays(date: Date, days: number): Date {
@@ -66,6 +69,22 @@ function rowKey(row: DisplayRow) {
   return `${row.id}-${row.carried ? "c" : ""}`;
 }
 
+function normName(name: string): string {
+  return name.replace(/\s+/g, "");
+}
+
+function hisAccount(row: DisplayRow): string {
+  return hisByName.value[normName(row.np_name)] ?? "";
+}
+
+async function loadHisAccounts() {
+  const db = await getDb();
+  const list = await db.select<{ name: string; his_account: string }[]>(
+    "SELECT name, his_account FROM physicians WHERE his_account IS NOT NULL AND TRIM(his_account) != ''",
+  );
+  hisByName.value = Object.fromEntries(list.map(p => [normName(p.name), p.his_account.trim()]));
+}
+
 async function refresh() {
   now.value = new Date();
   try {
@@ -77,6 +96,7 @@ async function refresh() {
       list.unshift(...carried);
     }
     rows.value = list;
+    try { await loadHisAccounts(); } catch { hisByName.value = {}; }
     downloadUrl.value = await getNpDutyUrl();
   } catch {
     rows.value = [];
@@ -145,6 +165,8 @@ onUnmounted(() => {
     </div>
 
     <div v-else class="space-y-1.5">
+      <!-- 展開其他科別時限制高度並在卡片內捲動，收合按鈕留在外面，小視窗也按得到 -->
+      <div class="space-y-1.5" :class="showOtherVs && group === 'VS' ? 'max-h-[35vh] overflow-y-auto pr-1' : ''">
       <!-- VS 科別名稱較長，改為科別在上、醫師在下，讓姓名能用滿整行寬度 -->
       <div v-for="ward in visibleUnits" :key="ward" class="flex text-xs"
         :class="group === 'NP' ? 'items-start gap-2' : 'flex-col gap-0.5'">
@@ -161,11 +183,15 @@ onUnmounted(() => {
             ]"
           >
             <span class="shrink-0 text-2xs font-bold" :class="isCurrent(person) ? 'text-accent' : 'text-muted'">{{ shiftLabel(person) }}</span>
-            <span class="min-w-0 break-words font-semibold" :class="isCurrent(person) ? 'text-fg' : 'text-fg-secondary'">{{ person.np_name }}</span>
+            <span class="flex min-w-0 flex-wrap items-baseline gap-x-1">
+              <span class="min-w-0 wrap-break-word font-semibold" :class="isCurrent(person) ? 'text-fg' : 'text-fg-secondary'">{{ person.np_name }}</span>
+              <span v-if="hisAccount(person)" class="text-2xs tabular-nums text-muted">HIS {{ hisAccount(person) }}</span>
+            </span>
             <span v-if="person.extension" class="ml-auto shrink-0 text-2xs tabular-nums text-muted">{{ person.extension }}</span>
           </div>
         </div>
         <span v-else class="py-0.5 text-xs text-muted">未排</span>
+      </div>
       </div>
       <button v-if="group === 'VS'" @click="showOtherVs = !showOtherVs"
         class="w-full rounded px-1 py-0.5 text-2xs font-bold text-muted hover:bg-accent/10 hover:text-accent transition-colors cursor-pointer">

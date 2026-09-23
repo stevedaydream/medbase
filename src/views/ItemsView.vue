@@ -2,10 +2,8 @@
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { refDebounced } from "@vueuse/core";
 import { getDb } from "@/db";
-import { useCloudSettings } from "@/stores/cloudSettings";
-import { setGlobalSyncing } from "@/composables/useCloudSync";
-import { saveSyncTimestamp } from "@/composables/useSyncMonitor";
-import { useLogger } from "@/composables/useLogger";
+import { touchTable, markDeletedById, onTableSynced } from "@/composables/useTableSync";
+import CloudSyncButtons from "@/components/CloudSyncButtons.vue";
 
 interface Item {
   hospital_code: string;
@@ -318,9 +316,6 @@ const filtered = computed(() => {
 });
 
 // ── 雲端同步 ─────────────────────────────────────────────────────
-const cloud = useCloudSettings();
-onMounted(() => cloud.load());
-const isSyncing = ref(false);
 const syncToast = ref("");
 let syncToastTimer: ReturnType<typeof setTimeout> | null = null;
 function showSyncToast(msg: string) {
@@ -328,68 +323,8 @@ function showSyncToast(msg: string) {
   if (syncToastTimer) clearTimeout(syncToastTimer);
   syncToastTimer = setTimeout(() => { syncToast.value = ""; }, 3000);
 }
-
-async function pushToCloud() {
-  if (!cloud.gasUrl) { showSyncToast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true; setGlobalSyncing("items", true);
-  try {
-    const db = await getDb();
-    const raw = await db.select<Omit<Item, "depts">[]>("SELECT * FROM items ORDER BY name_zh");
-    const deptRows = await db.select<{ hospital_code: string; dept: string }[]>("SELECT hospital_code, dept FROM item_depts");
-    const deptMap = new Map<string, string[]>();
-    for (const r of deptRows) {
-      if (!deptMap.has(r.hospital_code)) deptMap.set(r.hospital_code, []);
-      deptMap.get(r.hospital_code)!.push(r.dept);
-    }
-    const data = raw.map(it => ({ ...it, depts: deptMap.get(it.hospital_code) ?? [] }));
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "saveItems", data }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error ?? "GAS 錯誤");
-    showSyncToast(`已上傳 ${data.length} 筆品項至雲端`);
-    await saveSyncTimestamp("items");
-    useLogger().addLog("info", `[雲端同步] push 自費品項 — ${data.length} 筆`, JSON.stringify({ table: "items", action: "push", timestamp: new Date().toISOString() }));
-  } catch (e) {
-    showSyncToast(`上傳失敗：${(e as Error).message}`);
-    useLogger().addLog("warn", "[雲端同步] push 自費品項 失敗", String(e));
-  } finally { isSyncing.value = false; setGlobalSyncing("items", false); }
-}
-
-async function pullFromCloud() {
-  if (!cloud.gasUrl) { showSyncToast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true; setGlobalSyncing("items", true);
-  try {
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "getItems" }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
-    const data: (Omit<Item, "depts"> & { depts: string[] })[] = json.data;
-    if (!data.length) { showSyncToast("雲端無品項資料"); return; }
-    const db = await getDb();
-    for (const it of data) {
-      await db.execute(
-        `INSERT OR REPLACE INTO items (hospital_code, name_en, name_zh, purpose, unit, price, supplier, notes)
-         VALUES (?,?,?,?,?,?,?,?)`,
-        [it.hospital_code, it.name_en||null, it.name_zh||null, it.purpose||null,
-         it.unit||null, it.price ?? null, it.supplier||null, it.notes||null]
-      );
-      await db.execute("DELETE FROM item_depts WHERE hospital_code = ?", [it.hospital_code]);
-      for (const d of (it.depts ?? [])) {
-        await db.execute("INSERT OR IGNORE INTO item_depts (hospital_code, dept) VALUES (?,?)", [it.hospital_code, d]);
-      }
-    }
-    await loadItems();
-    showSyncToast(`已從雲端同步 ${data.length} 筆品項`);
-  } catch (e) {
-    showSyncToast(`下載失敗：${(e as Error).message}`);
-  } finally { isSyncing.value = false; setGlobalSyncing("items", false); }
-}
+onTableSynced("items", loadItems);
+onTableSynced("surgeryTypes", loadSurgeryTypes);
 
 // ── 手術術式 CRUD ─────────────────────────────────────────────────
 const showSurgeryMgmt  = ref(false);
@@ -452,14 +387,18 @@ async function mgmtSaveForm() {
   }
   mgmtShowForm.value = false;
   await loadSurgeryTypes();
+  await touchTable("surgeryTypes");
 }
 
 async function mgmtDeleteSurgery(id: number) {
   const db = await getDb();
+  await markDeletedById("surgeryTypes", id);
+  await db.execute("DELETE FROM surgery_type_items WHERE surgery_type_id=?", [id]);
   await db.execute("DELETE FROM surgery_types WHERE id=?", [id]);
   if (mgmtSelId.value === id) { mgmtSelId.value = null; mgmtSelCodes.value = new Set(); }
   const s = new Set(activeSurgeries.value); s.delete(id); activeSurgeries.value = s;
   await loadSurgeryTypes();
+  await touchTable("surgeryTypes");
 }
 
 async function mgmtToggleItem(code: string) {
@@ -479,77 +418,16 @@ async function mgmtToggleItem(code: string) {
   const newMap = new Map(surgeryTypeItemMap.value);
   newMap.set(mgmtSelId.value, next);
   surgeryTypeItemMap.value = newMap;
+  await touchTable("surgeryTypes");
 }
 
 // ── 手術術式 雲端同步 ─────────────────────────────────────────────
-const isSurgSyncing  = ref(false);
 const surgSyncToast  = ref("");
 let surgSyncTimer: ReturnType<typeof setTimeout> | null = null;
 function showSurgToast(msg: string) {
   surgSyncToast.value = msg;
   if (surgSyncTimer) clearTimeout(surgSyncTimer);
   surgSyncTimer = setTimeout(() => { surgSyncToast.value = ""; }, 3000);
-}
-
-async function pushSurgeryTypesToCloud() {
-  if (!cloud.gasUrl) { showSurgToast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSurgSyncing.value = true;
-  try {
-    const db = await getDb();
-    const surgTypes = await db.select<{ id: number; name: string; dept: string | null; notes: string | null }[]>(
-      "SELECT id, name, dept, notes FROM surgery_types ORDER BY id"
-    );
-    const surgTypeItems = await db.select<{ surgery_type_id: number; hospital_code: string }[]>(
-      "SELECT surgery_type_id, hospital_code FROM surgery_type_items"
-    );
-    await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "saveSurgeryTypes", surgeryTypes: surgTypes, surgeryTypeItems: surgTypeItems }),
-      mode: "no-cors",
-    });
-    showSurgToast(`已上傳 ${surgTypes.length} 個手術術式至雲端`);
-  } catch (e) {
-    showSurgToast(`上傳失敗：${(e as Error).message}`);
-  } finally { isSurgSyncing.value = false; }
-}
-
-async function pullSurgeryTypesFromCloud() {
-  if (!cloud.gasUrl) { showSurgToast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSurgSyncing.value = true;
-  try {
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "getSurgeryTypes" }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
-    const cloudTypes: { id: number; name: string; dept: string; notes: string }[] = json.surgeryTypes ?? [];
-    const cloudItems: { surgery_type_id: number; hospital_code: string }[] = json.surgeryTypeItems ?? [];
-    if (!cloudTypes.length) { showSurgToast("雲端無手術術式資料"); return; }
-
-    const db = await getDb();
-    // 以雲端為主：先清空再重建
-    await db.execute("DELETE FROM surgery_type_items");
-    await db.execute("DELETE FROM surgery_types");
-    for (const t of cloudTypes) {
-      await db.execute(
-        "INSERT INTO surgery_types (id, name, dept, notes) VALUES (?,?,?,?)",
-        [t.id, t.name, t.dept || null, t.notes || null]
-      );
-    }
-    for (const si of cloudItems) {
-      await db.execute(
-        "INSERT OR IGNORE INTO surgery_type_items (surgery_type_id, hospital_code) VALUES (?,?)",
-        [si.surgery_type_id, si.hospital_code]
-      );
-    }
-    await loadSurgeryTypes();
-    showSurgToast(`已從雲端同步 ${cloudTypes.length} 個手術術式`);
-  } catch (e) {
-    showSurgToast(`同步失敗：${(e as Error).message}`);
-  } finally { isSurgSyncing.value = false; }
 }
 </script>
 
@@ -568,16 +446,7 @@ async function pullSurgeryTypesFromCloud() {
       </div>
       <span class="text-2xs font-mono font-bold text-muted shrink-0 bg-sunken px-3 py-2 rounded-xl border border-hairline">{{ filtered.length }} / {{ items.length }} ITEMS</span>
       
-      <div class="flex gap-1.5 shrink-0">
-        <button @click="pullFromCloud" :disabled="isSyncing"
-          class="text-xs px-4 py-2 bg-accent/10 hover:bg-accent border border-accent/30 text-accent hover:text-white rounded-xl font-bold transition-all cursor-pointer">
-          {{ isSyncing ? "…" : "↓ 雲端同步" }}
-        </button>
-        <button @click="pushToCloud" :disabled="isSyncing"
-          class="text-xs px-4 py-2 bg-elevated hover:bg-raised border border-hairline text-fg-secondary rounded-xl font-bold transition-all cursor-pointer">
-          {{ isSyncing ? "…" : "↑ 上傳雲端" }}
-        </button>
-      </div>
+      <CloudSyncButtons table="items" class="shrink-0" @synced="loadItems" @message="showSyncToast" />
     </div>
 
     <!-- Toast -->
@@ -776,14 +645,7 @@ async function pullSurgeryTypesFromCloud() {
           <div class="flex items-center gap-3">
             <h3 class="text-xs font-black text-fg">管理手術術式</h3>
             <div class="flex items-center gap-1.5">
-              <button @click="pullSurgeryTypesFromCloud" :disabled="isSurgSyncing"
-                class="text-2xs font-bold px-3 py-1.5 rounded-lg border border-accent/30 text-accent hover:bg-accent/20 disabled:opacity-40 transition-colors cursor-pointer">
-                {{ isSurgSyncing ? '…' : '↓ 雲端同步' }}
-              </button>
-              <button @click="pushSurgeryTypesToCloud" :disabled="isSurgSyncing"
-                class="text-2xs font-bold px-3 py-1.5 rounded-lg border border-hairline bg-elevated text-fg-secondary hover:text-fg disabled:opacity-40 transition-colors cursor-pointer">
-                {{ isSurgSyncing ? '…' : '↑ 上傳雲端' }}
-              </button>
+              <CloudSyncButtons table="surgeryTypes" @synced="loadSurgeryTypes" @message="showSurgToast" />
               <span v-if="surgSyncToast" class="text-2xs text-muted font-bold font-mono ml-2">{{ surgSyncToast }}</span>
             </div>
           </div>

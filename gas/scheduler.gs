@@ -81,6 +81,32 @@ const SYNC_TABLES = {
     fields:  ['name', 'department', 'title', 'ext', 'his_account', 'his_password', 'phs_account', 'phs_password', 'notes'],
     headers: ['姓名', '科別', '職稱', '分機', 'HIS帳號', 'HIS密碼', 'PHS帳號', 'PHS密碼', '備註'],
   },
+  // ADR-011：以下各表改為逐筆同步，寫入新的 Sync_* 工作表，舊工作表保留不動
+  prescriptions: { sheet: 'Sync_Prescriptions', key: 'uid', fields: ['uid', 'name', 'category', 'indication', 'orders', 'notes'] },
+  surgery:       { sheet: 'Sync_Surgery',       key: 'uid', fields: ['uid', 'name', 'category', 'indication', 'pre_op_orders', 'post_op_orders', 'notes'] },
+  examination:   { sheet: 'Sync_Examination',   key: 'uid', fields: ['uid', 'name', 'his_code', 'category', 'indication', 'orders', 'notes'] },
+  disease:       { sheet: 'Sync_Disease',       key: 'uid', fields: ['uid', 'name', 'icd10', 'category', 'workup', 'treatment_orders', 'consult_flow', 'notes'] },
+  shiftMemos:    { sheet: 'Sync_ShiftMemos',    key: 'uid', fields: ['uid', 'category', 'title', 'content', 'sort_order'] },
+  contacts:      { sheet: 'Sync_Contacts',      key: 'uid', fields: ['uid', 'label', 'ext', 'category', 'notes'] },
+  items:         { sheet: 'Sync_Items',         key: 'hospital_code', fields: ['hospital_code', 'name_en', 'name_zh', 'purpose', 'unit', 'price', 'supplier', 'notes', 'depts'] },
+  sets:          { sheet: 'Sync_Sets',          key: 'uid', fields: ['uid', 'name', 'surgery_type', 'physician_name', 'notes', 'items'] },
+  surgeryTypes:  { sheet: 'Sync_SurgeryTypes',  key: 'uid', fields: ['uid', 'name', 'dept', 'notes', 'items'] },
+  ahk:           { sheet: 'Sync_AhkScripts',    key: 'uid', fields: ['uid', 'name', 'description', 'filename', 'content'] },
+};
+
+// 舊版整份上傳／下載的 action。該表建立同步基準後一律拒絕，
+// 否則還沒更新的電腦會把雲端整份蓋掉，或拿舊工作表的過期資料蓋掉本地。
+const LEGACY_SYNC_ACTIONS = {
+  savePrescriptions: 'prescriptions', getPrescriptions: 'prescriptions',
+  saveSurgery: 'surgery',             getSurgery: 'surgery',
+  saveExamination: 'examination',     getExamination: 'examination',
+  saveDisease: 'disease',             getDisease: 'disease',
+  saveShiftMemos: 'shiftMemos',       getShiftMemos: 'shiftMemos',
+  saveContacts: 'contacts',           getContacts: 'contacts',
+  saveItems: 'items',                 getItems: 'items',
+  saveSets: 'sets',                   getSets: 'sets',
+  saveSurgeryTypes: 'surgeryTypes',   getSurgeryTypes: 'surgeryTypes',
+  saveAhkScripts: 'ahk',              getAhkScripts: 'ahk',
 };
 
 function _cellStr(v, tz) {
@@ -123,7 +149,7 @@ function _readSyncTable(ss, table) {
 
 function _writeSyncTable(ss, table, rows, tombs) {
   const cfg = SYNC_TABLES[table];
-  const hd = cfg.headers.concat(['updated_at']);
+  const hd = (cfg.headers || cfg.fields).concat(['updated_at']);
 
   const sh = ss.getSheetByName(cfg.sheet) || ss.insertSheet(cfg.sheet);
   const rw = Object.keys(rows).map(k => cfg.fields.map(f => rows[k][f]).concat([rows[k].updated_at]));
@@ -293,9 +319,14 @@ function doPost(e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
   try {
+    const legacyTable = LEGACY_SYNC_ACTIONS[p.action];
+    if (legacyTable && _getConfigValue(legacyTable + '_sync_baseline')) {
+      return json({ ok: false, code: 'OUTDATED', error: '此資料已改為逐筆同步，請更新 MedBase 至最新版本' });
+    }
+
     switch (p.action) {
 
-      // ── 登入驗證（手機端） ────────────────────────────────────────
+      // ── 登入驗證（手機端）────────────────────────────────────────
       case 'login': {
         const staffSheet = ss.getSheetByName('Staff');
         if (!staffSheet) return json({ ok: false, error: 'Staff sheet missing' });

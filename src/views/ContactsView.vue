@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { getDb } from "@/db";
-import { useCloudSettings } from "@/stores/cloudSettings";
-import { setGlobalSyncing } from "@/composables/useCloudSync";
-import { exportToXlsx, autoCloudSync, xlsxPath } from "@/composables/useXlsxSync";
-import { markLocalModified, saveSyncTimestamp } from "@/composables/useSyncMonitor";
-import { useLogger } from "@/composables/useLogger";
+import { exportToXlsx, xlsxPath } from "@/composables/useXlsxSync";
+import { touchTable, markDeletedById, onTableSynced } from "@/composables/useTableSync";
+import CloudSyncButtons from "@/components/CloudSyncButtons.vue";
 
 interface Contact {
   id: number;
@@ -21,9 +19,7 @@ const catFilter = ref("全部");
 const toast     = ref("");
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
-const cloud     = useCloudSettings();
-const isSyncing = ref(false);
-onMounted(() => cloud.load());
+onTableSynced("contacts", load);
 
 // Modal
 const showModal  = ref(false);
@@ -207,73 +203,21 @@ async function save() {
   showModal.value = false;
   await load();
   showToast(modalMode.value === "add" ? "已新增" : "已儲存");
-  if (xlsxPath.value) { exportToXlsx(); autoCloudSync(); }
-  await markLocalModified("contacts");
-  pushToCloud().catch(() => {});
-}
-
-// ── 雲端同步 ─────────────────────────────────────────────────────
-async function pushToCloud() {
-  if (!cloud.gasUrl) { showToast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true; setGlobalSyncing("contacts", true);
-  try {
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "saveContacts", data: contacts.value }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
-    showToast(`已上傳 ${contacts.value.length} 筆至雲端`);
-    await saveSyncTimestamp("contacts");
-    useLogger().addLog("info", `[雲端同步] push 常用分機 — ${contacts.value.length} 筆`, JSON.stringify({ table: "contacts", action: "push", timestamp: new Date().toISOString() }));
-  } catch (e) {
-    showToast(`上傳失敗：${(e as Error).message}`);
-    useLogger().addLog("warn", "[雲端同步] push 常用分機 失敗", String(e));
-  } finally { isSyncing.value = false; setGlobalSyncing("contacts", false); }
-}
-
-async function pullFromCloud() {
-  if (!cloud.gasUrl) { showToast("請先在「設定」頁面填入 GAS Web App URL"); return; }
-  isSyncing.value = true; setGlobalSyncing("contacts", true);
-  try {
-    const res = await fetch(cloud.gasUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({ action: "getContacts" }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error ?? "GAS 回傳錯誤");
-    const data: Omit<Contact, "id">[] = json.data;
-    if (!data.length) { showToast("雲端無分機資料"); return; }
-    const db = await getDb();
-    // 以雲端為主全量取代（清空重建）
-    await db.execute("DELETE FROM contacts");
-    for (const c of data) {
-      await db.execute(
-        "INSERT INTO contacts (label, ext, category, notes) VALUES (?,?,?,?)",
-        [c.label, c.ext, c.category || "常用分機", c.notes || null]
-      );
-    }
-    await load();
-    showToast(`已從雲端同步 ${data.length} 筆分機資料`);
-  } catch (e) {
-    showToast(`下載失敗：${(e as Error).message}`);
-  } finally {
-    isSyncing.value = false;
-    setGlobalSyncing("contacts", false);
-  }
+  if (xlsxPath.value) exportToXlsx();
+  await touchTable("contacts");
 }
 
 async function doDelete() {
   if (!deleteTarget.value) return;
   const db = await getDb();
+  await markDeletedById("contacts", deleteTarget.value.id);
   await db.execute("DELETE FROM contacts WHERE id=?", [deleteTarget.value.id]);
   showConfirm.value = false;
   deleteTarget.value = null;
   await load();
   showToast("已刪除");
-  if (xlsxPath.value) { exportToXlsx(); autoCloudSync(); }
+  if (xlsxPath.value) exportToXlsx();
+  await touchTable("contacts");
 }
 </script>
 
@@ -295,15 +239,7 @@ async function doDelete() {
 
       <!-- Sync actions & Add button -->
       <div class="flex gap-2 shrink-0 w-full md:w-auto justify-end">
-        <button @click="pullFromCloud" :disabled="isSyncing"
-          class="px-4 py-2.5 rounded-xl bg-accent/10 border border-accent/20 text-accent text-xs font-bold hover:bg-accent/20 disabled:opacity-40 transition-all flex items-center gap-1.5 cursor-pointer">
-          <span class="animate-pulse">⟳</span>
-          {{ isSyncing ? "…" : "雲端同步" }}
-        </button>
-        <button @click="pushToCloud" :disabled="isSyncing"
-          class="px-4 py-2.5 rounded-xl bg-elevated border border-hairline text-fg-secondary text-xs font-bold hover:bg-raised disabled:opacity-40 transition-all cursor-pointer">
-          ↑ 上傳
-        </button>
+        <CloudSyncButtons table="contacts" @synced="load" @message="showToast" />
         <button
           @click="openAdd"
           class="px-4 py-2.5 rounded-xl bg-gradient-to-r from-accent to-accent text-fg text-xs font-bold hover:from-accent hover:to-accent transition-all shadow-lg shadow-accent/10 flex items-center gap-1.5 cursor-pointer"

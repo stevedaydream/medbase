@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
 import { useRoute } from "vue-router";
-import { getDb, closeDb, dbWrite } from "@/db";
+import { getDb, closeDb, dbWrite, fillLegacySyncKeys } from "@/db";
 import * as XLSX from "xlsx";
 import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialog";
 import { writeFile, copyFile, readTextFile } from "@tauri-apps/plugin-fs";
@@ -19,7 +19,7 @@ import {
   importFromXlsx,
   unbind as xlsxUnbind,
 } from "@/composables/useXlsxSync";
-import { markLocalModified, pushTableToCloud } from "@/composables/useSyncMonitor";
+import { touchTable, markDeleted } from "@/composables/useTableSync";
 import { upsertPhysician, removePhysician, refreshPassAhk } from "@/composables/usePhysicians";
 import NpDutyDataManager from "@/components/NpDutyDataManager.vue";
 
@@ -166,6 +166,7 @@ async function saveBatchItems() {
     showBatchAdd.value = false;
     await loadAll();
     showToast("success", `已新增 ${valid.length} 筆品項`);
+    await touchTable("items");
   } catch (e) { showToast("error", `儲存失敗：${(e as Error).message}`); }
   finally { batchSaving.value = false; }
 }
@@ -280,8 +281,11 @@ async function handleXlsx(e: Event) {
       for (const r of rows("sets")) {
         if (!isNum(r.id) || !r.name) { skip++; tick(); continue; }
         await dbWrite(
-          `INSERT OR REPLACE INTO sets (id,name,surgery_type,physician_id,department_id,notes)
-           VALUES (?,?,?,?,?,?)`,
+          // 不可用 REPLACE：先刪再插會換掉 uid，同步後雲端多出一份（ADR-011）
+          `INSERT INTO sets (id,name,surgery_type,physician_id,department_id,notes)
+           VALUES (?,?,?,?,?,?)
+           ON CONFLICT(id) DO UPDATE SET name=excluded.name, surgery_type=excluded.surgery_type,
+             physician_id=excluded.physician_id, department_id=excluded.department_id, notes=excluded.notes`,
           [r.id, r.name, n(r.surgery_type), n(r.physician_id ?? r.doctor_id), n(r.department_id), n(r.notes)]);
         ok++; tick();
       }
@@ -332,6 +336,7 @@ async function handleXlsx(e: Event) {
 
     importResults.value = results;
     await loadAll();
+    for (const t of ["items", "sets", "physicians"]) await touchTable(t);
     // physicians sheet 可能帶入新的 HIS 帳密
     const ahkMessage = await refreshPassAhk();
     showToast("success", ahkMessage ? `匯入完成！｜${ahkMessage}` : "匯入完成！");
@@ -664,6 +669,13 @@ async function handleFullImport(e: Event) {
   }
 }
 
+/** 本地資料表 → 逐筆同步的表名（附屬表歸到主表） */
+const SYNC_TABLE_OF: Record<string, string> = {
+  physicians: "physicians", prescriptions: "prescriptions", surgery: "surgery", examination: "examination",
+  disease: "disease", shift_memos: "shiftMemos", contacts: "contacts", items: "items", item_depts: "items",
+  sets: "sets", set_items: "sets", surgery_types: "surgeryTypes", surgery_type_items: "surgeryTypes", ahk_scripts: "ahk",
+};
+
 async function confirmFullImport() {
   if (!pendingImportData.value) return;
   importingFull.value = true;
@@ -671,8 +683,12 @@ async function confirmFullImport() {
   try {
     let total = 0;
     const grandTotal = pendingImportData.value.reduce((s, { data }) => s + data.length, 0);
-    for (const { table, data } of pendingImportData.value) {
-      const columns = Object.keys(data[0]);
+    const touched = new Set<string>();
+    for (const { table, data: rawData } of pendingImportData.value) {
+      // 舊備份沒有 uid：補上與遷移相同的固定 uid，否則同步後雲端每筆重複（ADR-011）
+      const data = fillLegacySyncKeys(table, [...rawData].sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0)));
+      const columns = [...new Set(data.flatMap(r => Object.keys(r)))];
+      if (SYNC_TABLE_OF[table]) touched.add(SYNC_TABLE_OF[table]);
       const ph = columns.map(() => "?").join(",");
       const cols = columns.join(",");
       for (const row of data) {
@@ -687,6 +703,7 @@ async function confirmFullImport() {
     }
     await loadAll();
     await useCloudSettings().reload();
+    for (const t of touched) await touchTable(t);
     // 還原可能整批換掉 physicians 的 HIS 帳密，pass.ahk 必須跟著重建
     const ahkMessage = await refreshPassAhk();
     showToast("success", ahkMessage
@@ -898,17 +915,14 @@ async function saveItem() {
     await dbWrite("INSERT OR IGNORE INTO item_depts (hospital_code,dept) VALUES (?,?)", [f.hospital_code, dept]);
   }
   closeModal(); await loadAll();
-  await markLocalModified("items");
-  const gasUrl = useCloudSettings().gasUrl;
-  if (gasUrl) {
-    const db2 = await getDb();
-    const allItems = await db2.select("SELECT * FROM items");
-    pushTableToCloud("items", gasUrl, { action: "saveItems", data: allItems }, (allItems as any[]).length).catch(() => {});
-  }
+  await touchTable("items");
 }
 async function deleteItem(row: Item) {
+  await markDeleted("items", row.hospital_code);
+  await dbWrite("DELETE FROM item_depts WHERE hospital_code=?", [row.hospital_code]);
   await dbWrite("DELETE FROM items WHERE hospital_code=?", [row.hospital_code]);
   await loadAll();
+  await touchTable("items");
 }
 
 // ── CRUD：physicians ─────────────────────────────────────────────

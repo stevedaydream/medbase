@@ -6,10 +6,7 @@ import { useActiveSyncBanners, setGlobalSyncing } from "@/composables/useCloudSy
 import {
   pendingTables,
   checkCloudVersions,
-  fetchCloudTable,
   saveSyncTimestamp,
-  hasConflict,
-  logPullResult,
   startPolling,
   stopPolling,
   SYNC_TABLE_META,
@@ -21,13 +18,12 @@ import TopBar from "@/components/layout/TopBar.vue";
 import OmniSearch from "@/components/OmniSearch.vue";
 import DebugPanel from "@/components/DebugPanel.vue";
 import CompactPanel from "@/components/CompactPanel.vue";
-import SyncDiffModal from "@/components/SyncDiffModal.vue";
 import { useUiSettings } from "@/stores/uiSettings";
 import { useLogger } from "@/composables/useLogger";
 import { check as checkUpdate } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { startXlsxWatchFromSettings } from "@/composables/useXlsxSync";
-import { syncTable } from "@/composables/useTableSync";
+import { syncTable, SYNCED_TABLES, hasLocalChanges, syncLabel } from "@/composables/useTableSync";
 import { syncNpDuty } from "@/composables/useNpDuty";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize, LogicalPosition } from "@tauri-apps/api/dpi";
@@ -41,134 +37,41 @@ const route       = useRoute();
 const cloud       = useCloudSettings();
 const activeSyncLabels = useActiveSyncBanners(computed(() => route.path));
 
-// ── 雲端同步衝突 Modal ────────────────────────────────────────────────────
-interface SyncConflict {
-  table: string;
-  localRows: Record<string, unknown>[];
-  cloudRows: Record<string, unknown>[];
-  resolve: (merged: Record<string, unknown>[]) => void;
-  reject: () => void;
-}
-const syncConflict = ref<SyncConflict | null>(null);
-
-// ── 背景自動 pull（輪詢偵測到更新後觸發）───────────────────────────────
+// ── 背景同步（輪詢偵測到雲端更新、或本機有尚未送出的修改）──────────
+// 逐筆同步的表由 GAS 以時間戳合併，不需差異視窗（見 useTableSync）
+let backgroundSyncing = false;
 async function syncPendingTables() {
-  const tables = [...pendingTables.value];
-  if (!tables.length || !cloud.gasUrl) return;
-
+  if (!cloud.gasUrl || backgroundSyncing) return;
+  backgroundSyncing = true;
+  const pending = new Set(pendingTables.value);
   const syncedLabels: string[] = [];
-  const conflictLabels: string[] = [];
-
-  for (const table of tables) {
-    if (table === "ahk" || table === "sets") continue; // 手動同步表，不碰時間戳
-    setGlobalSyncing(table, true);
-    try {
-      // 逐筆同步的表：由 GAS 以時間戳合併，不需差異視窗（見 useTableSync）
-      if (table === "physicians") {
-        await syncTable(table, cloud.gasUrl);
-        pendingTables.value = pendingTables.value.filter(t => t !== table);
-        syncedLabels.push(SYNC_TABLE_META[table]?.label ?? table);
-        continue;
-      }
-      // 以月為單位同步（見 useNpDuty）
-      if (table === "npDuty") {
+  try {
+    for (const table of SYNCED_TABLES) {
+      if (!pending.has(table) && !(await hasLocalChanges(table))) continue;
+      setGlobalSyncing(table, true);
+      try {
+        const r = await syncTable(table, cloud.gasUrl);
+        if (r.inserted + r.updated + r.deleted > 0) syncedLabels.push(syncLabel(table));
+      } catch { /* 單表失敗（含尚未建立同步基準）不阻斷其餘，log 由 syncTable 記錄 */ }
+      finally { setGlobalSyncing(table, false); }
+    }
+    // 以月為單位同步（見 useNpDuty）
+    if (pending.has("npDuty")) {
+      setGlobalSyncing("npDuty", true);
+      try {
         await syncNpDuty(cloud.gasUrl);
-        await saveSyncTimestamp(table);
-        pendingTables.value = pendingTables.value.filter(t => t !== table);
-        syncedLabels.push(SYNC_TABLE_META[table]?.label ?? table);
-        continue;
-      }
-      const conflict = await hasConflict(table);
-      const cloudRows = await fetchCloudTable(table, cloud.gasUrl);
-      if (!cloudRows) continue;
-
-      if (conflict) {
-        // 需要使用者介入
-        const db = await getDb();
-        const localRows = await db.select<Record<string, unknown>[]>(`SELECT * FROM ${getTableName(table)}`);
-        const merged = await new Promise<Record<string, unknown>[] | null>((res) => {
-          syncConflict.value = {
-            table,
-            localRows,
-            cloudRows: cloudRows as Record<string, unknown>[],
-            resolve: (m) => { syncConflict.value = null; res(m); },
-            reject:  () => { syncConflict.value = null; res(null); },
-          };
-        });
-        if (!merged) { conflictLabels.push(SYNC_TABLE_META[table]?.label ?? table); continue; }
-        await applyCloudData(table, merged);
-      } else {
-        await applyCloudData(table, cloudRows as Record<string, unknown>[]);
-        syncedLabels.push(SYNC_TABLE_META[table]?.label ?? table);
-      }
-
-      await saveSyncTimestamp(table);
-      logPullResult(table, cloudRows.length, 0);
-      pendingTables.value = pendingTables.value.filter(t => t !== table);
-    } catch { /* 單筆失敗不阻斷其餘 */ }
-    finally { setGlobalSyncing(table, false); }
+        await saveSyncTimestamp("npDuty");
+        syncedLabels.push(SYNC_TABLE_META.npDuty.label);
+      } catch { /* 靜默 */ }
+      finally { setGlobalSyncing("npDuty", false); }
+    }
+    pendingTables.value = pendingTables.value.filter(t => !pending.has(t));
+  } finally {
+    backgroundSyncing = false;
   }
 
   if (syncedLabels.length > 0) {
     showToast(`☁ ${syncedLabels.join("、")} 已自動同步最新雲端資料`);
-  }
-  if (conflictLabels.length > 0) {
-    showToast(`⚠ ${conflictLabels.join("、")} 資料有衝突，已取消同步`);
-  }
-}
-
-function getTableName(table: string): string {
-  const MAP: Record<string, string> = {
-    items: "items", physicians: "physicians", prescriptions: "prescriptions",
-    surgery: "surgery", examination: "examination", disease: "disease",
-    contacts: "contacts", shiftMemos: "shift_memos",
-  };
-  return MAP[table] ?? table;
-}
-
-async function applyCloudData(table: string, rows: Record<string, unknown>[]): Promise<void> {
-  if (table === "ahk" || table === "sets") return; // complex tables: skip auto-apply
-  const db = await getDb();
-  const tableName = getTableName(table);
-  if (!tableName) return;
-
-  // 雲端回空陣列時不動本地資料。先 DELETE 再 INSERT 的順序下，
-  // 空回應會直接清空整張表（GAS 暫時失敗、Sheet 被清過都會發生）。
-  if (!rows.length) return;
-
-  // 只寫入本表實際存在的欄位。雲端 payload 常帶衍生欄位
-  // （例如 getItems 的 depts 陣列），照單全收會讓 INSERT 整批拋錯，
-  // 而 DELETE 已經執行完 —— 結果就是資料整張消失。
-  const tableCols = new Set(
-    (await db.select<{ name: string }[]>(`PRAGMA table_info(${tableName})`)).map(c => c.name)
-  );
-
-  await db.execute(`DELETE FROM ${tableName}`, []);
-  for (const row of rows) {
-    const cols = Object.keys(row).filter(c => tableCols.has(c));
-    if (!cols.length) continue;
-    const placeholders = cols.map(() => "?").join(", ");
-    const vals = cols.map(c => row[c] ?? null);
-    await db.execute(
-      `INSERT OR REPLACE INTO ${tableName} (${cols.join(", ")}) VALUES (${placeholders})`,
-      vals
-    );
-  }
-
-  // items 的科別存在關聯表，需一併重建，否則科別篩選會全空
-  if (table === "items") {
-    await db.execute(`DELETE FROM item_depts`, []);
-    for (const row of rows) {
-      const code  = row.hospital_code as string | undefined;
-      const depts = row.depts as string[] | undefined;
-      if (!code || !Array.isArray(depts)) continue;
-      for (const d of depts) {
-        await db.execute(
-          "INSERT OR IGNORE INTO item_depts (hospital_code, dept) VALUES (?,?)",
-          [code, d]
-        );
-      }
-    }
   }
 }
 
@@ -242,7 +145,7 @@ onMounted(async () => {
   useLogger().initClickTracking(() => route.path);
   startXlsxWatchFromSettings().catch(() => {/* 找不到路徑，靜默跳過 */});
   startPolling(() => cloud.gasUrl);
-  if (cloud.gasUrl) checkCloudVersions(cloud.gasUrl).catch(() => {});
+  if (cloud.gasUrl) checkCloudVersions(cloud.gasUrl).then(syncPendingTables).catch(() => {});
   await startScheduleTimer();
 });
 
@@ -500,14 +403,6 @@ function dismissUpdate() {
     </Transition>
 
     <!-- 雲端同步衝突解決 Modal -->
-    <SyncDiffModal
-      v-if="syncConflict"
-      :table="syncConflict.table"
-      :local-rows="syncConflict.localRows"
-      :cloud-rows="syncConflict.cloudRows"
-      @confirm="(merged) => syncConflict?.resolve(merged)"
-      @cancel="syncConflict?.reject()"
-    />
 
     <!-- Toast -->
     <Transition name="toast">
