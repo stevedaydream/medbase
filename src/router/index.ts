@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
+import { onRouteChange as onResearchRouteChange } from "@/composables/useResearchSession";
 
 declare module "vue-router" {
   interface RouteMeta { title?: string; fullHeight?: boolean }
@@ -28,9 +29,20 @@ const router = createRouter({
     { path: "/shift-memos",  component: () => import("@/views/ShiftMemosView.vue"),  meta: { title: "規則備忘錄", fullHeight: true } },
     { path: "/settings",     component: () => import("@/views/SettingView.vue"),     meta: { title: "設定" } },
     { path: "/note-polish",  component: () => import("@/views/NotePolishView.vue"),  meta: { title: "病歷潤飾", fullHeight: true } },
-    { path: "/research",     component: () => import("@/views/ResearchView.vue"),    meta: { title: "論文專案", fullHeight: true } },
-    { path: "/research/:id", component: () => import("@/views/ResearchProjectView.vue"), meta: { title: "論文專案", fullHeight: true } },
+    // 論文專案需先以 HIS 帳號＋PIN 登入（ADR-012）：外層 ResearchGateView 未登入時不掛載子頁面
+    {
+      path: "/research",
+      component: () => import("@/views/ResearchGateView.vue"),
+      meta: { title: "論文專案", fullHeight: true },
+      children: [
+        { path: "",    component: () => import("@/views/ResearchView.vue") },
+        { path: ":id", component: () => import("@/views/ResearchProjectView.vue") },
+      ],
+    },
   ],
 });
+
+// 離開論文專案超過 30 分鐘，回來需重新輸入 PIN
+router.afterEach((to, from) => onResearchRouteChange(to.path, from.path));
 
 export default router;

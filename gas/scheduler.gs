@@ -255,6 +255,90 @@ function _withLock(fn) {
   try { return fn(); } finally { lock.releaseLock(); }
 }
 
+// ── 論文專案：個人雲端備份（ADR-012）──────────────────────────────────
+// ResearchUsers：his / salt / pin_hash / failed / locked_until / created_at
+// ResearchBackups：his / day / updated_at / chunk / data（依日期保留最近 3 天，每格上限 5 萬字故分段）
+// 憑證存 CacheService（最長 6 小時），過期需重新輸入 PIN
+const RESEARCH_MAX_FAILED = 5;
+const RESEARCH_LOCK_MINUTES = 15;
+const RESEARCH_KEEP_DAYS = 3;
+const RESEARCH_CHUNK = 45000;
+const RESEARCH_TOKEN_TTL = 21600;
+
+function _researchHash(salt, pin) {
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, salt + ':' + pin, Utilities.Charset.UTF_8);
+  return bytes.map(b => ('0' + (b & 0xff).toString(16)).slice(-2)).join('');
+}
+
+function _researchUsersSheet(ss) {
+  let sh = ss.getSheetByName('ResearchUsers');
+  if (!sh) {
+    sh = ss.insertSheet('ResearchUsers');
+    sh.getRange('A:F').setNumberFormat('@');
+    sh.getRange(1, 1, 1, 6).setValues([['his', 'salt', 'pin_hash', 'failed', 'locked_until', 'created_at']]);
+  }
+  return sh;
+}
+
+function _researchFindUser(sh, his) {
+  const last = sh.getLastRow();
+  if (last < 2) return null;
+  const vals = sh.getRange(2, 1, last - 1, 6).getValues();
+  for (let i = 0; i < vals.length; i++) {
+    if (String(vals[i][0]) === his) {
+      return { row: i + 2, salt: String(vals[i][1]), hash: String(vals[i][2]), failed: Number(vals[i][3] || 0), lockedUntil: String(vals[i][4] || '') };
+    }
+  }
+  return null;
+}
+
+function _researchIssueToken(his) {
+  const token = Utilities.getUuid();
+  CacheService.getScriptCache().put('research_token_' + token, his, RESEARCH_TOKEN_TTL);
+  return token;
+}
+
+function _researchCheckToken(his, token) {
+  if (!token) return false;
+  return CacheService.getScriptCache().get('research_token_' + token) === String(his);
+}
+
+function _researchBackupsSheet(ss) {
+  let sh = ss.getSheetByName('ResearchBackups');
+  if (!sh) {
+    sh = ss.insertSheet('ResearchBackups');
+    sh.getRange('A:E').setNumberFormat('@');
+    sh.getRange(1, 1, 1, 5).setValues([['his', 'day', 'updated_at', 'chunk', 'data']]);
+  }
+  return sh;
+}
+
+/** 讀出全部備份列：[{ his, day, updated_at, chunk, data }] */
+function _researchReadBackups(sh) {
+  const last = sh.getLastRow();
+  if (last < 2) return [];
+  return sh.getRange(2, 1, last - 1, 5).getValues().map(r => ({
+    his: String(r[0]), day: String(r[1]), updated_at: String(r[2]), chunk: Number(r[3]), data: String(r[4]),
+  }));
+}
+
+function _researchWriteBackups(sh, rows) {
+  const last = sh.getLastRow();
+  if (last >= 2) sh.getRange(2, 1, last - 1, 5).clearContent();
+  if (!rows.length) return;
+  const range = sh.getRange(2, 1, rows.length, 5);
+  range.setNumberFormat('@');
+  range.setValues(rows.map(r => [r.his, r.day, r.updated_at, String(r.chunk), r.data]));
+}
+
+/** 某人各日期的最新備份（新到舊） */
+function _researchDays(rows, his) {
+  const days = {};
+  rows.forEach(r => { if (r.his === his) days[r.day] = r.updated_at; });
+  return Object.keys(days).sort().reverse().map(d => ({ day: d, updated_at: days[d] }));
+}
+
+
 // ── NP 值班表（NpDuty 資料 + NpDutyMonths 每月版本）──────────────────
 const NP_FIELDS = ['duty_date', 'ward', 'np_name', 'staff_code', 'extension', 'shift', 'notes', 'source_file'];
 
@@ -934,6 +1018,83 @@ function doPost(e) {
               surgery_type_id: Number(r[0]), hospital_code: String(r[1]||'')
             })) : [];
         return json({ ok: true, surgeryTypes, surgeryTypeItems });
+      }
+
+      // ── 論文專案：個人雲端備份（ADR-012）────────────────────────────
+      // 驗證 PIN；連錯 5 次鎖 15 分鐘。成功回傳憑證與最新一份備份的日期
+      case 'researchLogin': {
+        const his = String(p.his || '').trim(), pin = String(p.pin || '');
+        const result = _withLock(() => {
+          const sh = _researchUsersSheet(ss);
+          const u = _researchFindUser(sh, his);
+          if (!u) return { ok: false, code: 'NOT_FOUND', error: '雲端沒有此帳號' };
+          const now = new Date();
+          if (u.lockedUntil && new Date(u.lockedUntil) > now) return { ok: false, code: 'LOCKED', locked_until: u.lockedUntil };
+          if (_researchHash(u.salt, pin) !== u.hash) {
+            const failed = u.failed + 1;
+            if (failed >= RESEARCH_MAX_FAILED) {
+              const until = new Date(now.getTime() + RESEARCH_LOCK_MINUTES * 60000).toISOString();
+              sh.getRange(u.row, 4, 1, 2).setValues([['0', until]]);
+              return { ok: false, code: 'LOCKED', locked_until: until };
+            }
+            sh.getRange(u.row, 4, 1, 2).setValues([[String(failed), '']]);
+            return { ok: false, code: 'BAD_PIN', remaining: RESEARCH_MAX_FAILED - failed };
+          }
+          if (u.failed || u.lockedUntil) sh.getRange(u.row, 4, 1, 2).setValues([['0', '']]);
+          const days = _researchDays(_researchReadBackups(_researchBackupsSheet(ss)), his);
+          return { ok: true, token: _researchIssueToken(his), latest: days[0] || null };
+        });
+        return json(result);
+      }
+
+      case 'researchRegister': {
+        const his = String(p.his || '').trim(), pin = String(p.pin || '');
+        if (!his || !/^\d{4,6}$/.test(pin)) return json({ ok: false, error: 'HIS 帳號或 PIN 格式錯誤' });
+        const result = _withLock(() => {
+          const sh = _researchUsersSheet(ss);
+          if (_researchFindUser(sh, his)) return { ok: false, code: 'EXISTS', error: '此帳號已設定過 PIN' };
+          const salt = Utilities.getUuid();
+          sh.appendRow([his, salt, _researchHash(salt, pin), '0', '', new Date().toISOString()]);
+          return { ok: true, token: _researchIssueToken(his) };
+        });
+        return json(result);
+      }
+
+      // 上傳：同一天覆蓋當天那份，只保留最近 3 天
+      case 'researchBackup': {
+        const his = String(p.his || '');
+        if (!_researchCheckToken(his, p.token)) return json({ ok: false, code: 'AUTH', error: '登入憑證無效或已過期' });
+        const day = String(p.day || ''), data = String(p.data || '');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !data) return json({ ok: false, error: '備份內容格式錯誤' });
+        const updatedAt = _withLock(() => {
+          const sh = _researchBackupsSheet(ss);
+          const now = new Date().toISOString();
+          let rows = _researchReadBackups(sh).filter(r => !(r.his === his && r.day === day));
+          for (let i = 0, n = 0; i < data.length; i += RESEARCH_CHUNK, n++) {
+            rows.push({ his: his, day: day, updated_at: now, chunk: n, data: data.slice(i, i + RESEARCH_CHUNK) });
+          }
+          const keep = _researchDays(rows, his).slice(0, RESEARCH_KEEP_DAYS).map(d => d.day);
+          rows = rows.filter(r => r.his !== his || keep.indexOf(r.day) >= 0);
+          _researchWriteBackups(sh, rows);
+          return now;
+        });
+        return json({ ok: true, updated_at: updatedAt });
+      }
+
+      case 'researchListBackups': {
+        const his = String(p.his || '');
+        if (!_researchCheckToken(his, p.token)) return json({ ok: false, code: 'AUTH', error: '登入憑證無效或已過期' });
+        return json({ ok: true, backups: _researchDays(_researchReadBackups(_researchBackupsSheet(ss)), his) });
+      }
+
+      case 'researchGetBackup': {
+        const his = String(p.his || ''), day = String(p.day || '');
+        if (!_researchCheckToken(his, p.token)) return json({ ok: false, code: 'AUTH', error: '登入憑證無效或已過期' });
+        const parts = _researchReadBackups(_researchBackupsSheet(ss))
+          .filter(r => r.his === his && r.day === day)
+          .sort((a, b) => a.chunk - b.chunk);
+        if (!parts.length) return json({ ok: false, error: '找不到這一天的備份' });
+        return json({ ok: true, updated_at: parts[0].updated_at, data: parts.map(r => r.data).join('') });
       }
 
       // ── 取得版本時間戳（多裝置同步輪詢用）────────────────────────

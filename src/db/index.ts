@@ -875,4 +875,26 @@ async function initResearchSchema(db: Database) {
   await db.execute(
     `INSERT OR IGNORE INTO app_settings (key, value) VALUES ('research_schema_version', '1')`
   );
+
+  // ── v2：人員歸屬 + 雲端備份（ADR-012）───────────────────────────
+  // 專案、作者名冊、期刊庫依 HIS 帳號區分擁有者；子表跟著專案走，檢核表範本為共用參考資料。
+  // 升級前的資料 owner_his 為 NULL，第一位登入者可選擇認領（見 useResearchSession）。
+  for (const t of ["research_projects", "research_authors", "research_journals"]) {
+    try { await db.execute(`ALTER TABLE ${t} ADD COLUMN owner_his TEXT`); } catch { /* 已存在 */ }
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_${t}_owner ON ${t}(owner_his);`);
+  }
+  // 本機 PIN（加鹽雜湊，供離線登入）與備份狀態。時間戳：
+  //   last_change_at / last_backup_change_at：本機 ISO 時間，前者較新代表有未上傳的修改
+  //   last_synced_at：最後一次上傳或還原時「雲端」的 updated_at，與雲端最新備份比較用
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS research_users (
+      his_account           TEXT PRIMARY KEY,
+      pin_salt              TEXT NOT NULL,
+      pin_hash              TEXT NOT NULL,
+      last_change_at        TEXT,
+      last_backup_change_at TEXT,
+      last_synced_at        TEXT
+    );
+  `);
+  await db.execute(`UPDATE app_settings SET value = '2' WHERE key = 'research_schema_version' AND value = '1'`);
 }
