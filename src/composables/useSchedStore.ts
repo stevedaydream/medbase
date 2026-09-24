@@ -8,7 +8,7 @@ import { getDb, dbWrite } from "@/db";
 import {
   DEFAULT_SHIFTS, DEFAULT_QUOTA_ITEMS, DEFAULT_RULES, clone,
   type Person, type ShiftDef, type QuotaItem, type RuleParams, type HolidayDoc, type HolidayDutyDoc,
-  type Duty84Doc, type CnyDoc, type MonthDoc, type PrebookDoc, type NoticeItem, type LogDoc, newId,
+  type Duty84Doc, type CnyDoc, type MonthDoc, type PrebookDoc, type NoticeItem, type LogDoc, type DebtRec, type LockInfo, newId,
 } from "@/utils/sched/types";
 import { emptyHolidays, nextYm, ymParts } from "@/utils/sched/calendar";
 import { recomputeFrom, newMonthFrom, startScheduling, type SchedSnapshot, type Notice } from "@/utils/sched/engine/prefill";
@@ -31,11 +31,13 @@ export interface SchedState {
   months: Record<string, MonthDoc>;
   prebooks: Record<string, PrebookDoc>;
   logs: Record<string, LogDoc>;
+  locks: Record<string, LockInfo | null>;
+  debts: DebtRec[];
 }
 
-export type GlobalKey = "people" | "shifts" | "quotaItems" | "rules" | "holidays" | "holidayDuty" | "duty84" | "cny" | "notices";
+export type GlobalKey = "people" | "shifts" | "quotaItems" | "rules" | "holidays" | "holidayDuty" | "duty84" | "cny" | "notices" | "debts";
 
-const defaults = (): Omit<SchedState, "loaded" | "months" | "prebooks" | "logs"> => ({
+const defaults = (): Omit<SchedState, "loaded" | "months" | "prebooks" | "logs" | "locks"> => ({
   people: [],
   shifts: structuredClone(DEFAULT_SHIFTS),
   quotaItems: structuredClone(DEFAULT_QUOTA_ITEMS),
@@ -45,9 +47,10 @@ const defaults = (): Omit<SchedState, "loaded" | "months" | "prebooks" | "logs">
   duty84: { log: [], removedDates: [], addedDates: [] },
   cny: { lastD: {}, log: [] },
   notices: [],
+  debts: [],
 });
 
-const state = reactive<SchedState>({ loaded: false, months: {}, prebooks: {}, logs: {}, ...defaults() });
+const state = reactive<SchedState>({ loaded: false, months: {}, prebooks: {}, logs: {}, locks: {}, ...defaults() });
 let loading: Promise<void> | null = null;
 
 async function load(): Promise<void> {
@@ -58,14 +61,18 @@ async function load(): Promise<void> {
   state.months = {};
   state.prebooks = {};
   state.logs = {};
-  for (const r of rows) {
-    const val = JSON.parse(r.json);
-    if (r.key.startsWith("month:")) state.months[r.key.slice(6)] = val;
-    else if (r.key.startsWith("prebook:")) state.prebooks[r.key.slice(8)] = val;
-    else if (r.key.startsWith("log:")) state.logs[r.key.slice(4)] = val;
-    else if (r.key in d) (state as unknown as Record<string, unknown>)[r.key] = val;
-  }
+  state.locks = {};
+  for (const r of rows) applyToState(r.key, JSON.parse(r.json));
   state.loaded = true;
+}
+
+/** 文件內容放進記憶體狀態（載入與雲端下載共用） */
+function applyToState(key: string, val: unknown) {
+  if (key.startsWith("month:")) state.months[key.slice(6)] = val as MonthDoc;
+  else if (key.startsWith("prebook:")) state.prebooks[key.slice(8)] = val as PrebookDoc;
+  else if (key.startsWith("log:")) state.logs[key.slice(4)] = val as LogDoc;
+  else if (key.startsWith("lock:")) state.locks[key.slice(5)] = val as LockInfo | null;
+  else if (key in defaults()) (state as unknown as Record<string, unknown>)[key] = val;
 }
 
 export function ensureSchedLoaded(): Promise<void> {
@@ -79,12 +86,54 @@ export async function reloadSched(): Promise<void> {
   await ensureSchedLoaded();
 }
 
+const dirtyListeners = new Set<() => void>();
+/** 本機有文件變更時通知（自動同步用） */
+export function onSchedDirty(fn: () => void): () => void {
+  dirtyListeners.add(fn);
+  return () => dirtyListeners.delete(fn);
+}
+
 async function writeDoc(key: string, value: unknown): Promise<void> {
   await dbWrite(
     `INSERT INTO sched_docs (key, json, version, dirty) VALUES (?, ?, ?, 1)
      ON CONFLICT(key) DO UPDATE SET json = excluded.json, version = excluded.version, dirty = 1`,
     [key, JSON.stringify(value), new Date().toISOString()],
   );
+  dirtyListeners.forEach(fn => fn());
+}
+
+// ── 同步用（useSchedSync）──────────────────────────────────────────────
+export interface LocalDocMeta { key: string; json: string; version: string; cloud_version: string | null; dirty: number }
+
+export async function localDocs(): Promise<LocalDocMeta[]> {
+  const db = await getDb();
+  return db.select<LocalDocMeta[]>("SELECT key, json, version, cloud_version, dirty FROM sched_docs");
+}
+
+/**
+ * 以雲端內容覆蓋本機；expectVersion 有值時只在本機版本未再變動時才覆蓋（避免蓋掉同步期間的新修改）。
+ * 回傳是否已套用。
+ */
+export async function applyCloudDoc(key: string, json: string, cloudVersion: string, expectVersion?: string): Promise<boolean> {
+  const r = expectVersion
+    ? await dbWrite("UPDATE sched_docs SET json = ?, version = ?, cloud_version = ?, dirty = 0 WHERE key = ? AND version = ?", [json, cloudVersion, cloudVersion, key, expectVersion])
+    : await dbWrite(
+      `INSERT INTO sched_docs (key, json, version, cloud_version, dirty) VALUES (?, ?, ?, ?, 0)
+       ON CONFLICT(key) DO UPDATE SET json = excluded.json, version = excluded.version, cloud_version = excluded.cloud_version, dirty = 0`,
+      [key, json, cloudVersion, cloudVersion]);
+  if (expectVersion && !r.rowsAffected) return false;
+  applyToState(key, JSON.parse(json));
+  return true;
+}
+
+/** 上傳成功：記下雲端版本；本機若在上傳期間又改過則保持 dirty */
+export async function markSynced(key: string, sentVersion: string, cloudVersion: string): Promise<void> {
+  await dbWrite("UPDATE sched_docs SET cloud_version = ?, dirty = CASE WHEN version = ? THEN 0 ELSE dirty END WHERE key = ?", [cloudVersion, sentVersion, key]);
+}
+
+export function saveLock(ym: string, info: LockInfo | null): Promise<void> {
+  state.locks[ym] = info;
+  return writeDoc(`lock:${ym}`, info);
 }
 
 export function saveGlobal(key: GlobalKey): Promise<void> {

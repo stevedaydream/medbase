@@ -8,6 +8,7 @@ import {
 } from "@/composables/useSchedStore";
 import { useSchedSession } from "@/composables/useSchedSession";
 import { cellKey, type PrebookCell, CONSTRAINT_MARKS } from "@/utils/sched/types";
+import { republish } from "@/composables/useSchedFlow";
 import { computeQuotas } from "@/utils/sched/engine/quota";
 import { cellFnOf } from "@/utils/sched/engine/prefill";
 import { nextYm, daysIn } from "@/utils/sched/calendar";
@@ -19,7 +20,12 @@ interface Op { layer: Layer; ym: string; changes: Change[] }
 
 const UNDO_LIMIT = 100;
 
-export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>) {
+export interface EditReason { text: string; approved: boolean }
+
+/**
+ * hasLock：本機持有此月排班鎖；postEdit：已發布月份進入「修改已發布班表」模式
+ */
+export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>, hasLock: Ref<boolean>, postEdit: Ref<boolean>) {
   const store = useSchedStore();
   const session = useSchedSession();
   const undoStack = ref<Op[]>([]);
@@ -30,13 +36,15 @@ export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>) {
   const prebook = computed(() => store.prebooks[ym.value]);
   const isStaff = computed(() => session.role !== "employee");
 
-  /** 目前層是否可編輯（第四階段加入排班鎖與發布後修改） */
+  /** 目前層是否可編輯：預班層在開放期間；排班層需排班鎖（已發布另需進入修改模式） */
   const editable = computed(() => {
     const m = month.value;
-    if (!m) return false;
+    if (!m || !session.loggedIn) return false;
     if (layer.value === "pre") return m.status === "open";
-    return m.status === "scheduling" && isStaff.value;
+    if (!isStaff.value || !hasLock.value) return false;
+    return m.status === "scheduling" || (m.status === "published" && postEdit.value);
   });
+  const needsReason = computed(() => layer.value === "sched" && month.value?.status === "published");
 
   function canEditCell(personId: string, day: number): boolean {
     if (!editable.value) return false;
@@ -79,11 +87,12 @@ export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>) {
     return { v: v || null, src: "emp", by: session.his || actorName(), at: new Date().toISOString() };
   }
 
-  /** 設定多格；回傳實際變更的格數 */
-  function setCells(targets: CellRef[], value: string, action = "改格"): number {
+  /** 設定多格；回傳實際變更的格數。已發布月份必須帶原因 */
+  function setCells(targets: CellRef[], value: string, action = "改格", reason?: EditReason): number {
     lastError.value = "";
     const l = layer.value;
     if (!editable.value) { lastError.value = "此月份目前不可編輯"; return 0; }
+    if (needsReason.value && !reason?.text.trim()) { lastError.value = "修改已發布班表必須填寫原因"; return 0; }
     if (l === "sched" && (CONSTRAINT_MARKS as readonly string[]).includes(value)) {
       lastError.value = "勿休／勿值是預班註記，請在預班層登記"; return 0;
     }
@@ -99,13 +108,24 @@ export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>) {
     }
     if (skipped) lastError.value = `${skipped} 格不可編輯（系統預填或非本人）已略過`;
     if (!changes.length) return 0;
+    if (needsReason.value && reason) recordChanges(changes, reason);
     push({ layer: l, ym: ym.value, changes });
-    commit(l, changes, action);
+    commit(l, changes, action, reason);
     return changes.length;
+  }
+
+  function recordChanges(changes: Change[], reason: EditReason) {
+    const m = month.value!;
+    const at = new Date().toISOString();
+    (m.changeLog ??= []).push(...changes.map(c => ({
+      at, by: actorName(), personId: c.personId, day: c.day,
+      from: (c.before as string) ?? "", to: (c.after as string) ?? "", reason: reason.text.trim(), approved: reason.approved,
+    })));
   }
 
   /** 貼上：以左上角為起點，values[row][col] */
   function paste(anchor: CellRef, rows: string[], values: string[][]) {
+    if (needsReason.value) { lastError.value = "已發布班表請逐格修改並填寫原因"; return 0; }
     const startRow = rows.indexOf(anchor.personId);
     if (startRow < 0) return 0;
     const nd = daysIn(ym.value);
@@ -143,6 +163,7 @@ export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>) {
   }
 
   function undo() {
+    if (needsReason.value) { lastError.value = "已發布班表不提供復原，請直接修改並填寫原因"; return; }
     const op = undoStack.value.pop();
     if (!op || op.ym !== ym.value) return;
     for (const c of op.changes) write(op.layer, c.personId, c.day, c.before);
@@ -151,6 +172,7 @@ export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>) {
   }
 
   function redo() {
+    if (needsReason.value) return;
     const op = redoStack.value.pop();
     if (!op || op.ym !== ym.value) return;
     for (const c of op.changes) write(op.layer, c.personId, c.day, c.after);
@@ -175,9 +197,13 @@ export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>) {
     return (changes.length > 6 ? `共 ${changes.length} 格：` : "") + items.join("、") + (changes.length > 6 ? "…" : "");
   }
 
-  function commit(l: Layer, changes: Change[], action: string) {
+  function commit(l: Layer, changes: Change[], action: string, reason?: EditReason) {
     dirty.add(l);
-    pendingLogs.push({ action: `${l === "pre" ? "預班" : "排班"}${action}`, detail: describe(changes) });
+    const published = l === "sched" && month.value?.status === "published";
+    pendingLogs.push({
+      action: published ? "發布後修改" : `${l === "pre" ? "預班" : "排班"}${action}`,
+      detail: describe(changes) + (reason ? `；原因：${reason.text.trim()}${reason.approved ? "（核准偏離）" : ""}` : ""),
+    });
     if (timer) clearTimeout(timer);
     const theYm = ym.value;
     timer = setTimeout(() => flush(theYm), 400);
@@ -191,6 +217,14 @@ export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>) {
       if (layers.includes("pre") && store.prebooks[theYm]) await savePrebook(store.prebooks[theYm]);
       if (layers.includes("sched") && store.months[theYm]) {
         const m = store.months[theYm];
+        if (m.status === "published") {
+          // 發布後修改：配額與 X 已定案不重算，存檔後自動重新發布
+          await saveMonth(m);
+          const actor = actorName();
+          for (const lg of logs.splice(0)) await appendLog(theYm, lg.action, lg.detail, actor);
+          await republish(theYm);
+          return;
+        }
         const before = JSON.stringify(Object.fromEntries(Object.entries(m.markers).map(([k, v]) => [k, v.x])));
         const q = computeQuotas({
           month: m, holidays: store.holidays, shifts: store.shifts, items: store.quotaItems,
@@ -209,7 +243,7 @@ export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>) {
   }
 
   return {
-    month, prebook, editable, canEditCell, read, setCells, paste, undo, redo, clearHistory,
+    month, prebook, editable, needsReason, canEditCell, read, setCells, paste, undo, redo, clearHistory,
     canUndo: computed(() => undoStack.value.length > 0),
     canRedo: computed(() => redoStack.value.length > 0),
     lastError,

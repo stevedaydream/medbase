@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { useSchedStore, personById, saveMonth, appendLog, actorName, recompute } from "@/composables/useSchedStore";
-import { useGridEditor, type Layer, type CellRef } from "@/composables/useGridEditor";
+import { useGridEditor, type Layer, type CellRef, type EditReason } from "@/composables/useGridEditor";
+import { targetsWithSwaps } from "@/utils/sched/engine/swaps";
 import { computeQuotas } from "@/utils/sched/engine/quota";
 import { cellFnOf } from "@/utils/sched/engine/prefill";
 import { needOf } from "@/utils/sched/engine/staffing";
@@ -10,13 +11,16 @@ import { daysIn, dayTypeOf, dowOf, dateStr, WEEKDAY_LABEL, inCny, prevYm } from 
 import { colorOf } from "@/utils/sched/palette";
 import { cellKey, CONSTRAINT_MARKS, FLAG_DEFS, type Flags } from "@/utils/sched/types";
 
-const props = defineProps<{ ym: string; layer: Layer; showInactive: boolean }>();
-const emit = defineEmits<{ toast: [msg: string]; issues: [list: Issue[]]; focus: [cell: CellRef | null]; showlog: [cell: CellRef] }>();
+const props = defineProps<{ ym: string; layer: Layer; showInactive: boolean; hasLock: boolean; postEdit: boolean }>();
+const emit = defineEmits<{
+  toast: [msg: string]; issues: [list: Issue[]]; focus: [cell: CellRef | null]; showlog: [cell: CellRef];
+  needreason: [count: number]; swap: [cell: CellRef];
+}>();
 
 const store = useSchedStore();
 const ymRef = computed(() => props.ym);
 const layerRef = computed(() => props.layer);
-const ed = useGridEditor(ymRef, layerRef);
+const ed = useGridEditor(ymRef, layerRef, computed(() => props.hasLock), computed(() => props.postEdit));
 
 const nd = computed(() => daysIn(props.ym));
 const days = computed(() => Array.from({ length: nd.value }, (_, i) => i + 1));
@@ -41,9 +45,13 @@ const quota = computed(() => {
 });
 const targets = computed(() => {
   const m = ed.month.value;
-  if (m?.status === "published" && m.frozenQuotas) return m.frozenQuotas;
-  return quota.value?.quotas ?? {};
+  if (!m) return {};
+  const base = m.status === "published" && m.frozenQuotas ? m.frozenQuotas : quota.value?.quotas ?? {};
+  return targetsWithSwaps(base, m, items.value);
 });
+const approved = computed(() => new Set((ed.month.value?.changeLog ?? []).filter(c => c.approved).map(c => c.personId)));
+const changedCells = computed(() => new Set((ed.month.value?.changeLog ?? []).map(c => `${c.personId}|${c.day}`)));
+const swapCells = computed(() => new Set((ed.month.value?.swaps ?? []).flatMap(s => [`${s.a}|${s.day}`, `${s.b}|${s.day}`])));
 
 const prevTail = computed(() => {
   const pm = store.months[prevYm(props.ym)];
@@ -58,7 +66,7 @@ const ctx = computed<GridCtx | null>(() => {
   return {
     month: m, prebook: ed.prebook.value, holidays: store.holidays, shifts: store.shifts, items: items.value,
     rules: store.rules, cell: cellFn.value, prevTail: prevTail.value, targets: targets.value,
-    offSlots: quota.value.offSlots, name: id => personById(id)?.name ?? "?",
+    offSlots: quota.value.offSlots, name: id => personById(id)?.name ?? "?", approved: approved.value,
   };
 });
 const issues = computed(() => (ctx.value ? validate(ctx.value) : []));
@@ -200,7 +208,14 @@ function radialPos(i: number, total: number) {
   return { left: `${Math.cos(a) * radius - 18}px`, top: `${Math.sin(a) * radius - 18}px` };
 }
 
+const pendingApply = ref<{ cells: CellRef[]; code: string } | null>(null);
 function apply(code: string) {
+  if (ed.needsReason.value) {
+    pendingApply.value = { cells: [...selCells.value], code };
+    closeMenus();
+    emit("needreason", selCells.value.length);
+    return;
+  }
   const n = ed.setCells(selCells.value, code, selCells.value.length > 1 ? "批次改格" : "改格");
   if (ed.lastError.value) emit("toast", ed.lastError.value);
   else if (n > 1) emit("toast", `已設定 ${n} 格`);
@@ -216,6 +231,19 @@ function onContext(e: MouseEvent, id: string, d: number) {
 }
 function showCellLog() {
   if (ctxMenu.value) emit("showlog", ctxMenu.value.cell);
+  closeMenus();
+}
+
+/** 發布後修改：填完原因後套用 */
+function confirmReason(reason: EditReason | null) {
+  const p = pendingApply.value;
+  pendingApply.value = null;
+  if (!p || !reason) return;
+  const n = ed.setCells(p.cells, p.code, p.cells.length > 1 ? "批次改格" : "改格", reason);
+  emit("toast", ed.lastError.value || `已修改 ${n} 格，將自動重新發布到手機`);
+}
+function requestSwap() {
+  if (ctxMenu.value) emit("swap", ctxMenu.value.cell);
   closeMenus();
 }
 
@@ -296,7 +324,7 @@ function goTo(c: CellRef) {
     gridEl.value?.querySelector(`[data-cell="${c.personId}|${c.day}"]`)?.scrollIntoView({ block: "nearest", inline: "center" });
   });
 }
-defineExpose({ goTo, undo: ed.undo, redo: ed.redo, canUndo: ed.canUndo, canRedo: ed.canRedo });
+defineExpose({ goTo, undo: ed.undo, redo: ed.redo, canUndo: ed.canUndo, canRedo: ed.canRedo, confirmReason });
 
 const statusOf = (id: string, itemId: string) => {
   const act = stats.value[id]?.counts[itemId] ?? 0;
@@ -346,6 +374,8 @@ const statusOf = (id: string, itemId: string) => {
             @contextmenu="onContext($event, r.personId, d)">
             <span :class="isMark(display(r.personId, d)) ? 'text-danger text-2xs' : ''">{{ display(r.personId, d) }}</span>
             <span v-if="markOf(r.personId, d)" class="absolute top-0 right-0.5 text-2xs text-danger leading-none">{{ markOf(r.personId, d) === "勿休" ? "⊘休" : "⊘值" }}</span>
+            <span v-if="layer === 'sched' && swapCells.has(`${r.personId}|${d}`)" class="absolute bottom-0 left-0.5 text-2xs leading-none text-warning" title="換班">⇄</span>
+            <span v-if="layer === 'sched' && changedCells.has(`${r.personId}|${d}`)" class="absolute top-0.5 left-0.5 w-1.5 h-1.5 rounded-full bg-warning" title="發布後修改過"></span>
           </td>
           <td v-for="it in items" :key="it.id" class="px-1.5 text-center tabular-nums border-b border-hairline" :class="statusOf(r.personId, it.id).cls">
             {{ r.flags.active ? statusOf(r.personId, it.id).text : "" }}
@@ -411,6 +441,7 @@ const statusOf = (id: string, itemId: string) => {
             <button v-for="code in menuCodes" :key="code" class="py-1 rounded text-2xs font-bold" :style="codeStyle(code)" @click="apply(code)">{{ code }}</button>
           </div>
           <button class="w-full text-left px-3 py-1.5 hover:bg-elevated" @click="apply('')">清除</button>
+          <button v-if="layer === 'sched' && selCells.length === 1" class="w-full text-left px-3 py-1.5 hover:bg-elevated" @click="requestSwap">建立換班（同日與另一人互換）…</button>
         </template>
         <div v-else class="px-3 py-1.5 text-muted">此月份目前不可編輯</div>
         <button class="w-full text-left px-3 py-1.5 hover:bg-elevated" @click="showCellLog">查看此格紀錄</button>

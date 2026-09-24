@@ -44,6 +44,8 @@ export interface GridCtx {
   targets?: Record<string, Record<string, number>>;
   offSlots: number[];
   name: (personId: string) => string;
+  /** 發布後修改時「核准偏離」的人：配額不符不警告 */
+  approved?: Set<string>;
 }
 
 export function shiftMap(shifts: ShiftDef[]): Map<string, ShiftDef> {
@@ -163,7 +165,7 @@ export function validate(ctx: GridCtx): Issue[] {
         out.push({ rule: "R12", personId: id, day: d, message: `${nm} ${d2(d)} 預班／預填為 ${pre}，目前排 ${raw || "空白"}` });
       }
     }
-    if (on("R9") && scheduling && ctx.targets?.[id]) {
+    if (on("R9") && scheduling && ctx.targets?.[id] && !ctx.approved?.has(id)) {
       const st = personStats(ctx, id);
       for (const it of ctx.items) {
         const t = ctx.targets[id][it.id];

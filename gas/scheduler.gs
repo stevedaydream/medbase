@@ -386,6 +386,114 @@ function _researchDays(rows, his) {
 }
 
 
+// ── 排班 v3 文件庫（ADR-014）──────────────────────────────────────────
+// SchDocs：key | version | chunk | data（整份 JSON 分段存，每段 ≤ 45000 字）
+// 寫入以版本比對（compare-and-swap）：帶來的 base 與雲端版本不同時
+//   prebook:* 逐格合併（同格以較晚 at 為準）、log:* 與 notices 聯集，其餘回傳衝突與雲端版本。
+const SCH_CHUNK = 45000;
+
+function _schSheet(ss) {
+  let sh = ss.getSheetByName('SchDocs');
+  if (!sh) {
+    sh = ss.insertSheet('SchDocs');
+    sh.getRange('A:D').setNumberFormat('@');
+    sh.getRange(1, 1, 1, 4).setValues([['key', 'version', 'chunk', 'data']]);
+  }
+  return sh;
+}
+
+/** 讀出全部文件：{ key: { version, json } } */
+function _schReadAll(sh) {
+  const last = sh.getLastRow();
+  const out = {};
+  if (last < 2) return out;
+  const rows = sh.getRange(2, 1, last - 1, 4).getValues()
+    .map(r => ({ key: String(r[0]), version: String(r[1]), chunk: Number(r[2]), data: String(r[3]) }))
+    .filter(r => r.key);
+  rows.sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : a.chunk - b.chunk);
+  rows.forEach(r => {
+    if (!out[r.key]) out[r.key] = { version: r.version, json: '' };
+    out[r.key].json += r.data;
+  });
+  return out;
+}
+
+function _schWriteAll(sh, docs) {
+  const rows = [];
+  Object.keys(docs).sort().forEach(k => {
+    const s = docs[k].json;
+    for (let i = 0, c = 0; i < s.length || c === 0; i += SCH_CHUNK, c++) {
+      rows.push([k, docs[k].version, String(c), s.slice(i, i + SCH_CHUNK)]);
+    }
+  });
+  const last = sh.getLastRow();
+  if (last >= 2) sh.getRange(2, 1, last - 1, 4).clearContent();
+  if (rows.length) {
+    const range = sh.getRange(2, 1, rows.length, 4);
+    range.setNumberFormat('@');
+    range.setValues(rows);
+  }
+}
+
+/** 多台電腦同時修改時的合併；回傳 null 表示不可合併（衝突） */
+function _schMerge(key, curJson, incJson) {
+  const cur = JSON.parse(curJson), inc = JSON.parse(incJson);
+  if (key.indexOf('prebook:') === 0) {
+    const cells = Object.assign({}, cur.cells);
+    Object.keys(inc.cells || {}).forEach(k => {
+      const a = cells[k], b = inc.cells[k];
+      if (!a || String(b.at) > String(a.at)) cells[k] = b;
+    });
+    return JSON.stringify({ ym: cur.ym, cells: cells });
+  }
+  if (key.indexOf('log:') === 0) {
+    const seen = {};
+    const all = [];
+    (cur.entries || []).concat(inc.entries || []).forEach(e => {
+      const id = e.at + '|' + e.actor + '|' + e.action + '|' + e.detail;
+      if (!seen[id]) { seen[id] = true; all.push(e); }
+    });
+    all.sort((a, b) => a.at < b.at ? -1 : a.at > b.at ? 1 : 0);
+    return JSON.stringify({ key: cur.key, entries: all.slice(-2000) });
+  }
+  if (key === 'notices') {
+    const byId = {};
+    cur.concat(inc).forEach(n => {
+      const o = byId[n.id];
+      byId[n.id] = o ? Object.assign({}, o, { read: o.read || n.read, sent: o.sent || n.sent }) : n;
+    });
+    return JSON.stringify(Object.keys(byId).map(k => byId[k]).sort((a, b) => a.at < b.at ? -1 : 1));
+  }
+  return null;
+}
+
+/** 新版本號：伺服器時間，同一毫秒遞增避免重複 */
+function _schVersion(prev) {
+  let v = new Date().toISOString();
+  if (prev && v <= prev) v = prev.slice(0, -1) + '1Z';
+  return v;
+}
+
+/**
+ * 寫入多份文件。items: [{ key, json, base }]；base 為用戶端最後看到的雲端版本（新文件為 null）。
+ * 回傳每份：{ key, ok, version, json? }；json 只在合併或衝突時回傳（用戶端以此為準）。
+ */
+function _schPut(docs, items) {
+  return items.map(it => {
+    const cur = docs[it.key];
+    if (!cur || cur.version === (it.base || '')) {
+      const v = _schVersion(cur && cur.version);
+      docs[it.key] = { version: v, json: it.json };
+      return { key: it.key, ok: true, version: v };
+    }
+    const merged = _schMerge(it.key, cur.json, it.json);
+    if (merged === null) return { key: it.key, ok: false, conflict: true, version: cur.version, json: cur.json };
+    const v = _schVersion(cur.version);
+    docs[it.key] = { version: v, json: merged };
+    return { key: it.key, ok: true, merged: true, version: v, json: merged };
+  });
+}
+
 // ── NP 值班表（NpDuty 資料 + NpDutyMonths 每月版本）──────────────────
 const NP_FIELDS = ['duty_date', 'ward', 'np_name', 'staff_code', 'extension', 'shift', 'notes', 'source_file'];
 
@@ -1200,6 +1308,26 @@ function doPost(e) {
 
       // ── 取得版本時間戳（多裝置同步輪詢用）────────────────────────
       case 'getVersions': return getVersions();
+
+      // ── 排班 v3 文件庫（ADR-014，桌機專用）────────────────────────
+      case 'schList': {
+        const docs = _schReadAll(_schSheet(ss));
+        return json({ ok: true, docs: Object.keys(docs).map(k => ({ key: k, version: docs[k].version })) });
+      }
+      case 'schGet': {
+        const docs = _schReadAll(_schSheet(ss));
+        const keys = p.keys || [];
+        return json({ ok: true, docs: keys.filter(k => docs[k]).map(k => ({ key: k, version: docs[k].version, json: docs[k].json })) });
+      }
+      case 'schPut': {
+        return _withLock(() => {
+          const sh = _schSheet(ss);
+          const docs = _schReadAll(sh);
+          const results = _schPut(docs, p.items || []);
+          if (results.some(r => r.ok)) _schWriteAll(sh, docs);
+          return json({ ok: true, results: results });
+        });
+      }
 
       default:
         return json({ ok: false, error: `Unknown action: ${p.action}` });

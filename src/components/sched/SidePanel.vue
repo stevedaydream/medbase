@@ -4,12 +4,23 @@ import { useSchedStore, personById } from "@/composables/useSchedStore";
 import { RULE_LABELS, type Issue, type RuleCode } from "@/utils/sched/engine/validate";
 import type { CellRef } from "@/composables/useGridEditor";
 import QuotaPreview from "./QuotaPreview.vue";
+import { deleteSwap, settleDebt } from "@/composables/useSchedFlow";
+import { useSchedSession } from "@/composables/useSchedSession";
 
 const props = defineProps<{ ym: string; issues: Issue[]; focus: CellRef | null }>();
 const emit = defineEmits<{ goto: [cell: CellRef] }>();
 const store = useSchedStore();
 
-type Tab = "issues" | "quota" | "log";
+type Tab = "issues" | "quota" | "swap" | "change" | "log";
+const session = useSchedSession();
+const isStaff = computed(() => session.role !== "employee");
+const month = computed(() => store.months[props.ym]);
+const nm = (id: string | null | undefined) => personById(id)?.name ?? "?";
+const inRoster = computed(() => new Set(month.value?.roster.map(r => r.personId)));
+const openDebts = computed(() => store.debts.filter(d => !d.settledAt && d.qty > 0 && (inRoster.value.has(d.from) || inRoster.value.has(d.to))));
+const itemName = (id: string) => store.quotaItems.find(i => i.id === id)?.name ?? id;
+const settleNote = ref("");
+async function onSettle(id: string) { await settleDebt(id, settleNote.value.trim()); settleNote.value = ""; }
 const tab = ref<Tab>("issues");
 const onlyCell = ref(false);
 watch(() => props.focus, () => { if (onlyCell.value && !props.focus) onlyCell.value = false; });
@@ -56,8 +67,8 @@ defineExpose({ showLog: () => { tab.value = "log"; onlyCell.value = true; } });
 <template>
   <div class="h-full flex flex-col bg-surface border-l border-hairline text-xs">
     <div class="flex border-b border-hairline flex-shrink-0">
-      <button v-for="t in ([['issues', `問題 ${issues.length}`], ['quota', '配額'], ['log', '操作紀錄']] as const)" :key="t[0]"
-        class="flex-1 py-2 border-b-2 -mb-px"
+      <button v-for="t in ([['issues', `問題 ${issues.length}`], ['quota', '配額'], ['swap', '換班'], ['change', '異動'], ['log', '紀錄']] as const)" :key="t[0]"
+        class="flex-1 py-2 border-b-2 -mb-px whitespace-nowrap"
         :class="tab === t[0] ? 'border-accent text-fg font-semibold' : 'border-transparent text-muted hover:text-fg-secondary'"
         @click="tab = t[0]">{{ t[1] }}</button>
     </div>
@@ -82,6 +93,48 @@ defineExpose({ showLog: () => { tab.value = "log"; onlyCell.value = true; } });
       <div v-else-if="tab === 'quota'" class="p-2">
         <QuotaPreview :ym="ym" />
         <p class="mt-2 text-muted leading-relaxed">V＝本月餘數起點、X＝最後一個多拿的人；下個月 V＝X 的下一位。</p>
+      </div>
+
+      <!-- 換班與欠班 -->
+      <div v-else-if="tab === 'swap'" class="p-2 space-y-3">
+        <div>
+          <div class="font-semibold text-fg mb-1">本月換班</div>
+          <div v-if="!month?.swaps?.length" class="text-muted px-1">沒有換班（在格子上按右鍵建立）</div>
+          <div v-for="sw in month?.swaps ?? []" :key="sw.id" class="px-2 py-1.5 rounded bg-elevated mb-1">
+            <div class="flex items-center gap-1">
+              <span class="text-fg">{{ Number(ym.slice(4)) }}/{{ sw.day }} {{ nm(sw.a) }} {{ sw.aCode || "空白" }} ⇄ {{ nm(sw.b) }} {{ sw.bCode || "空白" }}</span>
+              <button v-if="isStaff" class="ml-auto text-muted hover:text-danger" @click="deleteSwap(ym, sw.id)">刪除</button>
+            </div>
+            <div v-if="sw.note" class="text-muted">{{ sw.note }}</div>
+          </div>
+        </div>
+        <div>
+          <div class="font-semibold text-fg mb-1">未平的欠班</div>
+          <div v-if="!openDebts.length" class="text-muted px-1">沒有欠班</div>
+          <div v-for="d in openDebts" :key="d.id" class="px-2 py-1.5 rounded bg-elevated mb-1">
+            <div class="flex items-center gap-1">
+              <span class="text-fg">{{ nm(d.from) }} 欠 {{ nm(d.to) }} {{ itemName(d.item) }} ×{{ d.qty }}</span>
+              <span class="text-muted">（{{ d.ym }}）</span>
+            </div>
+            <div v-if="isStaff" class="flex items-center gap-1 mt-1">
+              <input v-model="settleNote" placeholder="平帳備註" class="sched-input flex-1" />
+              <button class="px-2 py-0.5 border border-hairline rounded hover:bg-raised" @click="onSettle(d.id)">平帳</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 發布後異動 -->
+      <div v-else-if="tab === 'change'" class="p-2 space-y-1">
+        <div v-if="!month?.changeLog?.length" class="p-4 text-center text-muted">發布後沒有異動</div>
+        <div v-for="(c, k) in [...(month?.changeLog ?? [])].reverse()" :key="k" class="px-2 py-1.5 rounded bg-elevated">
+          <div class="flex items-center gap-1.5">
+            <span class="font-semibold text-fg">{{ nm(c.personId) }} {{ Number(ym.slice(4)) }}/{{ c.day }}</span>
+            <span class="text-fg-secondary">{{ c.from || "空白" }} → {{ c.to || "空白" }}</span>
+            <span class="ml-auto text-muted tabular-nums">{{ when(c.at) }}</span>
+          </div>
+          <div class="text-fg-secondary">{{ c.reason }}<span v-if="c.approved" class="text-warning">（核准偏離）</span>　<span class="text-muted">{{ c.by }}</span></div>
+        </div>
       </div>
 
       <!-- 操作紀錄 -->

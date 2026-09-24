@@ -205,6 +205,53 @@ export interface MonthDoc {
   startedAt: string | null;
   publishedAt: string | null;
   imported: boolean;
+  swaps?: SwapRec[];                      // 換班紀錄（同日兩人互換）
+  changeLog?: ChangeRec[];                // 發布後異動紀錄
+}
+
+/** 換班：同一天兩人互換班別（跨日換班＝兩筆；跨月未抵銷者成為欠班） */
+export interface SwapRec {
+  id: string;
+  day: number;
+  a: string;        // personId
+  b: string;
+  aCode: string;    // 互換前 a 的班別
+  bCode: string;
+  at: string;
+  by: string;
+  note: string;
+}
+
+/** 發布後修改（必填原因） */
+export interface ChangeRec {
+  at: string;
+  by: string;
+  personId: string;
+  day: number;
+  from: string;
+  to: string;
+  reason: string;
+  approved: boolean; // 核准偏離：此人配額不符不再警告
+}
+
+/** 欠班：from 欠 to（to 多上了 from 的班），依配額項目計 */
+export interface DebtRec {
+  id: string;
+  from: string;
+  to: string;
+  item: string;
+  qty: number;
+  ym: string;
+  settledAt: string | null;
+  note: string;
+}
+
+/** 排班鎖（每月一份，lock:YYYYMM） */
+export interface LockInfo {
+  his: string;
+  name: string;
+  machine: string;
+  at: string;
 }
 
 export interface PrebookCell {
@@ -231,7 +278,7 @@ export function emptyMonth(ym: string): MonthDoc {
     staffing: { base: structuredClone(DEFAULT_STAFFING), ranges: [], dayAdjust: {} },
     schedule: {}, origin: {}, markers: {}, frozenQuotas: null,
     weekend: { start: { wkN: null, satD: null, sunD: null }, end: null },
-    startedAt: null, publishedAt: null, imported: false,
+    startedAt: null, publishedAt: null, imported: false, swaps: [], changeLog: [],
   };
 }
 
