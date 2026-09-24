@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  opRecompute, opStartMonth, opPublish, opRevert, opCreateSwap, opDeleteSwap, lockDecision, cellChangeNotices,
+  opRecompute, opStartMonth, opPublish, opRevert, opCreateSwap, opDeleteSwap, lockDecision, cellChangeNotices, opEditCells,
   applyToState, type OpsState,
 } from "./ops";
 import { newMonthFrom } from "./engine/prefill";
@@ -78,5 +78,33 @@ describe("ops", () => {
   it("格子異動通知：不通知自己", () => {
     const n = cellChangeNotices("published", "202611", [{ personId: "a", day: 5, from: "D", to: "OFF" }, { personId: "b", day: 5, from: "", to: "D" }], "b", "病假", NOW);
     expect(n.map(x => [x.personId, x.text])).toEqual([["a", "11/5 你的班 D→OFF：病假"]]);
+  });
+});
+
+describe("opEditCells", () => {
+  const o = { actor: "排班乙", actorPersonId: "b", actorHis: "222", now: NOW };
+  it("預班：代登別人會通知本人，系統預填不可改", () => {
+    let s = base();
+    s = applyToState(s, opRecompute(s, "202611", "x", NOW));
+    const sysKey = Object.entries(s.prebooks["202611"].cells).find(([, c]) => c.src === "sys")![0];
+    const [sysPid, sysDay] = sysKey.split("|");
+    const p = opEditCells(s, "202611", "pre", [{ personId: "a", day: 10, value: "OFF" }, { personId: sysPid, day: Number(sysDay), value: "OFF" }], o);
+    const pb = p.prebooks[0];
+    expect(pb.cells["a|10"]).toMatchObject({ v: "OFF", src: "emp", by: "222" });
+    expect(pb.cells[sysKey].src).toBe("sys");
+    expect(p.notices.map(n => n.personId)).toEqual(["a"]);
+  });
+  it("排班中：改格更新 X；已發布：必填原因、寫異動紀錄並通知", () => {
+    let s = base();
+    s = applyToState(s, opRecompute(s, "202611", "x", NOW));
+    s = applyToState(s, opStartMonth(s, "202611", false, "x", NOW));
+    const p = opEditCells(s, "202611", "sched", [{ personId: "a", day: 2, value: "D" }], o);
+    expect(p.months[0].schedule.a[1]).toBe("D");
+    expect(p.logs[0].action).toBe("排班改格");
+    s = applyToState(s, opPublish(applyToState(s, p), "202611", 0, "x", NOW));
+    expect(() => opEditCells(s, "202611", "sched", [{ personId: "a", day: 3, value: "OFF" }], o)).toThrow("原因");
+    const q = opEditCells(s, "202611", "sched", [{ personId: "a", day: 3, value: "OFF" }], { ...o, reason: { text: "病假", approved: true } });
+    expect(q.months[0].changeLog![0]).toMatchObject({ personId: "a", day: 3, to: "OFF", reason: "病假", approved: true });
+    expect(q.notices[0].text).toContain("病假");
   });
 });

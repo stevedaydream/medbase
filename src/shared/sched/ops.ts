@@ -244,3 +244,84 @@ export function publishRows(m: MonthDoc, people: Person[]): { name: string; days
     days: Array.from({ length: daysIn(m.ym) }, (_, i) => m.schedule[r.personId]?.[i] ?? ""),
   }));
 }
+
+// ── 格子編輯（手機排班者用；桌機由 useGridEditor 處理）────────────────
+export interface CellEdit { personId: string; day: number; value: string }
+export interface EditOpts {
+  actor: string;
+  actorPersonId: string | null;
+  actorHis: string;
+  now: string;
+  reason?: { text: string; approved: boolean };
+}
+
+/**
+ * pre：改預班（系統預填不可改；覆蓋他人會通知）；sched：改排班層
+ * （已發布需原因、寫異動紀錄並通知；排班中更新 X，X 變動時往後重算）。
+ */
+export function opEditCells(s: OpsState, ym: string, layer: "pre" | "sched", edits: CellEdit[], o: EditOpts): OpPatch {
+  const nm = nameFn(s.people);
+  const m0 = s.months[ym];
+  if (!m0) throw new Error("月份不存在");
+  const marks = ["勿休", "勿值"];
+  const changes: { personId: string; day: number; from: string; to: string }[] = [];
+  let p = emptyPatch();
+
+  if (layer === "pre") {
+    if (m0.status !== "open") throw new Error("這個月份的預班已凍結");
+    const pb = clone(s.prebooks[ym] ?? { ym, cells: {} });
+    for (const e of edits) {
+      const k = cellKeyOf(e.personId, e.day);
+      const cur = pb.cells[k];
+      if (cur?.src === "sys" && cur.v) continue;
+      const from = cur?.v ?? "";
+      if (from === e.value) continue;
+      pb.cells[k] = { v: e.value || null, src: "emp", by: o.actorHis || o.actor, at: o.now };
+      changes.push({ personId: e.personId, day: e.day, from, to: e.value });
+    }
+    if (!changes.length) return p;
+    p.prebooks.push(pb);
+    p.notices.push(...cellChangeNotices("prebook", ym, changes, o.actorPersonId, "", o.now));
+    p.logs.push({ scope: ym, action: "預班改格", detail: describeChanges(ym, changes, nm), actor: o.actor });
+    return p;
+  }
+
+  if (m0.status === "open") throw new Error("尚未開始排班");
+  if (m0.status === "published" && !o.reason?.text.trim()) throw new Error("修改已發布班表必須填寫原因");
+  const m = clone(m0);
+  const nd = daysIn(ym);
+  for (const e of edits) {
+    if (marks.includes(e.value)) continue;
+    m.schedule[e.personId] ??= Array(nd).fill("");
+    m.origin[e.personId] ??= Array(nd).fill("");
+    const from = m.schedule[e.personId][e.day - 1] ?? "";
+    if (from === e.value) continue;
+    m.schedule[e.personId][e.day - 1] = e.value;
+    m.origin[e.personId][e.day - 1] = "";
+    changes.push({ personId: e.personId, day: e.day, from, to: e.value });
+  }
+  if (!changes.length) return p;
+  if (m.status === "published") {
+    const r = o.reason!;
+    (m.changeLog ??= []).push(...changes.map(c => ({ at: o.now, by: o.actor, personId: c.personId, day: c.day, from: c.from, to: c.to, reason: r.text.trim(), approved: r.approved })));
+    p.months.push(m);
+    p.notices.push(...cellChangeNotices("published", ym, changes, o.actorPersonId, r.text.trim(), o.now));
+    p.logs.push({ scope: ym, action: "發布後修改", detail: `${describeChanges(ym, changes, nm)}；原因：${r.text.trim()}${r.approved ? "（核准偏離）" : ""}`, actor: o.actor });
+    return p;
+  }
+  const beforeX = JSON.stringify(Object.fromEntries(Object.entries(m.markers).map(([k, v]) => [k, v.x])));
+  const q = computeQuotas({ month: m, holidays: s.holidays, shifts: s.shifts, items: s.quotaItems, cell: cellFnOf(m, s.prebooks[ym]) });
+  for (const [k, mk] of Object.entries(q.markers)) m.markers[k] = mk;
+  p.months.push(m);
+  p.logs.push({ scope: ym, action: edits.length > 1 ? "排班批次改格" : "排班改格", detail: describeChanges(ym, changes, nm), actor: o.actor });
+  const afterX = JSON.stringify(Object.fromEntries(Object.entries(m.markers).map(([k, v]) => [k, v.x])));
+  if (beforeX !== afterX && s.months[nextYm(ym)]) p = mergePatch(p, opRecompute(applyToState(s, p), nextYm(ym), `${ym} 配額 X 變動`, o.now));
+  return p;
+}
+
+const cellKeyOf = (personId: string, day: number) => `${personId}|${day}`;
+
+function describeChanges(ym: string, changes: { personId: string; day: number; from: string; to: string }[], nm: (id: string) => string): string {
+  const items = changes.slice(0, 6).map(c => `${nm(c.personId)} ${md(ym, c.day)} ${c.from || "空白"}→${c.to || "空白"}`);
+  return (changes.length > 6 ? `共 ${changes.length} 格：` : "") + items.join("、") + (changes.length > 6 ? "…" : "");
+}

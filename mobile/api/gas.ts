@@ -73,6 +73,9 @@ export const RULES: Record<string, Rule> = {
       return { ym: str(a.ym), cells };
     },
   },
+  schPublish: {
+    build: (a) => /^\d{6}$/.test(str(a.ym)) ? { ym: str(a.ym) } : forbidden("月份格式錯誤"),
+  },
   mobileMarkRead: {
     build: (a) => ({ ids: Array.isArray(a.ids) ? (a.ids as unknown[]).slice(0, 500).map(x => str(x, 40)) : null }),
   },

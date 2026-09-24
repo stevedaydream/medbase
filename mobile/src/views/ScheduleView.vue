@@ -6,7 +6,8 @@ import { kvGet, kvSet } from '../lib/kv'
 import { session } from '../lib/session'
 import { toast } from '../lib/ui'
 import { usePullRefresh } from '../lib/pull'
-import { sched, syncSchedDocs, loadSchedCache, doc, setMyPrebook, markNoticesRead } from '../lib/sched'
+import { sched, syncSchedDocs, loadSchedCache, doc, setMyPrebook, markNoticesRead, isStaff } from '../lib/sched'
+import ScheduleStaff from '../components/ScheduleStaff.vue'
 import { colorOf } from '@shared/sched/palette'
 import { dayTypeOf, daysIn, dateStr } from '@shared/sched/calendar'
 import {
@@ -15,7 +16,7 @@ import {
 } from '@shared/sched/types'
 
 /** 班表（ADR-015）：我的班、全部班表（已發布）、預班（開放中的月份，登記自己的） */
-type Tab = 'mine' | 'all' | 'pre'
+type Tab = 'mine' | 'all' | 'pre' | 'staff'
 const tab = ref<Tab>('mine')
 const DOW = ['日', '一', '二', '三', '四', '五', '六']
 const today = new Date()
@@ -186,10 +187,10 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
         </button>
       </template>
       <div class="px-4 pb-2">
-        <div class="grid grid-cols-3 gap-1 rounded-xl bg-sunken p-1 text-sm font-bold">
-          <button v-for="t in (['mine', 'all', 'pre'] as const)" :key="t" @click="tab = t"
+        <div class="grid gap-1 rounded-xl bg-sunken p-1 text-sm font-bold" :class="isStaff() ? 'grid-cols-4' : 'grid-cols-3'">
+          <button v-for="t in (isStaff() ? ['mine', 'all', 'pre', 'staff'] as const : ['mine', 'all', 'pre'] as const)" :key="t" @click="tab = t"
             class="h-9 rounded-lg" :class="tab === t ? 'bg-surface text-accent shadow-sm' : 'text-muted'">
-            {{ { mine: '我的班', all: '全部班表', pre: '預班' }[t] }}
+            {{ { mine: '我的班', all: '全部班表', pre: '預班', staff: '排班' }[t] }}
           </button>
         </div>
       </div>
@@ -259,6 +260,8 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
         </table>
       </div>
     </section>
+
+    <ScheduleStaff v-else-if="tab === 'staff'" />
 
     <!-- ── 預班 ── -->
     <section v-else class="py-3">

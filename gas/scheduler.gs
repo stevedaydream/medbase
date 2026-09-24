@@ -577,6 +577,20 @@ function _schSetPrebook(docs, person, ym, cells, nowIso) {
   return { ok: true, applied: applied, rejected: rejected };
 }
 
+/** 已發布月份 → 手機班表列（姓名＋1–31 日），與 saveSchedule 格式相同 */
+function _schPublishRows(docs, ym) {
+  const month = _schParse(docs, 'month:' + ym, null);
+  if (!month || month.status !== 'published') return null;
+  const people = _schParse(docs, 'people', []);
+  return (month.roster || []).filter(r => r.flags && r.flags.active).map(r => {
+    const p = people.find(x => x.id === r.personId);
+    const days = (month.schedule && month.schedule[r.personId]) || [];
+    const row = [p ? p.name : '?'];
+    for (let i = 0; i < 31; i++) row.push(days[i] || '');
+    return row;
+  });
+}
+
 /** 員工標記自己的通知已讀 */
 function _schMarkRead(docs, person, ids) {
   if (!person || !docs.notices) return 0;
@@ -1372,6 +1386,23 @@ function doPost(e) {
           if (n) _schWriteAll(sh, docs);
           return json({ ok: true, marked: n });
         });
+      }
+      case 'schPublish': {
+        const docs = _schReadAll(_schSheet(ss));
+        if (p._mobile && !_schIsStaff(_schPerson(docs, p._mobile.his))) return json({ ok: false, code: 'FORBIDDEN', error: '只有排班者可以發布班表' });
+        const ym = String(p.ym || '');
+        const rows = _schPublishRows(docs, ym);
+        if (!rows) return json({ ok: false, error: '此月份尚未發布' });
+        const sid = _getConfigValue('schedule_spreadsheet_id');
+        const tss = sid ? SpreadsheetApp.openById(sid) : ss;
+        const name = 'Schedule_' + ym;
+        const sh = tss.getSheetByName(name) || tss.insertSheet(name);
+        const hd = ['姓名'];
+        for (let d = 1; d <= 31; d++) hd.push(d + '日');
+        sh.clearContents();
+        sh.getRange(1, 1, 1, hd.length).setValues([hd]);
+        if (rows.length) sh.getRange(2, 1, rows.length, hd.length).setValues(rows);
+        return json({ ok: true, rows: rows.length });
       }
       case 'saveRequest':
       case 'getRequests':

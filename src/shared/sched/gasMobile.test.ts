@@ -12,7 +12,7 @@ function loadGas(): Api {
   const ctx: Record<string, unknown> = {};
   vm.createContext(ctx);
   vm.runInContext(readFileSync("gas/scheduler.gs", "utf8")
-    + "\n;this.api = { _schPerson, _schIsStaff, _schEmployeeKey, _schMobileView, _schSetPrebook, _schMarkRead };", ctx);
+    + "\n;this.api = { _schPerson, _schIsStaff, _schEmployeeKey, _schMobileView, _schSetPrebook, _schMarkRead, _schPublishRows };", ctx);
   return ctx.api as Api;
 }
 
@@ -87,5 +87,17 @@ describe("GAS mobileSetPrebook", () => {
     const ns = JSON.parse(d.notices.json);
     expect(ns.find((n: { id: string }) => n.id === "n1").read).toBe(true);
     expect(ns.find((n: { id: string }) => n.id === "n2").read).toBe(false);
+  });
+});
+
+describe("GAS schPublish", () => {
+  it("已發布月份才產生班表列（在職者、姓名＋31 天）", () => {
+    const d = docs();
+    expect(g._schPublishRows(d, "202612")).toBeNull();
+    d["month:202612"] = doc({ ym: "202612", status: "published", roster: [{ personId: "e1", flags: { active: true } }, { personId: "x1", flags: { active: false } }], schedule: { e1: ["D", "", "OFF"] } });
+    const rows = g._schPublishRows(d, "202612") as string[][];
+    expect(rows.length).toBe(1);
+    expect(rows[0].slice(0, 4)).toEqual(["員工甲", "D", "", "OFF"]);
+    expect(rows[0].length).toBe(32);
   });
 });
