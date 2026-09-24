@@ -52,3 +52,4 @@ test.py
 test2.py
 x.toString(16).padStart(2
 release.bat
+.vercel

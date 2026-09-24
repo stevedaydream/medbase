@@ -1,0 +1,10 @@
+# Vercel（medbase-mobile，Root Directory = mobile）只需要手機版與共用程式
+/*
+!/mobile
+!/src
+/src/*
+!/src/shared
+/mobile/node_modules
+/mobile/dist
+/mobile/.env
+/src/shared/**/*.test.ts
