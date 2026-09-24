@@ -337,6 +337,15 @@ async function adjustDay(d: number, delta: number) {
   if (m.status === "open") await recompute(m.ym, `${m.ym} 單日可休微調`);
 }
 
+/** 滑鼠滾輪左右捲動班表；Shift＋滾輪上下捲動；觸控板的橫向手勢照常 */
+function onWheel(e: WheelEvent) {
+  const el = gridEl.value;
+  if (!el || e.ctrlKey || e.deltaY === 0 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  e.preventDefault();
+  if (e.shiftKey) el.scrollTop += e.deltaY;
+  else el.scrollLeft += e.deltaY;
+}
+
 // 供外部（問題清單）跳到某格
 const gridEl = ref<HTMLElement | null>(null);
 function goTo(c: CellRef) {
@@ -356,7 +365,7 @@ const statusOf = (id: string, itemId: string) => {
 </script>
 
 <template>
-  <div ref="gridEl" class="h-full overflow-auto select-none" @mouseleave="hoverRow = null">
+  <div ref="gridEl" class="h-full overflow-auto select-none" @mouseleave="hoverRow = null" @wheel="onWheel">
     <table v-if="ed.month.value" class="sched-grid text-xs border-separate border-spacing-0">
       <thead class="sticky top-0 z-20 bg-surface">
         <tr>
