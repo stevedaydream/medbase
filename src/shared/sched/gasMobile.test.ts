@@ -101,3 +101,24 @@ describe("GAS schPublish", () => {
     expect(rows[0].length).toBe(32);
   });
 });
+
+describe("GAS 班表分頁：8-4 不被當成日期", () => {
+  it("讀取時把被 Sheets 轉成日期的格子還原為「月-日」；寫入前設純文字", () => {
+    const ctx: Record<string, unknown> = {
+      Utilities: { formatDate: (d: Date) => `${d.getMonth() + 1}-${d.getDate()}` },
+    };
+    vm.createContext(ctx);
+    vm.runInContext(readFileSync("gas/scheduler.gs", "utf8") + "\n;this.api = { _readScheduleValues, _writeScheduleSheet };", ctx);
+    const api = ctx.api as Api;
+    // Sheets 回傳的是 GAS 環境裡的 Date，要在 VM 內建立 instanceof 才成立
+    const aug4 = vm.runInContext("new Date(2026, 7, 4)", ctx);
+    const sheet = { getDataRange: () => ({ getValues: () => [["姓名", "1日"], ["王子建", aug4], ["黃郁芳", "D"]] }) };
+    expect(api._readScheduleValues(sheet, "Asia/Taipei")).toEqual([["姓名", "1日"], ["王子建", "8-4"], ["黃郁芳", "D"]]);
+    const formats: string[] = [];
+    let written: unknown[][] = [];
+    const out = { clearContents() {}, getRange: (r: number) => ({ setValues(v: unknown[][]) { if (r === 2) written = v; }, setNumberFormat(fmt: string) { formats.push(fmt); return this; } }) };
+    api._writeScheduleSheet(out, [["王子建", "8-4", null]]);
+    expect(formats).toEqual(["@"]);
+    expect(written).toEqual([["王子建", "8-4", ""]]);
+  });
+});

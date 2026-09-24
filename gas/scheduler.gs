@@ -487,6 +487,26 @@ function _schPut(docs, items) {
   });
 }
 
+// ── 班表分頁（Schedule_YYYYMM）───────────────────────────────────────
+// Sheets 會把「8-4」這類班別自動轉成日期，寫入前一律設純文字；
+// 已被轉成日期的舊格子，讀出時還原成「月-日」（班別代碼不會是真正的日期）。
+function _writeScheduleSheet(sh, rows) {
+  const hd = ['姓名'];
+  for (let d = 1; d <= 31; d++) hd.push(d + '日');
+  sh.clearContents();
+  sh.getRange(1, 1, 1, hd.length).setValues([hd]);
+  if (rows.length) {
+    const range = sh.getRange(2, 1, rows.length, hd.length);
+    range.setNumberFormat('@');
+    range.setValues(rows.map(r => r.map(v => (v == null ? '' : String(v)))));
+  }
+}
+
+function _readScheduleValues(sh, tz) {
+  return sh.getDataRange().getValues().map(r => r.map(v =>
+    v instanceof Date ? Utilities.formatDate(v, tz, 'M-d') : v));
+}
+
 // ── 手機存取排班 v3（ADR-015）─────────────────────────────────────────
 // 角色一律由 GAS 依 HIS 帳號查 people 決定；scheduler／super 可讀寫全部文件，
 // 員工只能讀 prebook:*、est:*、shifts、holidays、精簡的 people 與自己的通知，寫入只能透過 mobileSetPrebook。
@@ -707,8 +727,7 @@ function doPost(e) {
         }
         const sh = tss.getSheetByName(p.sheetName);
         if (!sh) return json({ ok: false, error: '班表分頁不存在' });
-        const values = sh.getDataRange().getValues();
-        return json({ ok: true, data: values });
+        return json({ ok: true, data: _readScheduleValues(sh, tss.getSpreadsheetTimeZone()) });
       }
 
       // ── 取得 Config 值 ─────────────────────────────────────────
@@ -756,11 +775,8 @@ function doPost(e) {
       case 'saveSchedule': {
         const tss = getTargetSS(p);
         let sh = tss.getSheetByName(p.sheetName) || tss.insertSheet(p.sheetName);
-        const hd = ['姓名', ...Array.from({ length: 31 }, (_, i) => `${i + 1}日`)];
-        const rw = p.data.map(r => [r.name, ...r.days.map(d => d || '')]);
-        sh.clearContents();
-        sh.getRange(1, 1, 1, hd.length).setValues([hd]);
-        if (rw.length) sh.getRange(2, 1, rw.length, hd.length).setValues(rw);
+        const rw = p.data.map(r => [r.name].concat(r.days.map(d => d || '')));
+        _writeScheduleSheet(sh, rw);
         return json({ ok: true });
       }
 
@@ -1397,11 +1413,7 @@ function doPost(e) {
         const tss = sid ? SpreadsheetApp.openById(sid) : ss;
         const name = 'Schedule_' + ym;
         const sh = tss.getSheetByName(name) || tss.insertSheet(name);
-        const hd = ['姓名'];
-        for (let d = 1; d <= 31; d++) hd.push(d + '日');
-        sh.clearContents();
-        sh.getRange(1, 1, 1, hd.length).setValues([hd]);
-        if (rows.length) sh.getRange(2, 1, rows.length, hd.length).setValues(rows);
+        _writeScheduleSheet(sh, rows);
         return json({ ok: true, rows: rows.length });
       }
       case 'saveRequest':
@@ -1453,7 +1465,7 @@ function handleApi(p) {
         }
         const sh = tss.getSheetByName(p.sheetName);
         if (!sh) return { ok: false, error: '班表分頁不存在' };
-        return { ok: true, data: sh.getDataRange().getValues() };
+        return { ok: true, data: _readScheduleValues(sh, tss.getSpreadsheetTimeZone()) };
       }
       case 'getConfig': {
         const cfg = ss.getSheetByName('Config');
