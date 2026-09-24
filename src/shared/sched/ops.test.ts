@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   opRecompute, opStartMonth, opPublish, opRevert, opCreateSwap, opDeleteSwap, lockDecision, cellChangeNotices, opEditCells,
-  applyToState, type OpsState,
+  applyToState, opAddPrefillSwap, opRemovePrefillSwap, prefillSwapCells, type OpsState,
 } from "./ops";
 import { newMonthFrom } from "./engine/prefill";
 import { DEFAULT_SHIFTS, DEFAULT_QUOTA_ITEMS, DEFAULT_RULES, emptyFlags, emptyMonth, type Person } from "./types";
@@ -127,5 +127,40 @@ describe("輪序起點手動指定", () => {
     // 11/7 是本月第一個完整週末（11/1 週日接上月週六 N）
     expect(cells["d|7"]?.v).toBe("N");
     expect(cells["d|8"]?.v).toBe("N");
+  });
+});
+
+describe("預填換人", () => {
+  it("週末 N 兩天一起換給別人；下一個週末的輪序不受影響；開始排班轉成換班紀錄", () => {
+    let s = base();
+    s = applyToState(s, opRecompute(s, "202611", "x", NOW));
+    const nOf = (st: OpsState, d: number) => Object.entries(st.prebooks["202611"].cells).find(([k, c]) => k.endsWith(`|${d}`) && c.v === "N" && c.src === "sys")?.[0].split("|")[0];
+    const from = nOf(s, 7)!;
+    const next = nOf(s, 14);
+    const cells = prefillSwapCells(s, "202611", from, 7);
+    expect(cells).toEqual([{ day: 7, code: "N" }, { day: 8, code: "N" }]);
+    const to = ["a", "b", "c", "d", "e"].find(x => x !== from && !["7", "8"].some(d => s.prebooks["202611"].cells[`${x}|${d}`]?.src === "sys"))!;
+    const p = opAddPrefillSwap(s, "202611", from, to, cells, "長假", "排班者", NOW);
+    expect(p.notices.map(n => n.personId).sort()).toEqual([from, to].sort());
+    s = applyToState(s, p);
+    expect([nOf(s, 7), nOf(s, 8)]).toEqual([to, to]);
+    expect(nOf(s, 14)).toBe(next);
+    const st = opStartMonth(s, "202611", false, "x", NOW);
+    expect(st.months[0].swaps!.filter(w => w.note === "長假").map(w => [w.day, w.a, w.b, w.aCode, w.bCode]))
+      .toEqual([[7, from, to, "N", ""], [8, from, to, "N", ""]]);
+    const back = applyToState(s, opRemovePrefillSwap(s, "202611", p.months[0].prefillSwaps![0].group, "x", NOW));
+    expect(nOf(back, 7)).toBe(from);
+  });
+  it("接手的人被旗標排除或當天已有預填：照樣換人，記下注意事項", () => {
+    let s = base();
+    s.months["202611"].roster.find(r => r.personId === "e")!.flags.noN = true;
+    s = applyToState(s, opRecompute(s, "202611", "x", NOW));
+    const from = Object.entries(s.prebooks["202611"].cells).find(([k, c]) => k.endsWith("|7") && c.v === "N")![0].split("|")[0];
+    const p1 = opAddPrefillSwap(s, "202611", from, "e", [{ day: 7, code: "N" }], "長假", "x", NOW);
+    expect(p1.months[0].prefillSwaps![0].note).toBe("長假；注意：設定不排 N");
+    expect(p1.logs[0].detail).toContain("注意：設定不排 N");
+    const dPerson = Object.entries(s.prebooks["202611"].cells).find(([k, c]) => k.endsWith("|7") && c.v === "D")![0].split("|")[0];
+    const p2 = opAddPrefillSwap(s, "202611", from, dPerson, [{ day: 7, code: "N" }], "", "x", NOW);
+    expect(p2.months[0].prefillSwaps![0].note).toContain("已有系統預填 D");
   });
 });

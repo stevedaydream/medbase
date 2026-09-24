@@ -107,11 +107,25 @@ export function monthAssigns(
     start: start ?? { wkN: null, satD: null, sunD: null }, carrySunN,
     busy: date => busyMap.get(date) ?? new Set(),
   });
-  const all = [...fixed, ...wk.assigns].filter(a => inRoster.has(a.personId));
+  const warnings = [...wk.warnings];
+  // 預填換人：輪序照算，符合的格子改由接手的人預填
+  const raw = [...fixed, ...wk.assigns];
+  for (const sw of m.prefillSwaps ?? []) {
+    const date = dateStr(m.ym, sw.day);
+    const hit = raw.find(a => a.date === date && a.code === sw.code && a.personId === sw.from);
+    if (hit) hit.personId = sw.to;
+    else warnings.push(`${date} 預填換人失效：輪序已不是由該員上 ${sw.code}`);
+  }
+  const all = raw.filter(a => inRoster.has(a.personId));
   // 同一格只取第一個（優先順序如上）
   const seen = new Set<string>();
-  const assigns = all.filter(a => { const k = `${a.personId}|${a.date}`; if (seen.has(k)) return false; seen.add(k); return true; });
-  return { assigns, end: wk.end, warnings: wk.warnings };
+  const kept = new Map<string, Assign>();
+  const assigns = all.filter(a => {
+    const k = `${a.personId}|${a.date}`;
+    if (seen.has(k)) { warnings.push(`${a.date} 同一人同一天有兩個預填（${kept.get(k)!.code}、${a.code}），只保留 ${kept.get(k)!.code}`); return false; }
+    seen.add(k); kept.set(k, a); return true;
+  });
+  return { assigns, end: wk.end, warnings };
 }
 
 /** 將預填寫入預班層：清除舊的 sys 格，覆蓋員工預約時記通知 */
@@ -214,6 +228,11 @@ export function startScheduling(
     for (const it of s.quotaItems) {
       m.markers[it.id] = { v: m.vOverride?.[it.id] ?? handoverV(it, prev.roster, prev.markers[it.id], m.roster), x: null };
     }
+  }
+  // 預填換人轉成換班紀錄（原本的人該項 −1、接手的人 +1），配額目標與欠班沿用換班機制
+  for (const sw of m.prefillSwaps ?? []) {
+    if ((m.schedule[sw.to]?.[sw.day - 1] ?? "") !== sw.code) continue;
+    (m.swaps ??= []).push({ id: sw.id, day: sw.day, a: sw.from, b: sw.to, aCode: sw.code, bCode: "", at: sw.at, by: sw.by, note: sw.note || "預填換人" });
   }
   m.status = "scheduling";
   m.startedAt = now;

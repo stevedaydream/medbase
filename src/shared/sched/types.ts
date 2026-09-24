@@ -217,6 +217,7 @@ export interface MonthDoc {
   imported: boolean;
   swaps?: SwapRec[];                      // 換班紀錄（同日兩人互換）
   vOverride?: Record<string, string>;     // 手動指定的餘數起點 V（配額項目 → personId），優先於上月交接
+  prefillSwaps?: PrefillSwap[];           // 預填換人（開放預班時把系統預填的班交給別人）
   weekendFirst?: Partial<Record<keyof WeekendPointers, string>>; // 手動指定週末輪序本月第一位
   changeLog?: ChangeRec[];                // 發布後異動紀錄
 }
@@ -229,6 +230,23 @@ export interface SwapRec {
   b: string;
   aCode: string;    // 互換前 a 的班別
   bCode: string;
+  at: string;
+  by: string;
+  note: string;
+}
+
+/**
+ * 預填換人：系統預填（週末輪序、國定假日、8-4、春節）的某格改由別人上。
+ * 輪序照原本計算（指標不受影響），只是預填給 to；開始排班時轉成換班紀錄（SwapRec），
+ * 配額目標與欠班沿用換班機制。週末 N 的兩天以同一個 group 綁定。
+ */
+export interface PrefillSwap {
+  id: string;
+  group: string;
+  day: number;
+  code: string;
+  from: string;
+  to: string;
   at: string;
   by: string;
   note: string;

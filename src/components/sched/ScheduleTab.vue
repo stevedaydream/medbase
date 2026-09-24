@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
-import { useSchedStore, sortedYms, personById } from "@/composables/useSchedStore";
+import { useSchedStore, sortedYms, personById, snapshot } from "@/composables/useSchedStore";
+import { prefillSwapCells, prefillSwapCandidates, prefillSwapCautions } from "@/shared/sched/ops";
 import { useSchedSession, getMachineId } from "@/composables/useSchedSession";
 import {
   beginScheduling, acquireLock, publishMonth, revertMonth, revertDeadline, beginPostEdit, endPostEdit, createSwap,
-  exportMonth, republish, LockedError, type ExportKind,
+  exportMonth, republish, addPrefillSwap, LockedError, type ExportKind,
 } from "@/composables/useSchedFlow";
 import type { Layer, CellRef, EditReason } from "@/composables/useGridEditor";
 import { RULE_LABELS, type Issue, type RuleCode } from "@/shared/sched/engine/validate";
@@ -134,6 +135,30 @@ const doSwap = () => run(async () => {
   swapCell.value = null; swapWith.value = ""; swapNote.value = "";
 }, "已建立換班");
 
+// ── 預填換人 ─────────────────────────────────────────────────
+const pSwap = ref<{ from: string; cells: { day: number; code: string }[] } | null>(null);
+const pSwapTo = ref("");
+const pSwapNote = ref("");
+function openPrefillSwap(c: CellRef) {
+  const cells = prefillSwapCells(snapshot(), ym.value, c.personId, c.day);
+  if (!cells.length) return;
+  pSwap.value = { from: c.personId, cells };
+  pSwapTo.value = ""; pSwapNote.value = "";
+}
+const pSwapCandidates = computed(() => pSwap.value && month.value
+  ? prefillSwapCandidates(month.value, pSwap.value.cells[0].code, pSwap.value.from, store.shifts) : []);
+const cautionOf = (id: string) => {
+  const c = pSwap.value ? prefillSwapCautions(snapshot(), ym.value, id, pSwap.value.cells) : [];
+  return c.length ? `⚠ ${c.join("、")}` : "";
+};
+const preVal = (id: string, d: number) => store.prebooks[ym.value]?.cells[`${id}|${d}`]?.v || "空白";
+const doPrefillSwap = () => run(async () => {
+  const p = pSwap.value;
+  if (!p || !pSwapTo.value) return;
+  await addPrefillSwap(ym.value, p.from, pSwapTo.value, p.cells, pSwapNote.value.trim());
+  pSwap.value = null;
+}, "已換人，並通知雙方");
+
 // ── 匯出 ─────────────────────────────────────────────────────
 const showExport = ref(false);
 const doExport = (k: ExportKind) => { showExport.value = false; return run(async () => { const p = await exportMonth(ym.value, k); if (p) emit("toast", `已匯出：${p.split(/[\\/]/).pop()}`); }); };
@@ -222,7 +247,7 @@ const lockTime = computed(() => lock.value ? new Date(lock.value.at).toLocaleStr
       <div class="flex-1 overflow-hidden">
         <SchedGrid ref="grid" :ym="ym" :layer="layer" :show-inactive="showInactive" :has-lock="hasLock" :post-edit="postEdit"
           @toast="m => emit('toast', m)" @issues="v => (issues = v)" @focus="c => (focus = c)"
-          @showlog="c => { focus = c; side?.showLog(); }" @needreason="n => (reasonFor = n)" @swap="c => (swapCell = c)" />
+          @showlog="c => { focus = c; side?.showLog(); }" @needreason="n => (reasonFor = n)" @swap="c => (swapCell = c)" @prefillswap="openPrefillSwap" />
       </div>
       <div class="w-80 flex-shrink-0">
         <SidePanel ref="side" :ym="ym" :issues="issues" :focus="focus" @goto="onGoto" />
@@ -261,6 +286,29 @@ const lockTime = computed(() => lock.value ? new Date(lock.value.at).toLocaleStr
         <div class="flex justify-end gap-2">
           <button class="px-3 py-1.5 text-muted" @click="closeReason(false)">取消</button>
           <button class="px-3 py-1.5 bg-accent text-white rounded" @click="closeReason(true)">確定修改</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 預填換人 -->
+    <div v-if="pSwap" class="fixed inset-0 z-50 flex items-center justify-center bg-sunken/60 backdrop-blur-sm text-xs">
+      <div class="bg-surface border border-hairline rounded-xl shadow-2xl p-5 w-[28rem] space-y-3">
+        <h3 class="text-sm font-semibold text-fg">系統預填換人：{{ pSwap.cells.map(c => `${Number(ym.slice(4))}/${c.day}`).join("、") }} {{ pSwap.cells[0].code }}</h3>
+        <p class="text-fg-secondary">
+          原本由 {{ personById(pSwap.from)?.name }} 上，改由下列人員代上。輪序照原本計算，下一次仍輪到原本的下一位；
+          開始排班時自動記為換班（{{ personById(pSwap.from)?.name }} 該項 −1、代班者 +1），當月沒換回來會記成欠班。
+          ⚠ 標示的注意事項不會阻擋，只記入換人紀錄。
+        </p>
+        <select v-model="pSwapTo" class="sched-input w-full">
+          <option value="">選擇代班者…</option>
+          <option v-for="id in pSwapCandidates" :key="id" :value="id">
+            {{ personById(id)?.name }}（{{ pSwap.cells.map(c => preVal(id, c.day)).join("／") }}）{{ cautionOf(id) }}
+          </option>
+        </select>
+        <input v-model="pSwapNote" placeholder="原因（選填，例如：長假）" class="sched-input w-full" />
+        <div class="flex justify-end gap-2">
+          <button class="px-3 py-1.5 text-muted" @click="pSwap = null">取消</button>
+          <button class="px-3 py-1.5 bg-accent text-white rounded disabled:opacity-40" :disabled="!pSwapTo || busy" @click="doPrefillSwap">換人</button>
         </div>
       </div>
     </div>

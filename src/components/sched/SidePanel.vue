@@ -4,7 +4,7 @@ import { useSchedStore, personById } from "@/composables/useSchedStore";
 import { RULE_LABELS, type Issue, type RuleCode } from "@/shared/sched/engine/validate";
 import type { CellRef } from "@/composables/useGridEditor";
 import QuotaPreview from "./QuotaPreview.vue";
-import { deleteSwap, settleDebt } from "@/composables/useSchedFlow";
+import { deleteSwap, settleDebt, removePrefillSwap } from "@/composables/useSchedFlow";
 import { useSchedSession } from "@/composables/useSchedSession";
 
 const props = defineProps<{ ym: string; issues: Issue[]; focus: CellRef | null }>();
@@ -20,6 +20,16 @@ const inRoster = computed(() => new Set(month.value?.roster.map(r => r.personId)
 const openDebts = computed(() => store.debts.filter(d => !d.settledAt && d.qty > 0 && (inRoster.value.has(d.from) || inRoster.value.has(d.to))));
 const itemName = (id: string) => store.quotaItems.find(i => i.id === id)?.name ?? id;
 const settleNote = ref("");
+const prefillGroups = computed(() => {
+  const g = new Map<string, { group: string; days: string; code: string; from: string; to: string; note: string }>();
+  for (const x of month.value?.prefillSwaps ?? []) {
+    const cur = g.get(x.group);
+    const d = `${Number(props.ym.slice(4))}/${x.day}`;
+    if (cur) cur.days += `、${d}`;
+    else g.set(x.group, { group: x.group, days: d, code: x.code, from: x.from, to: x.to, note: x.note });
+  }
+  return [...g.values()];
+});
 async function onSettle(id: string) { await settleDebt(id, settleNote.value.trim()); settleNote.value = ""; }
 const tab = ref<Tab>("issues");
 const onlyCell = ref(false);
@@ -97,6 +107,16 @@ defineExpose({ showLog: () => { tab.value = "log"; onlyCell.value = true; } });
 
       <!-- 換班與欠班 -->
       <div v-else-if="tab === 'swap'" class="p-2 space-y-3">
+        <div v-if="month?.prefillSwaps?.length">
+          <div class="font-semibold text-fg mb-1">預填換人{{ month.status === 'open' ? "" : "（已於開始排班轉為換班）" }}</div>
+          <div v-for="g in prefillGroups" :key="g.group" class="px-2 py-1.5 rounded bg-elevated mb-1">
+            <div class="flex items-center gap-1">
+              <span class="text-fg">{{ g.days }} {{ g.code }}：{{ nm(g.from) }} → {{ nm(g.to) }}</span>
+              <button v-if="isStaff && month.status === 'open'" class="ml-auto text-muted hover:text-danger" @click="removePrefillSwap(ym, g.group)">取消</button>
+            </div>
+            <div v-if="g.note" class="text-muted">{{ g.note }}</div>
+          </div>
+        </div>
         <div>
           <div class="font-semibold text-fg mb-1">本月換班</div>
           <div v-if="!month?.swaps?.length" class="text-muted px-1">沒有換班（在格子上按右鍵建立）</div>

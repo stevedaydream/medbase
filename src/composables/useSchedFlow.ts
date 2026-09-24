@@ -6,6 +6,7 @@ import {
 } from "@/composables/useSchedStore";
 import {
   opPublish, opRevert, opCreateSwap, opDeleteSwap, opSettleDebt, revertDeadline as sharedDeadline,
+  opAddPrefillSwap, opRemovePrefillSwap,
   lockDecision, monthTargets as sharedTargets, publishRows,
 } from "@/shared/sched/ops";
 import { useSchedSession, getMachineId } from "@/composables/useSchedSession";
@@ -123,6 +124,15 @@ export async function createSwap(ym: string, day: number, a: string, b: string, 
 export async function deleteSwap(ym: string, id: string): Promise<void> {
   await applyPatch(opDeleteSwap(snapshot(), ym, id, actorName()));
   if (useSchedStore().months[ym]?.status === "published") await republish(ym);
+}
+
+// ── 預填換人（開放預班）───────────────────────────────────────────
+export async function addPrefillSwap(ym: string, from: string, to: string, cells: { day: number; code: string }[], note: string): Promise<void> {
+  await applyPatch(opAddPrefillSwap(snapshot(), ym, from, to, cells, note, actorName(), new Date().toISOString()));
+}
+
+export async function removePrefillSwap(ym: string, group: string): Promise<void> {
+  await applyPatch(opRemovePrefillSwap(snapshot(), ym, group, actorName(), new Date().toISOString()));
 }
 
 export async function settleDebt(id: string, note: string): Promise<void> {

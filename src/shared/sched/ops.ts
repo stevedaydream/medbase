@@ -325,3 +325,77 @@ function describeChanges(ym: string, changes: { personId: string; day: number; f
   const items = changes.slice(0, 6).map(c => `${nm(c.personId)} ${md(ym, c.day)} ${c.from || "空白"}→${c.to || "空白"}`);
   return (changes.length > 6 ? `共 ${changes.length} 格：` : "") + items.join("、") + (changes.length > 6 ? "…" : "");
 }
+
+// ── 預填換人（開放預班）───────────────────────────────────────────────
+/** 可接手的人：名單上的在職者（不擋，只列出注意事項） */
+export function prefillSwapCandidates(m: MonthDoc, _code: string, from: string, _shifts?: unknown): string[] {
+  return m.roster.filter(r => r.personId !== from && r.flags.active).map(r => r.personId);
+}
+
+/** 換人的注意事項：旗標排除、當天已有系統預填（只記錄，不阻擋） */
+export function prefillSwapCautions(s: OpsState, ym: string, to: string, cells: { day: number; code: string }[]): string[] {
+  const out: string[] = [];
+  const f = s.months[ym]?.roster.find(r => r.personId === to)?.flags;
+  const cat = s.shifts.find(x => x.code === cells[0]?.code)?.category;
+  if (f && cat === "N" && f.noN) out.push("設定不排 N");
+  if (f && cat === "N" && f.nightTransfer) out.push("設定夜班配額轉出");
+  if (f && cat === "D" && f.noD) out.push("設定不排 D");
+  for (const c of cells) {
+    const busy = s.prebooks[ym]?.cells[`${to}|${c.day}`];
+    if (busy?.src === "sys" && busy.v) out.push(`${md(ym, c.day)} 已有系統預填 ${busy.v}`);
+  }
+  return out;
+}
+
+/** 週末 N 連值：選到其中一天時，把同一人、同一個週末另一天的 N 一起換 */
+export function prefillSwapCells(s: OpsState, ym: string, personId: string, day: number): { day: number; code: string }[] {
+  const pb = s.prebooks[ym];
+  const code = pb?.cells[`${personId}|${day}`]?.v ?? "";
+  if (!code) return [];
+  const cells = [{ day, code }];
+  const dw = new Date(Number(ym.slice(0, 4)), Number(ym.slice(4)) - 1, day).getDay();
+  const other = dw === 6 ? day + 1 : dw === 0 ? day - 1 : 0;
+  const oc = other >= 1 && other <= daysIn(ym) ? pb?.cells[`${personId}|${other}`] : undefined;
+  if (code === "N" && oc?.src === "sys" && oc.v === "N") cells.push({ day: other, code: "N" });
+  return cells.sort((a, b) => a.day - b.day);
+}
+
+export function opAddPrefillSwap(
+  s: OpsState, ym: string, from: string, to: string, cells: { day: number; code: string }[], note: string, actor: string, now: string,
+): OpPatch {
+  const m0 = s.months[ym];
+  if (!m0 || m0.status !== "open") throw new Error("只有開放預班的月份可以預填換人");
+  if (!cells.length) throw new Error("沒有可換的格子");
+  const cautions = prefillSwapCautions(s, ym, to, cells);
+  const fullNote = [note, ...cautions.map(c => `注意：${c}`)].filter(Boolean).join("；");
+  const m = clone(m0);
+  const group = newId();
+  m.prefillSwaps = [
+    ...(m.prefillSwaps ?? []).filter(x => !(x.from === from && cells.some(c => c.day === x.day && c.code === x.code))),
+    ...cells.map(c => ({ id: newId(), group, day: c.day, code: c.code, from, to, at: now, by: actor, note: fullNote })),
+  ];
+  const nm = nameFn(s.people);
+  const when = cells.map(c => md(ym, c.day)).join("、");
+  let p: OpPatch = { ...emptyPatch(), months: [m] };
+  p.logs.push({ scope: ym, action: "預填換人", detail: `${when} ${cells[0].code}：${nm(from)} → ${nm(to)}${fullNote ? `（${fullNote}）` : ""}`, actor });
+  p.notices.push(notice(to, `${when} 的 ${cells[0].code} 改由你代 ${nm(from)} 上${note ? `（${note}）` : ""}`, now));
+  p.notices.push(notice(from, `${when} 的 ${cells[0].code} 已由 ${nm(to)} 代上，開始排班時記為換班`, now));
+  p = mergePatch(p, opRecompute(applyToState(s, p), ym, `預填換人（${when}）`, now));
+  return p;
+}
+
+export function opRemovePrefillSwap(s: OpsState, ym: string, group: string, actor: string, now: string): OpPatch {
+  const m0 = s.months[ym];
+  if (!m0 || m0.status !== "open") throw new Error("只有開放預班的月份可以取消預填換人");
+  const gone = (m0.prefillSwaps ?? []).filter(x => x.group === group);
+  if (!gone.length) return emptyPatch();
+  const m = clone(m0);
+  m.prefillSwaps = (m.prefillSwaps ?? []).filter(x => x.group !== group);
+  const nm = nameFn(s.people);
+  const when = gone.map(c => md(ym, c.day)).join("、");
+  let p: OpPatch = { ...emptyPatch(), months: [m] };
+  p.logs.push({ scope: ym, action: "取消預填換人", detail: `${when} ${gone[0].code}：還給 ${nm(gone[0].from)}（原由 ${nm(gone[0].to)} 代）`, actor });
+  p.notices.push(notice(gone[0].to, `${when} 的 ${gone[0].code} 已取消由你代班`, now));
+  p = mergePatch(p, opRecompute(applyToState(s, p), ym, `取消預填換人（${when}）`, now));
+  return p;
+}

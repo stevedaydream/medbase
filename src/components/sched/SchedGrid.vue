@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { useSchedStore, personById, saveMonth, appendLog, actorName, recompute } from "@/composables/useSchedStore";
 import { useGridEditor, type Layer, type CellRef, type EditReason } from "@/composables/useGridEditor";
+import { useSchedSession } from "@/composables/useSchedSession";
 import { targetsWithSwaps } from "@/shared/sched/engine/swaps";
 import { computeQuotas } from "@/shared/sched/engine/quota";
 import { cellFnOf } from "@/shared/sched/engine/prefill";
@@ -14,7 +15,7 @@ import { cellKey, CONSTRAINT_MARKS, FLAG_DEFS, type Flags } from "@/shared/sched
 const props = defineProps<{ ym: string; layer: Layer; showInactive: boolean; hasLock: boolean; postEdit: boolean }>();
 const emit = defineEmits<{
   toast: [msg: string]; issues: [list: Issue[]]; focus: [cell: CellRef | null]; showlog: [cell: CellRef];
-  needreason: [count: number]; swap: [cell: CellRef];
+  needreason: [count: number]; swap: [cell: CellRef]; prefillswap: [cell: CellRef];
 }>();
 
 const store = useSchedStore();
@@ -263,6 +264,16 @@ function confirmReason(reason: EditReason | null) {
   const n = ed.setCells(p.cells, p.code, p.cells.length > 1 ? "批次改格" : "改格", reason);
   emit("toast", ed.lastError.value || `已修改 ${n} 格，將自動重新發布到手機`);
 }
+/** 開放預班、系統預填的格子可以「換人」 */
+function canPrefillSwap(c: CellRef) {
+  const m = ed.month.value;
+  const cell = ed.prebook.value?.cells[cellKey(c.personId, c.day)];
+  return props.layer === "pre" && m?.status === "open" && useSchedSession().role !== "employee" && cell?.src === "sys" && !!cell.v;
+}
+function requestPrefillSwap() {
+  if (ctxMenu.value) emit("prefillswap", ctxMenu.value.cell);
+  closeMenus();
+}
 function requestSwap() {
   if (ctxMenu.value) emit("swap", ctxMenu.value.cell);
   closeMenus();
@@ -474,6 +485,7 @@ const statusOf = (id: string, itemId: string) => {
           <button v-if="layer === 'sched' && selCells.length === 1" class="w-full text-left px-3 py-1.5 hover:bg-elevated" @click="requestSwap">建立換班（同日與另一人互換）…</button>
         </template>
         <div v-else class="px-3 py-1.5 text-muted">此月份目前不可編輯</div>
+        <button v-if="selCells.length <= 1 && canPrefillSwap(ctxMenu.cell)" class="w-full text-left px-3 py-1.5 hover:bg-elevated" @click="requestPrefillSwap">系統預填換人…</button>
         <button class="w-full text-left px-3 py-1.5 hover:bg-elevated" @click="showCellLog">查看此格紀錄</button>
         <div v-for="i in issueAt.get(`${ctxMenu.cell.personId}|${ctxMenu.cell.day}`) ?? []" :key="i.message" class="px-3 py-1 text-danger">⚠ {{ i.message }}</div>
       </div>
