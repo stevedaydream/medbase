@@ -3,7 +3,9 @@ import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import TabBar from './components/TabBar.vue'
 import { session, unlock, logout } from './lib/session'
-import { loadCache, refresh } from './lib/data'
+import { loadCache, refresh, data } from './lib/data'
+import { sched, syncSchedDocs } from './lib/sched'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { toastMsg } from './lib/ui'
 import { installPullRefresh, pullDistance, pulling, PULL_THRESHOLD } from './lib/pull'
 
@@ -14,9 +16,23 @@ const router = useRouter()
 
 // 登入後：先顯示手機快取，再背景更新（ADR-013）
 watch(() => session.user, (u) => {
-  if (u) { loadCache().then(() => refresh()) }
+  if (u) { loadCache().then(() => refresh()); void syncSchedDocs() }
   else if (route.path !== '/login') router.replace('/login')
 }, { immediate: true })
+
+// 離線橫條：瀏覽器離線或最近一次連線失敗時一直顯示，附資料時間
+const netOnline = ref(navigator.onLine)
+const onNet = () => { netOnline.value = navigator.onLine; if (netOnline.value && session.user) { refresh(); void syncSchedDocs() } }
+onMounted(() => { window.addEventListener('online', onNet); window.addEventListener('offline', onNet) })
+onUnmounted(() => { window.removeEventListener('online', onNet); window.removeEventListener('offline', onNet) })
+const offline = computed(() => !!session.user && (!netOnline.value || data.offline || sched.offline))
+const dataTime = computed(() => {
+  const times = [sched.lastSyncAt, ...Object.values(data.meta).map(m => m.fetchedAt)].filter(Boolean).sort()
+  const t = times[times.length - 1]
+  if (!t) return ''
+  const d = new Date(t)
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+})
 
 // 閒置上鎖：只要輸入密碼（本機比對，離線也可）
 const pw = ref('')
@@ -30,6 +46,9 @@ async function doUnlock() {
 
 <template>
   <div class="accent-cyan min-h-full bg-sunken text-fg">
+    <div v-if="offline" data-no-pull class="sticky top-0 z-[60] px-4 py-1.5 bg-warning text-white text-xs font-bold text-center safe-top">
+      目前離線{{ dataTime ? `（資料時間 ${dataTime}）` : '' }}
+    </div>
     <RouterView />
     <TabBar v-if="session.user && route.path !== '/login'" />
 

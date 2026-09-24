@@ -9,6 +9,8 @@ import { usePullRefresh } from '../lib/pull'
 import { recentList } from '../lib/records'
 import { matchTerms, copy } from '../lib/ui'
 import { session } from '../lib/session'
+import { sched, doc } from '../lib/sched'
+import type { NoticeItem } from '@shared/sched/types'
 
 /** 首頁：全域搜尋＋今日值班＋最近查看（ADR-013） */
 const router = useRouter()
@@ -38,6 +40,7 @@ const results = computed(() => {
 })
 
 const empty = computed(() => data.loaded && Object.values(data.tables).every(t => !t.length))
+const unreadSched = computed(() => (doc<NoticeItem[]>('notices') ?? []).filter(n => n.personId === sched.me?.id && !n.read).length)
 
 usePullRefresh(() => pullRefresh(['npDuty', 'physicians']))
 </script>
@@ -49,6 +52,9 @@ usePullRefresh(() => pullRefresh(['npDuty', 'physicians']))
     <div v-if="!q.trim()" class="p-4 space-y-4">
       <p v-if="empty && data.refreshing" class="text-sm text-muted">第一次使用，正在下載資料…</p>
       <p v-else-if="empty && data.offline" class="text-sm text-warning">目前離線，這支手機還沒有資料</p>
+      <RouterLink v-if="unreadSched" to="/schedule" class="flex items-center gap-2 px-4 py-3 rounded-2xl bg-accent/10 border border-accent/30 text-sm font-bold text-accent">
+        🔔 你有 {{ unreadSched }} 則排班通知<span class="ml-auto">›</span>
+      </RouterLink>
       <DutyCard />
       <section v-if="recent.length">
         <p class="text-xs font-bold text-muted mb-2">最近查看</p>
