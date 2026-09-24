@@ -73,6 +73,18 @@ describe("weekendAssigns（2026-11，1 號是週日）", () => {
     expect(next[0]).toBe("11-14Nb"); // 週末 N 指標未因 11/7–8 前進
   });
 
+  it("連值的 N 當天有 8-4：跳過他，改由週末 N 輪序下一位", () => {
+    const r = weekendAssigns({
+      ym: "202611", roster, holidays: emptyHolidays(), holidayDuty: {},
+      start: { wkN: "a", satD: "c", sunD: "a" }, carrySunN: "a",
+      busy: d => (d === "2026-11-01" ? new Set(["a"]) : new Set()),
+    });
+    expect(fmt(r.assigns).filter(x => x.startsWith("11-01"))).toEqual(["11-01Nb", "11-01Dc"]);
+    expect(r.warnings.some(w => w.includes("上月週六 N"))).toBe(true);
+    // b 的這一輪已用掉，下一個週末 N 輪到 c
+    expect(fmt(r.assigns).filter(x => x.startsWith("11-07N"))).toEqual(["11-07Nc"]);
+  });
+
   it("國定假日抽籤結果", () => {
     const h = emptyHolidays();
     h.days["2026-10-10"] = "國慶";

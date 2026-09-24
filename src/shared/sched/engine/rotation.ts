@@ -73,6 +73,17 @@ export function weekendAssigns(inp: WeekendInput): WeekendOutput {
     return id;
   }
 
+  /** 連值的 N（接續上月週六、或接續國定假日抽籤）當天已有 8-4 等預填時，跳過他改由週末 N 輪序下一位 */
+  function carryN(date: string, n: string | null, why: string): string | null {
+    if (!n) return null;
+    const busy = inp.busy(date);
+    if (!busy.has(n)) return n;
+    const next = nextInOrder(order, end.wkN, x => okN(x) && !busy.has(x));
+    if (next) end.wkN = next;
+    warnings.push(`${date} 週末 N 原由${why}連值，但當天已有其他預填，改由輪序下一位`);
+    return next;
+  }
+
   const nOn = new Map<string, string>(); // 日期 → 週末 N 的人（避免同日 D+N）
   for (let d = 1; d <= nd; d++) {
     const date = dateStr(ym, d);
@@ -91,10 +102,10 @@ export function weekendAssigns(inp: WeekendInput): WeekendOutput {
           if (ymOfDate(sun) === ym) out.push({ date: sun, personId: n, code: "N", source: "weekend" });
         }
       } else if (holSat && !holSun) {
-        const n = lotteryN(date);
-        if (n && ymOfDate(sun) === ym) { nOn.set(sun, n); out.push({ date: sun, personId: n, code: "N", source: "weekend" }); }
+        const n = ymOfDate(sun) === ym ? carryN(sun, lotteryN(date), "週六國定假日抽籤的 N") : null;
+        if (n) { nOn.set(sun, n); out.push({ date: sun, personId: n, code: "N", source: "weekend" }); }
       } else if (!holSat && holSun) {
-        const n = lotteryN(sun);
+        const n = carryN(date, lotteryN(sun), "週日國定假日抽籤的 N");
         if (n) { nOn.set(date, n); out.push({ date, personId: n, code: "N", source: "weekend" }); }
       }
       if (!holSat) {
@@ -106,7 +117,7 @@ export function weekendAssigns(inp: WeekendInput): WeekendOutput {
       const holSun = isHoliday(h, date);
       if (d === 1 && !holSun) {
         const sat = addDays(date, -1);
-        const n = isHoliday(h, sat) ? lotteryN(sat) : inp.carrySunN;
+        const n = carryN(date, isHoliday(h, sat) ? lotteryN(sat) : inp.carrySunN, isHoliday(h, sat) ? "週六國定假日抽籤的 N" : "上月週六 N");
         if (n) { nOn.set(date, n); out.push({ date, personId: n, code: "N", source: "weekend" }); }
       }
       if (!holSun) {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync } from "fs";
 import * as XLSX from "xlsx";
-import { applyPrefill, recomputeFrom, startScheduling, newMonthFrom, type SchedSnapshot } from "./prefill";
+import { applyPrefill, recomputeFrom, startScheduling, newMonthFrom, monthAssigns, type SchedSnapshot } from "./prefill";
 import { parseMonthSheet, parse84 } from "@/utils/sched/excelImport";
 import { buildImport } from "@/utils/sched/importApply";
 import { DEFAULT_SHIFTS, DEFAULT_QUOTA_ITEMS, cellKey, type PrebookDoc } from "../types";
@@ -86,5 +86,21 @@ describe.skipIf(!hasXls)("由 202610 起點往後重算 202611", () => {
     const s3: SchedSnapshot = { ...s2, months: { ...s2.months, "202610": { ...s2.months["202610"], status: "scheduling" } } };
     expect(startScheduling(s3, "202611", "now").error).toBe("上個月尚未發布");
     expect(startScheduling(s3, "202611", "now", { force: true }).error).toBeUndefined();
+  });
+});
+
+describe("預填優先順序", () => {
+  it("8-4 與國定假日抽籤撞在同一人同一天：保留 8-4，並提示", () => {
+    const m = { ...newMonthFrom(undefined, "202610"), roster: [{ personId: "a", flags: { active: true, support: false, noD: false, noN: false, nightTransfer: false, fixedHolidayOff: false, offHolidayOnly: false } }] };
+    const h = emptyHolidays();
+    h.days["2026-10-26"] = "補假";
+    const s = {
+      people: [], shifts: DEFAULT_SHIFTS, quotaItems: DEFAULT_QUOTA_ITEMS, holidays: h,
+      holidayDuty: { "2026": { "2026-10-26": { D: "a", N: null } } },
+      duty84: { log: [], removedDates: [], addedDates: [] }, cny: { lastD: {}, log: [] }, months: {}, prebooks: {},
+    } as unknown as SchedSnapshot;
+    const r = monthAssigns(s, m, undefined, s.cny, [{ date: "2026-10-26", personId: "a", kind: "連假末日", manual: false, note: "" }]);
+    expect(r.assigns.filter(a => a.date === "2026-10-26").map(a => a.code)).toEqual(["8-4"]);
+    expect(r.warnings.some(w => w.includes("只保留 8-4"))).toBe(true);
   });
 });

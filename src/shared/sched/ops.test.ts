@@ -122,6 +122,7 @@ describe("輪序起點手動指定", () => {
   it("weekendFirst：指定本月週末 N 從 d 開始", () => {
     const s = base();
     s.months["202611"] = { ...s.months["202611"], weekendFirst: { wkN: "d" } };
+    s.duty84 = { ...s.duty84, removedDates: ["2026-11-01"] }; // 避開 11/1 連值 N 撞 8-4（另有測試）
     const p = opRecompute(s, "202611", "x", NOW);
     const cells = p.prebooks.find(x => x.ym === "202611")!.cells;
     // 11/7 是本月第一個完整週末（11/1 週日接上月週六 N）

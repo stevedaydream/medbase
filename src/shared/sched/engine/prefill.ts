@@ -83,7 +83,8 @@ export function newMonthFrom(prev: MonthDoc | undefined, ym: string): MonthDoc {
 }
 
 /**
- * 算出某月所有預填（春節 > 國定假日 > 8-4 > 週末），只保留本月名單中的人。
+ * 算出某月所有預填（春節 > 8-4 > 國定假日 > 週末），只保留本月名單中的人。
+ * 8-4 是全外科輪值，同一人同一天撞班時優先保留。
  */
 export function monthAssigns(
   s: SchedSnapshot, m: MonthDoc, prev: MonthDoc | undefined, cny: CnyDoc, log84: Duty84Doc["log"],
@@ -91,8 +92,8 @@ export function monthAssigns(
   const inRoster = new Set(m.roster.map(r => r.personId));
   const fixed: Assign[] = [
     ...cnyAssigns(m.ym, cny),
-    ...holidayAssigns(m.ym, s.holidays, s.holidayDuty),
     ...duty84Assigns(m.ym, log84),
+    ...holidayAssigns(m.ym, s.holidays, s.holidayDuty),
   ];
   const busyMap = new Map<string, Set<string>>();
   for (const a of fixed) {
