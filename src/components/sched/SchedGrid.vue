@@ -173,16 +173,37 @@ function onEnter(id: string, d: number) {
 function onUp(e: MouseEvent) {
   if (!dragging) return;
   dragging = false;
-  if (!ed.editable.value) return;
+  if (!ed.editable.value) {
+    if (!moved.value) emit("toast", lockedReason());
+    return;
+  }
   if (selCells.value.length > 1) {
     batch.value = { x: e.clientX, y: e.clientY };
-  } else if (!moved.value && anchor.value && ed.canEditCell(anchor.value.personId, anchor.value.day)) {
+  } else if (!moved.value && anchor.value) {
+    if (!ed.canEditCell(anchor.value.personId, anchor.value.day)) { emit("toast", lockedReason(anchor.value)); return; }
     const td = (e.target as HTMLElement).closest("[data-cell]") as HTMLElement | null;
     if (td) {
       const rc = td.getBoundingClientRect();
       radial.value = { x: rc.left + rc.width / 2, y: rc.top + rc.height / 2 };
     }
   }
+}
+
+/** 點了不能編輯的格子時，告訴使用者原因 */
+function lockedReason(cell?: CellRef): string {
+  const m = ed.month.value;
+  if (!m) return "此月份不存在";
+  if (props.layer === "pre") {
+    if (m.status !== "open") return "預班已凍結，請切換到「排班層」";
+    if (cell && ed.prebook.value?.cells[cellKey(cell.personId, cell.day)]?.src === "sys") return "系統預填的格子，請到「月份與輪值」調整";
+    return "只能登記自己的預班";
+  }
+  if (m.status === "published") {
+    if (!props.postEdit) return "此月份已發布：要修改請按上方「修改已發布班表」";
+    return "排班鎖不在本機，請先取得排班鎖";
+  }
+  if (!props.hasLock) return "請先按上方「取得排班鎖」";
+  return "此月份目前不可編輯";
 }
 
 // ── 選單 ─────────────────────────────────────────────────────
