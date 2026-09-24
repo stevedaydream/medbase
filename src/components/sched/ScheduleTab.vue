@@ -4,7 +4,7 @@ import { useSchedStore, sortedYms, personById } from "@/composables/useSchedStor
 import { useSchedSession, getMachineId } from "@/composables/useSchedSession";
 import {
   beginScheduling, acquireLock, publishMonth, revertMonth, revertDeadline, beginPostEdit, endPostEdit, createSwap,
-  LockedError,
+  exportMonth, LockedError, type ExportKind,
 } from "@/composables/useSchedFlow";
 import type { Layer, CellRef, EditReason } from "@/composables/useGridEditor";
 import { RULE_LABELS, type Issue, type RuleCode } from "@/utils/sched/engine/validate";
@@ -130,6 +130,10 @@ const doSwap = () => run(async () => {
   swapCell.value = null; swapWith.value = ""; swapNote.value = "";
 }, "已建立換班");
 
+// ── 匯出 ─────────────────────────────────────────────────────
+const showExport = ref(false);
+const doExport = (k: ExportKind) => { showExport.value = false; return run(async () => { const p = await exportMonth(ym.value, k); if (p) emit("toast", `已匯出：${p.split(/[\\/]/).pop()}`); }); };
+
 // ── 其他 ─────────────────────────────────────────────────────
 const showInactive = ref(false);
 const showSettings = ref(false);
@@ -172,6 +176,13 @@ const lockTime = computed(() => lock.value ? new Date(lock.value.at).toLocaleStr
         <button class="px-2 py-1 text-muted hover:text-fg disabled:opacity-30" :disabled="!grid?.canUndo" title="復原 Ctrl+Z" @click="grid?.undo()">↶</button>
         <button class="px-2 py-1 text-muted hover:text-fg disabled:opacity-30" :disabled="!grid?.canRedo" title="重做 Ctrl+Y" @click="grid?.redo()">↷</button>
         <template v-if="isStaff && month">
+          <div class="relative">
+            <button class="px-2.5 py-1 border border-hairline rounded hover:bg-elevated" @click="showExport = !showExport">匯出 ▾</button>
+            <div v-if="showExport" class="absolute right-0 top-8 z-40 w-56 bg-surface border border-hairline rounded-lg shadow-2xl py-1">
+              <button class="w-full text-left px-3 py-1.5 hover:bg-elevated" @click="doExport('app')">班表 XLSX（含 8-4／春節明細）</button>
+              <button class="w-full text-left px-3 py-1.5 hover:bg-elevated" @click="doExport('positional')">Excel 完整格式（過渡期貼回用）</button>
+            </div>
+          </div>
           <button class="px-2.5 py-1 border border-hairline rounded hover:bg-elevated" @click="showSettings = true">本月設定</button>
           <button v-if="month.status === 'open'" class="px-3 py-1 bg-accent hover:bg-accent-hover text-white rounded disabled:opacity-40"
             :disabled="busy" @click="onStart()">開始排班</button>

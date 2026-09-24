@@ -335,6 +335,12 @@ export async function startMonth(ym: string, force = false): Promise<void> {
   if (state.months[nextYm(ym)]) await recompute(nextYm(ym), `${ym} 開始排班`);
 }
 
+/** 清除全部排班 v3 本機文件（重新匯入前使用；雲端資料不受影響） */
+export async function clearSchedLocal(): Promise<void> {
+  await dbWrite("DELETE FROM sched_docs");
+  await reloadSched();
+}
+
 export function useSchedStore() {
   return state;
 }

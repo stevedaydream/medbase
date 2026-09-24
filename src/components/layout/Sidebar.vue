@@ -18,7 +18,6 @@ const DEFAULT_NAV: NavItem[] = [
   { path: "/acp",         icon: "📜", label: "ACP 評估" },
   { path: "/physicians",  icon: "👤", label: "通訊錄" },
   { path: "/schedule",    icon: "📅", label: "排班表" },
-  { path: "/sched",       icon: "🗓️", label: "排班 v3" },
   { path: "/shift-memos", icon: "📝", label: "規則備忘錄" },
   { path: "/tools",       icon: "🧮", label: "臨床工具" },
   { path: "/note-polish", icon: "✍️", label: "病歷潤飾" },

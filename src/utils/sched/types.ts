@@ -33,7 +33,7 @@ export type ShiftCategory = "D" | "N" | "OFF" | "S1" | "H3" | "OTHER";
 export interface ShiftDef {
   code: string;
   name: string;
-  color: string;       // COLOR_PALETTE key（沿用 useShifts）
+  color: string;       // COLOR_PALETTE key（palette.ts）
   hotkey: string;      // 鍵盤快速鍵（單一字元，可空）
   hours: number;
   staffing: boolean;   // 佔當日上班人力

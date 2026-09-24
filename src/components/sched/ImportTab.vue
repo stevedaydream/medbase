@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { readFile } from "@tauri-apps/plugin-fs";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { monthSheets } from "@/utils/sched/excelImport";
-import { importFromWorkbook } from "@/composables/useSchedStore";
+import { importFromWorkbook, clearSchedLocal } from "@/composables/useSchedStore";
 import type { ImportReport } from "@/utils/sched/importApply";
 
 const emit = defineEmits<{ toast: [msg: string] }>();
@@ -17,6 +17,22 @@ const extras = ref<string[]>([]);
 const busy = ref(false);
 const report = ref<ImportReport | null>(null);
 const error = ref("");
+
+const clearText = ref("");
+async function onClear() {
+  if (clearText.value !== "清除排班資料") return;
+  try {
+    busy.value = true;
+    await clearSchedLocal();
+    clearText.value = "";
+    report.value = null;
+    emit("toast", "已清除本機排班 v3 資料");
+  } catch (e) {
+    error.value = `清除失敗：${(e as Error).message}`;
+  } finally {
+    busy.value = false;
+  }
+}
 
 const extraCandidates = computed(() => sheets.value.filter(s => baseSheet.value && s > baseSheet.value));
 
@@ -101,6 +117,16 @@ async function runImport() {
     </section>
 
     <div v-if="error" class="text-xs text-danger">{{ error }}</div>
+
+    <section class="space-y-2 text-xs border-t border-hairline pt-4">
+      <h2 class="text-sm font-semibold text-fg">清除本機排班資料</h2>
+      <p class="text-muted">刪除這台電腦上全部排班 v3 文件（人員、設定、月份、預班、紀錄），通常在重新匯入前使用。雲端資料不受影響；已同步的電腦會在下次同步時重新下載雲端版本。</p>
+      <div class="flex items-center gap-2">
+        <input v-model="clearText" placeholder="輸入「清除排班資料」" class="sched-input w-44" />
+        <button class="px-3 py-1 rounded border border-danger text-danger hover:bg-danger/10 disabled:opacity-40"
+          :disabled="busy || clearText !== '清除排班資料'" @click="onClear">清除</button>
+      </div>
+    </section>
 
     <section v-if="report" class="space-y-2 text-xs">
       <h3 class="font-semibold text-fg">匯入結果</h3>

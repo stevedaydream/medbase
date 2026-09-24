@@ -10,6 +10,11 @@ import { computeQuotas } from "@/utils/sched/engine/quota";
 import { cellFnOf } from "@/utils/sched/engine/prefill";
 import { settleDebts, targetsWithSwaps } from "@/utils/sched/engine/swaps";
 import { newId, type LockInfo, type MonthDoc } from "@/utils/sched/types";
+import { personStats, dayStats } from "@/utils/sched/engine/validate";
+import { buildAppWorkbook, buildPositionalWorkbook, type ExportCtx } from "@/utils/sched/excelExport";
+import * as XLSX from "xlsx";
+import { save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { writeFile } from "@tauri-apps/plugin-fs";
 import { nextYm, daysIn } from "@/utils/sched/calendar";
 
 const LOCK_STALE_HOURS = 12;
@@ -177,6 +182,42 @@ export async function settleDebt(id: string, note: string): Promise<void> {
   d.note = note || "手動平帳";
   await saveGlobal("debts");
   await appendLog("global", "欠班平帳", `${personById(d.from)?.name} 欠 ${personById(d.to)?.name} ${d.item}×${d.qty}：${d.note}`, actorName());
+}
+
+// ── 匯出 ─────────────────────────────────────────────────────────────
+export type ExportKind = "app" | "positional";
+
+export async function exportMonth(ym: string, kind: ExportKind): Promise<string | null> {
+  const store = useSchedStore();
+  const m = store.months[ym];
+  if (!m) return null;
+  const items = store.quotaItems.filter(i => i.enabled);
+  const pb = store.prebooks[ym];
+  const q = computeQuotas({ month: m, holidays: store.holidays, shifts: store.shifts, items: store.quotaItems, cell: cellFnOf(m, pb) });
+  const cell = (id: string, d: number) => m.schedule[id]?.[d - 1] ?? "";
+  const g = { month: m, prebook: pb, holidays: store.holidays, shifts: store.shifts, items, rules: store.rules, cell, offSlots: q.offSlots, name: (id: string) => personById(id)?.name ?? "?" };
+  const counts: Record<string, Record<string, number>> = {}, hours: Record<string, number> = {};
+  for (const r of m.roster) {
+    const st = personStats(g, r.personId);
+    counts[r.personId] = st.counts;
+    hours[r.personId] = st.hours;
+  }
+  const ctx: ExportCtx = {
+    month: m, prebook: pb, holidays: store.holidays, items, people: store.people,
+    quotas: monthTargets(m), counts, hours, offSlots: q.offSlots,
+    offCount: Array.from({ length: daysIn(ym) }, (_, i) => dayStats(g, i + 1).off),
+    duty84: store.duty84, cny: store.cny,
+  };
+  const wb = kind === "app" ? buildAppWorkbook(ctx) : buildPositionalWorkbook(ctx);
+  const path = await saveDialog({
+    title: kind === "app" ? "匯出班表" : "匯出 Excel 完整格式（過渡期）",
+    defaultPath: kind === "app" ? `班表_${ym}.xlsx` : `9A值班表_${ym}_貼回用.xlsx`,
+    filters: [{ name: "Excel 活頁簿", extensions: ["xlsx"] }],
+  });
+  if (!path) return null;
+  await writeFile(path, XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array);
+  await appendLog(ym, "匯出", `${kind === "app" ? "班表 XLSX" : "Excel 完整格式"}：${path.split(/[\\/]/).pop()}`, actorName());
+  return path;
 }
 
 // ── 通知 ─────────────────────────────────────────────────────────────
