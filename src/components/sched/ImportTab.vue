@@ -5,6 +5,7 @@ import { readFile } from "@tauri-apps/plugin-fs";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { monthSheets } from "@/utils/sched/excelImport";
 import { importFromWorkbook, clearSchedLocal } from "@/composables/useSchedStore";
+import { republish } from "@/composables/useSchedFlow";
 import type { ImportReport } from "@/utils/sched/importApply";
 
 const emit = defineEmits<{ toast: [msg: string] }>();
@@ -66,7 +67,9 @@ async function runImport() {
   try {
     busy.value = true;
     report.value = await importFromWorkbook(wb.value, baseSheet.value, extras.value.filter(s => s > baseSheet.value!));
-    emit("toast", "匯入完成");
+    // 起點月份匯入即為已發布：一併寫出手機班表
+    const pushed = await republish(baseSheet.value);
+    emit("toast", pushed ? "匯入完成，已推送起點月份到手機" : "匯入完成（未推送到手機：請確認 GAS 網址）");
   } catch (e) {
     error.value = `匯入失敗：${(e as Error).message}`;
   } finally {

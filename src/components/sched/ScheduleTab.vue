@@ -4,7 +4,7 @@ import { useSchedStore, sortedYms, personById } from "@/composables/useSchedStor
 import { useSchedSession, getMachineId } from "@/composables/useSchedSession";
 import {
   beginScheduling, acquireLock, publishMonth, revertMonth, revertDeadline, beginPostEdit, endPostEdit, createSwap,
-  exportMonth, LockedError, type ExportKind,
+  exportMonth, republish, LockedError, type ExportKind,
 } from "@/composables/useSchedFlow";
 import type { Layer, CellRef, EditReason } from "@/composables/useGridEditor";
 import { RULE_LABELS, type Issue, type RuleCode } from "@/shared/sched/engine/validate";
@@ -104,6 +104,10 @@ const doRevert = () => run(() => revertMonth(ym.value), "已退回排班中");
 const startPostEdit = (force = false) => run(async () => { await beginPostEdit(ym.value, force); lockConflict.value = ""; postEdit.value = true; }, "已進入修改模式：每次修改需填原因，存檔後自動推送手機");
 const stopPostEdit = () => run(async () => { await endPostEdit(ym.value); postEdit.value = false; }, "已結束修改");
 
+const pushToPhone = () => run(async () => {
+  emit("toast", await republish(ym.value) ? "已推送到手機" : "推送失敗：請確認已設定 GAS 網址與網路");
+});
+
 // ── 發布後修改原因 ───────────────────────────────────────────
 const reasonFor = ref(0);
 const reasonText = ref("");
@@ -193,6 +197,8 @@ const lockTime = computed(() => lock.value ? new Date(lock.value.at).toLocaleStr
           <template v-if="month.status === 'published'">
             <button v-if="revertLeft && !postEdit" class="px-2.5 py-1 border border-hairline rounded hover:bg-elevated disabled:opacity-40" :disabled="busy"
               :title="`發布後 ${store.rules.revertHours} 小時內可退回`" @click="doRevert">退回（剩 {{ revertLeft }}）</button>
+            <button class="px-2.5 py-1 border border-hairline rounded hover:bg-elevated disabled:opacity-40" :disabled="busy"
+              title="重新寫出手機看的班表（Schedule_YYYYMM）" @click="pushToPhone">推送到手機</button>
             <button v-if="!postEdit" class="px-2.5 py-1 border border-warning/60 text-warning rounded disabled:opacity-40" :disabled="busy" @click="startPostEdit()">修改已發布班表</button>
             <button v-else class="px-3 py-1 bg-accent text-white rounded disabled:opacity-40" :disabled="busy" @click="stopPostEdit">結束修改</button>
           </template>

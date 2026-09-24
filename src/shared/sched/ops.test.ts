@@ -108,3 +108,24 @@ describe("opEditCells", () => {
     expect(q.notices[0].text).toContain("病假");
   });
 });
+
+describe("輪序起點手動指定", () => {
+  it("vOverride 優先於上月交接，重算時不被蓋掉；清除後恢復交接", () => {
+    const s = base();
+    s.months["202611"] = { ...s.months["202611"], vOverride: { D: "e" } };
+    const p = opRecompute(s, "202611", "x", NOW);
+    expect(p.months.find(m => m.ym === "202611")!.markers.D.v).toBe("e");
+    expect(p.months.find(m => m.ym === "202611")!.markers.N.v).toBe("c");
+    const s2 = base();
+    expect(opRecompute(s2, "202611", "x", NOW).months.find(m => m.ym === "202611")!.markers.D.v).toBe("c");
+  });
+  it("weekendFirst：指定本月週末 N 從 d 開始", () => {
+    const s = base();
+    s.months["202611"] = { ...s.months["202611"], weekendFirst: { wkN: "d" } };
+    const p = opRecompute(s, "202611", "x", NOW);
+    const cells = p.prebooks.find(x => x.ym === "202611")!.cells;
+    // 11/7 是本月第一個完整週末（11/1 週日接上月週六 N）
+    expect(cells["d|7"]?.v).toBe("N");
+    expect(cells["d|8"]?.v).toBe("N");
+  });
+});

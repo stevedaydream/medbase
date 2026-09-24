@@ -3,19 +3,20 @@ import { ref, computed } from "vue";
 import {
   useSchedStore, personById, saveMonth, appendLog, actorName, recompute,
 } from "@/composables/useSchedStore";
-import { computeQuotas } from "@/shared/sched/engine/quota";
-import { cellFnOf } from "@/shared/sched/engine/prefill";
+import { computeQuotas, handoverV, isEligible } from "@/shared/sched/engine/quota";
+import { cellFnOf, applyWeekendFirst } from "@/shared/sched/engine/prefill";
+import { nextInOrder } from "@/shared/sched/engine/rotation";
 import {
   FLAG_DEFS, DAY_TYPES, emptyFlags, clone, type FlagKey, type StaffingTable, type RosterEntry,
 } from "@/shared/sched/types";
-import { daysIn, nextYm } from "@/shared/sched/calendar";
+import { daysIn, nextYm, prevYm } from "@/shared/sched/calendar";
 
 const props = defineProps<{ ym: string }>();
 const emit = defineEmits<{ close: []; toast: [msg: string] }>();
 const store = useSchedStore();
 const month = computed(() => store.months[props.ym]);
 const readonly = computed(() => month.value?.status === "published");
-const tab = ref<"roster" | "staffing">("roster");
+const tab = ref<"roster" | "staffing" | "start">("roster");
 const NEEDS = ["D", "N", "S1"] as const;
 
 /** 目前名單的單位（例：9A、9B），同單位的人排在加入選單前面 */
@@ -104,6 +105,55 @@ function removeRange(i: number) {
   const r = month.value!.staffing.ranges.splice(i, 1)[0];
   persist(`移除人力區段 ${r.from}–${r.to} 日`);
 }
+// ── 輪序起點（手動指定，優先於上月交接）─────────────────────
+const items = computed(() => store.quotaItems.filter(i => i.enabled));
+const prevMonth = computed(() => month.value ? store.months[prevYm(month.value.ym)] : undefined);
+const canSetStart = computed(() => month.value?.status === "open" || month.value?.status === "scheduling");
+const eligibleFor = (itemId: string) => {
+  const it = store.quotaItems.find(i => i.id === itemId)!;
+  return (month.value?.roster ?? []).filter(r => isEligible(it, r.flags)).map(r => r.personId);
+};
+const autoV = (itemId: string) => {
+  const it = store.quotaItems.find(i => i.id === itemId)!;
+  const pm = prevMonth.value, m = month.value!;
+  return pm ? handoverV(it, pm.roster, pm.markers[it.id], m.roster) : null;
+};
+function setV(itemId: string, id: string) {
+  const m = month.value!;
+  const it = store.quotaItems.find(i => i.id === itemId)!;
+  m.vOverride ??= {};
+  if (id) m.vOverride[itemId] = id; else delete m.vOverride[itemId];
+  const v = id || autoV(itemId);
+  m.markers[itemId] = { v, x: m.markers[itemId]?.x ?? null };
+  persist(`${it.name} 餘數起點 V：${id ? personById(id)?.name : `自動（上月交接：${personById(v)?.name ?? "—"}）`}`);
+}
+
+type WkKey = "wkN" | "satD" | "sunD";
+const WK: { key: WkKey; label: string }[] = [
+  { key: "wkN", label: "週末 N" }, { key: "satD", label: "週六 D" }, { key: "sunD", label: "週日 D" },
+];
+const order = computed(() => (month.value?.roster ?? []).map(r => r.personId));
+const wkOk = (k: WkKey) => (id: string) => {
+  const f = month.value?.roster.find(r => r.personId === id)?.flags;
+  if (!f?.active) return false;
+  return k === "wkN" ? !f.noN && !f.nightTransfer : !f.noD;
+};
+/** 本月第一個輪到的人（含手動指定） */
+function wkFirst(k: WkKey, withOverride = true): string | null {
+  const m = month.value;
+  if (!m) return null;
+  const base = prevMonth.value?.weekend.end ?? m.weekend.start;
+  const start = applyWeekendFirst(order.value, base, withOverride ? m.weekendFirst : undefined);
+  return nextInOrder(order.value, start[k], wkOk(k));
+}
+function setWk(k: WkKey, id: string) {
+  const m = month.value!;
+  m.weekendFirst ??= {};
+  if (id) m.weekendFirst[k] = id; else delete m.weekendFirst[k];
+  const label = WK.find(w => w.key === k)!.label;
+  persist(`${label} 本月第一位：${id ? personById(id)?.name : `自動（接續上月：${personById(wkFirst(k, false))?.name ?? "—"}）`}`);
+}
+
 function clearAdjust(d: string) {
   delete month.value!.staffing.dayAdjust[Number(d)];
   persist(`取消 ${Number(props.ym.slice(4))}/${d} 可休微調`);
@@ -117,7 +167,7 @@ function clearAdjust(d: string) {
         <h3 class="text-sm font-semibold text-fg">{{ ym }} 本月設定</h3>
         <span v-if="readonly" class="text-warning">已發布，唯讀</span>
         <div class="ml-4 flex gap-1">
-          <button v-for="t in ([['roster', '人員與旗標'], ['staffing', '人力']] as const)" :key="t[0]"
+          <button v-for="t in ([['roster', '人員與旗標'], ['staffing', '人力'], ['start', '輪序起點']] as const)" :key="t[0]"
             class="px-2.5 py-1 rounded" :class="tab === t[0] ? 'bg-accent text-white' : 'text-muted hover:bg-elevated'"
             @click="tab = t[0]">{{ t[1] }}</button>
         </div>
@@ -159,6 +209,51 @@ function clearAdjust(d: string) {
             </select>
             <button class="px-2 py-1 border border-hairline rounded hover:bg-elevated" @click="addPerson">加入</button>
             <span class="text-muted">外單位支援請加入後勾「支援人員」</span>
+          </div>
+        </template>
+
+        <!-- 輪序起點 -->
+        <template v-else-if="tab === 'start'">
+          <p class="text-muted mb-3">
+            平常由上個月自動交接；交接有誤（例如匯入的起點不對）時在這裡手動指定。選「自動」即恢復交接。修改後自動重算本月與之後月份的配額與預填。
+          </p>
+          <p v-if="!canSetStart" class="text-warning mb-3">已發布的月份不能改輪序起點。</p>
+          <div class="space-y-4">
+            <div>
+              <div class="font-semibold text-fg mb-1">月配額餘數起點 V（本月第一個多拿 1 的人）</div>
+              <table>
+                <tbody>
+                  <tr v-for="it in items" :key="it.id" class="border-t border-hairline">
+                    <td class="pr-3 py-1 text-fg-secondary w-24">{{ it.name }}</td>
+                    <td class="py-1">
+                      <select class="sched-input" :disabled="!canSetStart" :value="month.vOverride?.[it.id] ?? ''" @change="setV(it.id, ($event.target as HTMLSelectElement).value)">
+                        <option value="">自動（上月交接：{{ personById(autoV(it.id))?.name ?? "—" }}）</option>
+                        <option v-for="id in eligibleFor(it.id)" :key="id" :value="id">{{ personById(id)?.name }}</option>
+                      </select>
+                    </td>
+                    <td class="pl-3 text-muted">目前 V：{{ personById(month.markers[it.id]?.v)?.name ?? "—" }}　X：{{ personById(month.markers[it.id]?.x)?.name ?? "—" }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <div class="font-semibold text-fg mb-1">週末輪序（本月第一個輪到的人）</div>
+              <p v-if="month.status !== 'open'" class="text-muted mb-1">只有開放預班的月份會預填週末輪序；已開始排班的月份請直接在班表上調整。</p>
+              <table>
+                <tbody>
+                  <tr v-for="w in WK" :key="w.key" class="border-t border-hairline">
+                    <td class="pr-3 py-1 text-fg-secondary w-24">{{ w.label }}</td>
+                    <td class="py-1">
+                      <select class="sched-input" :disabled="month.status !== 'open'" :value="month.weekendFirst?.[w.key] ?? ''" @change="setWk(w.key, ($event.target as HTMLSelectElement).value)">
+                        <option value="">自動（接續上月：{{ personById(wkFirst(w.key, false))?.name ?? "—" }}）</option>
+                        <option v-for="id in order.filter(wkOk(w.key))" :key="id" :value="id">{{ personById(id)?.name }}</option>
+                      </select>
+                    </td>
+                    <td class="pl-3 text-muted">目前第一位：{{ personById(wkFirst(w.key))?.name ?? "—" }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </template>
 

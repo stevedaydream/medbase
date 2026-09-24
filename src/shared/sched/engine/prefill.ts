@@ -4,7 +4,7 @@
  */
 import type {
   MonthDoc, PrebookDoc, Person, HolidayDoc, HolidayDutyDoc, Duty84Doc, CnyDoc, ShiftDef, QuotaItem,
-  CellOrigin,
+  CellOrigin, WeekendPointers,
 } from "../types";
 import { cellKey, emptyMonth, clone, CONSTRAINT_MARKS } from "../types";
 import { daysIn, dateStr, dayOfDate, prevYm, dowOf } from "../calendar";
@@ -12,6 +12,22 @@ import {
   holidayAssigns, weekendAssigns, duty84Assigns, cnyAssigns, recompute84, recomputeCny, type Assign,
 } from "./rotation";
 import { computeQuotas, handoverV } from "./quota";
+
+/**
+ * 手動指定的「本月第一位」換算成輪序指標（第一位的前一個人），
+ * 讓 nextInOrder 從指定的人開始。
+ */
+export function applyWeekendFirst(
+  order: string[], start: WeekendPointers | null | undefined, first: MonthDoc["weekendFirst"],
+): WeekendPointers {
+  const out: WeekendPointers = { wkN: null, satD: null, sunD: null, ...(start ?? {}) };
+  for (const k of ["wkN", "satD", "sunD"] as const) {
+    const id = first?.[k];
+    const i = id ? order.indexOf(id) : -1;
+    if (i >= 0) out[k] = order[(i - 1 + order.length) % order.length];
+  }
+  return out;
+}
 
 export interface SchedSnapshot {
   people: Person[];
@@ -83,7 +99,7 @@ export function monthAssigns(
     if (!busyMap.has(a.date)) busyMap.set(a.date, new Set());
     busyMap.get(a.date)!.add(a.personId);
   }
-  const start = prev?.weekend.end ?? m.weekend.start;
+  const start = applyWeekendFirst(m.roster.map(r => r.personId), prev?.weekend.end ?? m.weekend.start, m.weekendFirst);
   const lastPrev = prev ? daysIn(prev.ym) : 0;
   const carrySunN = prev && dowOf(prev.ym, lastPrev) === 6 ? prev.weekend.end?.wkN ?? null : null;
   const wk = weekendAssigns({
@@ -146,7 +162,7 @@ export function recomputeFrom(s: SchedSnapshot, fromYm: string, now: string, rea
     // V 交接
     if (prev) {
       for (const it of s.quotaItems) {
-        m.markers[it.id] = { v: handoverV(it, prev.roster, prev.markers[it.id], m.roster), x: null };
+        m.markers[it.id] = { v: m.vOverride?.[it.id] ?? handoverV(it, prev.roster, prev.markers[it.id], m.roster), x: null };
       }
       m.weekend.start = prev.weekend.end ?? m.weekend.start;
     }
@@ -196,7 +212,7 @@ export function startScheduling(
   }
   if (prev) {
     for (const it of s.quotaItems) {
-      m.markers[it.id] = { v: handoverV(it, prev.roster, prev.markers[it.id], m.roster), x: null };
+      m.markers[it.id] = { v: m.vOverride?.[it.id] ?? handoverV(it, prev.roster, prev.markers[it.id], m.roster), x: null };
     }
   }
   m.status = "scheduling";

@@ -216,6 +216,8 @@ export interface MonthDoc {
   publishedAt: string | null;
   imported: boolean;
   swaps?: SwapRec[];                      // 換班紀錄（同日兩人互換）
+  vOverride?: Record<string, string>;     // 手動指定的餘數起點 V（配額項目 → personId），優先於上月交接
+  weekendFirst?: Partial<Record<keyof WeekendPointers, string>>; // 手動指定週末輪序本月第一位
   changeLog?: ChangeRec[];                // 發布後異動紀錄
 }
 
