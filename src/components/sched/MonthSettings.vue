@@ -9,7 +9,7 @@ import { nextInOrder } from "@/shared/sched/engine/rotation";
 import {
   FLAG_DEFS, DAY_TYPES, emptyFlags, clone, type FlagKey, type StaffingTable, type RosterEntry,
 } from "@/shared/sched/types";
-import { daysIn, nextYm, prevYm } from "@/shared/sched/calendar";
+import { daysIn, nextYm, prevYm, dowOf, dateStr, addDays, isHoliday, inCny } from "@/shared/sched/calendar";
 
 const props = defineProps<{ ym: string }>();
 const emit = defineEmits<{ close: []; toast: [msg: string] }>();
@@ -139,6 +139,25 @@ const wkOk = (k: WkKey) => (id: string) => {
   return k === "wkN" ? !f.noN && !f.nightTransfer : !f.noD;
 };
 /** 本月第一個輪到的人（含手動指定） */
+/** 各輪序在本月第一次輪到的日期（月初週日若接續上月週六的週末 N，不算本月） */
+function wkFirstDate(k: WkKey): string {
+  const m = month.value;
+  if (!m) return "";
+  const h = store.holidays;
+  for (let d = 1; d <= daysIn(m.ym); d++) {
+    const date = dateStr(m.ym, d), dw = dowOf(m.ym, d);
+    if (inCny(h, date) || h.workdays.includes(date)) continue;
+    if (k === "wkN" && dw === 6 && !isHoliday(h, date) && !isHoliday(h, addDays(date, 1))) return `${Number(m.ym.slice(4))}/${d}–${Number(m.ym.slice(4))}/${d + 1 > daysIn(m.ym) ? 1 : d + 1}`;
+    if (k === "satD" && dw === 6 && !isHoliday(h, date)) return `${Number(m.ym.slice(4))}/${d}`;
+    if (k === "sunD" && dw === 0 && !isHoliday(h, date)) return `${Number(m.ym.slice(4))}/${d}`;
+  }
+  return "";
+}
+const sundayCarry = computed(() => {
+  const m = month.value;
+  return !!m && dowOf(m.ym, 1) === 0 && !isHoliday(store.holidays, dateStr(m.ym, 1));
+});
+
 function wkFirst(k: WkKey, withOverride = true): string | null {
   const m = month.value;
   if (!m) return null;
@@ -237,12 +256,13 @@ function clearAdjust(d: string) {
               </table>
             </div>
             <div>
-              <div class="font-semibold text-fg mb-1">週末輪序（本月第一個輪到的人）</div>
+              <div class="font-semibold text-fg mb-1">週末輪序（本月第一次輪到的人）</div>
+              <p v-if="sundayCarry" class="text-muted mb-1">{{ Number(ym.slice(4)) }}/1 是週日：當天的週末 N 由上月最後一個週六的人連值，屬於上個月的週末，不算本月輪序。</p>
               <p v-if="month.status !== 'open'" class="text-muted mb-1">只有開放預班的月份會預填週末輪序；已開始排班的月份請直接在班表上調整。</p>
               <table>
                 <tbody>
                   <tr v-for="w in WK" :key="w.key" class="border-t border-hairline">
-                    <td class="pr-3 py-1 text-fg-secondary w-24">{{ w.label }}</td>
+                    <td class="pr-3 py-1 text-fg-secondary w-32">{{ w.label }}<span class="text-muted">（{{ wkFirstDate(w.key) || "—" }}）</span></td>
                     <td class="py-1">
                       <select class="sched-input" :disabled="month.status !== 'open'" :value="month.weekendFirst?.[w.key] ?? ''" @change="setWk(w.key, ($event.target as HTMLSelectElement).value)">
                         <option value="">自動（接續上月：{{ personById(wkFirst(w.key, false))?.name ?? "—" }}）</option>
