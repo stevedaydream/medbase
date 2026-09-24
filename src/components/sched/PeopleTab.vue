@@ -83,7 +83,7 @@ function removePerson(p: Person) {
   <div class="h-full flex flex-col overflow-hidden">
     <div class="flex items-center gap-2 px-4 py-2 border-b border-hairline">
       <span class="text-sm font-semibold text-fg">全外科 NP 名單</span>
-      <span class="text-xs text-muted">順序＝8-4 與春節輪序順序；9A 每月人員從這裡挑選</span>
+      <span class="text-xs text-muted">順序＝8-4 與春節輪序順序；每月排班人員從這裡挑選</span>
       <input v-model="filter" placeholder="篩選姓名／單位"
         class="ml-auto text-xs px-2 py-1 bg-elevated border border-hairline rounded text-fg outline-none focus:border-accent/40 w-40" />
       <button class="text-xs px-3 py-1 bg-accent hover:bg-accent-hover text-white rounded" @click="addPerson">＋ 新增</button>

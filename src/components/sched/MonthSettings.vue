@@ -18,10 +18,12 @@ const readonly = computed(() => month.value?.status === "published");
 const tab = ref<"roster" | "staffing">("roster");
 const NEEDS = ["D", "N", "S1"] as const;
 
+/** 目前名單的單位（例：9A、9B），同單位的人排在加入選單前面 */
+const units = computed(() => new Set((month.value?.roster ?? []).map(r => personById(r.personId)?.unit ?? "")));
 const candidates = computed(() => {
   const inRoster = new Set(month.value?.roster.map(r => r.personId));
   return [...store.people].filter(p => p.active && !inRoster.has(p.id)).sort((a, b) =>
-    (a.unit === "9A" ? 0 : 1) - (b.unit === "9A" ? 0 : 1) || a.order - b.order);
+    (units.value.has(a.unit) ? 0 : 1) - (units.value.has(b.unit) ? 0 : 1) || a.order - b.order);
 });
 const addId = ref("");
 

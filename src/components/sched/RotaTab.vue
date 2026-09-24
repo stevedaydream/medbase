@@ -22,7 +22,16 @@ const years = computed(() => {
 });
 
 const people = computed(() => [...store.people].sort((a, b) => a.order - b.order));
-const people9A = computed(() => people.value.filter(p => p.unit === "9A" && p.active));
+/** 國定假日抽籤候選：該日期月份的排班名單（在職）；月份未建立時用最近月份，不限單位（9A／9B 合併排班） */
+function dutyCandidates(date: string) {
+  const ym = ymOfDate(date);
+  const yms = sortedYms();
+  const src = store.months[ym] ?? store.months[yms.filter(y => y <= ym).pop() ?? yms[yms.length - 1]];
+  const ids = new Set(src?.roster.filter(r => r.flags.active).map(r => r.personId) ?? []);
+  const cur = store.holidayDuty[date.slice(0, 4)]?.[date];
+  for (const id of [cur?.D, cur?.N]) if (id) ids.add(id);
+  return people.value.filter(p => ids.size ? ids.has(p.id) : p.active);
+}
 const name = (id: string | null | undefined) => personById(id)?.name ?? "—";
 const wd = (date: string) => WEEKDAY_LABEL[dowOfDate(date)];
 
@@ -201,13 +210,13 @@ async function setLastD(y: string, id: string) {
               <td class="px-2">
                 <select class="sched-input" :value="store.holidayDuty[d.slice(0, 4)]?.[d]?.D ?? ''" @change="setDuty(d, 'D', ($event.target as HTMLSelectElement).value)">
                   <option value="">—</option>
-                  <option v-for="p in people9A" :key="p.id" :value="p.id">{{ p.name }}</option>
+                  <option v-for="p in dutyCandidates(d)" :key="p.id" :value="p.id">{{ p.name }}</option>
                 </select>
               </td>
               <td class="px-2">
                 <select class="sched-input" :value="store.holidayDuty[d.slice(0, 4)]?.[d]?.N ?? ''" @change="setDuty(d, 'N', ($event.target as HTMLSelectElement).value)">
                   <option value="">—</option>
-                  <option v-for="p in people9A" :key="p.id" :value="p.id">{{ p.name }}</option>
+                  <option v-for="p in dutyCandidates(d)" :key="p.id" :value="p.id">{{ p.name }}</option>
                 </select>
               </td>
             </template>
