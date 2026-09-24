@@ -293,13 +293,6 @@ function _findPhysicianByHis(ss, his) {
   return null;
 }
 
-/** Staff 表：代號[0] 姓名[1] 角色[2] pw_hash[3] 啟用[4] 員工編號[5]；HIS 帳號＝員工編號 */
-function _findStaffByEmployeeId(ss, his) {
-  const sh = ss.getSheetByName('Staff');
-  if (!sh || sh.getLastRow() < 2) return null;
-  const r = sh.getDataRange().getValues().slice(1).find(r => String(r[5] || '') === String(his) && r[4] !== 0);
-  return r ? { code: String(r[0]), name: String(r[1]) } : null;
-}
 
 
 // ── 論文專案：個人雲端備份（ADR-012）──────────────────────────────────
@@ -494,6 +487,106 @@ function _schPut(docs, items) {
   });
 }
 
+// ── 手機存取排班 v3（ADR-015）─────────────────────────────────────────
+// 角色一律由 GAS 依 HIS 帳號查 people 決定；scheduler／super 可讀寫全部文件，
+// 員工只能讀 prebook:*、est:*、shifts、holidays、精簡的 people 與自己的通知，寫入只能透過 mobileSetPrebook。
+const SCH_MARKS = ['勿休', '勿值'];
+const SCH_DEFAULT_CODES = ['D', 'NrsD', 'N', 'S1', 'H3', 'OFF', '公假'];
+
+function _schParse(docs, key, fallback) {
+  try { return docs[key] ? JSON.parse(docs[key].json) : fallback; } catch (e) { return fallback; }
+}
+
+/** HIS 帳號 → 排班人員（people 文件，需啟用）；找不到回 null */
+function _schPerson(docs, his) {
+  const key = String(his || '').trim();
+  if (!key) return null;
+  const p = _schParse(docs, 'people', []).find(x => String(x.his || '').trim() === key && x.active);
+  return p ? { id: p.id, name: p.name, role: p.role || 'employee', unit: p.unit || '' } : null;
+}
+
+function _schIsStaff(person) {
+  return !!person && (person.role === 'scheduler' || person.role === 'super');
+}
+
+/** 員工可讀的文件 */
+function _schEmployeeKey(key) {
+  return key.indexOf('prebook:') === 0 || key.indexOf('est:') === 0
+    || key === 'people' || key === 'shifts' || key === 'holidays' || key === 'notices';
+}
+
+/** 依角色過濾讀取：員工的 people 只留姓名單位、notices 只留自己的 */
+function _schMobileView(person, key, doc) {
+  if (_schIsStaff(person)) return doc;
+  if (key === 'people') {
+    const list = JSON.parse(doc.json).map(p => ({ id: p.id, name: p.name, unit: p.unit, active: p.active, order: p.order }));
+    return { version: doc.version, json: JSON.stringify(list) };
+  }
+  if (key === 'notices') {
+    const list = JSON.parse(doc.json).filter(n => person && n.personId === person.id);
+    return { version: doc.version, json: JSON.stringify(list) };
+  }
+  return doc;
+}
+
+function _schDaysIn(ym) {
+  return new Date(Number(ym.slice(0, 4)), Number(ym.slice(4, 6)), 0).getDate();
+}
+
+/**
+ * 員工登記自己的預班。cells: [{ day, v }]（v 為 null＝清空）。
+ * 驗證：月份為開放預班、本人在名單且在職、不可改系統預填、值限班別（不含離開單位類）或勿休／勿值。
+ * 直接改 docs（呼叫端負責寫回）；回傳 { ok, applied, rejected[] }。
+ */
+function _schSetPrebook(docs, person, ym, cells, nowIso) {
+  if (!person) return { ok: false, error: '你不在排班名單中，無法登記預班' };
+  if (!/^\d{6}$/.test(String(ym))) return { ok: false, error: '月份格式錯誤' };
+  const month = _schParse(docs, 'month:' + ym, null);
+  if (!month || month.status !== 'open') return { ok: false, error: '這個月份目前不開放預班' };
+  const me = (month.roster || []).find(r => r.personId === person.id);
+  if (!me || !me.flags || !me.flags.active) return { ok: false, error: '你不在這個月份的排班名單中' };
+  const shifts = _schParse(docs, 'shifts', null);
+  const codes = (shifts ? shifts.filter(x => !x.reducesOff).map(x => x.code) : SCH_DEFAULT_CODES).concat(SCH_MARKS);
+  const nd = _schDaysIn(ym);
+  const pb = _schParse(docs, 'prebook:' + ym, { ym: ym, cells: {} });
+  const rejected = [], applied = [];
+  (cells || []).slice(0, 31).forEach(c => {
+    const day = Number(c && c.day), v = c && c.v ? String(c.v) : null;
+    const k = person.id + '|' + day;
+    const cur = pb.cells[k];
+    if (!(day >= 1 && day <= nd)) return rejected.push({ day: day, reason: '日期錯誤' });
+    if (cur && cur.src === 'sys' && cur.v) return rejected.push({ day: day, reason: '系統預填不可修改' });
+    if (v !== null && codes.indexOf(v) < 0) return rejected.push({ day: day, reason: '不允許的班別' });
+    const before = cur && cur.v ? cur.v : '';
+    if (before === (v || '')) return;
+    pb.cells[k] = { v: v, src: 'emp', by: person.id, at: nowIso };
+    applied.push({ day: day, from: before, to: v || '' });
+  });
+  if (applied.length) {
+    docs['prebook:' + ym] = { version: _schVersion(docs['prebook:' + ym] && docs['prebook:' + ym].version), json: JSON.stringify(pb) };
+    const lk = 'log:' + ym;
+    const log = _schParse(docs, lk, { key: ym, entries: [] });
+    const m = Number(ym.slice(4));
+    log.entries.push({
+      at: nowIso, actor: person.name + '（手機）', action: '預班改格',
+      detail: applied.map(a => person.name + ' ' + m + '/' + a.day + ' ' + (a.from || '空白') + '→' + (a.to || '空白')).join('、'),
+    });
+    if (log.entries.length > 2000) log.entries = log.entries.slice(-2000);
+    docs[lk] = { version: _schVersion(docs[lk] && docs[lk].version), json: JSON.stringify(log) };
+  }
+  return { ok: true, applied: applied, rejected: rejected };
+}
+
+/** 員工標記自己的通知已讀 */
+function _schMarkRead(docs, person, ids) {
+  if (!person || !docs.notices) return 0;
+  const list = JSON.parse(docs.notices.json);
+  let n = 0;
+  list.forEach(x => { if (x.personId === person.id && !x.read && (!ids || ids.indexOf(x.id) >= 0)) { x.read = true; n++; } });
+  if (n) docs.notices = { version: _schVersion(docs.notices.version), json: JSON.stringify(list) };
+  return n;
+}
+
 // ── NP 值班表（NpDuty 資料 + NpDutyMonths 每月版本）──────────────────
 const NP_FIELDS = ['duty_date', 'ward', 'np_name', 'staff_code', 'extension', 'shift', 'notes', 'source_file'];
 
@@ -582,21 +675,6 @@ function doPost(e) {
 
     switch (p.action) {
 
-      // ── 登入驗證（手機端）────────────────────────────────────────
-      case 'login': {
-        const staffSheet = ss.getSheetByName('Staff');
-        if (!staffSheet) return json({ ok: false, error: 'Staff sheet missing' });
-        const rows = staffSheet.getDataRange().getValues().slice(1);
-        // 欄位順序：代號[0] 姓名[1] 角色[2] pw_hash[3] 啟用[4] 員工編號[5]
-        // 以員工編號（r[5]）比對，相容舊資料（r[5] 為空時 fallback 比對代號 r[0]）
-        const user = rows.find(r => {
-          const eid = String(r[5] || '');
-          const match = eid ? eid === p.code : String(r[0]) === p.code;
-          return match && r[3] === p.pwHash && r[4] !== 0;
-        });
-        if (!user) return json({ ok: false, error: '員工編號或密碼錯誤' });
-        return json({ ok: true, data: { code: user[0], name: user[1], role: user[2] } });
-      }
 
       // ── 取得已發布班表（手機端查看） ──────────────────────────────
       case 'getSchedule': {
@@ -686,60 +764,7 @@ function doPost(e) {
         return json({ ok: true });
       }
 
-      // ── 員工提交預約班別請求（手機端） ───────────────────────────
-      case 'saveRequest': {
-        // Requests_YYYYMM: code, name, submitted_at, d1_v1, d1_v2, d1_v3, ... d31_v3
-        const shName = `Requests_${p.yyyyMM}`;
-        let sh = ss.getSheetByName(shName) || ss.insertSheet(shName);
 
-        // Build header if empty
-        if (sh.getLastRow() === 0) {
-          const hd = ['代號', '姓名', '提交時間'];
-          for (let d = 1; d <= 31; d++) {
-            hd.push(`${d}日_v1`, `${d}日_v2`, `${d}日_v3`);
-          }
-          sh.getRange(1, 1, 1, hd.length).setValues([hd]);
-        }
-
-        // Find existing row for this code, or append
-        const vals = sh.getDataRange().getValues();
-        const rowIdx = vals.findIndex((r, i) => i > 0 && r[0] === p.code);
-
-        const now = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
-        const row = [p.code, p.name, now];
-        const days = p.days || []; // [{v1,v2,v3}, ...] length 31
-        for (let di = 0; di < 31; di++) {
-          const d = days[di] || {};
-          row.push(d.v1 || '', d.v2 || '', d.v3 || '');
-        }
-
-        if (rowIdx >= 0) {
-          sh.getRange(rowIdx + 1, 1, 1, row.length).setValues([row]);
-        } else {
-          sh.appendRow(row);
-        }
-        return json({ ok: true });
-      }
-
-      // ── 拉取請求列表（桌面端 + 手機端） ──────────────────────────
-      case 'getRequests': {
-        const shName = `Requests_${p.yyyyMM}`;
-        const sh = ss.getSheetByName(shName);
-        if (!sh) return json({ ok: true, data: [] });
-        const vals = sh.getDataRange().getValues();
-        if (vals.length < 2) return json({ ok: true, data: [] });
-        const rows = vals.slice(1).map(row => ({
-          code: String(row[0] || ''),
-          name: String(row[1] || ''),
-          submittedAt: String(row[2] || ''),
-          days: Array.from({ length: 31 }, (_, di) => ({
-            v1: row[3 + di * 3] ? String(row[3 + di * 3]) : null,
-            v2: row[4 + di * 3] ? String(row[4 + di * 3]) : null,
-            v3: row[5 + di * 3] ? String(row[5 + di * 3]) : null,
-          })),
-        })).filter(r => r.code);
-        return json({ ok: true, data: rows });
-      }
 
       // ── 儲存常用分機（桌機端推送）────────────────────────────────
       case 'saveContacts': {
@@ -1214,10 +1239,10 @@ function doPost(e) {
           return json({ ok: false, code: 'BAD_LOGIN', error: '帳號或密碼錯誤' });
         }
         cache.remove(accKey);
-        const staff = _findStaffByEmployeeId(ss, his);
+        const sp = _schPerson(_schReadAll(_schSheet(ss)), his);
         return json({
           ok: true,
-          user: { his: his, name: person.name, staffCode: staff ? staff.code : '', staffName: staff ? staff.name : '' },
+          user: { his: his, name: person.name, personId: sp ? sp.id : '', role: sp ? sp.role : '' },
           fp: _mobileFp(his, password),
         });
       }
@@ -1310,16 +1335,52 @@ function doPost(e) {
       case 'getVersions': return getVersions();
 
       // ── 排班 v3 文件庫（ADR-014，桌機專用）────────────────────────
+      case 'schMe': {
+        const docs = _schReadAll(_schSheet(ss));
+        return json({ ok: true, person: p._mobile ? _schPerson(docs, p._mobile.his) : null });
+      }
       case 'schList': {
         const docs = _schReadAll(_schSheet(ss));
-        return json({ ok: true, docs: Object.keys(docs).map(k => ({ key: k, version: docs[k].version })) });
+        const person = p._mobile ? _schPerson(docs, p._mobile.his) : null;
+        const keys = Object.keys(docs).filter(k => !p._mobile || _schIsStaff(person) || _schEmployeeKey(k));
+        return json({ ok: true, docs: keys.map(k => ({ key: k, version: docs[k].version })) });
       }
       case 'schGet': {
         const docs = _schReadAll(_schSheet(ss));
-        const keys = p.keys || [];
-        return json({ ok: true, docs: keys.filter(k => docs[k]).map(k => ({ key: k, version: docs[k].version, json: docs[k].json })) });
+        const person = p._mobile ? _schPerson(docs, p._mobile.his) : null;
+        const keys = (p.keys || []).filter(k => docs[k] && (!p._mobile || _schIsStaff(person) || _schEmployeeKey(k)));
+        return json({ ok: true, docs: keys.map(k => {
+          const d = p._mobile ? _schMobileView(person, k, docs[k]) : docs[k];
+          return { key: k, version: d.version, json: d.json };
+        }) });
       }
+      case 'mobileSetPrebook': {
+        return _withLock(() => {
+          const sh = _schSheet(ss);
+          const docs = _schReadAll(sh);
+          const person = _schPerson(docs, p._mobile && p._mobile.his);
+          const r = _schSetPrebook(docs, person, String(p.ym || ''), p.cells, new Date().toISOString());
+          if (r.ok && r.applied.length) _schWriteAll(sh, docs);
+          return json(r);
+        });
+      }
+      case 'mobileMarkRead': {
+        return _withLock(() => {
+          const sh = _schSheet(ss);
+          const docs = _schReadAll(sh);
+          const n = _schMarkRead(docs, _schPerson(docs, p._mobile && p._mobile.his), p.ids || null);
+          if (n) _schWriteAll(sh, docs);
+          return json({ ok: true, marked: n });
+        });
+      }
+      case 'saveRequest':
+      case 'getRequests':
+        return json({ ok: false, code: 'OUTDATED', error: '預約功能已更新，請重新整理頁面' });
       case 'schPut': {
+        if (p._mobile) {
+          const person = _schPerson(_schReadAll(_schSheet(ss)), p._mobile.his);
+          if (!_schIsStaff(person)) return json({ ok: false, code: 'FORBIDDEN', error: '只有排班者可以修改班表' });
+        }
         return _withLock(() => {
           const sh = _schSheet(ss);
           const docs = _schReadAll(sh);
@@ -1352,19 +1413,6 @@ function handleApi(p) {
   if (_requireApiKey() && p.api_key !== _apiKey()) return { ok: false, code: 'UNAUTHORIZED', error: '缺少或錯誤的 GAS 金鑰' };
   try {
     switch (p.action) {
-      case 'login': {
-        const staffSheet = ss.getSheetByName('Staff');
-        if (!staffSheet) return { ok: false, error: 'Staff sheet missing' };
-        const rows = staffSheet.getDataRange().getValues().slice(1);
-        // 欄位順序：代號[0] 姓名[1] 角色[2] pw_hash[3] 啟用[4] 員工編號[5]
-        const user = rows.find(r => {
-          const eid = String(r[5] || '');
-          const match = eid ? eid === String(p.code) : String(r[0]) === String(p.code);
-          return match && String(r[3]) === String(p.pwHash) && r[4] != 0;
-        });
-        if (!user) return { ok: false, error: '員工編號或密碼錯誤' };
-        return { ok: true, data: { code: String(user[0]), name: String(user[1]), role: String(user[2]) } };
-      }
       case 'getSchedule': {
         let tss = ss;
         const cfg = ss.getSheetByName('Config');
@@ -1382,27 +1430,6 @@ function handleApi(p) {
         const result = {};
         cfg.getDataRange().getValues().forEach(r => { if (r[0]) result[String(r[0])] = String(r[1]); });
         return { ok: true, data: result };
-      }
-      case 'saveRequest': {
-        const shName = 'Requests_' + p.yyyyMM;
-        let sh = ss.getSheetByName(shName) || ss.insertSheet(shName);
-        if (sh.getLastRow() === 0) {
-          const hd = ['代號', '姓名', '提交時間'];
-          for (let d = 1; d <= 31; d++) hd.push(d+'日_v1', d+'日_v2', d+'日_v3');
-          sh.getRange(1, 1, 1, hd.length).setValues([hd]);
-        }
-        const vals = sh.getDataRange().getValues();
-        const rowIdx = vals.findIndex((r, i) => i > 0 && String(r[0]) === String(p.code));
-        const now = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
-        const row = [p.code, p.name, now];
-        const days = p.days || [];
-        for (let di = 0; di < 31; di++) {
-          const d = days[di] || {};
-          row.push(d.v1 || '', d.v2 || '', d.v3 || '');
-        }
-        if (rowIdx >= 0) sh.getRange(rowIdx + 1, 1, 1, row.length).setValues([row]);
-        else sh.appendRow(row);
-        return { ok: true };
       }
       case 'getShifts': {
         const sh = ss.getSheetByName('Shifts');

@@ -6,7 +6,7 @@
 import { reactive, readonly } from "vue";
 import { getDb, dbWrite } from "@/db";
 import { sha256 } from "@/utils/sha256";
-import type { Role } from "@/utils/sched/types";
+import type { Role } from "@/shared/sched/types";
 
 const state = reactive({
   loggedIn: false,

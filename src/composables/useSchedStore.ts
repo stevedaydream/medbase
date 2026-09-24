@@ -8,11 +8,11 @@ import { getDb, dbWrite } from "@/db";
 import {
   DEFAULT_SHIFTS, DEFAULT_QUOTA_ITEMS, DEFAULT_RULES, clone,
   type Person, type ShiftDef, type QuotaItem, type RuleParams, type HolidayDoc, type HolidayDutyDoc,
-  type Duty84Doc, type CnyDoc, type MonthDoc, type PrebookDoc, type NoticeItem, type LogDoc, type DebtRec, type LockInfo, newId,
-} from "@/utils/sched/types";
-import { emptyHolidays, nextYm, ymParts } from "@/utils/sched/calendar";
-import { recomputeFrom, newMonthFrom, startScheduling, type SchedSnapshot, type Notice } from "@/utils/sched/engine/prefill";
-import { computeQuotas } from "@/utils/sched/engine/quota";
+  type Duty84Doc, type CnyDoc, type MonthDoc, type PrebookDoc, type NoticeItem, type LogDoc, type DebtRec, type LockInfo, type EstDoc,
+} from "@/shared/sched/types";
+import { emptyHolidays, nextYm } from "@/shared/sched/calendar";
+import { newMonthFrom } from "@/shared/sched/engine/prefill";
+import { opRecompute, opStartMonth, type OpsState, type OpPatch } from "@/shared/sched/ops";
 import { parseMonthSheet, parse84 } from "@/utils/sched/excelImport";
 import { useSchedSession } from "@/composables/useSchedSession";
 import { buildImport, type ImportReport, type LegacyUser, type PhysicianHis } from "@/utils/sched/importApply";
@@ -32,12 +32,13 @@ export interface SchedState {
   prebooks: Record<string, PrebookDoc>;
   logs: Record<string, LogDoc>;
   locks: Record<string, LockInfo | null>;
+  ests: Record<string, EstDoc>;
   debts: DebtRec[];
 }
 
 export type GlobalKey = "people" | "shifts" | "quotaItems" | "rules" | "holidays" | "holidayDuty" | "duty84" | "cny" | "notices" | "debts";
 
-const defaults = (): Omit<SchedState, "loaded" | "months" | "prebooks" | "logs" | "locks"> => ({
+const defaults = (): Omit<SchedState, "loaded" | "months" | "prebooks" | "logs" | "locks" | "ests"> => ({
   people: [],
   shifts: structuredClone(DEFAULT_SHIFTS),
   quotaItems: structuredClone(DEFAULT_QUOTA_ITEMS),
@@ -50,7 +51,7 @@ const defaults = (): Omit<SchedState, "loaded" | "months" | "prebooks" | "logs" 
   debts: [],
 });
 
-const state = reactive<SchedState>({ loaded: false, months: {}, prebooks: {}, logs: {}, locks: {}, ...defaults() });
+const state = reactive<SchedState>({ loaded: false, months: {}, prebooks: {}, logs: {}, locks: {}, ests: {}, ...defaults() });
 let loading: Promise<void> | null = null;
 
 async function load(): Promise<void> {
@@ -62,6 +63,7 @@ async function load(): Promise<void> {
   state.prebooks = {};
   state.logs = {};
   state.locks = {};
+  state.ests = {};
   for (const r of rows) applyToState(r.key, JSON.parse(r.json));
   state.loaded = true;
 }
@@ -72,6 +74,7 @@ function applyToState(key: string, val: unknown) {
   else if (key.startsWith("prebook:")) state.prebooks[key.slice(8)] = val as PrebookDoc;
   else if (key.startsWith("log:")) state.logs[key.slice(4)] = val as LogDoc;
   else if (key.startsWith("lock:")) state.locks[key.slice(5)] = val as LockInfo | null;
+  else if (key.startsWith("est:")) state.ests[key.slice(4)] = val as EstDoc;
   else if (key in defaults()) (state as unknown as Record<string, unknown>)[key] = val;
 }
 
@@ -216,7 +219,7 @@ export async function importFromWorkbook(
     actorName());
   const rc = await recompute(null, "Excel 匯入後重新輪序");
   out.report.warnings.push(...rc.warnings);
-  if (rc.notices.length) out.report.warnings.push(`系統預填覆蓋了 ${rc.notices.length} 筆預班（已寫入通知）`);
+  if (rc.notices) out.report.warnings.push(`系統預填覆蓋了 ${rc.notices} 筆預班（已寫入通知）`);
   return out.report;
 }
 
@@ -242,11 +245,30 @@ async function migrateLegacyHolidays(h: HolidayDoc): Promise<void> {
 }
 
 // ── 重算與月份 ────────────────────────────────────────────────────────
-export function snapshot(): SchedSnapshot {
+export function snapshot(): OpsState {
   return clone({
     people: state.people, shifts: state.shifts, quotaItems: state.quotaItems, holidays: state.holidays,
     holidayDuty: state.holidayDuty, duty84: state.duty84, cny: state.cny, months: state.months, prebooks: state.prebooks,
+    rules: state.rules, debts: state.debts,
   });
+}
+
+/** 存回 ops 產生的變更：文件、通知、操作紀錄、員工用的 est 文件 */
+export async function applyPatch(p: OpPatch): Promise<void> {
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  for (const m of p.months) await saveMonth(m);
+  for (const pb of p.prebooks) await savePrebook(pb);
+  if (p.duty84) { state.duty84 = p.duty84; await saveGlobal("duty84"); }
+  if (p.cny) { state.cny = p.cny; await saveGlobal("cny"); }
+  if (p.debts) { state.debts = p.debts; await saveGlobal("debts"); }
+  if (p.notices.length) { state.notices.push(...p.notices); await saveGlobal("notices"); }
+  for (const e of p.ests) {
+    const prev = state.ests[e.ym];
+    if (prev && same({ ...prev, updatedAt: "" }, { ...e, updatedAt: "" })) continue;
+    state.ests[e.ym] = e;
+    await writeDoc(`est:${e.ym}`, e);
+  }
+  for (const l of p.logs) await appendLog(l.scope, l.action, l.detail, l.actor);
 }
 
 export function sortedYms(): string[] {
@@ -260,48 +282,19 @@ export function firstOpenYm(): string | null {
     ?? null;
 }
 
-function noticeText(n: Notice): string {
-  const { m } = ymParts(n.ym);
-  return `${m}/${n.day} 的預班「${n.oldValue}」已改為「${n.newValue}」：${n.reason}`;
-}
 
 /**
  * 人力結構改變後，自 fromYm（預設最早的開放月份）起往後重算預填、8-4、春節、V 交接。
  * 只寫回有變動的文件；覆蓋員工預約產生的通知存入 notices。
  */
-export async function recompute(fromYm: string | null, reason: string): Promise<{ notices: Notice[]; warnings: string[] }> {
+export async function recompute(fromYm: string | null, reason: string): Promise<{ notices: number; warnings: string[] }> {
   await ensureSchedLoaded();
   const open = firstOpenYm();
   const from = [fromYm, open].filter((x): x is string => !!x).sort().pop() ?? null;
-  if (!from) return { notices: [], warnings: [] };
-  const now = new Date().toISOString();
-  const r = recomputeFrom(snapshot(), from, now, reason);
-
-  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-  for (const [ym, m] of Object.entries(r.months)) if (!same(m, state.months[ym])) await saveMonth(m);
-  for (const [ym, p] of Object.entries(r.prebooks)) if (!same(p, state.prebooks[ym])) await savePrebook(p);
-  if (!same(r.duty84, state.duty84)) { state.duty84 = r.duty84; await saveGlobal("duty84"); }
-  if (!same(r.cny, state.cny)) { state.cny = r.cny; await saveGlobal("cny"); }
-  if (r.notices.length) {
-    state.notices.push(...r.notices.map(n => ({
-      id: newId(), personId: n.personId, at: now, text: noticeText(n), read: false, sent: false,
-    })));
-    await saveGlobal("notices");
-  }
-  // 每個被重算的開放月份各記一筆系統紀錄
-  const nm = (id: string | null | undefined) => personById(id)?.name ?? "—";
-  for (const [ym, m] of Object.entries(r.months)) {
-    if (ym < from || m.status !== "open") continue;
-    const sys = Object.values(r.prebooks[ym]?.cells ?? {}).filter(c => c.src === "sys").length;
-    const ns = r.notices.filter(n => n.ym === ym);
-    const vs = state.quotaItems.filter(i => i.enabled).map(i => `${i.name}=${nm(m.markers[i.id]?.v)}`).join("、");
-    const parts = [`原因：${reason}`, `預填 ${sys} 格`, `餘數起點 V：${vs}`];
-    if (ns.length) parts.push(`覆蓋預班 ${ns.length} 筆（${ns.map(n => `${nm(n.personId)} ${n.day} 日 ${n.oldValue}→${n.newValue}`).join("、")}），已通知`);
-    const ws = r.warnings.filter(w => w.startsWith(ym)).map(w => w.slice(ym.length + 1));
-    if (ws.length) parts.push(`提示：${ws.join("；")}`);
-    await appendLog(ym, "重新計算預填", parts.join("；"));
-  }
-  return { notices: r.notices, warnings: r.warnings };
+  if (!from) return { notices: 0, warnings: [] };
+  const p = opRecompute(snapshot(), from, reason, new Date().toISOString());
+  await applyPatch(p);
+  return { notices: p.notices.length, warnings: p.warnings };
 }
 
 /** 新增最後一個月份的下一個月（開放預班），沿用上月人員設定，並重算預填 */
@@ -321,18 +314,7 @@ export async function addNextMonth(): Promise<string> {
 /** 開始排班：預班凍結、帶入排班層、交接 V 並算出配額（上月未發布需 force） */
 export async function startMonth(ym: string, force = false): Promise<void> {
   await ensureSchedLoaded();
-  const r = startScheduling(snapshot(), ym, new Date().toISOString(), { force });
-  if (r.error) throw new Error(r.error);
-  await saveMonth(r.month);
-  const nm = (id: string | null | undefined) => personById(id)?.name ?? "—";
-  const q = computeQuotas({
-    month: r.month, holidays: state.holidays, shifts: state.shifts, items: state.quotaItems,
-    cell: (id, d) => r.month.schedule[id]?.[d - 1] ?? "",
-  });
-  const items = state.quotaItems.filter(i => i.enabled);
-  const summary = items.map(i => `${i.name} 總 ${q.totals[i.id]}（V ${nm(q.markers[i.id]?.v)}→X ${nm(q.markers[i.id]?.x)}）`).join("；");
-  await appendLog(ym, "開始排班", `${force ? "（上月未發布，強制以目前 X 交接）" : ""}預班凍結並帶入排班層；${summary}`, actorName());
-  if (state.months[nextYm(ym)]) await recompute(nextYm(ym), `${ym} 開始排班`);
+  await applyPatch(opStartMonth(snapshot(), ym, force, actorName(), new Date().toISOString()));
 }
 
 /** 清除全部排班 v3 本機文件（重新匯入前使用；雲端資料不受影響） */

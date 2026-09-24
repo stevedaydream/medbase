@@ -7,11 +7,10 @@
 
 export const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
+/** 排班身分與角色不放憑證：每次由 GAS 依 HIS 帳號查 people 決定（ADR-015） */
 export interface TokenPayload {
   his: string;
   name: string;
-  staffCode: string;
-  staffName: string;
   fp: string;
   exp: number;
 }

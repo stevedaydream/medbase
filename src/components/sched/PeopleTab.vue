@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useSchedStore, saveGlobal, appendLog, actorName, recompute } from "@/composables/useSchedStore";
-import { newId, type Person, type Role } from "@/utils/sched/types";
+import { newId, type Person, type Role } from "@/shared/sched/types";
 
 const emit = defineEmits<{ toast: [msg: string] }>();
 const store = useSchedStore();
@@ -36,7 +36,7 @@ function persist(detail = "", rota = false) {
       if (details) await appendLog("global", "人員名單", details, actorName());
       if (doRota) {
         const r = await recompute(null, `人員名單異動（${details}）`);
-        if (r.notices.length) emit("toast", `已重算輪序，覆蓋 ${r.notices.length} 筆預班並通知`);
+        if (r.notices) emit("toast", `已重算輪序，覆蓋 ${r.notices} 筆預班並通知`);
       }
     } catch (e) {
       emit("toast", `儲存失敗：${(e as Error).message}`);

@@ -23,5 +23,6 @@
       "docxtemplater": ["./node_modules/docxtemplater"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "../src/shared/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "../src/shared/**/*.ts"],
+  "exclude": ["../src/shared/**/*.test.ts"]
 }

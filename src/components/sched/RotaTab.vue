@@ -3,8 +3,8 @@ import { ref, computed } from "vue";
 import {
   useSchedStore, saveGlobal, recompute, addNextMonth, sortedYms, personById, firstOpenYm, appendLog, actorName,
 } from "@/composables/useSchedStore";
-import { ymOfDate, WEEKDAY_LABEL, dowOfDate } from "@/utils/sched/calendar";
-import type { Duty84Entry } from "@/utils/sched/types";
+import { ymOfDate, WEEKDAY_LABEL, dowOfDate } from "@/shared/sched/calendar";
+import type { Duty84Entry } from "@/shared/sched/types";
 import QuotaPreview from "./QuotaPreview.vue";
 
 const emit = defineEmits<{ toast: [msg: string] }>();
@@ -32,7 +32,7 @@ async function run(fromYm: string | null, reason: string) {
     await appendLog("global", "輪值設定", reason, actorName());
     const r = await recompute(fromYm, reason);
     const parts = ["已重新計算預填"];
-    if (r.notices.length) parts.push(`覆蓋 ${r.notices.length} 筆預班（已寫入通知）`);
+    if (r.notices) parts.push(`覆蓋 ${r.notices} 筆預班（已寫入通知）`);
     if (r.warnings.length) parts.push(`${r.warnings.length} 則提示`);
     emit("toast", parts.join("，"));
   } catch (e) {

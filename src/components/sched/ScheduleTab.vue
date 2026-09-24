@@ -7,8 +7,8 @@ import {
   exportMonth, LockedError, type ExportKind,
 } from "@/composables/useSchedFlow";
 import type { Layer, CellRef, EditReason } from "@/composables/useGridEditor";
-import { RULE_LABELS, type Issue, type RuleCode } from "@/utils/sched/engine/validate";
-import { prevYm } from "@/utils/sched/calendar";
+import { RULE_LABELS, type Issue, type RuleCode } from "@/shared/sched/engine/validate";
+import { prevYm } from "@/shared/sched/calendar";
 import SchedGrid from "./SchedGrid.vue";
 import SidePanel from "./SidePanel.vue";
 import MonthSettings from "./MonthSettings.vue";

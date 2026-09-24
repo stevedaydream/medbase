@@ -8,7 +8,8 @@ import { kvClear } from './kv'
  * - 閒置 15 分鐘上鎖；App 在背景超過 15 分鐘回來也上鎖
  * - 登出清除所有快取；Gemini 金鑰與主題設定保留
  */
-export interface MobileUser { his: string; name: string; staffCode: string; staffName: string }
+/** personId／role 為登入當下的排班身分；實際權限每次由 GAS 依 people 判斷（ADR-015） */
+export interface MobileUser { his: string; name: string; personId?: string; role?: string }
 
 const K = { token: 'mb_token', user: 'mb_user', pin: 'mb_unlock', active: 'mb_last_active' }
 const KEEP_ON_LOGOUT = ['mb_gemini_key', 'mb_theme']

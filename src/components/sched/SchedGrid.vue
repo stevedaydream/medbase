@@ -2,14 +2,14 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { useSchedStore, personById, saveMonth, appendLog, actorName, recompute } from "@/composables/useSchedStore";
 import { useGridEditor, type Layer, type CellRef, type EditReason } from "@/composables/useGridEditor";
-import { targetsWithSwaps } from "@/utils/sched/engine/swaps";
-import { computeQuotas } from "@/utils/sched/engine/quota";
-import { cellFnOf } from "@/utils/sched/engine/prefill";
-import { needOf } from "@/utils/sched/engine/staffing";
-import { validate, personStats, dayStats, shiftMap, type Issue, type GridCtx } from "@/utils/sched/engine/validate";
-import { daysIn, dayTypeOf, dowOf, dateStr, WEEKDAY_LABEL, inCny, prevYm } from "@/utils/sched/calendar";
-import { colorOf } from "@/utils/sched/palette";
-import { cellKey, CONSTRAINT_MARKS, FLAG_DEFS, type Flags } from "@/utils/sched/types";
+import { targetsWithSwaps } from "@/shared/sched/engine/swaps";
+import { computeQuotas } from "@/shared/sched/engine/quota";
+import { cellFnOf } from "@/shared/sched/engine/prefill";
+import { needOf } from "@/shared/sched/engine/staffing";
+import { validate, personStats, dayStats, shiftMap, type Issue, type GridCtx } from "@/shared/sched/engine/validate";
+import { daysIn, dayTypeOf, dowOf, dateStr, WEEKDAY_LABEL, inCny, prevYm } from "@/shared/sched/calendar";
+import { colorOf } from "@/shared/sched/palette";
+import { cellKey, CONSTRAINT_MARKS, FLAG_DEFS, type Flags } from "@/shared/sched/types";
 
 const props = defineProps<{ ym: string; layer: Layer; showInactive: boolean; hasLock: boolean; postEdit: boolean }>();
 const emit = defineEmits<{

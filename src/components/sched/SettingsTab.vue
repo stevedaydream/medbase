@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { useSchedStore, saveGlobal, appendLog, actorName, recompute, type GlobalKey } from "@/composables/useSchedStore";
-import { COLOR_PALETTE, colorOf } from "@/utils/sched/palette";
+import { COLOR_PALETTE, colorOf } from "@/shared/sched/palette";
 import {
   DEFAULT_SHIFTS, DEFAULT_QUOTA_ITEMS, DEFAULT_RULES, FLAG_DEFS, newId,
   type ShiftDef, type QuotaItem, type ShiftCategory, type FlagKey,
-} from "@/utils/sched/types";
-import { WEEKDAY_LABEL } from "@/utils/sched/calendar";
+} from "@/shared/sched/types";
+import { WEEKDAY_LABEL } from "@/shared/sched/calendar";
 
 const props = defineProps<{ canEdit: boolean }>();
 const emit = defineEmits<{ toast: [msg: string] }>();

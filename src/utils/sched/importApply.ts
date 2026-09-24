@@ -5,10 +5,10 @@
 import type { ParsedMonth, Parsed84 } from "./excelImport";
 import type {
   Person, HolidayDoc, HolidayDutyDoc, Duty84Doc, MonthDoc, PrebookDoc, Role, CellOrigin, WeekendPointers,
-} from "./types";
-import { emptyMonth, newId, cellKey, CONSTRAINT_MARKS } from "./types";
-import { dayTypeOf, dowOf, daysIn } from "./calendar";
-import { nextInOrder } from "./engine/rotation";
+} from "@/shared/sched/types";
+import { emptyMonth, newId, cellKey, CONSTRAINT_MARKS } from "@/shared/sched/types";
+import { dayTypeOf, dowOf, daysIn } from "@/shared/sched/calendar";
+import { nextInOrder } from "@/shared/sched/engine/rotation";
 
 export interface LegacyUser { name: string; employee_id: string | null; role: string; is_active: number }
 export interface PhysicianHis { name: string; his_account: string | null }

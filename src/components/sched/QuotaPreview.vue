@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useSchedStore, personById } from "@/composables/useSchedStore";
-import { computeQuotas } from "@/utils/sched/engine/quota";
-import { cellFnOf } from "@/utils/sched/engine/prefill";
-import { FLAG_DEFS, type Flags } from "@/utils/sched/types";
+import { computeQuotas } from "@/shared/sched/engine/quota";
+import { cellFnOf } from "@/shared/sched/engine/prefill";
+import { FLAG_DEFS, type Flags } from "@/shared/sched/types";
 
 const props = defineProps<{ ym: string }>();
 const store = useSchedStore();

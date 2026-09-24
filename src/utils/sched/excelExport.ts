@@ -4,10 +4,10 @@
  * - buildPositionalSheet：過渡期「Excel 完整格式」——值放在醫院活頁簿相同儲存格（與匯入共用 excelMap）
  */
 import * as XLSX from "xlsx";
-import type { MonthDoc, PrebookDoc, HolidayDoc, QuotaItem, Person, Duty84Doc, CnyDoc } from "./types";
-import { cellKey } from "./types";
+import type { MonthDoc, PrebookDoc, HolidayDoc, QuotaItem, Person, Duty84Doc, CnyDoc } from "@/shared/sched/types";
+import { cellKey } from "@/shared/sched/types";
 import { XL, dayCol } from "./excelMap";
-import { daysIn, dateStr, dowOf, ymParts, ymOfDate, WEEKDAY_LABEL } from "./calendar";
+import { daysIn, dateStr, dowOf, ymParts, ymOfDate, WEEKDAY_LABEL } from "@/shared/sched/calendar";
 
 export interface ExportCtx {
   month: MonthDoc;

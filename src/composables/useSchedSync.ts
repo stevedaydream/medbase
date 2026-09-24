@@ -5,7 +5,7 @@
 import { reactive, readonly } from "vue";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { localDocs, applyCloudDoc, markSynced, onSchedDirty } from "@/composables/useSchedStore";
-import { syncOnce, type SyncRemote, type SyncReport, type PutResult } from "@/utils/sched/sync";
+import { syncOnce, type SyncRemote, type SyncReport, type PutResult } from "@/shared/sched/sync";
 
 export type SyncStatus = "offline" | "idle" | "syncing" | "ok" | "error";
 

@@ -25,8 +25,8 @@ export async function POST(request: Request): Promise<Response> {
       const status = r.code === "LOCKED" ? 429 : 401;
       return json({ ok: false, code: r.code, error: r.error ?? "帳號或密碼錯誤" }, { status });
     }
-    const user = r.user as { his: string; name: string; staffCode: string; staffName: string };
-    const token = await signToken({ ...user, fp: String(r.fp) });
+    const user = r.user as { his: string; name: string; personId: string; role: string };
+    const token = await signToken({ his: user.his, name: user.name, fp: String(r.fp) });
     return json({ ok: true, token, user });
   } catch (e) {
     console.error("[login]", e);

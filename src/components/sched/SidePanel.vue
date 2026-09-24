@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { useSchedStore, personById } from "@/composables/useSchedStore";
-import { RULE_LABELS, type Issue, type RuleCode } from "@/utils/sched/engine/validate";
+import { RULE_LABELS, type Issue, type RuleCode } from "@/shared/sched/engine/validate";
 import type { CellRef } from "@/composables/useGridEditor";
 import QuotaPreview from "./QuotaPreview.vue";
 import { deleteSwap, settleDebt } from "@/composables/useSchedFlow";

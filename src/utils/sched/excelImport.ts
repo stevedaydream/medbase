@@ -4,8 +4,8 @@
  */
 import * as XLSX from "xlsx";
 import { XL, XL84, dayCol, cellText, cellValue, serialToDate } from "./excelMap";
-import { daysIn, dateStr } from "./calendar";
-import type { Flags, StaffingTable } from "./types";
+import { daysIn, dateStr } from "@/shared/sched/calendar";
+import type { Flags, StaffingTable } from "@/shared/sched/types";
 
 export interface ParsedPerson {
   letter: string;

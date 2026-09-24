@@ -176,7 +176,17 @@ export interface LogEntry {
 }
 export interface LogDoc { key: string; entries: LogEntry[] }
 
-/** 通知（預班被系統預填覆蓋等）；本機暫存，第四階段上傳雲端通知匣 */
+/** 員工畫面用的衍生文件（est:YYYYMM）：月份狀態、每日可休、預估配額 */
+export interface EstDoc {
+  ym: string;
+  status: MonthStatus;
+  offSlots: number[];
+  quotas: Record<string, Record<string, number>>;
+  items: { id: string; name: string }[];
+  updatedAt: string;
+}
+
+/** 通知（預班被覆蓋、被代改、發布、發布後異動）；personId 為收件人，雲端 notices 文件 */
 export interface NoticeItem {
   id: string;
   personId: string;

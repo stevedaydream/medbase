@@ -4,14 +4,15 @@
  */
 import { ref, computed, type Ref } from "vue";
 import {
-  useSchedStore, saveMonth, savePrebook, appendLog, actorName, personById, recompute,
+  useSchedStore, saveMonth, savePrebook, saveGlobal, appendLog, actorName, personById, recompute,
 } from "@/composables/useSchedStore";
 import { useSchedSession } from "@/composables/useSchedSession";
-import { cellKey, type PrebookCell, CONSTRAINT_MARKS } from "@/utils/sched/types";
+import { cellKey, type PrebookCell, type NoticeItem, CONSTRAINT_MARKS } from "@/shared/sched/types";
+import { cellChangeNotices } from "@/shared/sched/ops";
 import { republish } from "@/composables/useSchedFlow";
-import { computeQuotas } from "@/utils/sched/engine/quota";
-import { cellFnOf } from "@/utils/sched/engine/prefill";
-import { nextYm, daysIn } from "@/utils/sched/calendar";
+import { computeQuotas } from "@/shared/sched/engine/quota";
+import { cellFnOf } from "@/shared/sched/engine/prefill";
+import { nextYm, daysIn } from "@/shared/sched/calendar";
 
 export type Layer = "pre" | "sched";
 export interface CellRef { personId: string; day: number }
@@ -188,6 +189,7 @@ export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>, hasLock: Ref<b
   // ── 存檔與紀錄（合併 400ms 內的連續操作）────────────────────────
   let timer: ReturnType<typeof setTimeout> | null = null;
   const pendingLogs: { action: string; detail: string }[] = [];
+  const pendingNotices: NoticeItem[] = [];
   const dirty = new Set<Layer>();
 
   const valOf = (x: string | PrebookCell | undefined) => (typeof x === "string" ? x : x?.v ?? "") || "空白";
@@ -200,6 +202,14 @@ export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>, hasLock: Ref<b
   function commit(l: Layer, changes: Change[], action: string, reason?: EditReason) {
     dirty.add(l);
     const published = l === "sched" && month.value?.status === "published";
+    // 發布後修改、或排班者改了別人的預班：通知本人
+    if ((published && reason) || (l === "pre" && action !== "復原" && action !== "重做")) {
+      pendingNotices.push(...cellChangeNotices(
+        published ? "published" : "prebook", ym.value,
+        changes.map(c => ({ personId: c.personId, day: c.day, from: valOf(c.before).replace("空白", ""), to: valOf(c.after).replace("空白", "") })),
+        session.personId, reason?.text.trim() ?? "", new Date().toISOString(),
+      ));
+    }
     pendingLogs.push({
       action: published ? "發布後修改" : `${l === "pre" ? "預班" : "排班"}${action}`,
       detail: describe(changes) + (reason ? `；原因：${reason.text.trim()}${reason.approved ? "（核准偏離）" : ""}` : ""),
@@ -211,6 +221,8 @@ export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>, hasLock: Ref<b
 
   async function flush(theYm: string) {
     const logs = pendingLogs.splice(0);
+    const notices = pendingNotices.splice(0);
+    if (notices.length) { store.notices.push(...notices); await saveGlobal("notices"); }
     const layers = [...dirty];
     dirty.clear();
     try {

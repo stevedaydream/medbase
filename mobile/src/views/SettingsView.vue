@@ -40,7 +40,7 @@ const THEMES: { key: ThemeMode; label: string }[] = [
         <p class="text-xs font-bold text-muted mb-1">目前登入</p>
         <p class="text-lg font-bold text-fg">{{ session.user?.name }}</p>
         <p class="text-sm text-muted font-mono">HIS {{ session.user?.his }}</p>
-        <p class="text-xs text-muted mt-1">{{ session.user?.staffCode ? `排班代號 ${session.user.staffCode}` : '不在排班名單中' }}</p>
+        <p class="text-xs text-muted mt-1">{{ session.user?.personId ? `排班身分：${({ super: "super", scheduler: "排班者", employee: "員工" } as Record<string, string>)[session.user.role ?? ""] ?? "員工"}` : "不在排班名單中" }}</p>
         <button v-if="!confirmLogout" @click="confirmLogout = true" class="mt-3 w-full h-11 rounded-xl border border-danger/40 text-danger font-bold">登出</button>
         <div v-else class="mt-3 space-y-2">
           <p class="text-sm text-fg-secondary">登出會清除這支手機上的所有快取資料（Gemini 金鑰保留）。</p>

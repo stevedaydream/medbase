@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync } from "fs";
 import * as XLSX from "xlsx";
 import { parseMonthSheet, parse84, inferV, splitName, normalizeCode } from "./excelImport";
-import { DEFAULT_SHIFTS } from "./types";
+import { DEFAULT_SHIFTS } from "@/shared/sched/types";
 
 // 醫院原始檔含個資，不進版控（data/ 已 gitignore）；沒有檔案時跳過整合測試
 const XLS = "data/9A值班表(排班用、預班)-9A9B combind.xls";

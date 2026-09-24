@@ -3,12 +3,12 @@ import { ref, computed } from "vue";
 import {
   useSchedStore, personById, saveMonth, appendLog, actorName, recompute,
 } from "@/composables/useSchedStore";
-import { computeQuotas } from "@/utils/sched/engine/quota";
-import { cellFnOf } from "@/utils/sched/engine/prefill";
+import { computeQuotas } from "@/shared/sched/engine/quota";
+import { cellFnOf } from "@/shared/sched/engine/prefill";
 import {
   FLAG_DEFS, DAY_TYPES, emptyFlags, clone, type FlagKey, type StaffingTable, type RosterEntry,
-} from "@/utils/sched/types";
-import { daysIn, nextYm } from "@/utils/sched/calendar";
+} from "@/shared/sched/types";
+import { daysIn, nextYm } from "@/shared/sched/calendar";
 
 const props = defineProps<{ ym: string }>();
 const emit = defineEmits<{ close: []; toast: [msg: string] }>();
@@ -44,7 +44,7 @@ function persist(detail: string) {
       await appendLog(m.ym, "本月設定", details, actorName());
       const from = m.status === "open" ? m.ym : nextYm(m.ym);
       const r = await recompute(from, `${m.ym} 本月設定變更（${details}）`);
-      if (r.notices.length) emit("toast", `已重算，覆蓋 ${r.notices.length} 筆預班並通知`);
+      if (r.notices) emit("toast", `已重算，覆蓋 ${r.notices} 筆預班並通知`);
     } catch (e) {
       emit("toast", `儲存失敗：${(e as Error).message}`);
     }

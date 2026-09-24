@@ -4,8 +4,8 @@ import * as XLSX from "xlsx";
 import { parseMonthSheet, parse84 } from "./excelImport";
 import { buildImport } from "./importApply";
 import { buildPositionalWorkbook, buildAppWorkbook, letterOf, type ExportCtx } from "./excelExport";
-import { DEFAULT_SHIFTS, DEFAULT_QUOTA_ITEMS } from "./types";
-import { emptyHolidays } from "./calendar";
+import { DEFAULT_SHIFTS, DEFAULT_QUOTA_ITEMS } from "@/shared/sched/types";
+import { emptyHolidays } from "@/shared/sched/calendar";
 
 const XLS = "data/9A值班表(排班用、預班)-9A9B combind.xls";
 const hasXls = existsSync(XLS);

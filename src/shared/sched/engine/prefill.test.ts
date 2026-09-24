@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync } from "fs";
 import * as XLSX from "xlsx";
 import { applyPrefill, recomputeFrom, startScheduling, newMonthFrom, type SchedSnapshot } from "./prefill";
-import { parseMonthSheet, parse84 } from "../excelImport";
-import { buildImport } from "../importApply";
+import { parseMonthSheet, parse84 } from "@/utils/sched/excelImport";
+import { buildImport } from "@/utils/sched/importApply";
 import { DEFAULT_SHIFTS, DEFAULT_QUOTA_ITEMS, cellKey, type PrebookDoc } from "../types";
 import { emptyHolidays } from "../calendar";
 

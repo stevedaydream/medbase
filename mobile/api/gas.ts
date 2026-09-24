@@ -6,7 +6,7 @@ import { signToken, verifyToken, type TokenPayload } from "./_lib/token.js";
  *
  * 手機唯一的資料入口（ADR-013）：驗證憑證後代為呼叫 GAS。
  * - 只允許白名單內的 action，參數逐一挑選，不接受任意欄位（例如 getSchedule 的 spreadsheetId）
- * - 身分一律取自憑證：預約的代號姓名、論文的 HIS 帳號都不信任手機送來的值
+ * - 身分一律取自憑證：排班身分與角色由 GAS 依 HIS 帳號查 people 決定、論文的 HIS 帳號不信任手機送來的值
  * - 成功時於 x-token 回傳換發的新憑證（30 天滑動延長）
  */
 
@@ -23,14 +23,17 @@ const READ_TABLES = new Set([
   "shiftMemos", "items", "sets", "surgeryTypes",
 ]);
 
-const CONFIG_KEYS = ["booking_open", "booking_month", "booking_from", "booking_until", "np_duty_url"];
+const CONFIG_KEYS = ["np_duty_url"];
+
+/** 排班文件 key：people／shifts…／month:YYYYMM／prebook:YYYYMM／log:global… */
+const SCH_KEY = /^(people|shifts|quotaItems|rules|holidays|holidayDuty|duty84|cny|notices|debts|(month|prebook|log|lock|est):(\d{6}|global))$/;
+const MAX_DOC = 2_000_000;
 
 const str = (v: unknown, max = 200) => String(v ?? "").slice(0, max);
 const forbidden = (msg: string) => json({ ok: false, error: msg }, { status: 403 });
 
-const RULES: Record<string, Rule> = {
+export const RULES: Record<string, Rule> = {
   getVersions:       { build: () => ({}) },
-  getShifts:         { build: () => ({}) },
   getConfig: {
     build: () => ({}),
     filter: (r) => {
@@ -41,16 +44,37 @@ const RULES: Record<string, Rule> = {
   getSchedule: {
     build: (a) => /^Schedule_\d{6}$/.test(str(a.sheetName)) ? { sheetName: str(a.sheetName) } : forbidden("班表名稱格式錯誤"),
   },
-  getRequests: {
-    build: (a) => /^\d{6}$/.test(str(a.yyyyMM)) ? { yyyyMM: str(a.yyyyMM) } : forbidden("月份格式錯誤"),
-  },
-  saveRequest: {
-    build: (a, u) => {
-      if (!u.staffCode) return forbidden("你不在排班名單中，無法預約");
-      if (!/^\d{6}$/.test(str(a.yyyyMM)) || !Array.isArray(a.days) || a.days.length > 31) return forbidden("預約格式錯誤");
-      const days = (a.days as Args[]).map(d => ({ v1: d?.v1 ? str(d.v1, 10) : null, v2: d?.v2 ? str(d.v2, 10) : null, v3: d?.v3 ? str(d.v3, 10) : null }));
-      return { yyyyMM: str(a.yyyyMM), days, code: u.staffCode, name: u.staffName || u.name };
+  // 排班 v3（ADR-015）：角色與可讀寫範圍由 GAS 依 HIS 帳號判斷，這裡只檢查格式
+  schMe:   { build: () => ({}) },
+  schList: { build: () => ({}) },
+  schGet: {
+    build: (a) => {
+      const keys = Array.isArray(a.keys) ? (a.keys as unknown[]).map(k => str(k, 40)) : [];
+      return keys.length && keys.length <= 300 && keys.every(k => SCH_KEY.test(k)) ? { keys } : forbidden("文件名稱錯誤");
     },
+  },
+  schPut: {
+    build: (a) => {
+      const items = Array.isArray(a.items) ? (a.items as Args[]) : [];
+      if (!items.length || items.length > 60) return forbidden("文件數量錯誤");
+      const out = [];
+      for (const it of items) {
+        const key = str(it?.key, 40);
+        if (!SCH_KEY.test(key) || typeof it?.json !== "string" || it.json.length > MAX_DOC) return forbidden("文件格式錯誤");
+        out.push({ key, json: it.json, base: it.base == null ? null : str(it.base, 40) });
+      }
+      return { items: out };
+    },
+  },
+  mobileSetPrebook: {
+    build: (a) => {
+      if (!/^\d{6}$/.test(str(a.ym)) || !Array.isArray(a.cells) || a.cells.length > 31) return forbidden("預班格式錯誤");
+      const cells = (a.cells as Args[]).map(c => ({ day: Number(c?.day), v: c?.v ? str(c.v, 10) : null }));
+      return { ym: str(a.ym), cells };
+    },
+  },
+  mobileMarkRead: {
+    build: (a) => ({ ids: Array.isArray(a.ids) ? (a.ids as unknown[]).slice(0, 500).map(x => str(x, 40)) : null }),
   },
   readTable: {
     build: (a) => READ_TABLES.has(str(a.table)) ? { table: str(a.table) } : forbidden("不允許讀取此資料表"),
