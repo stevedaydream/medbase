@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { useSchedStore, saveGlobal } from "@/composables/useSchedStore";
+import { useSchedStore, saveGlobal, appendLog, actorName, recompute } from "@/composables/useSchedStore";
 import { newId, type Person, type Role } from "@/utils/sched/types";
 
 const emit = defineEmits<{ toast: [msg: string] }>();
@@ -20,10 +20,30 @@ const sorted = computed(() =>
 );
 
 let timer: ReturnType<typeof setTimeout> | null = null;
-function persist() {
+const pendingLog: string[] = [];
+let pendingRota = false;
+/** 存檔並寫操作紀錄；rota＝影響 8-4／春節輪序（順序、免輪、啟用），需往後重算 */
+function persist(detail = "", rota = false) {
+  if (detail) pendingLog.push(detail);
+  pendingRota ||= rota;
   if (timer) clearTimeout(timer);
-  timer = setTimeout(() => saveGlobal("people").catch(e => emit("toast", `儲存失敗：${(e as Error).message}`)), 500);
+  timer = setTimeout(async () => {
+    const details = pendingLog.splice(0).join("；");
+    const doRota = pendingRota;
+    pendingRota = false;
+    try {
+      await saveGlobal("people");
+      if (details) await appendLog("global", "人員名單", details, actorName());
+      if (doRota) {
+        const r = await recompute(null, `人員名單異動（${details}）`);
+        if (r.notices.length) emit("toast", `已重算輪序，覆蓋 ${r.notices.length} 筆預班並通知`);
+      }
+    } catch (e) {
+      emit("toast", `儲存失敗：${(e as Error).message}`);
+    }
+  }, 500);
 }
+const yn = (b: boolean) => (b ? "是" : "否");
 
 function renumber(list: Person[]) {
   list.forEach((p, i) => { p.order = i; });
@@ -35,7 +55,7 @@ function move(p: Person, delta: number) {
   if (j < 0 || j >= all.length) return;
   [all[i], all[j]] = [all[j], all[i]];
   renumber(all);
-  persist();
+  persist(`${p.name} 順序移到第 ${p.order + 1}`, true);
 }
 
 function addPerson() {
@@ -43,7 +63,7 @@ function addPerson() {
     id: newId(), name: "新人員", unit: "9A", ext: "", his: "", role: "employee", code84: "",
     order: store.people.length, exempt84: false, exemptCny: false, active: true,
   });
-  persist();
+  persist("新增人員", true);
 }
 
 function removePerson(p: Person) {
@@ -55,7 +75,7 @@ function removePerson(p: Person) {
     store.people.splice(store.people.indexOf(p), 1);
     renumber([...store.people].sort((a, b) => a.order - b.order));
   }
-  persist();
+  persist(`${used ? "停用" : "刪除"} ${p.name}`, true);
 }
 </script>
 
@@ -92,21 +112,21 @@ function removePerson(p: Person) {
               <button class="hover:text-fg px-0.5" title="下移" @click="move(p, 1)">▼</button>
               {{ p.order + 1 }}
             </td>
-            <td class="px-2"><input v-model="p.name" class="sched-input w-24" @change="persist" /></td>
-            <td class="px-2"><input v-model="p.unit" class="sched-input w-14" @change="persist" /></td>
-            <td class="px-2"><input v-model="p.ext" class="sched-input w-16" @change="persist" /></td>
+            <td class="px-2"><input v-model="p.name" class="sched-input w-24" @change="persist(`姓名改為 ${p.name}`)" /></td>
+            <td class="px-2"><input v-model="p.unit" class="sched-input w-14" @change="persist(`${p.name} 單位：${p.unit}`)" /></td>
+            <td class="px-2"><input v-model="p.ext" class="sched-input w-16" @change="persist(`${p.name} 分機：${p.ext}`)" /></td>
             <td class="px-2">
-              <input v-model="p.his" class="sched-input w-24" :class="{ warn: !p.his }" @change="persist" />
+              <input v-model="p.his" class="sched-input w-24" :class="{ warn: !p.his }" @change="persist(`${p.name} HIS 帳號已修改`)" />
             </td>
             <td class="px-2">
-              <select v-model="p.role" class="sched-input" @change="persist">
+              <select v-model="p.role" class="sched-input" @change="persist(`${p.name} 角色：${p.role}`)">
                 <option v-for="r in ROLES" :key="r.key" :value="r.key">{{ r.label }}</option>
               </select>
             </td>
-            <td class="px-2"><input v-model="p.code84" class="sched-input w-10" @change="persist" /></td>
-            <td class="px-2 text-center"><input v-model="p.exempt84" type="checkbox" @change="persist" /></td>
-            <td class="px-2 text-center"><input v-model="p.exemptCny" type="checkbox" @change="persist" /></td>
-            <td class="px-2 text-center"><input v-model="p.active" type="checkbox" @change="persist" /></td>
+            <td class="px-2"><input v-model="p.code84" class="sched-input w-10" @change="persist(`${p.name} 8-4 代號：${p.code84}`)" /></td>
+            <td class="px-2 text-center"><input v-model="p.exempt84" type="checkbox" @change="persist(`${p.name} 8-4 免輪：${yn(p.exempt84)}`, true)" /></td>
+            <td class="px-2 text-center"><input v-model="p.exemptCny" type="checkbox" @change="persist(`${p.name} 春節免輪：${yn(p.exemptCny)}`, true)" /></td>
+            <td class="px-2 text-center"><input v-model="p.active" type="checkbox" @change="persist(`${p.name} 啟用：${yn(p.active)}`, true)" /></td>
             <td class="px-2 text-right">
               <button class="text-muted hover:text-danger" @click="removePerson(p)">刪除</button>
             </td>

@@ -29,6 +29,7 @@ describe.skipIf(!hasXls)("buildImport 202610", () => {
     const by = Object.fromEntries(out.people.map(p => [p.name, p]));
     expect(out.people.length).toBe(20); // 18 位 8-4 名單＋陳咨希、柳春霙（8-4 名單寫柳春露）
     expect(out.report.warnings[0]).toContain("陳咨希、柳春霙");
+    expect(by["柳春霙"].exempt84 && by["柳春霙"].exemptCny).toBe(true);
     expect(by["黃郁芳"]).toMatchObject({ unit: "9A", code84: "M", his: "12345", role: "scheduler" });
     expect(by["王子建"].his).toBe("55555");
     expect(by["丁韋綸"].exempt84).toBe(true);
@@ -67,6 +68,6 @@ describe.skipIf(!hasXls)("buildImport 202610", () => {
     const nameOf = (id?: string | null) => out.people.find(p => p.id === id)?.name;
     expect(nameOf(out.holidayDuty["2026"]["2026-10-09"].D)).toBe("黃郁芳");
     expect(nameOf(out.holidayDuty["2026"]["2026-10-09"].N)).toBe("張心柔");
-    expect(out.duty84!.log.map(l => nameOf(l.personId) ?? null)).toEqual(["王子建", null, "張心柔", null]);
+    expect(out.duty84!.log.map(l => nameOf(l.personId) ?? null)).toEqual(["王子建", "張琬婷", "張心柔", "鄭惠萍"]);
   });
 });

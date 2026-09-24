@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useSchedStore, saveGlobal, type GlobalKey } from "@/composables/useSchedStore";
+import { useSchedStore, saveGlobal, appendLog, actorName, recompute, type GlobalKey } from "@/composables/useSchedStore";
 import { COLOR_PALETTE, colorOf } from "@/utils/sched/palette";
 import {
   DEFAULT_SHIFTS, DEFAULT_QUOTA_ITEMS, DEFAULT_RULES, FLAG_DEFS, newId,
@@ -23,11 +23,18 @@ const timers: Partial<Record<GlobalKey, ReturnType<typeof setTimeout>>> = {};
 function persist(key: GlobalKey) {
   if (!props.canEdit) return;
   clearTimeout(timers[key]);
-  timers[key] = setTimeout(
-    () => saveGlobal(key).catch(e => emit("toast", `儲存失敗：${(e as Error).message}`)),
-    500,
-  );
+  timers[key] = setTimeout(async () => {
+    try {
+      await saveGlobal(key);
+      await appendLog("global", "班別與規則", `${KEY_LABEL[key] ?? key}已修改`, actorName());
+      // 班別與配額項目影響配額與 V/X 交接，開放月份需重算
+      if (key === "shifts" || key === "quotaItems") await recompute(null, `${KEY_LABEL[key]}修改`);
+    } catch (e) {
+      emit("toast", `儲存失敗：${(e as Error).message}`);
+    }
+  }, 500);
 }
+const KEY_LABEL: Partial<Record<GlobalKey, string>> = { shifts: "班別", quotaItems: "配額項目", rules: "檢核規則" };
 
 function colorStyle(key: string) {
   const c = colorOf(key);

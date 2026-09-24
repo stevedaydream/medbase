@@ -167,6 +167,25 @@ export interface CnyDoc {
   log: { date: string; D: string | null; N: string | null }[];
 }
 
+/** 操作紀錄：每月一份（log:YYYYMM），全域設定類存 log:global */
+export interface LogEntry {
+  at: string;           // ISO
+  actor: string;        // "system" 或操作者姓名
+  action: string;       // 例：重新計算、改格、開始排班
+  detail: string;
+}
+export interface LogDoc { key: string; entries: LogEntry[] }
+
+/** 通知（預班被系統預填覆蓋等）；本機暫存，第四階段上傳雲端通知匣 */
+export interface NoticeItem {
+  id: string;
+  personId: string;
+  at: string;
+  text: string;
+  read: boolean;
+  sent: boolean;
+}
+
 // ── 每月文件 ──────────────────────────────────────────────────────────
 export type MonthStatus = "open" | "scheduling" | "published";
 export interface RosterEntry { personId: string; flags: Flags }

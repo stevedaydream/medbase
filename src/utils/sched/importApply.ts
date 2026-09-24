@@ -8,6 +8,7 @@ import type {
 } from "./types";
 import { emptyMonth, newId, cellKey, CONSTRAINT_MARKS } from "./types";
 import { dayTypeOf, dowOf, daysIn } from "./calendar";
+import { nextInOrder } from "./engine/rotation";
 
 export interface LegacyUser { name: string; employee_id: string | null; role: string; is_active: number }
 export interface PhysicianHis { name: string; his_account: string | null }
@@ -73,12 +74,15 @@ export function buildImport(inp: ImportInput): ImportOutput {
     order = Math.max(order, inp.p84.people.length);
   }
   // ② 9A 排班名單
+  const in84 = new Set(inp.p84?.people.map(r => r.name) ?? []);
   if (inp.p84) {
-    const in84 = new Set(inp.p84.people.map(r => r.name));
     const miss = inp.base.roster.filter(r => !in84.has(r.name)).map(r => r.name);
-    if (miss.length) report.warnings.push(`9A 名單有人不在 8-4 名單（請確認是否為錯字）：${miss.join("、")}`);
+    if (miss.length) report.warnings.push(`9A 名單有人不在 8-4 名單，已設為 8-4／春節免輪（請確認是否為錯字）：${miss.join("、")}`);
   }
-  for (const r of inp.base.roster) upsert(r.name, { unit: "9A" });
+  for (const r of inp.base.roster) {
+    const isNew = !byName.has(r.name);
+    upsert(r.name, isNew && inp.p84 && !in84.has(r.name) ? { unit: "9A", exempt84: true, exemptCny: true } : { unit: "9A" });
+  }
 
   // ③ HIS 帳號與角色：舊帳號優先，其次通訊錄
   const matchedLegacy = new Set<string>();
@@ -177,14 +181,16 @@ export function buildImport(inp: ImportInput): ImportOutput {
   let duty84: Duty84Doc | null = null;
   if (inp.p84) {
     const byCode = new Map(people.filter(p => p.code84).map(p => [p.code84, p.id]));
+    // 「待排」（外單位尚未寫入）依名單順序接續上一位補上人選
+    const order = [...people].sort((a, b) => a.order - b.order);
+    const ok = (id: string) => { const p = order.find(x => x.id === id)!; return p.active && !p.exempt84; };
+    let ptr: string | null = null;
     duty84 = {
-      log: inp.p84.log.map(l => ({
-        date: l.date,
-        personId: l.code ? byCode.get(l.code) ?? null : null,
-        kind: l.kind || "一般週日",
-        manual: false,
-        note: l.note,
-      })),
+      log: [...inp.p84.log].sort((a, b) => a.date.localeCompare(b.date)).map(l => {
+        const personId = (l.code ? byCode.get(l.code) : null) ?? nextInOrder(order.map(p => p.id), ptr, ok);
+        if (personId) ptr = personId;
+        return { date: l.date, personId, kind: l.kind || "一般週日", manual: false, note: l.note };
+      }),
       removedDates: [],
       addedDates: [],
     };

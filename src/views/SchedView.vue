@@ -5,10 +5,12 @@ import { useSchedSession } from "@/composables/useSchedSession";
 import PeopleTab from "@/components/sched/PeopleTab.vue";
 import SettingsTab from "@/components/sched/SettingsTab.vue";
 import ImportTab from "@/components/sched/ImportTab.vue";
+import RotaTab from "@/components/sched/RotaTab.vue";
 import "@/components/sched/sched.css";
 
-type TabKey = "people" | "settings" | "import";
+type TabKey = "rota" | "people" | "settings" | "import";
 const TABS: { key: TabKey; label: string; superOnly?: boolean }[] = [
+  { key: "rota",     label: "月份與輪值" },
   { key: "people",   label: "人員名單" },
   { key: "settings", label: "班別與規則" },
   { key: "import",   label: "Excel 匯入", superOnly: true },
@@ -18,7 +20,7 @@ const store = useSchedStore();
 const session = useSchedSession();
 const isSuper = computed(() => session.role === "super");
 const visibleTabs = computed(() => TABS.filter(t => !t.superOnly || isSuper.value));
-const tab = ref<TabKey>("people");
+const tab = ref<TabKey>("rota");
 const loadError = ref("");
 
 const toast = ref("");
@@ -51,7 +53,8 @@ onMounted(async () => {
     <div v-if="loadError" class="p-6 text-sm text-danger">{{ loadError }}</div>
     <div v-else-if="!store.loaded" class="p-6 text-sm text-muted">載入中…</div>
     <div v-else class="flex-1 overflow-hidden">
-      <PeopleTab v-if="tab === 'people'" @toast="showToast" />
+      <RotaTab v-if="tab === 'rota'" @toast="showToast" />
+      <PeopleTab v-else-if="tab === 'people'" @toast="showToast" />
       <SettingsTab v-else-if="tab === 'settings'" :can-edit="isSuper" @toast="showToast" />
       <ImportTab v-else-if="tab === 'import'" @toast="showToast" />
     </div>
