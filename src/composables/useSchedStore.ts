@@ -11,7 +11,8 @@ import {
   type Duty84Doc, type CnyDoc, type MonthDoc, type PrebookDoc, type NoticeItem, type LogDoc, newId,
 } from "@/utils/sched/types";
 import { emptyHolidays, nextYm, ymParts } from "@/utils/sched/calendar";
-import { recomputeFrom, newMonthFrom, type SchedSnapshot, type Notice } from "@/utils/sched/engine/prefill";
+import { recomputeFrom, newMonthFrom, startScheduling, type SchedSnapshot, type Notice } from "@/utils/sched/engine/prefill";
+import { computeQuotas } from "@/utils/sched/engine/quota";
 import { parseMonthSheet, parse84 } from "@/utils/sched/excelImport";
 import { useSchedSession } from "@/composables/useSchedSession";
 import { buildImport, type ImportReport, type LegacyUser, type PhysicianHis } from "@/utils/sched/importApply";
@@ -266,6 +267,23 @@ export async function addNextMonth(): Promise<string> {
   await appendLog(ym, "新增月份", `沿用 ${last} 的人員設定與人力表`, actorName());
   await recompute(ym, "新增月份");
   return ym;
+}
+
+/** 開始排班：預班凍結、帶入排班層、交接 V 並算出配額（上月未發布需 force） */
+export async function startMonth(ym: string, force = false): Promise<void> {
+  await ensureSchedLoaded();
+  const r = startScheduling(snapshot(), ym, new Date().toISOString(), { force });
+  if (r.error) throw new Error(r.error);
+  await saveMonth(r.month);
+  const nm = (id: string | null | undefined) => personById(id)?.name ?? "—";
+  const q = computeQuotas({
+    month: r.month, holidays: state.holidays, shifts: state.shifts, items: state.quotaItems,
+    cell: (id, d) => r.month.schedule[id]?.[d - 1] ?? "",
+  });
+  const items = state.quotaItems.filter(i => i.enabled);
+  const summary = items.map(i => `${i.name} 總 ${q.totals[i.id]}（V ${nm(q.markers[i.id]?.v)}→X ${nm(q.markers[i.id]?.x)}）`).join("；");
+  await appendLog(ym, "開始排班", `${force ? "（上月未發布，強制以目前 X 交接）" : ""}預班凍結並帶入排班層；${summary}`, actorName());
+  if (state.months[nextYm(ym)]) await recompute(nextYm(ym), `${ym} 開始排班`);
 }
 
 export function useSchedStore() {
