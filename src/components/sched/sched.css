@@ -1,0 +1,11 @@
+/* 排班 v3 共用輸入樣式 */
+.sched-input {
+  padding: 0.125rem 0.375rem;
+  background: var(--color-elevated);
+  border: 1px solid var(--color-hairline);
+  border-radius: 0.25rem;
+  color: var(--color-fg);
+  outline: none;
+}
+.sched-input:focus { border-color: color-mix(in srgb, var(--color-accent) 45%, transparent); }
+.sched-input.warn { border-color: color-mix(in srgb, var(--color-warning) 60%, transparent); }

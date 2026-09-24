@@ -552,6 +552,18 @@ async function initSchema(db: Database) {
     );
   `);
 
+  // ── 排班 v3 文件庫（ADR-014）：全域文件與每月文件，整份 JSON ─────
+  // version：本機最後修改時間；cloud_version：最後一次與雲端一致時的雲端版本
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS sched_docs (
+      key           TEXT PRIMARY KEY,
+      json          TEXT NOT NULL,
+      version       TEXT NOT NULL,
+      cloud_version TEXT,
+      dirty         INTEGER NOT NULL DEFAULT 1
+    );
+  `);
+
   // ── Debug 操作記錄（保留 7 天，供測試期分析用）──────────────
   await db.execute(`
     CREATE TABLE IF NOT EXISTS debug_logs (
