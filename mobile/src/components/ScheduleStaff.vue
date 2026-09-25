@@ -4,7 +4,7 @@ import { sched, doc } from '../lib/sched'
 import { toast } from '../lib/ui'
 import {
   snapshot, lockOf, hasLock, acquireLock, releaseLock, startMonth, publishMonth, revertMonth,
-  editCells, createSwap, deleteSwap, settleDebt, LockedError,
+  editCells, createSwap, deleteSwap, settleDebt, addPrefillSwap, removePrefillSwap, LockedError,
 } from '../lib/schedOps'
 import { colorOf } from '@shared/sched/palette'
 import { daysIn, dowOf, dayTypeOf, dateStr, prevYm } from '@shared/sched/calendar'
@@ -12,7 +12,7 @@ import { computeQuotas } from '@shared/sched/engine/quota'
 import { cellFnOf } from '@shared/sched/engine/prefill'
 import { needOf } from '@shared/sched/engine/staffing'
 import { validate, personStats, dayStats, RULE_LABELS, type Issue, type GridCtx, type RuleCode } from '@shared/sched/engine/validate'
-import { monthTargets, revertDeadline } from '@shared/sched/ops'
+import { monthTargets, revertDeadline, prefillSwapCells, prefillSwapCandidates, prefillSwapCautions } from '@shared/sched/ops'
 import {
   CONSTRAINT_MARKS, cellKey, DEFAULT_SHIFTS, DEFAULT_QUOTA_ITEMS, DEFAULT_RULES,
   type MonthDoc, type PrebookDoc, type ShiftDef, type QuotaItem, type RuleParams, type HolidayDoc, type DebtRec, type LogDoc,
@@ -139,6 +139,40 @@ async function confirmReason() {
 }
 
 // ── 換班 ─────────────────────────────────────────────────────
+// ── 預填換人（開放預班的系統預填格）──────────────────────────
+const pSwap = ref<{ from: string; cells: { day: number; code: string }[] } | null>(null)
+const pSwapTo = ref('')
+const pSwapNote = ref('')
+const canPrefillSwap = (id: string, d: number) => layer.value === 'pre' && month.value?.status === 'open' && isSys(id, d)
+function openPrefillSwap(id: string, d: number) {
+  const cells = prefillSwapCells(snapshot(), ym.value, id, d)
+  if (!cells.length) return
+  pSwap.value = { from: id, cells }
+  pSwapTo.value = ''; pSwapNote.value = ''
+  pick.value = null
+}
+const pSwapCandidates = computed(() => pSwap.value && month.value ? prefillSwapCandidates(month.value, pSwap.value.cells[0].code, pSwap.value.from) : [])
+const cautionOf = (id: string) => {
+  const c = pSwap.value ? prefillSwapCautions(snapshot(), ym.value, id, pSwap.value.cells) : []
+  return c.length ? `⚠ ${c.join('、')}` : ''
+}
+async function doPrefillSwap() {
+  const p = pSwap.value
+  if (!p || !pSwapTo.value) return
+  await run(() => addPrefillSwap(ym.value, p.from, pSwapTo.value, p.cells, pSwapNote.value.trim()), '已換人，並通知雙方')
+  pSwap.value = null
+}
+const prefillGroups = computed(() => {
+  const g = new Map<string, { group: string; days: string; code: string; from: string; to: string; note: string }>()
+  for (const x of month.value?.prefillSwaps ?? []) {
+    const cur = g.get(x.group)
+    const d = `${mD.value}/${x.day}`
+    if (cur) cur.days += `、${d}`
+    else g.set(x.group, { group: x.group, days: d, code: x.code, from: x.from, to: x.to, note: x.note })
+  }
+  return [...g.values()]
+})
+
 const swapFrom = ref<{ personId: string; day: number } | null>(null)
 const swapWith = ref('')
 const swapNote = ref('')
@@ -351,7 +385,11 @@ const mD = computed(() => Number(ym.value.slice(4)))
             </div>
             <button v-if="layer === 'sched'" @click="swapFrom = pick; pick = null" class="w-full h-11 rounded-xl border border-hairline text-sm font-bold">建立換班（同日與另一人互換）…</button>
           </template>
-          <p v-else class="text-sm text-muted">{{ layer === 'pre' && isSys(pick.personId, pick.day) ? '🔒 系統預填，請在桌機「月份與輪值」調整' : '目前不可修改（需持鎖或進入修改模式）' }}</p>
+          <template v-else-if="canPrefillSwap(pick.personId, pick.day)">
+            <p class="text-sm text-muted">🔒 系統預填（{{ read(pick.personId, pick.day) }}）：不能直接改，可以交給別人代上。</p>
+            <button @click="openPrefillSwap(pick.personId, pick.day)" class="w-full h-11 rounded-xl bg-accent text-white text-sm font-bold">換人…</button>
+          </template>
+          <p v-else class="text-sm text-muted">{{ layer === 'pre' && isSys(pick.personId, pick.day) ? '🔒 系統預填' : '目前不可修改（需持鎖或進入修改模式）' }}</p>
           <button @click="pick = null" class="w-full h-12 rounded-xl bg-sunken font-bold">關閉</button>
         </div>
       </div>
@@ -365,6 +403,25 @@ const mD = computed(() => Number(ym.value.slice(4)))
           <div class="flex gap-2">
             <button @click="reasonFor = null" class="flex-1 h-11 rounded-xl bg-sunken font-bold">取消</button>
             <button :disabled="busy" @click="confirmReason" class="flex-1 h-11 rounded-xl bg-accent text-white font-bold">確定修改</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 預填換人 -->
+      <div v-if="pSwap" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+        <div class="w-full max-w-sm bg-surface rounded-2xl p-5 space-y-3 text-sm">
+          <p class="font-bold text-base">預填換人：{{ pSwap.cells.map(c => `${mD}/${c.day}`).join('、') }} {{ pSwap.cells[0].code }}</p>
+          <p class="text-fg-secondary">原本由 {{ nameOf(pSwap.from) }} 上。輪序照舊，開始排班時記為換班（{{ nameOf(pSwap.from) }} −1、代班者 +1）。⚠ 只提示、不阻擋。</p>
+          <select v-model="pSwapTo" class="w-full h-11 px-3 rounded-xl bg-sunken border border-hairline">
+            <option value="">選擇代班者…</option>
+            <option v-for="id in pSwapCandidates" :key="id" :value="id">
+              {{ nameOf(id) }}（{{ pSwap.cells.map(c => read(id, c.day) || '空白').join('／') }}）{{ cautionOf(id) }}
+            </option>
+          </select>
+          <input v-model="pSwapNote" placeholder="原因（選填，例如：長假）" class="w-full h-11 px-3 rounded-xl bg-sunken border border-hairline" />
+          <div class="flex gap-2">
+            <button @click="pSwap = null" class="flex-1 h-11 rounded-xl bg-sunken font-bold">取消</button>
+            <button :disabled="!pSwapTo || busy" @click="doPrefillSwap" class="flex-1 h-11 rounded-xl bg-accent text-white font-bold disabled:opacity-40">換人</button>
           </div>
         </div>
       </div>
@@ -428,6 +485,16 @@ const mD = computed(() => Number(ym.value.slice(4)))
             </div>
           </template>
           <template v-else-if="drawer === 'swap'">
+            <template v-if="prefillGroups.length">
+              <p class="font-bold">預填換人{{ month?.status === 'open' ? '' : '（已轉為換班）' }}</p>
+              <div v-for="g in prefillGroups" :key="g.group" class="p-2 rounded-lg bg-sunken">
+                <div class="flex items-center gap-2">
+                  <span class="flex-1">{{ g.days }} {{ g.code }}：{{ nameOf(g.from) }} → {{ nameOf(g.to) }}</span>
+                  <button v-if="month?.status === 'open'" @click="run(() => removePrefillSwap(ym, g.group), '已取消預填換人')" class="text-danger">取消</button>
+                </div>
+                <div v-if="g.note" class="text-xs text-muted">{{ g.note }}</div>
+              </div>
+            </template>
             <p class="font-bold">本月換班</p>
             <p v-if="!month?.swaps?.length" class="text-muted">沒有換班（點格子建立）</p>
             <div v-for="s in month?.swaps ?? []" :key="s.id" class="p-2 rounded-lg bg-sunken flex items-center gap-2">

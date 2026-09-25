@@ -2,6 +2,7 @@ import { gas } from './api'
 import { sched, doc, writeLocalDoc, syncSchedDocs } from './sched'
 import {
   opStartMonth, opPublish, opRevert, opCreateSwap, opDeleteSwap, opSettleDebt, opEditCells, lockDecision,
+  opAddPrefillSwap, opRemovePrefillSwap,
   type OpsState, type OpPatch, type CellEdit,
 } from '@shared/sched/ops'
 import {
@@ -130,6 +131,19 @@ export async function deleteSwap(ym: string, id: string): Promise<void> {
   await applyPatch(opDeleteSwap(snapshot(), ym, id, actor()))
   await syncSchedDocs()
   if (doc<MonthDoc>(`month:${ym}`)?.status === 'published') await publishSheet(ym)
+}
+
+/** 預填換人（開放預班）：與桌機共用 ops；需連線以免與他人同時改月份文件 */
+export async function addPrefillSwap(ym: string, from: string, to: string, cells: { day: number; code: string }[], note: string): Promise<void> {
+  requireOnline()
+  await applyPatch(opAddPrefillSwap(snapshot(), ym, from, to, cells, note, actor(), now()))
+  await syncSchedDocs()
+}
+
+export async function removePrefillSwap(ym: string, group: string): Promise<void> {
+  requireOnline()
+  await applyPatch(opRemovePrefillSwap(snapshot(), ym, group, actor(), now()))
+  await syncSchedDocs()
 }
 
 export async function settleDebt(id: string, note: string): Promise<void> {
