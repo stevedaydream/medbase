@@ -125,7 +125,7 @@ defineExpose({ showLog: () => { tab.value = "log"; onlyCell.value = true; } });
               <span class="text-fg">{{ Number(ym.slice(4)) }}/{{ sw.day }} {{ nm(sw.a) }} {{ sw.aCode || "空白" }} ⇄ {{ nm(sw.b) }} {{ sw.bCode || "空白" }}</span>
               <button v-if="isStaff" class="ml-auto text-muted hover:text-danger" @click="deleteSwap(ym, sw.id)">刪除</button>
             </div>
-            <div v-if="sw.note" class="text-muted">{{ sw.note }}</div>
+            <div v-if="sw.note || sw.req" class="text-muted">{{ sw.req ? "員工換班（刪除會整張申請一起還原）" : "" }}{{ sw.req && sw.note ? "：" : "" }}{{ sw.note }}</div>
           </div>
         </div>
         <div>

@@ -27,11 +27,20 @@ export async function apiLogin(his: string, password: string): Promise<{ token: 
 }
 
 /** 呼叫 GAS action（經 /api/gas），回傳 GAS 的原始回應物件 */
-export async function gas<T = Record<string, unknown>>(action: string, args: Record<string, unknown> = {}): Promise<T & { ok: true }> {
+export function gas<T = Record<string, unknown>>(action: string, args: Record<string, unknown> = {}): Promise<T & { ok: true }> {
+  return post<T>('/api/gas', action, args)
+}
+
+/** 員工換班（/api/swap，ADR-016） */
+export function swapApi<T = Record<string, unknown>>(action: string, args: Record<string, unknown> = {}): Promise<T & { ok: true }> {
+  return post<T>('/api/swap', action, args)
+}
+
+async function post<T>(path: string, action: string, args: Record<string, unknown>): Promise<T & { ok: true }> {
   if (!session.token) throw new ApiError('AUTH', '請先登入')
   let res: Response
   try {
-    res = await fetch('/api/gas', {
+    res = await fetch(path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
       body: JSON.stringify({ action, ...args }),

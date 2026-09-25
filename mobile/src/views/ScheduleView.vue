@@ -8,6 +8,8 @@ import { toast } from '../lib/ui'
 import { usePullRefresh } from '../lib/pull'
 import { sched, syncSchedDocs, loadSchedCache, doc, setMyPrebook, markNoticesRead, isStaff } from '../lib/sched'
 import ScheduleStaff from '../components/ScheduleStaff.vue'
+import SwapCreate from '../components/SwapCreate.vue'
+import SwapInbox from '../components/SwapInbox.vue'
 import { colorOf } from '@shared/sched/palette'
 import { dayTypeOf, daysIn, dateStr } from '@shared/sched/calendar'
 import {
@@ -161,6 +163,34 @@ async function book(v: string | null) {
   }
 }
 
+// ── 員工換班（ADR-016）─────────────────────────────────────────────
+const todayStr = `${ym(today.getFullYear(), today.getMonth() + 1)}${String(today.getDate()).padStart(2, '0')}`
+const inbox = ref<InstanceType<typeof SwapInbox> | null>(null)
+const swapSheet = ref<{ ym: string; mode: 'published' | 'open'; day: number } | null>(null)
+const plainName = (n: string) => n.replace(/^[A-Z]/, '').trim()
+const idOfRow = (n: string) => people.value.find(p => p.name === plainName(n))?.id ?? ''
+/** 已發布月份可換：我在班表中、當天還沒過、月份不在排班中 */
+function canSwapDay(d: number) {
+  if (!sched.me || !myRow.value || sched.offline) return false
+  const st = doc<EstDoc>(`est:${sYM.value}`)?.status
+  return (!st || st === 'published') && `${sYM.value}${String(d).padStart(2, '0')}` >= todayStr
+}
+const swapPeople = computed(() => {
+  const sh = swapSheet.value
+  if (!sh || !sched.me) return []
+  const ids = sh.mode === 'published' ? rows.value.map(r => idOfRow(r.name)) : Object.keys(est.value?.quotas ?? {})
+  return ids.filter(id => id && id !== sched.me!.id).map(id => ({ id, name: nameOf(id) }))
+})
+const swapCode = (id: string, d: number) => {
+  if (swapSheet.value?.mode === 'open') { const c = cellOf(id, d); return c?.src === 'sys' ? c.v ?? '' : '' }
+  return rows.value.find(r => idOfRow(r.name) === id)?.days[d - 1] ?? ''
+}
+function swapDone() {
+  swapSheet.value = null
+  pickDay.value = 0
+  void inbox.value?.load()
+}
+
 // ── 通知 ─────────────────────────────────────────────────────────
 const notices = computed(() => [...(doc<NoticeItem[]>('notices') ?? [])].filter(n => n.personId === sched.me?.id).reverse())
 const unread = computed(() => notices.value.filter(n => !n.read))
@@ -171,7 +201,7 @@ async function closeNotices() {
 }
 
 usePullRefresh(async () => {
-  await Promise.all([loadSchedule(), syncSchedDocs()])
+  await Promise.all([loadSchedule(), syncSchedDocs(), inbox.value?.load()])
   return sched.offline ? '目前離線，顯示手機裡的資料' : sError.value || sched.error || '已更新：班表與預班'
 })
 
@@ -203,6 +233,7 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
         <span class="font-bold">{{ sy }} 年 {{ sm }} 月</span>
         <button @click="moveS(1)" class="w-10 h-10 rounded-xl bg-surface border border-hairline text-lg">›</button>
       </div>
+      <SwapInbox v-if="sched.me" ref="inbox" :me="sched.me.id" :name-of="nameOf" @changed="loadSchedule(); syncSchedDocs()" />
       <p v-if="sLoading" class="py-12 text-center text-sm text-muted">載入中…</p>
       <p v-else-if="sError" class="py-12 text-center text-sm text-danger">{{ sError }}</p>
       <p v-else-if="!rows.length" class="py-12 text-center text-sm text-muted">此月尚無已發布的班表</p>
@@ -211,14 +242,16 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
         <div class="grid grid-cols-7 gap-1 px-3">
           <div v-for="w in DOW" :key="w" class="text-center text-xs text-muted py-1">{{ w }}</div>
           <div v-for="n in new Date(sy, sm - 1, 1).getDay()" :key="`b${n}`" />
-          <div v-for="d in sDays" :key="d" class="aspect-square rounded-xl border flex flex-col items-center justify-center"
+          <button v-for="d in sDays" :key="d" :disabled="!canSwapDay(d)" @click="swapSheet = { ym: sYM, mode: 'published', day: d }"
+            class="aspect-square rounded-xl border flex flex-col items-center justify-center disabled:opacity-100"
             :class="isToday(sy, sm, d) ? 'border-accent border-2' : 'border-hairline bg-surface'">
             <span class="text-xs" :class="dowClass(sy, sm, d)">{{ d }}</span>
             <span class="mt-0.5 min-w-8 px-1 rounded-md text-xs font-bold text-center" :style="codeStyle(effective(sy, sm, d, myRow.days[d - 1]))">
               {{ effective(sy, sm, d, myRow.days[d - 1]) || '·' }}
             </span>
-          </div>
+          </button>
         </div>
+        <p v-if="sched.me" class="px-4 mt-2 text-xs text-muted">點日期可以找同事換班（同日互換、跨日、代班，可一次選多天）</p>
         <div v-if="myStats" class="mx-4 mt-4 p-4 rounded-2xl bg-surface border border-hairline text-sm">
           <div class="flex flex-wrap gap-x-4 gap-y-1">
             <span v-for="(n, c) in myStats.counts" :key="c"><b>{{ c }}</b> {{ n }}</span>
@@ -323,7 +356,11 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
           </div>
 
           <template v-if="inRoster">
-            <p v-if="myCell(pickDay)?.src === 'sys' && myCell(pickDay)?.v" class="text-sm text-fg-secondary">🔒 系統預填：{{ myCell(pickDay)?.v }}（由輪序決定，無法在此修改）</p>
+            <template v-if="myCell(pickDay)?.src === 'sys' && myCell(pickDay)?.v">
+              <p class="text-sm text-fg-secondary">🔒 系統預填：{{ myCell(pickDay)?.v }}（由輪序決定，不能直接改，可以找同事代班或互換）</p>
+              <button :disabled="sched.offline" @click="swapSheet = { ym: pYM, mode: 'open', day: pickDay }"
+                class="w-full h-11 rounded-xl bg-accent text-white font-bold disabled:opacity-40">找人代班／互換</button>
+            </template>
             <template v-else>
               <p v-if="sched.offline" class="text-sm text-warning font-bold">目前離線，無法登記</p>
               <div class="flex flex-wrap gap-2">
@@ -348,6 +385,9 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
           <button @click="pickDay = 0" class="w-full h-12 rounded-xl bg-sunken text-fg font-bold">關閉</button>
         </div>
       </div>
+
+      <SwapCreate v-if="swapSheet && sched.me" :ym="swapSheet.ym" :mode="swapSheet.mode" :me="sched.me.id" :day="swapSheet.day"
+        :people="swapPeople" :code="swapCode" :code-style="codeStyle" :today="todayStr" @close="swapSheet = null" @done="swapDone" />
 
       <!-- 通知 -->
       <div v-if="showNotices" class="fixed inset-0 z-50 flex flex-col justify-end">

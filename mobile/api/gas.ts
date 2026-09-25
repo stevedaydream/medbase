@@ -26,7 +26,7 @@ const READ_TABLES = new Set([
 const CONFIG_KEYS = ["np_duty_url"];
 
 /** 排班文件 key：people／shifts…／month:YYYYMM／prebook:YYYYMM／log:global… */
-const SCH_KEY = /^(people|shifts|quotaItems|rules|holidays|holidayDuty|duty84|cny|notices|debts|(month|prebook|log|lock|est):(\d{6}|global))$/;
+const SCH_KEY = /^(people|shifts|quotaItems|rules|holidays|holidayDuty|duty84|cny|notices|debts|(month|prebook|log|lock|est|swapreq):(\d{6}|global))$/;
 const MAX_DOC = 2_000_000;
 
 const str = (v: unknown, max = 200) => String(v ?? "").slice(0, max);

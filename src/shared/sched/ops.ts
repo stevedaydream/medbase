@@ -135,6 +135,7 @@ export function opPublish(s: OpsState, ym: string, unresolved: number, actor: st
   m.status = "published";
   m.publishedAt = now;
   const debts = settleDebts(s.debts, m, s.quotaItems.filter(i => i.enabled));
+  for (const sw of m.swaps ?? []) sw.settled = true;
   let p: OpPatch = { ...emptyPatch(), months: [m], debts };
   const added = debts.length - s.debts.length;
   p.logs.push({ scope: ym, action: "發布", detail: `${unresolved ? `仍有 ${unresolved} 項檢核警告（已確認）；` : ""}配額與 X 定案${added > 0 ? `；新增欠班 ${added} 筆` : ""}`, actor });
@@ -173,9 +174,12 @@ export function opCreateSwap(s: OpsState, ym: string, day: number, a: string, b:
   const aCode = m.schedule[a][day - 1] ?? "", bCode = m.schedule[b][day - 1] ?? "";
   m.schedule[a][day - 1] = bCode;
   m.schedule[b][day - 1] = aCode;
-  (m.swaps ??= []).push({ id: newId(), day, a, b, aCode, bCode, at: now, by: actor, note });
+  const rec = { id: newId(), day, a, b, aCode, bCode, at: now, by: actor, note, settled: m.status === "published" };
+  (m.swaps ??= []).push(rec);
   const nm = nameFn(s.people);
   const p: OpPatch = { ...emptyPatch(), months: [m] };
+  // 發布後的換班不會再經過發布結算，當下就結算欠班
+  if (rec.settled) p.debts = settleDebts(s.debts, { ...m, swaps: [{ ...rec, settled: false }] }, s.quotaItems.filter(i => i.enabled));
   p.logs.push({ scope: ym, action: "換班", detail: `${nm(a)} ${md(ym, day)} ${aCode || "空白"} ↔ ${nm(b)} ${bCode || "空白"}${note ? `（${note}）` : ""}`, actor });
   if (m.status === "published") {
     p.notices.push(notice(a, `${md(ym, day)} 你的班 ${aCode || "空白"}→${bCode || "空白"}（與 ${nm(b)} 換班）`, now));
@@ -188,13 +192,21 @@ export function opDeleteSwap(s: OpsState, ym: string, id: string, actor: string)
   const m = clone(s.months[ym]);
   const sw = m?.swaps?.find(x => x.id === id);
   if (!m || !sw) return emptyPatch();
-  if ((m.schedule[sw.a]?.[sw.day - 1] ?? "") === sw.bCode && (m.schedule[sw.b]?.[sw.day - 1] ?? "") === sw.aCode) {
-    m.schedule[sw.a][sw.day - 1] = sw.aCode;
-    m.schedule[sw.b][sw.day - 1] = sw.bCode;
+  // 員工換班：同一張申請一起還原
+  const gone = sw.req ? m.swaps!.filter(x => x.req === sw.req) : [sw];
+  for (const g of gone) {
+    if ((m.schedule[g.a]?.[g.day - 1] ?? "") === g.bCode && (m.schedule[g.b]?.[g.day - 1] ?? "") === g.aCode) {
+      m.schedule[g.a][g.day - 1] = g.aCode;
+      m.schedule[g.b][g.day - 1] = g.bCode;
+    }
   }
-  m.swaps = m.swaps!.filter(x => x.id !== id);
+  m.swaps = m.swaps!.filter(x => !gone.includes(x));
   const nm = nameFn(s.people);
-  return { ...emptyPatch(), months: [m], logs: [{ scope: ym, action: "刪除換班", detail: `${nm(sw.a)} ↔ ${nm(sw.b)} ${md(ym, sw.day)}`, actor }] };
+  const p: OpPatch = { ...emptyPatch(), months: [m], logs: [{ scope: ym, action: "刪除換班", detail: `${nm(sw.a)} ↔ ${nm(sw.b)} ${gone.map(g => md(ym, g.day)).join("、")}`, actor }] };
+  // 已結算欠班的換班（發布後）：反向結算抵銷
+  const back = gone.filter(g => g.settled).map(g => ({ ...g, aCode: g.bCode, bCode: g.aCode, settled: false }));
+  if (back.length) p.debts = settleDebts(s.debts, { ...m, swaps: back }, s.quotaItems.filter(i => i.enabled));
+  return p;
 }
 
 export function opSettleDebt(s: OpsState, id: string, note: string, actor: string, now: string): OpPatch {

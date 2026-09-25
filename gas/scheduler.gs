@@ -1427,8 +1427,13 @@ function doPost(e) {
         return _withLock(() => {
           const sh = _schSheet(ss);
           const docs = _schReadAll(sh);
-          const results = _schPut(docs, p.items || []);
-          if (results.some(r => r.ok)) _schWriteAll(sh, docs);
+          // atomic：任一份衝突就全部不寫（伺服器端換班用）
+          const work = p.atomic ? Object.assign({}, docs) : docs;
+          const results = _schPut(work, p.items || []);
+          if (p.atomic && results.some(r => !r.ok)) {
+            return json({ ok: true, aborted: true, results: results.map(r => r.ok ? { key: r.key, ok: false, aborted: true } : r) });
+          }
+          if (results.some(r => r.ok)) _schWriteAll(sh, work);
           return json({ ok: true, results: results });
         });
       }

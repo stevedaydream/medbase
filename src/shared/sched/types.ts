@@ -233,6 +233,8 @@ export interface SwapRec {
   at: string;
   by: string;
   note: string;
+  req?: string;       // 員工換班申請 id（同一張申請一起刪除）
+  settled?: boolean;  // 已結算欠班（發布後的換班立即結算，重新發布不再重算）
 }
 
 /**

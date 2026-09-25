@@ -50,6 +50,7 @@ export function settleDebts(debts: DebtRec[], m: MonthDoc, items: QuotaItem[]): 
   const out = debts.map(d => ({ ...d }));
   const pair = new Map<string, number>(); // `${from}|${to}|${item}` → 數量（from 欠 to）
   for (const s of m.swaps ?? []) {
+    if (s.settled) continue;
     for (const it of items) {
       const dA = inItem(it, s.bCode, m.ym, s.day) - inItem(it, s.aCode, m.ym, s.day);
       if (!dA) continue;

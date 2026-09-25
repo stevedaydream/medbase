@@ -498,7 +498,7 @@ const mD = computed(() => Number(ym.value.slice(4)))
             <p class="font-bold">本月換班</p>
             <p v-if="!month?.swaps?.length" class="text-muted">沒有換班（點格子建立）</p>
             <div v-for="s in month?.swaps ?? []" :key="s.id" class="p-2 rounded-lg bg-sunken flex items-center gap-2">
-              <span class="flex-1">{{ mD }}/{{ s.day }} {{ nameOf(s.a) }} {{ s.aCode || '空白' }} ⇄ {{ nameOf(s.b) }} {{ s.bCode || '空白' }}</span>
+              <span class="flex-1">{{ mD }}/{{ s.day }} {{ nameOf(s.a) }} {{ s.aCode || '空白' }} ⇄ {{ nameOf(s.b) }} {{ s.bCode || '空白' }}<span v-if="s.req" class="block text-xs text-muted">員工換班，刪除會整張還原</span></span>
               <button @click="run(() => deleteSwap(ym, s.id), '已刪除換班')" class="text-danger">刪除</button>
             </div>
             <p class="font-bold pt-2">未平的欠班</p>
