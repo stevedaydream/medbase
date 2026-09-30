@@ -30,6 +30,7 @@ dist-ssr
 # Internal project documentation
 *.md
 !README.md
+!AGENTS.md
 
 # Hospital-specific raw data (sensitive: physician credentials, HIS passwords)
 data/
