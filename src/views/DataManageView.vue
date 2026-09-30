@@ -22,25 +22,13 @@ import {
 import { touchTable, markDeleted } from "@/composables/useTableSync";
 import { refreshPassAhk } from "@/composables/usePhysicians";
 import NpDutyDataManager from "@/components/NpDutyDataManager.vue";
+import EmergencyEditor from "@/components/emergency/EmergencyEditor.vue";
 
 // ── 型別定義 ────────────────────────────────────────────────────
 interface Item {
   hospital_code: string; name_en: string | null; name_zh: string | null;
   purpose: string | null; depts: string[]; unit: string | null;
   price: number | null; supplier: string | null; notes: string | null;
-}
-interface Protocol {
-  id: number; name: string; triggers: string; immediate_actions: string;
-  critical_meds: string; timers: string; contacts: string; notes: string;
-}
-interface ProtocolForm {
-  id?: number; name: string;
-  triggers: string[];
-  immediate_actions: string[];
-  critical_meds: { name: string; dose: string; color: string }[];
-  timers: { label: string; seconds: number }[];
-  contacts: { label: string; ext: string }[];
-  notes: string;
 }
 type Tab = "items" | "emergency" | "npDuty" | "backup";
 
@@ -91,15 +79,9 @@ async function doXlsxUnbind() { await xlsxUnbind(); }
 
 // 資料
 const items       = ref<Item[]>([]);
-const protocols   = ref<Protocol[]>([]);
-
-// Emergency editing state
-const selectedProtocolId  = ref<number | null>(null);
-const protocolEditorOpen  = ref(false);
-const protocolForm = ref<ProtocolForm>({
-  name: "", triggers: [], immediate_actions: [],
-  critical_meds: [], timers: [], contacts: [], notes: ""
-});
+// 危急處置卡由 EmergencyEditor 自行讀寫（ADR-017）
+const emEditor = ref<InstanceType<typeof EmergencyEditor> | null>(null);
+const emCount = ref(0);
 
 // Modal
 const showModal   = ref(false);
@@ -757,7 +739,6 @@ async function loadAll() {
     deptMap.get(r.hospital_code)!.push(r.dept);
   }
   items.value = rawItems.map(it => ({ ...it, depts: deptMap.get(it.hospital_code) ?? [] }));
-  protocols.value  = await db.select<Protocol[]>("SELECT * FROM emergency_protocols ORDER BY name");
 
   // 由外部指定要開啟的分頁（?tab=）
   // 通訊錄分頁已移除（改用 /physicians），舊網址的 ?tab=physicians 忽略
@@ -771,8 +752,6 @@ onMounted(loadAll);
 // 切 tab 時重置搜尋；切到 backup 時載入表格元資料
 watch(activeTab, (tab) => {
   search.value = "";
-  selectedProtocolId.value = null;
-  protocolEditorOpen.value = false;
   if (tab === "backup") loadTableMeta();
 });
 
@@ -785,74 +764,9 @@ const filteredItems = computed(() => {
     m.hospital_code?.toLowerCase().includes(q) || m.purpose?.toLowerCase().includes(q) ||
     m.supplier?.toLowerCase().includes(q) || m.depts.some(d => d.toLowerCase().includes(q)));
 });
-const filteredProtocols = computed(() => {
-  const q = search.value.toLowerCase();
-  if (!q) return protocols.value;
-  return protocols.value.filter(p => p.name.toLowerCase().includes(q));
-});
-
-// ── Emergency Protocol CRUD ──────────────────────────────────────
-function selectProtocol(p: Protocol) {
-  selectedProtocolId.value = p.id;
-  protocolEditorOpen.value = true;
-  protocolForm.value = {
-    id: p.id, name: p.name,
-    triggers:          JSON.parse(p.triggers          || "[]"),
-    immediate_actions: JSON.parse(p.immediate_actions || "[]"),
-    critical_meds:     JSON.parse(p.critical_meds     || "[]"),
-    timers:            JSON.parse(p.timers            || "[]"),
-    contacts:          JSON.parse(p.contacts          || "[]"),
-    notes: p.notes || "",
-  };
-}
-function newProtocol() {
-  selectedProtocolId.value = null;
-  protocolEditorOpen.value = true;
-  protocolForm.value = { name: "", triggers: [], immediate_actions: [], critical_meds: [], timers: [], contacts: [], notes: "" };
-}
-async function saveProtocol() {
-  const f = protocolForm.value;
-  if (!f.name?.trim()) return;
-  const vals = [
-    f.name,
-    JSON.stringify(f.triggers),
-    JSON.stringify(f.immediate_actions),
-    JSON.stringify(f.critical_meds),
-    JSON.stringify(f.timers),
-    JSON.stringify(f.contacts),
-    f.notes || "",
-  ];
-  if (f.id) {
-    await dbWrite(
-      `UPDATE emergency_protocols SET name=?,triggers=?,immediate_actions=?,critical_meds=?,timers=?,contacts=?,notes=? WHERE id=?`,
-      [...vals, f.id]);
-  } else {
-    const res = await dbWrite(
-      `INSERT INTO emergency_protocols (name,triggers,immediate_actions,critical_meds,timers,contacts,notes) VALUES (?,?,?,?,?,?,?)`, vals);
-    protocolForm.value.id = res.lastInsertId as number;
-    selectedProtocolId.value = protocolForm.value.id;
-  }
-  await loadAll();
-  showToast("success", "已儲存！");
-}
-async function deleteProtocol() {
-  if (!protocolForm.value.id) return;
-  deleteTarget.value = { id: protocolForm.value.id } as any;
-  showConfirm.value = true;
-}
-async function doDeleteProtocol() {
-  await dbWrite("DELETE FROM emergency_protocols WHERE id=?", [protocolForm.value.id]);
-  selectedProtocolId.value = null;
-  protocolEditorOpen.value = false;
-  protocolForm.value = { name: "", triggers: [], immediate_actions: [], critical_meds: [], timers: [], contacts: [], notes: "" };
-  await loadAll();
-  showConfirm.value = false;
-  deleteTarget.value = null;
-}
-
 // ── Modal 開關 ───────────────────────────────────────────────────
 function openAdd() {
-  if (activeTab.value === "emergency") { newProtocol(); return; }
+  if (activeTab.value === "emergency") { emEditor.value?.newCard(); return; }
   modalMode.value = "add";
   if (activeTab.value === "items")       itemForm.value = {};
   showModal.value = true;
@@ -904,13 +818,12 @@ async function doDelete() {
   const row = deleteTarget.value;
   if (!row) return;
   if (activeTab.value === "items")      await deleteItem(row as Item);
-  if (activeTab.value === "emergency")  { await doDeleteProtocol(); return; }
   showConfirm.value = false; deleteTarget.value = null;
 }
 
 const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
   { key: "items",      icon: "📦", label: "自費品項",   count: () => items.value.length },
-  { key: "emergency",  icon: "🚨", label: "危急情境",   count: () => protocols.value.length },
+  { key: "emergency",  icon: "🚨", label: "危急情境",   count: () => emCount.value },
   { key: "npDuty",     icon: "🧑‍⚕️", label: "NP／VS 值班", count: () => 0 },
   { key: "backup",     icon: "💾", label: "備份 / 還原", count: () => 0 },
 ];
@@ -1045,195 +958,9 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         </div>
       </div>
 
-      <!-- ── 危急情境 ──────────────────────────────── -->
-      <div v-if="activeTab === 'emergency'" class="flex-1 flex overflow-hidden">
-
-        <!-- Protocol list sidebar -->
-        <div class="w-56 shrink-0 border-r border-hairline bg-sunken overflow-y-auto flex flex-col">
-          <div
-            v-for="p in filteredProtocols" :key="p.id"
-            @click="selectProtocol(p)"
-            class="px-5 py-3.5 cursor-pointer border-b border-hairline transition-all text-left"
-            :class="selectedProtocolId === p.id
-              ? 'bg-danger/10 text-danger border-l-2 border-l-danger shadow-[0_0_15px_rgba(239,68,68,0.08)]'
-              : 'text-fg-secondary hover:bg-overlay/[0.01] hover:text-fg'"
-          >
-            <div class="font-bold text-xs">{{ p.name }}</div>
-          </div>
-          <div v-if="!filteredProtocols.length" class="text-center text-muted py-12 italic text-xs">
-            無危急情境資料
-          </div>
-        </div>
-
-        <!-- Editor panel -->
-        <div v-if="protocolEditorOpen" class="flex-1 overflow-y-auto bg-surface">
-          <div class="px-8 py-6 space-y-6 max-w-4xl">
-
-            <!-- Name + actions -->
-            <div class="flex items-center gap-3 bg-surface p-4 rounded-2xl border border-hairline shadow-lg">
-              <input v-model="protocolForm.name"
-                class="flex-1 px-4 py-2 rounded-xl bg-sunken border border-hairline text-fg text-sm font-bold focus:outline-none focus:border-danger/50 focus:ring-1 focus:ring-danger/20"
-                placeholder="情境名稱（如：過敏性休克 Anaphylaxis）" />
-              <button @click="saveProtocol"
-                class="px-4 py-2 rounded-xl bg-danger border border-danger/30 hover:bg-danger text-white text-xs font-bold shrink-0 cursor-pointer shadow-[0_4px_12px_rgba(239,68,68,0.15)]"
-              >
-                儲存
-              </button>
-              <button v-if="protocolForm.id" @click="deleteProtocol"
-                class="px-3 py-2 rounded-xl text-danger hover:bg-danger/10 text-xs font-bold shrink-0 cursor-pointer transition-colors"
-              >
-                刪除
-              </button>
-            </div>
-
-            <!-- Triggers (Neon Amber) -->
-            <div class="bg-surface border border-warning/10 rounded-2xl p-5 shadow-sm">
-              <div class="flex items-center justify-between mb-4 border-b border-warning/10 pb-2">
-                <span class="text-xs font-black text-warning">▲ 1. 觸發情境 (Triggers)</span>
-                <button @click="protocolForm.triggers.push('')"
-                  class="text-2xs font-bold bg-warning/10 border border-warning/20 text-warning px-2 py-1 rounded-lg hover:bg-warning/20 transition-all cursor-pointer"
-                >＋ 新增條件</button>
-              </div>
-              <div class="space-y-2">
-                <div v-for="(_, i) in protocolForm.triggers" :key="i" class="flex gap-2 items-center">
-                  <input v-model="protocolForm.triggers[i]"
-                    class="flex-1 px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-warning/45 text-fg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-warning/20 transition-all"
-                    placeholder="例如：收縮壓 &lt; 90 mmHg 且合併心搏過速" />
-                  <button @click="protocolForm.triggers.splice(i,1)"
-                    class="text-muted hover:text-danger text-lg px-2 cursor-pointer transition-colors"
-                  >✕</button>
-                </div>
-                <div v-if="!protocolForm.triggers.length" class="text-xs text-muted italic py-2">無設定觸發條件，該卡片將始終顯示。</div>
-              </div>
-            </div>
-
-            <!-- Immediate actions (Neon Red) -->
-            <div class="bg-surface border border-danger/10 rounded-2xl p-5 shadow-sm">
-              <div class="flex items-center justify-between mb-4 border-b border-danger/10 pb-2">
-                <span class="text-xs font-black text-danger">⚡ 2. 立即處置 (Immediate Actions)</span>
-                <button @click="protocolForm.immediate_actions.push('')"
-                  class="text-2xs font-bold bg-danger/10 border border-danger/20 text-danger px-2 py-1 rounded-lg hover:bg-danger/20 transition-all cursor-pointer"
-                >＋ 新增處置</button>
-              </div>
-              <div class="space-y-2">
-                <div v-for="(_, i) in protocolForm.immediate_actions" :key="i" class="flex gap-2 items-center">
-                  <span class="text-xs text-danger/60 w-5 shrink-0 text-right font-mono font-bold">{{ i+1 }}.</span>
-                  <input v-model="protocolForm.immediate_actions[i]"
-                    class="flex-1 px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-danger/45 text-fg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-danger/20 transition-all"
-                    placeholder="處置動作描述（如：建立大口徑靜脈管路、給予高流量氧氣）" />
-                  <button @click="protocolForm.immediate_actions.splice(i,1)"
-                    class="text-muted hover:text-danger text-lg px-2 cursor-pointer transition-colors"
-                  >✕</button>
-                </div>
-                <div v-if="!protocolForm.immediate_actions.length" class="text-xs text-muted italic py-2">尚未新增處置步驟。</div>
-              </div>
-            </div>
-
-            <!-- Critical meds (Neon Blue) -->
-            <div class="bg-surface border border-accent/10 rounded-2xl p-5 shadow-sm">
-              <div class="flex items-center justify-between mb-4 border-b border-accent/10 pb-2">
-                <span class="text-xs font-black text-accent">💊 3. 關鍵藥物 (Critical Medications)</span>
-                <button @click="protocolForm.critical_meds.push({ name:'', dose:'', color:'blue' })"
-                  class="text-2xs font-bold bg-accent/10 border border-accent/20 text-accent px-2 py-1 rounded-lg hover:bg-accent/20 transition-all cursor-pointer"
-                >＋ 新增藥物</button>
-              </div>
-              <div class="space-y-2">
-                <div v-for="(med, i) in protocolForm.critical_meds" :key="i"
-                  class="grid grid-cols-[1.5fr_1.5fr_1fr_auto] gap-2.5 items-center">
-                  <input v-model="med.name"
-                    class="px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-accent/45 text-fg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-accent/20 transition-all"
-                    placeholder="藥物名稱（如：Epinephrine）" />
-                  <input v-model="med.dose"
-                    class="px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-accent/45 text-fg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-accent/20 transition-all"
-                    placeholder="劑量及給藥途徑（如：0.3 mg IM q5-15m）" />
-                  <select v-model="med.color"
-                    class="px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg-secondary text-xs font-bold focus:outline-none focus:border-accent/45">
-                    <option value="blue">🔵 藍色 (Tech)</option>
-                    <option value="red">🔴 紅色 (Danger)</option>
-                    <option value="green">🟢 綠色 (Safety)</option>
-                    <option value="yellow">🟡 黃色 (Warn)</option>
-                    <option value="purple">🟣 紫色 (Special)</option>
-                    <option value="orange">🟠 橙色 (Alert)</option>
-                  </select>
-                  <button @click="protocolForm.critical_meds.splice(i,1)"
-                    class="text-muted hover:text-danger text-lg px-2 cursor-pointer transition-colors"
-                  >✕</button>
-                </div>
-                <div v-if="!protocolForm.critical_meds.length" class="text-xs text-muted italic py-2">無設定關鍵用藥。</div>
-              </div>
-            </div>
-
-            <!-- Timers (Neon Green) -->
-            <div class="bg-surface border border-success/10 rounded-2xl p-5 shadow-sm">
-              <div class="flex items-center justify-between mb-4 border-b border-success/10 pb-2">
-                <span class="text-xs font-black text-success">⏱ 4. 循環計時器 (Timers)</span>
-                <button @click="protocolForm.timers.push({ label:'', seconds: 120 })"
-                  class="text-2xs font-bold bg-success/10 border border-success/20 text-success px-2 py-1 rounded-lg hover:bg-success/20 transition-all cursor-pointer"
-                >＋ 新增計時</button>
-              </div>
-              <div class="space-y-2">
-                <div v-for="(timer, i) in protocolForm.timers" :key="i" class="flex gap-3 items-center">
-                  <input v-model="timer.label"
-                    class="flex-1 px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-success/45 text-fg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-success/20 transition-all"
-                    placeholder="計時事件說明（如：評估心律/CPR 週期）" />
-                  <div class="flex items-center gap-1.5 shrink-0">
-                    <input v-model.number="timer.seconds" type="number" min="1"
-                      class="w-20 px-3 py-2 rounded-xl bg-sunken border border-hairline focus:border-success/45 text-fg text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-success/20 transition-all text-center" />
-                    <span class="text-xs text-muted font-bold">秒</span>
-                  </div>
-                  <button @click="protocolForm.timers.splice(i,1)"
-                    class="text-muted hover:text-danger text-lg px-2 cursor-pointer transition-colors"
-                  >✕</button>
-                </div>
-                <div v-if="!protocolForm.timers.length" class="text-xs text-muted italic py-2">無配置倒數計時器。</div>
-              </div>
-            </div>
-
-            <!-- Contacts (Neon Purple) -->
-            <div class="bg-surface border border-accent/10 rounded-2xl p-5 shadow-sm">
-              <div class="flex items-center justify-between mb-4 border-b border-accent/10 pb-2">
-                <span class="text-xs font-black text-accent">📞 5. 緊急通報分機 (Contacts)</span>
-                <button @click="protocolForm.contacts.push({ label:'', ext:'' })"
-                  class="text-2xs font-bold bg-accent/10 border border-accent/20 text-accent px-2 py-1 rounded-lg hover:bg-accent/20 transition-all cursor-pointer"
-                >＋ 新增聯絡</button>
-              </div>
-              <div class="space-y-2">
-                <div v-for="(contact, i) in protocolForm.contacts" :key="i" class="flex gap-2.5 items-center">
-                  <input v-model="contact.label"
-                    class="flex-1 px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-accent/45 text-fg text-xs font-bold focus:outline-none focus:ring-1 focus:ring-accent/20 transition-all"
-                    placeholder="通報目標或代碼（如：急救小組 999、ECMO 團隊）" />
-                  <input v-model="contact.ext"
-                    class="w-32 px-3.5 py-2 rounded-xl bg-sunken border border-hairline focus:border-accent/45 text-fg text-xs font-mono font-bold focus:outline-none focus:ring-1 focus:ring-accent/20 transition-all text-center"
-                    placeholder="直撥分機" />
-                  <button @click="protocolForm.contacts.splice(i,1)"
-                    class="text-muted hover:text-danger text-lg px-2 cursor-pointer transition-colors"
-                  >✕</button>
-                </div>
-                <div v-if="!protocolForm.contacts.length" class="text-xs text-muted italic py-2">無設定聯絡電話。</div>
-              </div>
-            </div>
-
-            <!-- Notes -->
-            <div class="bg-surface border border-hairline rounded-2xl p-5">
-              <label class="text-2xs font-black text-fg-secondary mb-2 block">備註資訊</label>
-              <textarea v-model="protocolForm.notes" rows="4"
-                class="w-full px-4 py-2.5 rounded-xl bg-sunken border border-hairline focus:border-hairline text-fg text-xs font-medium focus:outline-none resize-none leading-relaxed transition-all"
-                placeholder="其他背景知識、藥物稀釋配方、診斷排除指引等資訊…" />
-            </div>
-
-          </div>
-        </div>
-
-        <!-- Empty state -->
-        <div v-if="!protocolEditorOpen" class="flex-1 flex items-center justify-center bg-sunken">
-          <div class="text-center p-8 max-w-sm">
-            <div class="w-16 h-16 bg-danger/10 border border-danger/20 rounded-full flex items-center justify-center mx-auto text-2xl mb-4 shadow-[0_0_20px_rgba(239,68,68,0.08)] animate-pulse">🚨</div>
-            <h4 class="text-sm font-bold text-fg-secondary mb-1">危急情境卡片編輯器</h4>
-            <p class="text-xs text-muted leading-relaxed">請在左側面板選擇現有的 ACLS 情境進行編輯，或點擊右上角「新增」建立一套全新的緊急醫療監控儀表。</p>
-          </div>
-        </div>
-
-      </div>
+      <!-- ── 危急處置卡（ADR-017）──────────────────── -->
+      <EmergencyEditor v-if="activeTab === 'emergency'" ref="emEditor" :search="search"
+        @count="n => (emCount = n)" @toast="(k, m) => showToast(k, m)" />
 
       <!-- ── 值班 NP ─────────────────────────────── -->
       <div v-if="activeTab === 'npDuty'" class="flex-1 overflow-y-auto px-8 py-6">

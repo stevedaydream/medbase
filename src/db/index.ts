@@ -56,6 +56,7 @@ const SYNC_UID_TABLES: { table: string; natural: string; js: (r: Row) => string 
   { table: "sets",          natural: "name || char(1) || COALESCE(surgery_type, '')", js: r => r.name == null ? "" : `${r.name}\u0001${txt(r.surgery_type)}` },
   { table: "surgery_types", natural: "name", js: r => txt(r.name) },
   { table: "ahk_scripts",   natural: "name", js: r => txt(r.name) },
+  { table: "emergency_protocols", natural: "name", js: r => txt(r.name) },
 ];
 
 /**
@@ -377,6 +378,8 @@ async function initSchema(db: Database) {
       created_at TEXT DEFAULT (datetime('now'))
     );
   `);
+  // 危急處置卡 v2（ADR-017）：整張卡的內容存 JSON（src/shared/emergency/types.ts EmSpec）
+  try { await db.execute("ALTER TABLE emergency_protocols ADD COLUMN spec TEXT"); } catch { /* 已存在 */ }
 
   // ── App 全域設定（key-value）────────────────────────────
   await db.execute(`

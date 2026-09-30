@@ -1,361 +1,218 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { useIntervalFn } from "@vueuse/core";
-import { getDb } from "@/db";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { loadEmergencyCards } from "@/composables/useEmergency";
+import { matchTiers, searchCards, visibleCards, rangeText } from "@/shared/emergency/logic";
+import { EM_CATEGORIES, STATUS_LABELS, DISCLAIMER, type EmCard, type EmTier, type EmRecheck } from "@/shared/emergency/types";
 
-interface Protocol {
-  id: number;
-  name: string;
-  triggers: string;
-  immediate_actions: string;
-  critical_meds: string;
-  timers: string;
-  contacts: string;
-  notes: string;
-}
+/** 危急處置（ADR-017）：選卡 → 輸入數值、回答是非題 → 顯示符合級距的處置 */
+const cards = ref<EmCard[]>([]);
+const q = ref("");
+const selected = ref<EmCard | null>(null);
+const valueText = ref("");
+const answers = ref<Record<string, boolean | undefined>>({});
+const checked = ref(new Set<string>());
 
-interface TimerState {
-  label: string;
-  seconds: number;
-  remaining: number;
-  running: boolean;
-  expired: boolean;
-}
+onMounted(async () => { cards.value = visibleCards(await loadEmergencyCards()); });
 
-const protocols = ref<Protocol[]>([]);
-const selected = ref<Protocol | null>(null);
-const checkedActions = ref<Set<number>>(new Set());
-const timerStates = ref<TimerState[]>([]);
-
-onMounted(async () => {
-  const db = await getDb();
-  protocols.value = await db.select<Protocol[]>("SELECT * FROM emergency_protocols ORDER BY name");
-  // Seed demo data if empty
-  if (protocols.value.length === 0) {
-    await seedDemo(db);
-    protocols.value = await db.select<Protocol[]>("SELECT * FROM emergency_protocols ORDER BY name");
-  }
+const list = computed(() => searchCards(cards.value, q.value));
+const groups = computed(() => {
+  const cats = [...EM_CATEGORIES, ...new Set(list.value.map(c => c.spec.category))];
+  return [...new Set(cats)].map(cat => ({ cat, items: list.value.filter(c => c.spec.category === cat) })).filter(g => g.items.length);
 });
 
-async function seedDemo(db: any) {
-  await db.execute(`INSERT INTO emergency_protocols (name, triggers, immediate_actions, critical_meds, timers, contacts) VALUES (?, ?, ?, ?, ?, ?)`, [
-    "Anaphylaxis",
-    JSON.stringify(["蕁麻疹 + 低血壓", "支氣管痙攣", "血管性水腫"]),
-    JSON.stringify(["立即停止過敏原輸注", "平躺，腳抬高", "給予 Epinephrine", "建立靜脈通路 × 2", "給予氧氣 10L/min", "通知主治醫師"]),
-    JSON.stringify([
-      { name: "Epinephrine 1:1000", dose: "0.3–0.5 mg IM (大腿外側)", color: "red" },
-      { name: "Diphenhydramine", dose: "25–50 mg IV", color: "yellow" },
-      { name: "Methylprednisolone", dose: "125 mg IV", color: "yellow" },
-      { name: "NS 500 mL", dose: "快速輸注", color: "blue" },
-    ]),
-    JSON.stringify([{ label: "Epi 下次給藥", seconds: 180 }]),
-    JSON.stringify([{ label: "急救小組", ext: "7000" }, { label: "藥局", ext: "3456" }]),
-  ]);
-  await db.execute(`INSERT INTO emergency_protocols (name, triggers, immediate_actions, critical_meds, timers, contacts) VALUES (?, ?, ?, ?, ?, ?)`, [
-    "ACLS — VF / pVT",
-    JSON.stringify(["無脈搏室顫 (VF)", "無脈搏室速 (pVT)", "AED 建議電擊"]),
-    JSON.stringify(["確認無反應、無呼吸", "啟動 Code Blue，記錄時間", "開始 CPR (30:2，100-120/min)", "接上 AED/去顫器，分析心律", "電擊 200J (雙向)，立即恢復 CPR", "建立靜脈通路", "2分鐘後再次心律分析"]),
-    JSON.stringify([
-      { name: "Epinephrine 1 mg IV", dose: "每 3–5 分鐘，VF/pVT 首選", color: "red" },
-      { name: "Amiodarone 300 mg IV", dose: "首劑 (第 3 次電擊後)", color: "red" },
-      { name: "Amiodarone 150 mg IV", dose: "第二劑 (15 min 後)", color: "yellow" },
-    ]),
-    JSON.stringify([
-      { label: "CPR 輪換", seconds: 120 },
-      { label: "Epi 再給藥", seconds: 300 },
-    ]),
-    JSON.stringify([{ label: "9595 專線", ext: "7000" }, { label: "SICU", ext: "2552" }]),
-  ]);
+function pick(c: EmCard) {
+  selected.value = c;
+  valueText.value = "";
+  answers.value = {};
+  checked.value = new Set();
 }
 
-function parseJson<T>(s: string | null): T[] {
-  try { return JSON.parse(s ?? "[]") ?? []; } catch { return []; }
+const spec = computed(() => selected.value?.spec ?? null);
+const value = computed(() => {
+  const t = valueText.value.trim();
+  return t === "" ? null : Number(t);
+});
+const result = computed(() => spec.value ? matchTiers(spec.value, value.value, answers.value) : null);
+const condQ = (id: string) => spec.value?.conditions.find(c => c.id === id)?.question ?? id;
+const unit = computed(() => spec.value?.measure?.unit ?? "");
+
+function toggle(key: string) {
+  const s = new Set(checked.value);
+  if (s.has(key)) s.delete(key); else s.add(key);
+  checked.value = s;
+}
+function answer(id: string, v: boolean) {
+  answers.value = { ...answers.value, [id]: answers.value[id] === v ? undefined : v };
 }
 
-function selectProtocol(p: Protocol) {
-  selected.value = p;
-  checkedActions.value = new Set();
-  const rawTimers = parseJson<{ label: string; seconds: number }>(p.timers);
-  timerStates.value = rawTimers.map((t) => ({
-    ...t,
-    remaining: t.seconds,
-    running: false,
-    expired: false,
-  }));
-}
-
-function toggleAction(idx: number) {
-  if (checkedActions.value.has(idx)) checkedActions.value.delete(idx);
-  else checkedActions.value.add(idx);
-}
-
-function startTimer(t: TimerState) {
-  t.running = true;
-  t.expired = false;
-  const { pause } = useIntervalFn(() => {
-    if (!t.running) { pause(); return; }
-    t.remaining--;
-    if (t.remaining <= 0) {
-      t.remaining = 0;
-      t.expired = true;
-      t.running = false;
-      pause();
-    }
+// ── 追蹤提醒計時 ──────────────────────────────────────────────
+interface Timer { key: string; label: string; left: number; total: number; done: boolean }
+const timers = ref<Timer[]>([]);
+let tick: ReturnType<typeof setInterval> | undefined;
+function startTimer(r: EmRecheck, owner: string) {
+  const key = `${owner}|${r.label}`;
+  timers.value = [...timers.value.filter(t => t.key !== key), { key, label: r.label, left: r.minutes * 60, total: r.minutes * 60, done: false }];
+  tick ??= setInterval(() => {
+    for (const t of timers.value) if (!t.done && --t.left <= 0) { t.left = 0; t.done = true; }
   }, 1000);
 }
+const removeTimer = (key: string) => { timers.value = timers.value.filter(t => t.key !== key); };
+onUnmounted(() => clearInterval(tick));
+watch(selected, () => { timers.value = []; });
+const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
-function resetTimer(t: TimerState) {
-  t.running = false;
-  t.expired = false;
-  const src = parseJson<{ label: string; seconds: number }>(selected.value!.timers)
-    .find((x) => x.label === t.label);
-  if (src) t.remaining = src.seconds;
-}
-
-interface CriticalMed { name: string; dose: string; color: string; }
-interface Contact { label: string; ext: string; }
-
-function parseMeds(s: string | null): CriticalMed[] { return parseJson<CriticalMed>(s); }
-function parseContacts(s: string | null): Contact[] { return parseJson<Contact>(s); }
-
-function formatTime(s: number) {
-  const m = Math.floor(s / 60);
-  const sec = s % 60;
-  return `${m}:${sec.toString().padStart(2, "0")}`;
-}
-
-const copySuccess = ref(false);
-function copy(text: string) {
-  navigator.clipboard.writeText(text);
-  copySuccess.value = true;
-  setTimeout(() => { copySuccess.value = false; }, 1500);
-}
-
-function exportRecord() {
-  if (!selected.value) return;
-  const actions = parseJson<string>(selected.value.immediate_actions);
-  const lines = [
-    `【急救紀錄】${selected.value.name}`,
-    `時間：${new Date().toLocaleString("zh-TW")}`,
-    "",
-    "已完成步驟：",
-    ...actions.map((a, i) => `${checkedActions.value.has(i) ? "✓" : "○"} ${a}`),
-  ];
-  navigator.clipboard.writeText(lines.join("\n"));
-  alert("急救處置紀錄已複製至剪貼簿");
-}
+const tiersToShow = computed<EmTier[]>(() => result.value?.matched ?? []);
 </script>
 
 <template>
-  <div class="accent-rose flex gap-6 h-full bg-sunken rounded-2xl border border-hairline shadow-2xl p-1 overflow-hidden">
-    
-    <!-- Left: Protocol list -->
-    <div class="w-72 shrink-0 flex flex-col bg-surface border-r border-hairline p-4 space-y-4">
-      <div class="border-b border-hairline pb-4 flex items-center gap-2">
-        <span class="text-danger animate-pulse text-lg">🚨</span>
-        <div>
-          <p class="text-xs font-bold text-danger uppercase tracking-widest">Emergency Protocols</p>
-          <p class="text-2xs text-muted font-mono tracking-tight">CRITICAL PATHWAY MONITOR</p>
-        </div>
+  <div class="accent-rose flex gap-4 h-full bg-sunken rounded-2xl border border-hairline p-1 overflow-hidden">
+    <!-- 左：卡片清單 -->
+    <div class="w-72 shrink-0 flex flex-col bg-surface rounded-xl border border-hairline p-3 gap-3">
+      <div class="flex items-center gap-2">
+        <span class="text-lg">🚨</span>
+        <p class="text-sm font-bold text-danger">危急處置</p>
       </div>
-      
-      <div class="flex-1 overflow-y-auto space-y-2 pr-1">
-        <button
-          v-for="p in protocols"
-          :key="p.id"
-          @click="selectProtocol(p)"
-          class="w-full text-left px-4 py-3.5 rounded-xl transition-all duration-300 border relative group overflow-hidden"
-          :class="selected?.id === p.id
-            ? 'bg-danger/10 border-danger/30 text-danger shadow-[0_0_15px_rgba(239,68,68,0.05)]'
-            : 'bg-sunken border-hairline text-fg-secondary hover:text-fg hover:bg-surface/50'"
-        >
-          <div v-if="selected?.id === p.id" class="absolute left-0 top-0 bottom-0 w-1 bg-danger" />
-          <div class="font-bold text-xs uppercase tracking-wide transition-colors" :class="selected?.id === p.id ? 'text-danger' : 'text-fg-secondary'">{{ p.name }}</div>
-          <div class="text-2xs text-muted mt-1 truncate font-mono">{{ parseJson<string>(p.triggers).join(' · ') }}</div>
-        </button>
-        <div v-if="protocols.length === 0" class="text-muted text-xs text-center py-12 font-mono">LOADING PROTOCOLS...</div>
+      <input v-model="q" placeholder="搜尋：症狀、項目（例：喘、K、低血壓）"
+        class="w-full px-3 py-2 rounded-lg bg-sunken border border-hairline text-xs text-fg" />
+      <div class="flex-1 overflow-y-auto space-y-3 pr-1">
+        <div v-for="g in groups" :key="g.cat">
+          <p class="text-2xs font-bold text-muted mb-1">{{ g.cat }}</p>
+          <button v-for="c in g.items" :key="c.uid" @click="pick(c)"
+            class="w-full text-left px-3 py-2.5 mb-1 rounded-lg border text-xs"
+            :class="selected?.uid === c.uid ? 'bg-danger/10 border-danger/30 text-danger font-bold' : 'bg-sunken border-hairline text-fg-secondary hover:text-fg'">
+            {{ c.name }}
+            <span v-if="c.spec.status === 'literature'" class="ml-1 text-2xs text-warning">文獻版</span>
+          </button>
+        </div>
+        <p v-if="!list.length" class="text-xs text-muted text-center py-8">沒有符合的卡片</p>
       </div>
     </div>
 
-    <!-- Right: Protocol detail -->
-    <div class="flex-1 overflow-y-auto p-4 space-y-6">
-      <div v-if="!selected" class="flex flex-col items-center justify-center h-full text-muted text-center space-y-3">
-        <span class="text-4xl opacity-20">🚨</span>
-        <p class="text-xs uppercase tracking-widest font-mono">Please select an emergency protocol from the left</p>
+    <!-- 右：處置 -->
+    <div class="flex-1 overflow-y-auto p-4 space-y-4">
+      <div v-if="!selected || !spec" class="h-full flex flex-col items-center justify-center text-muted text-sm gap-2">
+        <span class="text-4xl opacity-30">🚨</span>
+        從左側選擇項目，或搜尋症狀
       </div>
 
       <template v-else>
-        <!-- Header -->
-        <div class="flex items-center justify-between border-b border-hairline pb-4">
-          <div>
-            <h2 class="text-xl font-black text-danger tracking-wide uppercase flex items-center gap-2">
-              <span class="inline-block w-2.5 h-2.5 rounded-full bg-danger animate-ping" />
-              {{ selected.name }}
-            </h2>
-            <p class="text-2xs text-muted mt-1 font-mono uppercase tracking-wide">Emergency Action Plan</p>
-          </div>
-          <button
-            @click="exportRecord()"
-            class="px-4 py-2 rounded-xl bg-overlay/5 border border-hairline hover:bg-overlay/10 active:scale-95 text-fg-secondary text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-lg"
-          >
-            <span>📋</span> 複製急救護理紀錄
-          </button>
+        <div class="flex items-center gap-3 border-b border-hairline pb-3">
+          <h2 class="text-xl font-black text-danger">{{ selected.name }}</h2>
+          <span class="text-2xs px-2 py-0.5 rounded-full"
+            :class="spec.status === 'published' ? 'bg-success/10 text-success' : 'bg-warning/15 text-warning'">{{ STATUS_LABELS[spec.status] }}</span>
+        </div>
+        <div v-if="spec.status === 'literature'" class="p-3 rounded-xl bg-warning/10 border border-warning/30 text-xs text-warning font-bold">
+          ⚠ 依國際文獻整理，尚未經院內審核。處置與劑量以醫囑及院內規範為準。
         </div>
 
-        <!-- Triggers / Hazards Display -->
-        <div class="p-4 rounded-xl bg-warning/5 border border-warning/20 relative overflow-hidden shadow-inner">
-          <!-- Subtle warning pattern backdrop -->
-          <div class="absolute inset-0 opacity-[0.02] pointer-events-none bg-[linear-gradient(45deg,#f59e0b_25%,transparent_25%,transparent_50%,#f59e0b_50%,#f59e0b_75%,transparent_75%,transparent)] bg-[length:24px_24px]" />
-          <p class="text-warning text-xs font-bold mb-2.5 flex items-center gap-1.5">
-            <span>⚠️</span> 啟動時機 / 臨床指徵 (Triggers)
+        <!-- 數值與是非題 -->
+        <div v-if="spec.kind === 'graded' && spec.measure" class="rounded-2xl bg-surface border border-hairline p-4 space-y-3">
+          <label class="flex items-center gap-3">
+            <span class="text-sm font-bold text-fg w-40">{{ spec.measure.label }}</span>
+            <input v-model="valueText" inputmode="decimal" autofocus placeholder="輸入數值"
+              class="w-40 px-3 py-2 rounded-lg bg-sunken border border-hairline text-2xl font-mono font-bold text-fg" />
+            <span class="text-sm text-muted">{{ spec.measure.unit }}</span>
+          </label>
+          <div v-for="c in spec.conditions" :key="c.id" class="flex items-center gap-3 text-xs"
+            :class="result?.needAnswers.includes(c.id) ? 'text-warning font-bold' : 'text-fg-secondary'">
+            <span class="flex-1">{{ c.question }}</span>
+            <button v-for="v in [true, false]" :key="String(v)" @click="answer(c.id, v)"
+              class="px-3 py-1.5 rounded-lg border font-bold"
+              :class="answers[c.id] === v ? (v ? 'bg-danger text-white border-danger' : 'bg-fg-secondary text-surface border-fg-secondary') : 'border-hairline bg-sunken'">
+              {{ v ? "是" : "否" }}
+            </button>
+          </div>
+        </div>
+
+        <!-- 結果 -->
+        <template v-if="spec.kind === 'graded'">
+          <p v-if="value === null" class="text-sm text-muted">輸入數值後顯示對應的處置。</p>
+          <p v-else-if="!Number.isFinite(value)" class="text-sm text-danger font-bold">數值格式錯誤</p>
+          <template v-else-if="result">
+            <p v-if="result.needAnswers.length" class="p-3 rounded-xl bg-warning/10 border border-warning/30 text-xs text-warning font-bold">
+              請回答：{{ result.needAnswers.map(condQ).join("；") }}（會影響處置）
+            </p>
+            <p v-if="result.uncovered" class="p-4 rounded-xl bg-sunken border border-hairline text-sm text-fg-secondary">
+              {{ value }} {{ unit }} 不在這張卡的處置範圍內；有疑慮請聯絡醫師。
+            </p>
+          </template>
+        </template>
+
+        <div v-for="t in tiersToShow" :key="t.id" class="rounded-2xl bg-surface border-2 border-danger/30 p-4 space-y-3">
+          <div class="flex items-baseline gap-2">
+            <h3 class="text-base font-black text-danger">{{ t.title }}</h3>
+            <span class="text-xs text-muted font-mono">{{ rangeText(t, unit) }}</span>
+          </div>
+          <label v-for="(a, i) in t.actions" :key="i" class="flex items-start gap-3 p-2.5 rounded-lg bg-sunken cursor-pointer select-none"
+            :class="checked.has(`${t.id}|${i}`) ? 'opacity-40 line-through' : ''">
+            <input type="checkbox" :checked="checked.has(`${t.id}|${i}`)" @change="toggle(`${t.id}|${i}`)" class="mt-0.5" />
+            <span class="text-sm text-fg">{{ a }}</span>
+          </label>
+          <div v-if="t.meds.length" class="grid grid-cols-1 xl:grid-cols-2 gap-2">
+            <div v-for="m in t.meds" :key="m.name" class="p-3 rounded-lg border"
+              :class="m.alert ? 'bg-danger/10 border-danger/40' : 'bg-accent/5 border-accent/20'">
+              <p class="text-sm font-bold" :class="m.alert ? 'text-danger' : 'text-accent'">{{ m.alert ? "⚠ 高警訊 · " : "" }}{{ m.name }}</p>
+              <p class="text-xs text-fg-secondary mt-1">{{ m.dose }}</p>
+            </div>
+          </div>
+          <div v-if="t.rechecks.length" class="flex flex-wrap gap-2">
+            <button v-for="r in t.rechecks" :key="r.label" @click="startTimer(r, t.id)"
+              class="px-3 py-1.5 rounded-lg bg-success/10 border border-success/30 text-success text-xs font-bold">
+              ⏱ {{ r.label }}（{{ r.minutes }} 分）
+            </button>
+          </div>
+          <p v-if="t.notes" class="text-xs text-muted">{{ t.notes }}</p>
+        </div>
+
+        <div v-if="result && (result.neighbors.below || result.neighbors.above)" class="text-xs text-muted space-y-1">
+          <p v-if="result.neighbors.below">數值較低的一級：{{ result.neighbors.below.title }}（{{ rangeText(result.neighbors.below, unit) }}）</p>
+          <p v-if="result.neighbors.above">數值較高的一級：{{ result.neighbors.above.title }}（{{ rangeText(result.neighbors.above, unit) }}）</p>
+        </div>
+
+        <!-- 一般卡 -->
+        <div v-if="spec.kind === 'general'" class="rounded-2xl bg-surface border border-hairline p-4 space-y-3">
+          <label v-for="(a, i) in spec.general.actions" :key="i" class="flex items-start gap-3 p-2.5 rounded-lg bg-sunken cursor-pointer select-none"
+            :class="checked.has(`g|${i}`) ? 'opacity-40 line-through' : ''">
+            <input type="checkbox" :checked="checked.has(`g|${i}`)" @change="toggle(`g|${i}`)" class="mt-0.5" />
+            <span class="text-sm text-fg">{{ a }}</span>
+          </label>
+          <div v-for="m in spec.general.meds" :key="m.name" class="p-3 rounded-lg border"
+            :class="m.alert ? 'bg-danger/10 border-danger/40' : 'bg-accent/5 border-accent/20'">
+            <p class="text-sm font-bold" :class="m.alert ? 'text-danger' : 'text-accent'">{{ m.alert ? "⚠ 高警訊 · " : "" }}{{ m.name }}</p>
+            <p class="text-xs text-fg-secondary mt-1">{{ m.dose }}</p>
+          </div>
+          <button v-for="r in spec.general.rechecks" :key="r.label" @click="startTimer(r, 'g')"
+            class="mr-2 px-3 py-1.5 rounded-lg bg-success/10 border border-success/30 text-success text-xs font-bold">⏱ {{ r.label }}（{{ r.minutes }} 分）</button>
+        </div>
+
+        <!-- 計時 -->
+        <div v-if="timers.length" class="flex flex-wrap gap-2">
+          <div v-for="t in timers" :key="t.key" class="flex items-center gap-2 px-3 py-2 rounded-xl border"
+            :class="t.done ? 'bg-danger/15 border-danger text-danger animate-pulse' : 'bg-surface border-hairline text-fg'">
+            <span class="text-xs font-bold">{{ t.label }}</span>
+            <span class="font-mono font-black text-lg">{{ t.done ? "時間到" : mmss(t.left) }}</span>
+            <button @click="removeTimer(t.key)" class="text-muted text-xs">✕</button>
+          </div>
+        </div>
+
+        <p v-if="spec.notes" class="text-xs text-fg-secondary">📝 {{ spec.notes }}</p>
+
+        <div v-if="spec.contacts.length" class="flex flex-wrap gap-2">
+          <span v-for="c in spec.contacts" :key="c.label + c.ext" class="px-3 py-1.5 rounded-lg bg-surface border border-hairline text-xs">
+            📞 {{ c.label }} <b class="font-mono text-danger">{{ c.ext }}</b>
+          </span>
+        </div>
+
+        <!-- 依據 -->
+        <div class="border-t border-hairline pt-3 text-2xs text-muted space-y-1">
+          <p>依據：{{ spec.source || "—" }}<template v-if="spec.reviewer">　審核：{{ spec.reviewer }}</template><template v-if="spec.effective">　生效：{{ spec.effective }}</template></p>
+          <p v-for="r in spec.refs" :key="r.url">
+            <button class="underline hover:text-accent text-left" @click="openUrl(r.url)">{{ r.title }}</button>
           </p>
-          <div class="flex flex-wrap gap-2.5 relative z-10">
-            <span
-              v-for="t in parseJson<string>(selected.triggers)"
-              :key="t"
-              class="px-3 py-1 rounded-lg bg-warning/10 border border-warning/20 text-warning text-xs font-semibold font-mono"
-            >{{ t }}</span>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
-          <!-- Immediate actions Checklist -->
-          <div class="rounded-2xl bg-surface border border-hairline p-5 space-y-4">
-            <div class="border-b border-hairline pb-2.5 flex justify-between items-center">
-              <span class="text-xs font-bold text-fg-secondary">立即處置步驟 (Checklist)</span>
-              <span class="text-2xs text-muted font-mono">
-                {{ checkedActions.size }} / {{ parseJson(selected.immediate_actions).length }} 已處理
-              </span>
-            </div>
-            
-            <div class="space-y-3">
-              <label
-                v-for="(action, idx) in parseJson<string>(selected.immediate_actions)"
-                :key="idx"
-                class="flex items-start gap-3.5 p-3 rounded-xl border border-hairline bg-sunken cursor-pointer select-none transition-all duration-300 hover:bg-overlay/[0.02]"
-                :class="checkedActions.has(idx) ? 'opacity-40 border-transparent bg-transparent' : 'border-hairline'"
-              >
-                <div class="relative flex items-center mt-0.5">
-                  <input
-                    type="checkbox"
-                    :checked="checkedActions.has(idx)"
-                    @change="toggleAction(idx)"
-                    class="sr-only peer"
-                  />
-                  <div class="w-5 h-5 rounded-lg border-2 transition-all duration-300 peer-checked:bg-danger peer-checked:border-danger/30 border-hairline flex items-center justify-center">
-                    <span class="text-fg text-xs scale-0 peer-checked:scale-100 transition-transform font-bold">✓</span>
-                  </div>
-                </div>
-                <span
-                  class="text-xs transition-all duration-300 leading-normal"
-                  :class="checkedActions.has(idx) ? 'text-muted line-through' : 'text-fg font-semibold'"
-                >{{ action }}</span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Meds / Timers / Contacts Panel -->
-          <div class="space-y-6">
-            <!-- Critical meds -->
-            <div class="rounded-2xl bg-surface border border-hairline p-5 space-y-4">
-              <div class="border-b border-hairline pb-2.5">
-                <span class="text-xs font-bold text-fg-secondary">關鍵急救用藥 (Critical Meds)</span>
-              </div>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div
-                  v-for="med in parseMeds(selected.critical_meds)"
-                  :key="med.name"
-                  class="p-3 rounded-xl border transition-all duration-300 flex flex-col justify-between"
-                  :class="med.color === 'red'
-                    ? 'bg-danger/5 border-danger/20 text-danger shadow-[0_0_10px_rgba(244,63,94,0.03)]'
-                    : med.color === 'yellow'
-                      ? 'bg-warning/5 border-warning/20 text-warning shadow-[0_0_10px_rgba(245,158,11,0.03)]'
-                      : 'bg-accent/5 border-accent/20 text-accent'"
-                >
-                  <p
-                    class="font-bold text-xs uppercase tracking-wide"
-                    :class="med.color === 'red' ? 'text-danger' : med.color === 'yellow' ? 'text-warning' : 'text-accent'"
-                  >{{ med.name }}</p>
-                  <p class="text-2xs text-fg-secondary mt-1 font-mono leading-snug">{{ med.dose }}</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Timers Widget -->
-            <div v-if="timerStates.length" class="rounded-2xl bg-surface border border-hairline p-5 space-y-4">
-              <div class="border-b border-hairline pb-2.5">
-                <span class="text-xs font-bold text-fg-secondary">程序監控計時器 (Timers)</span>
-              </div>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div
-                  v-for="t in timerStates"
-                  :key="t.label"
-                  class="flex items-center justify-between p-4 rounded-xl border transition-all duration-300"
-                  :class="t.expired
-                    ? 'bg-danger/10 border-danger/30 shadow-[0_0_15px_rgba(239,68,68,0.1)]'
-                    : 'bg-sunken border-hairline'"
-                >
-                  <div class="min-w-0">
-                    <p class="text-2xs text-muted uppercase font-bold tracking-wider">{{ t.label }}</p>
-                    <p
-                      class="text-3xl font-mono font-black tracking-wider mt-1 transition-all"
-                      :class="t.expired
-                        ? 'text-danger animate-pulse'
-                        : t.remaining < 30
-                          ? 'text-warning animate-pulse'
-                          : t.running
-                            ? 'text-success'
-                            : 'text-fg-secondary'"
-                    >{{ formatTime(t.remaining) }}</p>
-                  </div>
-                  <div class="flex flex-col gap-1.5 ml-3 shrink-0">
-                    <button
-                      v-if="!t.running && !t.expired"
-                      @click="startTimer(t)"
-                      class="px-3 py-1.5 rounded-lg bg-success/10 border border-success/20 text-success text-2xs font-bold hover:bg-success/20 transition-all cursor-pointer"
-                    >▶ 開始</button>
-                    <button
-                      @click="resetTimer(t)"
-                      class="px-3 py-1.5 rounded-lg bg-elevated border border-hairline text-fg-secondary text-2xs font-bold hover:bg-raised hover:text-fg transition-all cursor-pointer"
-                    >↺ 重置</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Contacts -->
-            <div v-if="parseJson(selected.contacts).length" class="rounded-2xl bg-surface border border-hairline p-5 space-y-4">
-              <div class="border-b border-hairline pb-2.5">
-                <span class="text-xs font-bold text-fg-secondary">緊急通報聯絡 (Hotlines)</span>
-              </div>
-              <div class="space-y-2">
-                <div
-                  v-for="c in parseContacts(selected.contacts)"
-                  :key="c.ext"
-                  class="flex items-center justify-between p-3 rounded-xl bg-sunken border border-hairline hover:border-danger/20 transition-all"
-                >
-                  <span class="text-fg-secondary text-xs font-semibold">{{ c.label }}</span>
-                  <button
-                    @click="copy(c.ext)"
-                    class="font-mono text-xs font-bold text-danger hover:text-danger-hover active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
-                  >
-                    <span>📞</span> {{ c.ext }}
-                  </button>
-                </div>
-              </div>
-              <!-- Mini Toast for clipboard -->
-              <p v-if="copySuccess" class="text-2xs text-success text-center animate-pulse">分機已成功複製至剪貼簿</p>
-            </div>
-          </div>
+          <p class="font-bold">{{ DISCLAIMER }}</p>
         </div>
       </template>
     </div>
   </div>
 </template>
-
-<style scoped>
-/* Standard checkbox override style */
-.peer:checked ~ div {
-  box-shadow: 0 0 10px rgba(244,63,94,0.3);
-}
-</style>
