@@ -67,6 +67,10 @@ function toYm(y, m) {
   const d = new Date(y, m - 1, 1);
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}`;
 }
+const nextYm = (ym) => {
+  const { y, m } = ymParts(ym);
+  return toYm(y, m + 1);
+};
 const prevYm = (ym) => {
   const { y, m } = ymParts(ym);
   return toYm(y, m - 1);
@@ -175,7 +179,7 @@ function weekendAssigns(inp) {
     if (!isWeekendDay(sun, 0) || isHoliday(h, sun) || inCny(h, sun)) return null;
     const inMonth = ymOfDate(sun) === ym;
     const n = inMonth ? nOn.get(sun) : nOn.get(sat);
-    const avoid = /* @__PURE__ */ new Set([...inMonth ? inp.busy(sun) : [], ...n ? [n] : []]);
+    const avoid = /* @__PURE__ */ new Set([...inp.busy(sun), ...n ? [n] : []]);
     return nextInOrder(order, end.sunD, (x) => okD(x) && !avoid.has(x));
   }
   for (let d = 1; d <= nd; d++) {
@@ -506,8 +510,14 @@ function monthAssigns(s, m, prev, cny, log84) {
     ...duty84Assigns(m.ym, log84),
     ...holidayAssigns(m.ym, s.holidays, s.holidayDuty)
   ];
+  const nym = nextYm(m.ym);
+  const nextFixed = [
+    ...cnyAssigns(nym, cny),
+    ...duty84Assigns(nym, log84),
+    ...holidayAssigns(nym, s.holidays, s.holidayDuty)
+  ];
   const busyMap = /* @__PURE__ */ new Map();
-  for (const a of fixed) {
+  for (const a of [...fixed, ...nextFixed]) {
     if (!busyMap.has(a.date)) busyMap.set(a.date, /* @__PURE__ */ new Set());
     busyMap.get(a.date).add(a.personId);
   }
@@ -528,8 +538,16 @@ function monthAssigns(s, m, prev, cny, log84) {
   for (const sw of m.prefillSwaps ?? []) {
     const date = dateStr(m.ym, sw.day);
     const hit = raw.find((a) => a.date === date && a.code === sw.code && a.personId === sw.from);
-    if (hit) hit.personId = sw.to;
-    else warnings.push(`${date} 預填換人失效：輪序已不是由該員上 ${sw.code}`);
+    if (!hit) {
+      warnings.push(`${date} 預填換人失效：輪序已不是由該員上 ${sw.code}`);
+      continue;
+    }
+    const clash = raw.find((a) => a !== hit && a.date === date && a.personId === sw.to);
+    if (clash) {
+      warnings.push(`${date} 預填換人失效：接手的人當天已有 ${clash.code}，${sw.code} 仍由原本的人上`);
+      continue;
+    }
+    hit.personId = sw.to;
   }
   const all = raw.filter((a) => inRoster.has(a.personId));
   const seen = /* @__PURE__ */ new Set();
@@ -606,7 +624,7 @@ function recomputeFrom(s, fromYm, now, reason) {
   }
   const yms = Object.keys(months).sort();
   const last = yms[yms.length - 1];
-  const horizon = last ? dateStr(last, daysIn(last)) : dateStr(fromYm, daysIn(fromYm));
+  const horizon = addDays(last ? dateStr(last, daysIn(last)) : dateStr(fromYm, daysIn(fromYm)), 7);
   const duty84 = { ...clone(s.duty84), log: recompute84(s.duty84, s.people, s.holidays, dateStr(fromYm, 1), horizon) };
   const cny = recomputeCny(s.cny, s.people, s.holidays);
   for (const ym of yms) {

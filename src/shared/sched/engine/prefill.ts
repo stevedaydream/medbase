@@ -7,7 +7,7 @@ import type {
   CellOrigin, WeekendPointers,
 } from "../types";
 import { cellKey, emptyMonth, clone, CONSTRAINT_MARKS } from "../types";
-import { daysIn, dateStr, dayOfDate, prevYm, dowOf, dayTypeOf, inCny } from "../calendar";
+import { daysIn, dateStr, dayOfDate, prevYm, nextYm, addDays, dowOf, dayTypeOf, inCny } from "../calendar";
 import {
   holidayAssigns, weekendAssigns, duty84Assigns, cnyAssigns, recompute84, recomputeCny, type Assign,
 } from "./rotation";
@@ -96,8 +96,15 @@ export function monthAssigns(
     ...duty84Assigns(m.ym, log84),
     ...holidayAssigns(m.ym, s.holidays, s.holidayDuty),
   ];
+  // 下個月的全外科預填只用來避開跨月週末（月底週六 N 連值到下月週日），不寫入本月
+  const nym = nextYm(m.ym);
+  const nextFixed: Assign[] = [
+    ...cnyAssigns(nym, cny),
+    ...duty84Assigns(nym, log84),
+    ...holidayAssigns(nym, s.holidays, s.holidayDuty),
+  ];
   const busyMap = new Map<string, Set<string>>();
-  for (const a of fixed) {
+  for (const a of [...fixed, ...nextFixed]) {
     if (!busyMap.has(a.date)) busyMap.set(a.date, new Set());
     busyMap.get(a.date)!.add(a.personId);
   }
@@ -115,8 +122,11 @@ export function monthAssigns(
   for (const sw of m.prefillSwaps ?? []) {
     const date = dateStr(m.ym, sw.day);
     const hit = raw.find(a => a.date === date && a.code === sw.code && a.personId === sw.from);
-    if (hit) hit.personId = sw.to;
-    else warnings.push(`${date} 預填換人失效：輪序已不是由該員上 ${sw.code}`);
+    if (!hit) { warnings.push(`${date} 預填換人失效：輪序已不是由該員上 ${sw.code}`); continue; }
+    // 接手的人當天已有其他預填（例如 8-4）：不換，仍由原本的人上，避免去重後留下空班
+    const clash = raw.find(a => a !== hit && a.date === date && a.personId === sw.to);
+    if (clash) { warnings.push(`${date} 預填換人失效：接手的人當天已有 ${clash.code}，${sw.code} 仍由原本的人上`); continue; }
+    hit.personId = sw.to;
   }
   const all = raw.filter(a => inRoster.has(a.personId));
   // 同一格只取第一個（優先順序如上）
@@ -208,7 +218,8 @@ export function recomputeFrom(s: SchedSnapshot, fromYm: string, now: string, rea
   }
   const yms = Object.keys(months).sort();
   const last = yms[yms.length - 1];
-  const horizon = last ? dateStr(last, daysIn(last)) : dateStr(fromYm, daysIn(fromYm));
+  // 多算下個月第一週的 8-4：最後一個月的月底週末也能避開下月週日的 8-4
+  const horizon = addDays(last ? dateStr(last, daysIn(last)) : dateStr(fromYm, daysIn(fromYm)), 7);
 
   const duty84: Duty84Doc = { ...clone(s.duty84), log: recompute84(s.duty84, s.people, s.holidays, dateStr(fromYm, 1), horizon) };
   const cny = recomputeCny(s.cny, s.people, s.holidays);

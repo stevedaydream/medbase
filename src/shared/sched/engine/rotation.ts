@@ -87,12 +87,12 @@ export function weekendAssigns(inp: WeekendInput): WeekendOutput {
 
   const nOn = new Map<string, string>(); // 日期 → 週末 N 的人（避免同日 D+N）
 
-  /** 預估週日 D 會輪到誰（週日不排 D 時為 null）；週日在下個月時看不到當天其他預填，只避開連值的 N */
+  /** 預估週日 D 會輪到誰（週日不排 D 時為 null）；週日在下個月時避開當天全外科預填與連值的 N */
   function sunDOf(sun: string, sat: string): string | null {
     if (!isWeekendDay(sun, 0) || isHoliday(h, sun) || inCny(h, sun)) return null;
     const inMonth = ymOfDate(sun) === ym;
     const n = inMonth ? nOn.get(sun) : nOn.get(sat);
-    const avoid = new Set([...(inMonth ? inp.busy(sun) : []), ...(n ? [n] : [])]);
+    const avoid = new Set([...inp.busy(sun), ...(n ? [n] : [])]);
     return nextInOrder(order, end.sunD, x => okD(x) && !avoid.has(x));
   }
   for (let d = 1; d <= nd; d++) {

@@ -103,6 +103,38 @@ describe("預填優先順序", () => {
     expect(r.assigns.filter(a => a.date === "2026-10-26").map(a => a.code)).toEqual(["8-4"]);
     expect(r.warnings.some(w => w.includes("只保留 8-4"))).toBe(true);
   });
+
+  const flags = { active: true, support: false, noD: false, noN: false, nightTransfer: false, fixedHolidayOff: false, offHolidayOnly: false };
+  const four = () => ({ ...newMonthFrom(undefined, "202610"), roster: ["a", "b", "c", "d"].map(personId => ({ personId, flags })) });
+  const snap4 = () => ({
+    people: [], shifts: DEFAULT_SHIFTS, quotaItems: DEFAULT_QUOTA_ITEMS, holidays: emptyHolidays(), holidayDuty: {},
+    duty84: { log: [], removedDates: [], addedDates: [] }, cny: { lastD: {}, log: [] }, months: {}, prebooks: {},
+  } as unknown as SchedSnapshot);
+  const e84 = (date: string, personId: string) => ({ date, personId, kind: "一般週日", manual: false, note: "" });
+
+  it("月底週六 N 輪到的人下月週日有 8-4：週六 N 改由下一位", () => {
+    const s = snap4();
+    const base = monthAssigns(s, four(), undefined, s.cny, []);
+    const who = base.assigns.find(a => a.date === "2026-10-31" && a.code === "N")!.personId;
+    const r = monthAssigns(s, four(), undefined, s.cny, [e84("2026-11-01", who)]);
+    const n = r.assigns.find(a => a.date === "2026-10-31" && a.code === "N")!.personId;
+    expect(n).not.toBe(who);
+    expect(r.end?.wkN).toBe(n);   // 下月 11/1 由同一人連值
+    expect(r.assigns.some(a => a.date.startsWith("2026-11"))).toBe(false);
+  });
+
+  it("預填換人的接手者當天已有 8-4：不換，仍由原本的人上", () => {
+    const s = snap4();
+    const log = [e84("2026-10-04", "d")];
+    const base = monthAssigns(s, four(), undefined, s.cny, log);
+    const sunD = base.assigns.find(a => a.date === "2026-10-04" && a.code === "D")!.personId;
+    const m = { ...four(), prefillSwaps: [{ id: "x", group: "g", day: 4, from: sunD, to: "d", code: "D", at: "", by: "", note: "" }] } as ReturnType<typeof four>;
+    const r = monthAssigns(s, m, undefined, s.cny, log);
+    const day4 = r.assigns.filter(a => a.date === "2026-10-04");
+    expect(day4.find(a => a.code === "D")!.personId).toBe(sunD);
+    expect(day4.find(a => a.personId === "d")!.code).toBe("8-4");
+    expect(r.warnings.some(w => w.includes("接手的人當天已有 8-4"))).toBe(true);
+  });
 });
 
 describe("週日／國定假日／春節自動補 OFF", () => {
