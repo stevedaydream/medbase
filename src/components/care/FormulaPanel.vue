@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { Formula } from "@/shared/handbook/formulas";
+import { PUMP_UNIT_LABELS, type Formula } from "@/shared/handbook/formulas";
+import type { HbDilution } from "@/shared/handbook/types";
 
 /** 公式計算（處置及臨床工具 › 計算工具） */
-const props = defineProps<{ formula: Formula }>();
+const props = defineProps<{ formula: Formula; presets?: HbDilution[] }>();
+const isPump = computed(() => props.formula.id.startsWith("pump"));
+function usePreset(d: HbDilution) {
+  inputs.value = { ...inputs.value, amt: String(d.amt), vol: String(d.vol), unit: String(d.unit) };
+}
 const inputs = ref<Record<string, string>>({});
 watch(() => props.formula.id, () => { inputs.value = {}; });
 const out = computed(() => props.formula.compute(Object.fromEntries(
@@ -15,6 +20,15 @@ const out = computed(() => props.formula.compute(Object.fromEntries(
   <div class="bg-surface rounded-xl border border-hairline p-5 space-y-4 overflow-y-auto">
     <h2 class="text-lg font-black text-fg">{{ formula.name }}</h2>
     <p class="text-xs text-muted font-mono">{{ formula.formula }}</p>
+    <div v-if="isPump" class="space-y-1">
+      <p class="text-xs font-bold text-fg-secondary">院內泡法（點選帶入）</p>
+      <div v-if="presets?.length" class="flex flex-wrap gap-2">
+        <button v-for="(d, i) in presets" :key="i" @click="usePreset(d)" class="px-3 py-1.5 rounded-lg border border-accent/30 bg-accent/5 text-accent text-xs font-bold" :title="d.note">
+          {{ d.drug }} {{ d.amt }}{{ d.unit === 3 ? " U" : " mg" }}/{{ d.vol }} mL（{{ PUMP_UNIT_LABELS[d.unit] }}）
+        </button>
+      </div>
+      <p v-else class="text-xs text-muted">尚未設定院內泡法：到「資料管理 › 工作手冊」的藥物條目填寫「院內泡法」</p>
+    </div>
     <div class="grid grid-cols-2 gap-3 max-w-xl">
       <label v-for="i in formula.inputs" :key="i.key" class="space-y-1 text-xs">
         <span class="text-fg-secondary">{{ i.label }} <span class="text-muted">{{ i.unit }}</span></span>

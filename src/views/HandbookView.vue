@@ -7,6 +7,7 @@ import { loadEmergencyCards } from "@/composables/useEmergency";
 import { onTableSynced } from "@/composables/useTableSync";
 import { SECTION_LABELS, STATUS_LABELS, searchHandbook, visibleEntries, type HbEntry, type HbSection } from "@/shared/handbook/types";
 import { DISCLAIMER } from "@/shared/emergency/types";
+import { PUMP_UNIT_LABELS } from "@/shared/handbook/formulas";
 
 /** 隨身工作手冊（ADR-018）：值班常見狀況、外科照護、常用公式、行政流程 */
 const router = useRouter();
@@ -83,6 +84,14 @@ function setTab(t: Tab) { tab.value = t; selected.value = null; }
             <h3 class="text-sm font-bold text-accent mb-1.5">{{ b.title }}</h3>
             <ul class="space-y-1">
               <li v-for="(it, i) in b.items" :key="i" class="text-sm text-fg flex gap-2"><span class="text-muted">•</span>{{ it }}</li>
+            </ul>
+          </section>
+          <section v-if="selected.spec.dilutions?.length">
+            <h3 class="text-sm font-bold text-accent mb-1.5">院內泡法</h3>
+            <ul class="space-y-1">
+              <li v-for="(d, i) in selected.spec.dilutions" :key="i" class="text-sm text-fg">
+                {{ d.drug }}：{{ d.amt }}{{ d.unit === 3 ? " U" : " mg" }} ／ {{ d.vol }} mL（{{ PUMP_UNIT_LABELS[d.unit] }}）<span v-if="d.note" class="text-muted">　{{ d.note }}</span>
+              </li>
             </ul>
           </section>
           <p v-if="selected.spec.notes" class="text-xs text-fg-secondary">📝 {{ selected.spec.notes }}</p>

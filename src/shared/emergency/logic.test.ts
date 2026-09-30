@@ -58,6 +58,25 @@ describe("合併後的數值卡：輸入數值自動判斷高、低、正常", (
     const hi = bp.tiers.find(t => t.id === "hi_b2")!;
     expect(tierRangeText(bp, hi)).toBe("收縮壓 ≥ 180 mmHg");
   });
+  it("升壓藥調整：依目前 NE 劑量建議下一步", () => {
+    const p = card("升壓藥調整");
+    expect(titles(matchTiers(p, 0, { cardiac: false, tachy: false }))).toEqual(["尚未使用：開始 norepinephrine"]);
+    expect(relevantConditions(p, 0.3)).toEqual(["vaso", "cardiac", "tachy"]);
+    expect(relevantConditions(p, 0.1)).toEqual(["cardiac", "tachy"]);
+    expect(titles(matchTiers(p, 0.3, { vaso: false, cardiac: false, tachy: false }))).toEqual(["NE ≥0.25：加上 vasopressin"]);
+    expect(titles(matchTiers(p, 0.3, { vaso: true, cardiac: true, tachy: false }))).toEqual(["NE＋vasopressin 仍不足：加上 epinephrine", "心功能不全：強心"]);
+    expect(p.tiers[0].meds[0].name).toContain("Levophed");
+  });
+  it("降壓藥選擇：點選情境後依收縮壓給目標與用藥", () => {
+    const h = card("降壓藥選擇");
+    const v = (sbp: string, scen: number) => measureValues(h, { sbp, dbp: "100", scen: String(scen) });
+    expect(titles(matchTiers(h, v("170", 1), {}))).toEqual(["主動脈剝離：第一小時收縮壓 <120"]);
+    expect(titles(matchTiers(h, v("180", 2), {}))).toEqual(["腦出血：降到 140（維持 130–150）"]);
+    expect(titles(matchTiers(h, v("190", 3), {}))).toEqual(["要做再灌流：先降到 <185/110"]);
+    expect(titles(matchTiers(h, v("200", 4), {}))).toEqual(["不做再灌流：<220"]);
+    expect(titles(matchTiers(h, v("165", 6), {}))).toEqual(["子癇前症／產後：嚴重高血壓（≥160 或舒張壓 ≥110）"]);
+    expect(measureValues(h, { sbp: "170", dbp: "100" })).toBeNull();
+  });
   it("上消化道出血：GBS 計分", () => {
     const ug = card("上消化道出血");
     const v = measureValue(ug, { bun: "30", hb: "9", sbp: "95", hr: "110", female: "0", melena: "1", syncope: "0", liver: "1", hf: "0" });
@@ -67,8 +86,8 @@ describe("合併後的數值卡：輸入數值自動判斷高、低、正常", (
 });
 
 describe("首批內容", () => {
-  it("使用中 7 張；高低分開的 10 張改為停用的草稿", () => {
-    expect(ACTIVE_SEED_CARDS.map(c => c.name).sort()).toEqual(["上消化道出血", "血壓", "血氧低", "血糖", "鈉離子", "鈣離子", "鉀離子"].sort());
+  it("使用中 9 張；高低分開的 10 張改為停用的草稿", () => {
+    expect(ACTIVE_SEED_CARDS.map(c => c.name).sort()).toEqual(["上消化道出血", "血壓", "血氧低", "血糖", "鈉離子", "鈣離子", "鉀離子", "升壓藥調整", "降壓藥選擇"].sort());
     const retired = SEED_CARDS.filter(c => c.retired);
     expect(retired.length).toBe(10);
     expect(retired.every(c => c.spec.status === "draft" && c.spec.notes.includes("已由合併版"))).toBe(true);

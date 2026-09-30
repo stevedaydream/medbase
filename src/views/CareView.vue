@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import SymptomPane from "@/components/care/SymptomPane.vue";
 import EmergencyView from "@/views/EmergencyView.vue";
@@ -8,6 +8,9 @@ import ToolsView from "@/views/ToolsView.vue";
 import FormulaPanel from "@/components/care/FormulaPanel.vue";
 import { ALL_TOOLS, toolById } from "@/shared/tools";
 import { FORMULAS } from "@/shared/handbook/formulas";
+import { loadHandbook, HB_TABLE } from "@/composables/useHandbook";
+import { onTableSynced } from "@/composables/useTableSync";
+import { allDilutions, visibleEntries, type HbDilution } from "@/shared/handbook/types";
 
 /**
  * 處置及臨床工具：依症狀、數值判讀、藥物速查、計算工具、手冊，一個入口。
@@ -27,6 +30,10 @@ const go = (query: Record<string, string>) => router.replace({ path: "/care", qu
 // 計算工具：公式與互動式工具（ABG、FiO₂…）同一份清單
 const tool = computed(() => toolById(q("t") ?? "") ?? ALL_TOOLS[0]);
 const formula = computed(() => FORMULAS.find(f => f.id === tool.value.id) ?? null);
+const dilutions = ref<HbDilution[]>([]);
+async function loadDilutions() { dilutions.value = allDilutions(visibleEntries(await loadHandbook())); }
+onMounted(loadDilutions);
+onTableSynced(HB_TABLE, loadDilutions);
 </script>
 
 <template>
@@ -49,7 +56,7 @@ const formula = computed(() => FORMULAS.find(f => f.id === tool.value.id) ?? nul
           {{ t.name }}<span class="block text-2xs text-muted truncate">{{ t.desc }}</span>
         </button>
       </div>
-      <FormulaPanel v-if="formula" :formula="formula" class="flex-1" />
+      <FormulaPanel v-if="formula" :formula="formula" :presets="dilutions" class="flex-1" />
       <ToolsView v-else :initial="tool.calcId" single class="flex-1" />
     </div>
   </div>

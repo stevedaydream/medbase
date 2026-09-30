@@ -10,6 +10,7 @@ import {
 import type { EmStatus } from "@/shared/emergency/types";
 import { clone } from "@/shared/sched/types";
 import { ALL_TOOLS } from "@/shared/tools";
+import { PUMP_UNIT_LABELS } from "@/shared/handbook/formulas";
 
 /** 隨身工作手冊編輯器（ADR-018） */
 const props = defineProps<{ search: string }>();
@@ -141,6 +142,18 @@ const STATUSES: EmStatus[] = ["draft", "literature", "published"];
           <div><b class="text-fg-secondary">相關計算工具</b>
             <div class="flex flex-wrap gap-3 mt-1"><label v-for="t in ALL_TOOLS" :key="t.id" class="flex items-center gap-1">
               <input type="checkbox" :checked="form.spec.tools.includes(t.id)" @change="toggleIn('tools', t.id)" />{{ t.name }}</label></div>
+          </div>
+        </div>
+        <div v-if="form.spec.section === 'drug'" class="p-3 rounded-xl border border-hairline space-y-2">
+          <div class="flex justify-between"><b class="text-fg-secondary">院內泡法（計算工具「泵速換算」可一鍵帶入）</b>
+            <button @click="(form.spec.dilutions ??= []).push({ drug: '', amt: 0, vol: 0, unit: 0, note: '' })" class="text-accent">＋</button></div>
+          <div v-for="(d, j) in form.spec.dilutions ?? []" :key="j" class="flex gap-2 items-center">
+            <input v-model="d.drug" class="hb-in w-40" placeholder="藥名（例：Levophed）" />
+            <input v-model.number="d.amt" type="number" step="0.1" class="hb-in w-20" placeholder="總量" /><span class="text-muted">{{ d.unit === 3 ? "U" : "mg" }} ／</span>
+            <input v-model.number="d.vol" type="number" class="hb-in w-20" placeholder="體積" /><span class="text-muted">mL</span>
+            <select v-model.number="d.unit" class="hb-in"><option v-for="(u, k) in PUMP_UNIT_LABELS" :key="k" :value="k">{{ u }}</option></select>
+            <input v-model="d.note" class="hb-in flex-1" placeholder="備註（稀釋液、中心靜脈等）" />
+            <button @click="form.spec.dilutions!.splice(j, 1)" class="text-danger px-1">✕</button>
           </div>
         </div>
         <label class="block space-y-1"><span class="text-muted">備註</span><input v-model="form.spec.notes" class="hb-in w-full" /></label>

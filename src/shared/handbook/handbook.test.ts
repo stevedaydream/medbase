@@ -31,6 +31,18 @@ describe("公式", () => {
     expect(f("ca").compute({ ca: 7, alb: 3 })?.note).toContain("低血鈣");
     expect(toolById("abg")?.kind).toBe("calc");
   });
+  it("泵速換算：劑量 ↔ mL/h", () => {
+    // NE 4 mg/250 mL（16 mcg/mL），70 kg，0.1 mcg/kg/min → 0.1×70×60÷16 = 26.25 mL/h
+    expect(f("pump").compute({ unit: 0, dose: 0.1, wt: 70, amt: 4, vol: 250 })).toMatchObject({ value: 26.3, unit: "mL/h" });
+    expect(f("pump-rev").compute({ unit: 0, rate: 26.25, wt: 70, amt: 4, vol: 250 })).toMatchObject({ value: 0.1, unit: "mcg/kg/min" });
+    // Nicardipine 10 mg/100 mL（0.1 mg/mL），5 mg/h → 50 mL/h
+    expect(f("pump").compute({ unit: 2, dose: 5, amt: 10, vol: 100 })).toMatchObject({ value: 50 });
+    // Vasopressin 20 U/100 mL（0.2 U/mL），0.03 U/min → 9 mL/h
+    expect(f("pump").compute({ unit: 3, dose: 0.03, amt: 20, vol: 100 })).toMatchObject({ value: 9 });
+    // mcg/kg/min 缺體重
+    expect(f("pump").compute({ unit: 0, dose: 0.1, amt: 4, vol: 250 })).toBeNull();
+    expect(f("pump").compute({ unit: 1, dose: 10, amt: 4, vol: 250 })?.note).toContain("雙人核對");
+  });
   it("GBS", () => {
     const base = { bun: 15, hb: 14, sbp: 120, hr: 80, female: 0, melena: 0, syncope: 0, liver: 0, hf: 0 };
     expect(f("gbs").compute(base)).toMatchObject({ value: 0 });
@@ -59,7 +71,7 @@ describe("首批內容", () => {
       }
     }
     expect(HANDBOOK_SEED.filter(e => e.spec.section === "oncall").length).toBe(14);
-    expect(HANDBOOK_SEED.filter(e => e.spec.section === "drug").length).toBe(2);
+    expect(HANDBOOK_SEED.filter(e => e.spec.section === "drug").length).toBe(3);
   });
   it("連到的危急處置卡都存在", () => {
     const em = new Set(SEED_CARDS.map(c => c.uid));

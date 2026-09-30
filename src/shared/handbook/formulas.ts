@@ -14,10 +14,35 @@ export interface Formula {
   compute: (v: Record<string, number>) => { value: number; unit: string; note?: string; extra?: Record<string, number> } | null;
   normal?: string;
   ref: { title: string; url: string };
+  /** 只給數值判讀卡用，不列在計算工具 */
+  hidden?: boolean;
 }
 
 const ok = (...xs: (number | undefined)[]) => xs.every(x => x !== undefined && Number.isFinite(x));
 const round = (n: number, d = 1) => Math.round(n * 10 ** d) / 10 ** d;
+
+// ── 泵速換算 ───────────────────────────────────────────────────────
+const UNIT_LABELS = ["mcg/kg/min", "mcg/min", "mg/h", "U/min"];
+export const PUMP_UNIT_LABELS = UNIT_LABELS;
+const PUMP_UNITS = UNIT_LABELS.map((label, value) => ({ value, label }));
+const PUMP_NOTE = "請核對醫囑與院內泡法；高警訊藥物雙人核對。";
+const PUMP_REF = { title: "藥師+：IV pump 泡法（常見泡法整理，非院內標準）", url: "https://pharmacistplus.com/to/850430" };
+/** 1 劑量單位對應幾 mL/h；缺值或不合理回 null */
+function pumpFactor(v: Record<string, number>): number | null {
+  if (!ok(v.unit, v.amt, v.vol) || v.amt <= 0 || v.vol <= 0) return null;
+  const perMl = v.amt / v.vol; // mg/mL 或 U/mL
+  switch (v.unit) {
+    case 0: return ok(v.wt) && v.wt > 0 ? (v.wt * 60) / (perMl * 1000) : null; // mcg/kg/min
+    case 1: return 60 / (perMl * 1000);                                        // mcg/min
+    case 2: return 1 / perMl;                                                  // mg/h
+    case 3: return 60 / perMl;                                                 // U/min
+    default: return null;
+  }
+}
+function concText(v: Record<string, number>): string {
+  const perMl = v.amt / v.vol;
+  return v.unit === 3 ? `濃度 ${round(perMl, 3)} U/mL` : `濃度 ${round(perMl * 1000, 1)} mcg/mL`;
+}
 
 export const FORMULAS: Formula[] = [
   {
@@ -124,6 +149,50 @@ export const FORMULAS: Formula[] = [
       return { value: s, unit: "分", note: s <= 1 ? "0–1 分為極低風險（指引：急診可考慮門診追蹤）" : "≥2 分需住院評估與處置" };
     },
     ref: { title: "MDCalc: Glasgow-Blatchford Bleeding Score (GBS)", url: "https://www.mdcalc.com/calc/518/glasgow-blatchford-bleeding-score-gbs" },
+  },
+  {
+    id: "pump", name: "泵速換算：劑量 → mL/h",
+    inputs: [
+      { key: "unit", label: "劑量單位", unit: "", options: PUMP_UNITS },
+      { key: "dose", label: "醫囑劑量", unit: "" }, { key: "wt", label: "體重（mcg/kg/min 才需要）", unit: "kg" },
+      { key: "amt", label: "藥物總量", unit: "mg（vasopressin 用 U）" }, { key: "vol", label: "總體積", unit: "mL" },
+    ],
+    formula: "泵速 = 劑量 ÷ 濃度（濃度＝藥物總量 ÷ 總體積，依劑量單位換算）",
+    compute: v => {
+      const k = pumpFactor(v);
+      return k && ok(v.dose) ? { value: round(v.dose * k, 1), unit: "mL/h", note: PUMP_NOTE + concText(v) } : null;
+    },
+    ref: PUMP_REF,
+  },
+  {
+    id: "pump-rev", name: "泵速換算：mL/h → 劑量",
+    inputs: [
+      { key: "unit", label: "劑量單位", unit: "", options: PUMP_UNITS },
+      { key: "rate", label: "目前泵速", unit: "mL/h" }, { key: "wt", label: "體重（mcg/kg/min 才需要）", unit: "kg" },
+      { key: "amt", label: "藥物總量", unit: "mg（vasopressin 用 U）" }, { key: "vol", label: "總體積", unit: "mL" },
+    ],
+    formula: "劑量 = 泵速 × 濃度（依劑量單位換算）",
+    compute: v => {
+      const k = pumpFactor(v);
+      if (!k || !ok(v.rate)) return null;
+      const d = v.rate / k;
+      return { value: round(d, v.unit === 0 ? 3 : 2), unit: UNIT_LABELS[v.unit], note: PUMP_NOTE + concText(v) };
+    },
+    ref: PUMP_REF,
+  },
+  {
+    id: "bp-scen", name: "血壓＋情境（降壓藥選擇用）", hidden: true,
+    inputs: [
+      { key: "sbp", label: "收縮壓", unit: "mmHg" }, { key: "dbp", label: "舒張壓", unit: "mmHg" },
+      { key: "scen", label: "情境", unit: "", options: [
+        { value: 0, label: "其他器官損傷" }, { value: 1, label: "主動脈剝離" }, { value: 2, label: "腦出血" },
+        { value: 3, label: "缺血性中風（要做再灌流）" }, { value: 4, label: "缺血性中風（不做再灌流）" },
+        { value: 5, label: "急性冠心症／肺水腫" }, { value: 6, label: "子癇前症／產後" },
+      ] },
+    ],
+    formula: "依情境比對收縮壓",
+    compute: v => ok(v.sbp, v.dbp, v.scen) ? { value: v.sbp, unit: "mmHg", extra: { dbp: v.dbp, scen: v.scen } } : null,
+    ref: { title: "2017 ACC/AHA High Blood Pressure Guideline", url: "https://www.ahajournals.org/doi/10.1161/HYP.0000000000000065" },
   },
   {
     id: "bmi", name: "BMI／理想體重",

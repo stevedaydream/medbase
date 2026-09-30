@@ -564,6 +564,137 @@ const SEED_V4: Seed[] = [
 // 血糖 54–69（Level 1）不論能否口服都先標示
 SEED_V4[0].spec.tiers.unshift({ ...T("lo_l1", 54, 69, {}, "Level 1 低血糖（54–69）", ["依下方「能否口服」處置", "查原因（胰島素、降血糖藥、進食減少）"]), level: "watch", refs: [0] });
 
+// ── 第 5 批：升壓藥調整、降壓藥選擇 ────────────────────────────────
+const SSC26 = { title: "Surviving Sepsis Campaign Guidelines 2026", url: "https://www.sccm.org/clinical-resources/guidelines/guidelines/surviving-sepsis-campaign-international-guidelines-for-management-of-sepsis-and-septic-shock-2026" };
+const WIKEM = { title: "WikEM: Vasopressors", url: "https://wikem.org/wiki/Vasopressors" };
+const HTN17 = { title: "2017 ACC/AHA High Blood Pressure Guideline（Table 19–20）", url: "https://www.ahajournals.org/doi/10.1161/HYP.0000000000000065" };
+const ICH22 = { title: "2022 AHA/ASA Guideline for Spontaneous Intracerebral Hemorrhage", url: "https://www.ahajournals.org/doi/10.1161/STR.0000000000000407" };
+const AIS19 = { title: "2019 AHA/ASA Guidelines for the Early Management of Acute Ischemic Stroke", url: "https://www.ahajournals.org/doi/10.1161/STR.0000000000000211" };
+const ACOG = { title: "ACOG Committee Opinion No. 767: Emergent Therapy for Acute-Onset, Severe Hypertension During Pregnancy and the Postpartum Period", url: "https://pubmed.ncbi.nlm.nih.gov/30681541/" };
+const ACOG_ALG = { title: "ACOG District II: Severe Hypertension（Labetalol／Hydralazine／Nifedipine algorithms）", url: "https://www.acog.org/community/districts-and-sections/district-ii/programs-and-resources/safe-motherhood-initiative/severe-hypertension" };
+
+const NE: EmMed = { name: "Norepinephrine（Levophed®）", dose: "0.05–0.4 mcg/kg/min（起始約 5–15 mcg/min），每 5–15 分鐘依 MAP 調整", alert: true };
+const NICAR: EmMed = { name: "Nicardipine（Perdipine®）", dose: "起始 5 mg/h，每 5–15 分鐘加 2.5 mg/h，最高 15 mg/h", alert: true };
+const LABET: EmMed = { name: "Labetalol（Trandate®）", dose: "0.3–1 mg/kg（最多 20 mg）緩慢 IV，每 10 分鐘可重複；或 0.4–1 mg/kg/h 持續輸注（累積最多 300 mg）", alert: true };
+const ESMOL: EmMed = { name: "Esmolol", dose: "負荷 0.5–1 mg/kg（1 分鐘），接著 50 mcg/kg/min，最高 200 mcg/kg/min", alert: true };
+const NTG: EmMed = { name: "Nitroglycerin（Millisrol®）", dose: "起始 5 mcg/min，每 3–5 分鐘增加 5 mcg/min", alert: true };
+const SC = (scen: number) => [{ on: "scen", min: scen, max: scen }];
+
+const SEED_V5: Seed[] = [
+  {
+    uid: "em-v5-pressor", name: "升壓藥調整",
+    spec: base({
+      category: "循環", keywords: ["升壓藥", "vasopressor", "norepinephrine", "Levophed", "vasopressin", "epinephrine", "Bosmin", "休克", "shock"],
+      measure: { label: "目前 norepinephrine 劑量", unit: "mcg/kg/min", step: 0.01 },
+      conditions: [
+        { id: "vaso", question: "已經加上 vasopressin？" },
+        { id: "cardiac", question: "有心功能不全、低心輸出表現？" },
+        { id: "tachy", question: "有明顯心搏過速或心律不整？" },
+      ],
+      tiers: [
+        { ...T("p0", 0, 0, {}, "尚未使用：開始 norepinephrine", [
+          "先確認已依醫囑補液（見數值判讀「血壓」）",
+          "補液後 MAP 仍 <65：開始 norepinephrine（首選）",
+          "為了不延誤，可先經周邊大靜脈開始，密切觀察外滲，之後改中心靜脈",
+          "目標 MAP 65（≥65 歲可 60–65）；考慮動脈導管監測",
+        ], [NE], [{ label: "重測 MAP", minutes: 5 }]), level: "urgent" },
+        { ...T("p1", 0.01, 0.24, {}, "調整 norepinephrine", [
+          "依 MAP 調整劑量，目標 MAP 65",
+          "持續評估灌流：意識、尿量、末梢、lactate",
+          "找並處理休克原因",
+        ], [NE], [{ label: "重測 MAP", minutes: 15 }]), level: "watch" },
+        { ...T("p2", 0.25, null, { vaso: false }, "NE ≥0.25：加上 vasopressin", [
+          "加 vasopressin（固定劑量），而不是一直加 norepinephrine",
+          "NE ≥0.25 持續 ≥4 小時：考慮 hydrocortisone（依醫囑）",
+        ], [
+          { name: "Vasopressin", dose: "0.03 U/min 固定劑量（不調整）", alert: true },
+          { name: "Hydrocortisone", dose: "200 mg/day IV（依醫囑）" },
+        ], [{ label: "重測 MAP", minutes: 15 }]), level: "urgent" },
+        { ...T("p3", 0.25, null, { vaso: true }, "NE＋vasopressin 仍不足：加上 epinephrine", [
+          "加 epinephrine，依 MAP 調整",
+          "注意心律不整、乳酸上升、高血糖",
+          "重新評估休克原因與容量；考慮心臟超音波",
+        ], [
+          { name: "Epinephrine（Bosmin®）", dose: "0.01–0.5 mcg/kg/min，依 MAP 調整", alert: true },
+        ], [{ label: "重測 MAP", minutes: 15 }]), level: "urgent" },
+        { ...T("c1", 0, null, { cardiac: true }, "心功能不全：強心", [
+          "加 dobutamine，或改用 epinephrine",
+          "注意 dobutamine 可能降低血壓、造成心搏過速",
+        ], [
+          { name: "Dobutamine", dose: "2.5–20 mcg/kg/min", alert: true },
+        ]), level: "watch" },
+        { ...T("t1", 0, null, { tachy: true }, "心搏過速或心律不整", [
+          "避免 dopamine；考慮加 vasopressin 減少兒茶酚胺用量",
+          "心搏過速明顯時可考慮 phenylephrine（依醫囑）",
+        ], [
+          { name: "Phenylephrine", dose: "起始 100–180 mcg/min，穩定後調低（約 0.4–9 mcg/kg/min）", alert: true },
+        ]), level: "watch" },
+      ],
+      notes: "劑量為文獻常用範圍，實際依醫囑；泵速換算見計算工具「泵速換算」",
+      refs: [SSC26, WIKEM],
+    }),
+  },
+  {
+    uid: "em-v5-antihtn", name: "降壓藥選擇",
+    spec: base({
+      category: "循環", keywords: ["降壓藥", "高血壓急症", "hypertensive emergency", "nicardipine", "Perdipine", "labetalol", "Trandate", "NTG", "主動脈剝離", "腦出血", "中風", "子癇前症"],
+      measure: { label: "收縮壓", unit: "mmHg", step: 1, formula: "bp-scen" },
+      conditions: [],
+      tiers: [
+        { ...T("g1", 180, null, {}, "高血壓急症（其他器官損傷）", [
+          "第一小時降低 ≤25%，之後 2–6 小時到 160/100–110，24–48 小時內逐步到正常",
+          "依受損器官選藥；心電監測",
+        ], [NICAR, LABET], [{ label: "重測血壓", minutes: 15 }], "", [0]), and: SC(0), level: "urgent" },
+        { ...T("g0", null, 179, {}, "未達高血壓急症門檻", [
+          "舒張壓 ≥120 也屬急症範圍，依醫囑處理",
+          "無器官損傷：見數值判讀「血壓」（不急降）",
+        ], [], [], "", [0]), and: SC(0), level: "watch" },
+        { ...T("d1", 120, null, {}, "主動脈剝離：第一小時收縮壓 <120", [
+          "先用 β 阻斷劑控制心跳（目標約 60），再加血管擴張劑",
+          "止痛；立即會診心臟血管外科",
+        ], [ESMOL, LABET, NICAR], [{ label: "重測血壓與心跳", minutes: 5 }], "", [0]), and: SC(1), level: "urgent" },
+        { ...T("d0", null, 119, {}, "主動脈剝離：已達目標", ["維持收縮壓 <120、心跳約 60", "持續監測器官灌流"], [], [], "", [0]), and: SC(1), level: "normal" },
+        { ...T("h1", 150, null, {}, "腦出血：降到 140（維持 130–150）", [
+          "收縮壓 150–220：儘快降到 140，平穩維持 130–150",
+          "避免降到 <130（可能有害）；避免血壓劇烈波動",
+          "收縮壓 >220：依醫囑積極降壓並密切監測",
+        ], [NICAR, LABET], [{ label: "重測血壓", minutes: 15 }], "", [1]), and: SC(2), level: "urgent" },
+        { ...T("h0", null, 149, {}, "腦出血：<150", ["目標範圍 130–150；<130 可能有害，勿再降"], [], [], "", [1]), and: SC(2), level: "watch" },
+        { ...T("a1", 185, null, {}, "要做再灌流：先降到 <185/110", [
+          "血栓溶解或取栓前需 <185/110（舒張壓也要 ≤110）",
+          "治療後 24 小時維持 <180/105",
+        ], [
+          { name: "Labetalol（Trandate®）", dose: "10–20 mg IV（1–2 分鐘），可再重複 1 次", alert: true },
+          NICAR,
+        ], [{ label: "重測血壓", minutes: 15 }], "", [2]), and: SC(3), level: "urgent" },
+        { ...T("a0", null, 184, {}, "要做再灌流：收縮壓已 <185", ["確認舒張壓 ≤110 才可進行", "治療後 24 小時維持 <180/105"], [], [], "", [2]), and: SC(3), level: "watch" },
+        { ...T("n1", 220, null, {}, "不做再灌流：≥220／120 才降", ["第一個 24 小時降低約 15%", "避免快速降壓"], [LABET, NICAR], [{ label: "重測血壓", minutes: 60 }], "", [2]), and: SC(4), level: "watch" },
+        { ...T("n0", null, 219, {}, "不做再灌流：<220", ["一般不需急性降壓（除非有其他適應症）"], [], [], "", [2]), and: SC(4), level: "normal" },
+        { ...T("c1", 100, null, {}, "急性冠心症／肺水腫", [
+          "Nitroglycerin 為常用；急性冠心症無心衰竭或休克時可加 β 阻斷劑",
+          "肺水腫：依醫囑合併利尿劑、坐起、給氧",
+          "避免 PDE5 抑制劑使用後 24–48 小時內給硝酸鹽",
+        ], [NTG, ESMOL], [{ label: "重測血壓", minutes: 5 }], "", [0]), and: SC(5), level: "urgent" },
+        { ...T("c0", null, 99, {}, "急性冠心症／肺水腫：血壓偏低", ["避免硝酸鹽（收縮壓 <90–100）", "評估心因性休克"], [], [], "", [0]), and: SC(5), level: "urgent" },
+        { ...T("o1", 160, null, {}, "子癇前症／產後：嚴重高血壓（≥160 或舒張壓 ≥110）", [
+          "確認後 30–60 分鐘內給第一線藥物",
+          "Labetalol：20 mg IV（2 分鐘）→ 仍高給 40 mg → 再給 80 mg，依流程間隔重測",
+          "Hydralazine：5–10 mg IV（2 分鐘），20 分鐘後仍高給 10 mg",
+          "沒有 IV：nifedipine 速效口服 10 mg，依流程重複",
+          "依醫囑給 magnesium sulfate 預防抽搐；通知產科與麻醉科",
+        ], [
+          { name: "Labetalol（Trandate®）", dose: "20 mg → 40 mg → 80 mg IV（依 ACOG 流程）", alert: true },
+          { name: "Hydralazine", dose: "5–10 mg IV（2 分鐘），20 分鐘後可再給 10 mg", alert: true },
+          { name: "Nifedipine（速效口服）", dose: "10 mg PO（無 IV 時；依 ACOG 流程重複）" },
+        ], [{ label: "重測血壓", minutes: 10 }], "", [3, 4]), and: SC(6), level: "urgent" },
+        { ...T("o0", null, 159, {}, "子癇前症／產後：<160", ["舒張壓 ≥110 也要治療", "持續監測血壓與症狀"], [], [], "", [3, 4]), and: SC(6), level: "watch" },
+      ],
+      notes: "先在上方點選情境；只有數字高、沒有器官損傷者見「血壓」卡。劑量為指引常用範圍，實際依醫囑",
+      refs: [HTN17, ICH22, AIS19, ACOG, ACOG_ALG],
+    }),
+  },
+];
+
 /** 合併後停用的舊卡：沒改過的改成草稿（不顯示）；使用者改過的保留 */
 const RETIRED: Record<string, string> = {
   "em-seed-glucose-low": "血糖", "em-seed-glucose-high": "血糖",
@@ -579,12 +710,13 @@ export interface SeedEntry extends Seed { since: number; retired?: boolean }
  * uid 固定：多台電腦各自加入時，雲端同步以 uid 合併，不會重複；since＝第幾批加入。
  * retired：不再加入新電腦，已存在且沒改過的更新成草稿。
  */
-export const SEED_VERSION = 4;
+export const SEED_VERSION = 5;
 export const SEED_CARDS: SeedEntry[] = [
   ...Object.values(OLD).map(c => RETIRED[c.uid]
     ? { ...c, retired: true, spec: { ...c.spec, status: "draft" as const, notes: `已由合併版「${RETIRED[c.uid]}」取代，可刪除` } }
     : c),
   ...SEED_V4.map(c => ({ ...c, since: 4 })),
+  ...SEED_V5.map(c => ({ ...c, since: 5 })),
 ];
 
 /** 使用中的首批卡片（不含停用的舊卡） */

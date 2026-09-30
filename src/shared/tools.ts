@@ -22,7 +22,7 @@ export const CALC_TOOLS: ToolRef[] = [
 ];
 
 export const ALL_TOOLS: ToolRef[] = [
-  ...FORMULAS.map(f => ({ id: f.id, name: f.name, kind: "formula" as const, desc: f.formula })),
+  ...FORMULAS.filter(f => !f.hidden).map(f => ({ id: f.id, name: f.name, kind: "formula" as const, desc: f.formula })),
   ...CALC_TOOLS,
 ];
 

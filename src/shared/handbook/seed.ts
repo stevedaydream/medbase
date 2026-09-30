@@ -32,10 +32,10 @@ const LIT = "國際指引與教科書整理（見參考文獻），尚未經院�
 const oncall = (category: string, keywords: string[], b: string[][], refs: Ref[], emergency: string[] = [], notes = ""): HbSpec => ({
   section: "oncall", category, keywords,
   blocks: ["電話中先問", "到床邊看", "不能漏掉的危險原因", "初步檢查", "初步處置", "何時通知上級"].map((title, i) => ({ title, items: b[i] ?? [] })),
-  emergency, drugs: [], tools: [], refs: [R.geeky, ...refs], source: LIT, reviewer: "", effective: "", status: "literature", notes,
+  emergency, drugs: [], tools: [], dilutions: [], refs: [R.geeky, ...refs], source: LIT, reviewer: "", effective: "", status: "literature", notes,
 });
 const topic = (section: HbSpec["section"], category: string, keywords: string[], blocks: HbBlock[], refs: Ref[], status: HbSpec["status"] = "literature"): HbSpec => ({
-  section, category, keywords, blocks, emergency: [], drugs: [], tools: [], refs, source: status === "literature" ? LIT : "", reviewer: "", effective: "", status, notes: "",
+  section, category, keywords, blocks, emergency: [], drugs: [], tools: [], dilutions: [], refs, source: status === "literature" ? LIT : "", reviewer: "", effective: "", status, notes: "",
 });
 
 const ASK_VITALS = "生命徵象（BT、HR、BP、RR、SpO2）與意識，和平常比較";
@@ -257,7 +257,7 @@ const R3 = {
   baveno: { title: "Baveno VII — Renewing consensus in portal hypertension (J Hepatol 2022)", url: "https://www.journal-of-hepatology.eu/article/S0168-8278(21)02299-6/fulltext" },
 } satisfies Record<string, Ref>;
 
-const DRUG_NOTE = "劑量為文獻常用範圍，實際依醫囑；院內泡法與幫浦速率待院內填寫（可新增「院內泡法」段落）";
+const DRUG_NOTE = "劑量為文獻常用範圍，實際依醫囑；商品名與劑型為國內常見，依院內處方集；院內泡法在編輯器「院內泡法」填寫後，計算工具「泵速換算」可一鍵帶入";
 
 /** 第 3 批：升壓藥、靜脈降壓藥、消化道出血 */
 const SEED_V3: Seed[] = [
@@ -273,9 +273,9 @@ const SEED_V3: Seed[] = [
           "Dopamine 心律不整較多，只用於特定病人（例如心跳慢）",
           "中心靜脈為佳；為了不延誤，可先經周邊大靜脈短期開始，密切觀察外滲",
         ] },
-        { title: "Norepinephrine", items: ["0.05–0.4 mcg/kg/min（起始約 5–15 mcg/min），依 MAP 調整", "作用：α 為主、少量 β1"] },
+        { title: "Norepinephrine（Levophed®，4 mg/4 mL/amp）", items: ["0.05–0.4 mcg/kg/min（起始約 5–15 mcg/min），依 MAP 調整", "作用：α 為主、少量 β1"] },
         { title: "Vasopressin", items: ["0.03–0.04 U/min，固定劑量、不調整", "第二線，加在 norepinephrine 上"] },
-        { title: "Epinephrine", items: ["0.01–0.5 mcg/kg/min", "注意心律不整、乳酸上升、高血糖"] },
+        { title: "Epinephrine（Bosmin®，1 mg/mL/amp）", items: ["0.01–0.5 mcg/kg/min", "注意心律不整、乳酸上升、高血糖"] },
         { title: "Dopamine", items: ["2–20 mcg/kg/min", "心律不整風險較高"] },
         { title: "Phenylephrine", items: ["起始 100–180 mcg/min，穩定後調低（約 0.4–9 mcg/kg/min）", "純 α，可能反射性心跳變慢；適合心搏過速者"] },
         { title: "Dobutamine（強心）", items: ["2.5–20 mcg/kg/min", "用於心輸出量不足；可能降低血壓、造成心搏過速"] },
@@ -295,12 +295,12 @@ const SEED_V3: Seed[] = [
           "缺血性中風：血栓溶解前 <185/110、後 24 小時 <180/105；未接受再灌流治療者 ≥220/120 才考慮降壓",
           "只有數字高、沒有器官損傷：不用靜脈藥（見危急處置卡「血壓高」）",
         ] },
-        { title: "Nicardipine", items: ["起始 5 mg/h，每 5–15 分鐘增加 2.5 mg/h，最高 15 mg/h"] },
+        { title: "Nicardipine（Perdipine®，10 mg/10 mL/amp）", items: ["起始 5 mg/h，每 5–15 分鐘增加 2.5 mg/h，最高 15 mg/h"] },
         { title: "Clevidipine", items: ["起始 1–2 mg/h，每 2–3 分鐘加倍，最高 32 mg/h"] },
-        { title: "Labetalol", items: ["0.3–1 mg/kg（最多 20 mg）緩慢 IV，每 10 分鐘可重複；或 0.4–1 mg/kg/h 持續輸注，最高 3 mg/kg/h", "累積最多 300 mg；氣喘、心跳慢、心衰竭避免"] },
+        { title: "Labetalol（Trandate®，25 mg/5 mL/amp）", items: ["0.3–1 mg/kg（最多 20 mg）緩慢 IV，每 10 分鐘可重複；或 0.4–1 mg/kg/h 持續輸注，最高 3 mg/kg/h", "累積最多 300 mg；氣喘、心跳慢、心衰竭避免"] },
         { title: "Esmolol", items: ["負荷 0.5–1 mg/kg（1 分鐘），接著 50 mcg/kg/min", "需要時重複負荷並每次增加 50 mcg/kg/min，最高 200 mcg/kg/min"] },
         { title: "Hydralazine", items: ["10 mg 緩慢 IV（起始最多 20 mg），需要時每 4–6 小時重複", "效果較難預測"] },
-        { title: "Nitroglycerin", items: ["起始 5 mcg/min，每 3–5 分鐘增加 5 mcg/min", "適合急性冠心症、急性肺水腫"] },
+        { title: "Nitroglycerin（Millisrol®，50 mg/100 mL/vial）", items: ["起始 5 mcg/min，每 3–5 分鐘增加 5 mcg/min", "適合急性冠心症、急性肺水腫"] },
       ], [R3.htn2017, R3.ibccHtn, R3.ich2022, R3.ais2019]),
       notes: DRUG_NOTE, emergency: ["em-v4-bp"],
     },
@@ -318,25 +318,78 @@ const SEED_V3: Seed[] = [
   },
 ];
 
+const R6 = {
+  htn2017: { title: "2017 ACC/AHA High Blood Pressure Guideline（Table 18：口服降壓藥常用劑量）", url: "https://www.ahajournals.org/doi/10.1161/HYP.0000000000000065" },
+  aha2024: { title: "AHA Scientific Statement: Management of Elevated Blood Pressure in the Acute Care Setting (2024)", url: "https://www.ahajournals.org/doi/10.1161/HYP.0000000000000238" },
+} satisfies Record<string, Ref>;
+
+/** 第 6 批：口服降壓藥 */
+const SEED_V6: Seed[] = [
+  {
+    uid: "hb-seed-oral-antihypertensives", name: "口服降壓藥",
+    spec: {
+      ...topic("drug", "循環", ["口服降壓藥", "高血壓", "amlodipine", "Norvasc", "losartan", "Cozaar", "valsartan", "Diovan", "bisoprolol", "Concor", "carvedilol", "Dilatrend", "furosemide", "Lasix"], [
+        { title: "住院原則", items: [
+          "先恢復病人平常的口服降壓藥",
+          "無器官損傷的血壓高：處理疼痛、尿滯留等原因後再逐步調整，不急降",
+          "避免舌下或速效 nifedipine（孕產婦依產科流程除外）",
+          "腎功能不佳、老年人從低劑量開始",
+        ] },
+        { title: "鈣離子阻斷劑", items: [
+          "Amlodipine（Norvasc®）2.5–10 mg QD",
+          "Nifedipine 長效（Adalat OROS®）30–90 mg QD",
+        ] },
+        { title: "ARB", items: [
+          "Losartan（Cozaar®）50–100 mg/day（QD 或分 BID）",
+          "Valsartan（Diovan®）80–320 mg QD",
+        ] },
+        { title: "ACEI", items: [
+          "Lisinopril 10–40 mg QD",
+          "Captopril 12.5–150 mg/day，分 2–3 次",
+          "注意咳嗽、血管性水腫、高血鉀、腎功能",
+        ] },
+        { title: "β 阻斷劑", items: [
+          "Bisoprolol（Concor®）2.5–10 mg QD",
+          "Carvedilol（Dilatrend®）12.5–50 mg/day，分 BID",
+          "Metoprolol succinate（Betaloc ZOK®）50–200 mg QD",
+        ] },
+        { title: "利尿劑", items: [
+          "Hydrochlorothiazide 25–50 mg QD；Chlorthalidone 12.5–25 mg QD",
+          "Spironolactone（Aldactone®）25–100 mg QD（注意高血鉀）",
+          "Furosemide（Lasix®）20–80 mg/day，分 BID",
+        ] },
+        { title: "其他", items: [
+          "Hydralazine（Apresoline®）100–200 mg/day，分 2–3 次",
+          "Clonidine（Catapres®）0.1–0.8 mg/day，分 BID；不可突然停藥（反彈性高血壓）",
+        ] },
+      ], [R6.htn2017, R6.aha2024]),
+      notes: "劑量為 2017 ACC/AHA 表列常用範圍，實際依醫囑；商品名依院內處方集",
+      emergency: ["em-v4-bp"],
+    },
+  },
+];
+
 /** 依症狀頁的關聯：相關藥物與計算工具（第 5 批，更新沒改過的條目） */
-const LINKS: Record<string, { drugs?: string[]; tools?: string[] }> = {
+const LINKS: Record<string, { drugs?: string[]; tools?: string[]; emergency?: string[] }> = {
   "hb-seed-chest-pain": { tools: ["abg"] },
-  "hb-seed-hypotension": { drugs: ["hb-seed-vasopressors"], tools: ["map", "abg"] },
+  "hb-seed-hypotension": { drugs: ["hb-seed-vasopressors"], tools: ["map", "abg", "pump"], emergency: ["em-v4-bp", "em-v5-pressor"] },
   "hb-seed-dyspnea": { tools: ["abg", "fio2"] },
   "hb-seed-confusion": { tools: ["abg", "osm"] },
   "hb-seed-oliguria": { tools: ["crcl"] },
   "hb-seed-hyponatremia": { tools: ["osm", "na-glu"] },
-  "hb-seed-hypertension": { drugs: ["hb-seed-iv-antihypertensives"], tools: ["map"] },
+  "hb-seed-hypertension": { drugs: ["hb-seed-iv-antihypertensives", "hb-seed-oral-antihypertensives"], tools: ["map", "pump"], emergency: ["em-v4-bp", "em-v5-antihtn"] },
   "hb-seed-gi-bleeding": { tools: ["gbs"] },
-  "hb-seed-vasopressors": { tools: ["map"] },
+  "hb-seed-vasopressors": { tools: ["pump", "pump-rev", "map"], emergency: ["em-v5-pressor"] },
+  "hb-seed-iv-antihypertensives": { tools: ["pump", "pump-rev"], emergency: ["em-v5-antihtn"] },
 };
 const withLinks = (e: Seed): Seed => LINKS[e.uid] ? { ...e, spec: { ...e.spec, ...LINKS[e.uid] } } : e;
 
 /** uid 固定：多台電腦各自加入時以 uid 合併；since＝第幾批加入 */
 /** 第 4 批沒有新條目：更新沒改過的條目（危急處置卡合併後的連結） */
-export const HANDBOOK_SEED_VERSION = 5;
+export const HANDBOOK_SEED_VERSION = 6;
 export const HANDBOOK_SEED: (Seed & { since: number })[] = [
   ...SEED_V1.map(e => ({ ...withLinks(e), since: 1 })),
   ...SEED_V2.map(e => ({ ...withLinks(e), since: 2 })),
   ...SEED_V3.map(e => ({ ...withLinks(e), since: 3 })),
+  ...SEED_V6.map(e => ({ ...withLinks(e), since: 6 })),
 ];

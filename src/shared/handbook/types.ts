@@ -19,6 +19,9 @@ export const ONCALL_BLOCKS = ["電話中先問", "到床邊看", "不能漏掉�
 
 export interface HbBlock { title: string; items: string[] }
 
+/** 院內泡法（藥物速查條目）：泵速換算可一鍵帶入；unit 為劑量單位（0 mcg/kg/min、1 mcg/min、2 mg/h、3 U/min） */
+export interface HbDilution { drug: string; amt: number; vol: number; unit: number; note: string }
+
 export interface HbSpec {
   section: HbSection;
   category: string;
@@ -30,6 +33,8 @@ export interface HbSpec {
   drugs: string[];
   /** 相關計算工具（工具 id，見 tools.ts） */
   tools: string[];
+  /** 院內泡法（藥物速查用） */
+  dilutions: HbDilution[];
   refs: { title: string; url: string }[];
   source: string;
   reviewer: string;
@@ -44,7 +49,7 @@ export function emptyHbSpec(section: HbSection = "oncall"): HbSpec {
   return {
     section, category: "", keywords: [],
     blocks: section === "oncall" ? ONCALL_BLOCKS.map(title => ({ title, items: [] })) : [{ title: "", items: [] }],
-    emergency: [], drugs: [], tools: [], refs: [], source: "", reviewer: "", effective: "", status: "draft", notes: "",
+    emergency: [], drugs: [], tools: [], dilutions: [], refs: [], source: "", reviewer: "", effective: "", status: "draft", notes: "",
   };
 }
 
@@ -68,6 +73,10 @@ export function searchHandbook(list: HbEntry[], q: string): HbEntry[] {
 }
 
 export const visibleEntries = (list: HbEntry[]) => list.filter(e => e.spec.status !== "draft");
+
+/** 所有藥物條目的院內泡法（泵速換算的一鍵帶入） */
+export const allDilutions = (list: HbEntry[]): HbDilution[] =>
+  list.filter(e => e.spec.section === "drug").flatMap(e => e.spec.dilutions ?? []).filter(d => d.drug && d.amt > 0 && d.vol > 0);
 
 /** 編輯檢查：回傳錯誤（非草稿時不可儲存） */
 export function checkHbSpec(name: string, s: HbSpec): string[] {

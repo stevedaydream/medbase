@@ -6,6 +6,7 @@ import { data, loadCache, pullRefresh } from '../lib/data'
 import { usePullRefresh } from '../lib/pull'
 import { SECTION_LABELS, STATUS_LABELS, parseHbSpec, searchHandbook, visibleEntries, type HbEntry, type HbSection } from '@shared/handbook/types'
 import { DISCLAIMER } from '@shared/emergency/types'
+import { PUMP_UNIT_LABELS } from '@shared/handbook/formulas'
 
 /** 隨身工作手冊（ADR-018）：離線可用 */
 const route = useRoute()
@@ -58,6 +59,13 @@ usePullRefresh(() => pullRefresh(['handbook', 'emergency']))
         <ul class="space-y-1.5">
           <li v-for="(it, i) in b.items" :key="i" class="text-[15px] text-fg flex gap-2 leading-snug"><span class="text-muted">•</span>{{ it }}</li>
         </ul>
+      </section>
+      <section v-if="selected.spec.dilutions?.length" class="p-4 rounded-2xl bg-surface border border-hairline">
+        <h3 class="text-sm font-black text-accent mb-2">院內泡法</h3>
+        <ul class="space-y-1.5">
+          <li v-for="(d, i) in selected.spec.dilutions" :key="i" class="text-[15px] text-fg">{{ d.drug }}：{{ d.amt }}{{ d.unit === 3 ? ' U' : ' mg' }} ／ {{ d.vol }} mL（{{ PUMP_UNIT_LABELS[d.unit] }}）<span v-if="d.note" class="text-muted text-sm">　{{ d.note }}</span></li>
+        </ul>
+        <RouterLink to="/tool/pump" class="mt-2 inline-block text-sm font-bold text-accent">🧮 泵速換算 ›</RouterLink>
       </section>
       <p v-if="selected.spec.notes" class="text-sm text-fg-secondary">📝 {{ selected.spec.notes }}</p>
       <div class="pt-3 border-t border-hairline text-[11px] text-muted space-y-1">
