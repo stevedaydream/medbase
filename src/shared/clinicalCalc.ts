@@ -140,6 +140,54 @@ export function insulinCorrection(i: InsulinInput) {
 }
 
 // ── 每日營養需求 ─────────────────────────────────────────────────
+// ── 需要時短效 → 長效＋餐前短效（basal-bolus）─────────────────────
+// 依據：ADA 住院照護（不建議長期只用 sliding scale）；RABBIT 2 Surgery（長效、短效各半）。
+// 換算方式（依醫囑）：前 24 小時需要時劑量總和 × 安全折扣 → 新的一天總量，依比例分長效與三餐短效。
+export const BASAL_INSULINS = [
+  { id: "glargine", label: "Glargine U100（Lantus®）", freq: "SC 每天一次，固定時間" },
+  { id: "glargine300", label: "Glargine U300（Toujeo®）", freq: "SC 每天一次，固定時間；由 U100 換過來常需增加約 10–18%" },
+  { id: "detemir", label: "Detemir（Levemir®）", freq: "SC 每天一次；劑量較大時可分早晚兩次" },
+  { id: "degludec", label: "Degludec（Tresiba®）", freq: "SC 每天一次" },
+] as const;
+export const BOLUS_INSULINS = [
+  { id: "aspart", label: "Aspart（NovoRapid®）", freq: "SC 三餐飯前 0–15 分鐘" },
+  { id: "lispro", label: "Lispro（Humalog®）", freq: "SC 三餐飯前 0–15 分鐘" },
+  { id: "glulisine", label: "Glulisine（Apidra®）", freq: "SC 三餐飯前 0–15 分鐘" },
+  { id: "regular", label: "Regular（Actrapid®）", freq: "SC 三餐飯前 30 分鐘" },
+] as const;
+
+export interface BasalBolusInput {
+  doses: (number | string)[];   // 各次需要時劑量（U）
+  hours: number | string;       // 這些劑量涵蓋的時數（預設 24）
+  basalRatio: number;           // 長效比例（0.5 或 0.6）
+  factor: number;               // 安全折扣（0.8＝打 8 折）
+  weight?: number | string;     // 體重（選填，用來檢查 U/kg）
+  npo: boolean;                 // 沒進食：只給長效
+  highRisk: boolean;            // >70 歲、Cr ≥2、低血糖病史
+}
+
+export function basalBolusFromPrn(i: BasalBolusInput) {
+  const doses = i.doses.map(num).filter(d => d > 0);
+  if (!doses.length) return null;
+  const hours = num(i.hours) || 24;
+  const total = doses.reduce((a, b) => a + b, 0);
+  const per24 = hours === 24 ? total : total * 24 / hours;
+  const factor = i.highRisk ? Math.min(i.factor, 0.8) : i.factor;
+  const tdd = per24 * factor;
+  const basal = Math.round(tdd * (i.npo ? Math.min(i.basalRatio, 0.5) : i.basalRatio));
+  const bolusEach = i.npo ? 0 : Math.round(tdd * (1 - i.basalRatio) / 3);
+  const w = num(i.weight);
+  const perKg = w ? Math.round(tdd / w * 100) / 100 : null;
+  const notes: Line[] = [];
+  if (hours !== 24) notes.push({ text: `${hours} 小時共 ${total} U，換算成 24 小時約 ${Math.round(per24 * 10) / 10} U`, tone: "secondary" });
+  if (i.highRisk) notes.push({ text: "高風險（>70 歲、Cr ≥2、低血糖病史）：折扣最多 80%，可考慮更低", tone: "warning" });
+  if (i.npo) notes.push({ text: "沒進食：只給長效（不超過一天總量的 50%），餐前短效停用，保留校正劑量", tone: "warning" });
+  if (perKg !== null && perKg > 0.5) notes.push({ text: `一天總量 ${perKg} U/kg，高於常用 0.3–0.5 U/kg，請再確認`, tone: "danger" });
+  if (perKg !== null && perKg <= 0.5) notes.push({ text: `一天總量約 ${perKg} U/kg`, tone: "secondary" });
+  notes.push({ text: "依醫囑；之後每天依空腹與飯前血糖調整 10–20%，並保留校正劑量", tone: "muted" });
+  return { total, per24: Math.round(per24 * 10) / 10, tdd: Math.round(tdd * 10) / 10, basal, bolusEach, perKg, notes };
+}
+
 export const STRESS_OPTIONS = [
   { label: "正常 / 術後恢復",       value: 1.0 },
   { label: "輕度感染 / 小手術",     value: 1.2 },

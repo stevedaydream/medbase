@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import {
-  interpretAbg, estimateTdd, insulinCorrection,
+  interpretAbg, estimateTdd, insulinCorrection, basalBolusFromPrn, BASAL_INSULINS, BOLUS_INSULINS,
   nutrition, fio2Estimate, STRESS_OPTIONS, PROTEIN_OPTIONS, VENTURI_FLOW, VENTURI_OPTIONS, DEVICE_LABELS,
   type Tone, type GluBasis, type O2Device,
 } from "@/shared/clinicalCalc";
@@ -47,6 +47,23 @@ interface AbgLine { text: string; color: string }
 const abgResult = computed((): AbgLine[] | null =>
   interpretAbg({ ph: abg_ph.value, co2: abg_co2.value, hco3: abg_hco3.value, pao2: abg_pao2.value, fio2: abg_fio2.value })
     ?.map(l => ({ text: l.text, color: TONE_CLASS[l.tone] })) ?? null);
+
+// ── Tool 3b — 需要時短效 → 長效＋餐前短效 ─────────────────────────
+const bbDoses = ref<string[]>(["", "", "", ""]);
+const bbHours = ref<number | "">(24);
+const bbRatio = ref(0.5);
+const bbFactor = ref(0.8);
+const bbWeight = ref<number | "">("");
+const bbNpo = ref(false);
+const bbRisk = ref(false);
+const bbBasal = ref<string>(BASAL_INSULINS[0].id);
+const bbBolus = ref<string>(BOLUS_INSULINS[0].id);
+const bb = computed(() => basalBolusFromPrn({
+  doses: bbDoses.value, hours: bbHours.value, basalRatio: bbRatio.value, factor: bbFactor.value,
+  weight: bbWeight.value, npo: bbNpo.value, highRisk: bbRisk.value,
+}));
+const bbBasalDrug = computed(() => BASAL_INSULINS.find(x => x.id === bbBasal.value)!);
+const bbBolusDrug = computed(() => BOLUS_INSULINS.find(x => x.id === bbBolus.value)!);
 
 // ── Tool 3 — 血糖胰島素校正試算 ────────────────────────────────────
 const glu_bg     = ref<number | "">("");
@@ -432,6 +449,48 @@ const fio2Result = computed(() => fio2Estimate({
             <p>• 本試算之校正劑量已四捨五入至最接近的 0.5 單位 (Unit)，臨床醫囑開立仍需依患者個別胰島素抗性與臨床現狀進行細微調整。</p>
             <p>• 「用體重估」採 0.3–0.5 U/kg/day 的起始估算範圍：年長、消瘦、腎功能不佳取低值；肥胖、使用類固醇、感染或明顯胰島素抗性取高值。此為<span class="font-semibold">起始參考</span>，病人已有胰島素治療時請直接填實際 TDD。</p>
             <p>• 只有血糖值（一天 3–4 次）而沒有 TDD 時，數學上無法推得 ISF；請改用體重估算，或先確認病人目前的胰島素處方。</p>
+          </div>
+
+          <!-- 需要時短效 → 長效＋餐前短效 -->
+          <div class="max-w-3xl bg-surface border border-hairline rounded-xl p-5 space-y-4">
+            <div>
+              <p class="text-sm font-bold text-fg">由需要時短效劑量換算：長效＋餐前短效（basal-bolus）</p>
+              <p class="text-2xs text-muted mt-1">ADA 不建議長期只用需要時短效；填入前幾次的短效劑量（例如 8、10、4、6 U）與涵蓋時數</p>
+            </div>
+            <div class="flex flex-wrap items-end gap-2">
+              <label v-for="(_, i) in bbDoses" :key="i" class="space-y-1 text-xs"><span class="text-muted">第 {{ i + 1 }} 次（U）</span>
+                <input v-model="bbDoses[i]" inputmode="decimal" class="w-20 px-2 py-2 rounded-lg bg-sunken border border-hairline text-lg font-mono" /></label>
+              <button @click="bbDoses.push('')" class="px-3 py-2 rounded-lg border border-hairline text-xs text-accent">＋ 一次</button>
+              <label class="space-y-1 text-xs"><span class="text-muted">涵蓋時數</span>
+                <input v-model.number="bbHours" type="number" class="w-20 px-2 py-2 rounded-lg bg-sunken border border-hairline text-lg font-mono" /></label>
+              <label class="space-y-1 text-xs"><span class="text-muted">體重 kg（選填）</span>
+                <input v-model.number="bbWeight" type="number" class="w-24 px-2 py-2 rounded-lg bg-sunken border border-hairline text-lg font-mono" /></label>
+            </div>
+            <div class="flex flex-wrap gap-4 text-xs items-center">
+              <span class="text-muted">長效：短效</span>
+              <button v-for="rt in [0.5, 0.6]" :key="rt" @click="bbRatio = rt" class="px-3 py-1.5 rounded-lg border font-bold"
+                :class="bbRatio === rt ? 'bg-accent text-white border-accent' : 'border-hairline'">{{ rt * 100 }}：{{ 100 - rt * 100 }}</button>
+              <span class="text-muted ml-2">安全折扣</span>
+              <button v-for="f in [1, 0.9, 0.8, 0.7]" :key="f" @click="bbFactor = f" class="px-3 py-1.5 rounded-lg border font-bold"
+                :class="bbFactor === f ? 'bg-accent text-white border-accent' : 'border-hairline'">{{ f * 100 }}%</button>
+              <label class="flex items-center gap-1"><input v-model="bbNpo" type="checkbox" />沒進食</label>
+              <label class="flex items-center gap-1"><input v-model="bbRisk" type="checkbox" />高風險（>70 歲、Cr ≥2、低血糖史）</label>
+            </div>
+            <div class="flex flex-wrap gap-4 text-xs">
+              <label class="space-y-1"><span class="text-muted">長效藥品</span>
+                <select v-model="bbBasal" class="block px-2 py-2 rounded-lg bg-sunken border border-hairline"><option v-for="d in BASAL_INSULINS" :key="d.id" :value="d.id">{{ d.label }}</option></select></label>
+              <label class="space-y-1"><span class="text-muted">餐前短效藥品</span>
+                <select v-model="bbBolus" class="block px-2 py-2 rounded-lg bg-sunken border border-hairline"><option v-for="d in BOLUS_INSULINS" :key="d.id" :value="d.id">{{ d.label }}</option></select></label>
+            </div>
+            <div v-if="bb" class="p-4 rounded-xl bg-accent/10 border border-accent/30 space-y-2">
+              <p class="text-xs text-fg-secondary">需要時總量 {{ bb.total }} U（24 小時 {{ bb.per24 }} U）× {{ (bbRisk ? Math.min(bbFactor, 0.8) : bbFactor) * 100 }}% → 新的一天總量 <b>{{ bb.tdd }} U</b></p>
+              <p class="text-lg font-black text-accent">{{ bbBasalDrug.label }} {{ bb.basal }} U</p>
+              <p class="text-2xs text-muted">{{ bbBasalDrug.freq }}</p>
+              <p v-if="bb.bolusEach" class="text-lg font-black text-accent">{{ bbBolusDrug.label }} {{ bb.bolusEach }} U × 三餐</p>
+              <p v-if="bb.bolusEach" class="text-2xs text-muted">{{ bbBolusDrug.freq }}；沒吃就不打</p>
+              <p v-for="(n, i) in bb.notes" :key="i" class="text-xs" :class="TONE_CLASS[n.tone]">• {{ n.text }}</p>
+            </div>
+            <p v-else class="text-xs text-muted">填入需要時劑量後顯示建議</p>
           </div>
         </div>
       </template>

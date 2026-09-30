@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
 import {
-  interpretAbg, estimateTdd, insulinCorrection, nutrition, fio2Estimate,
+  interpretAbg, basalBolusFromPrn, BASAL_INSULINS, BOLUS_INSULINS, estimateTdd, insulinCorrection, nutrition, fio2Estimate,
   STRESS_OPTIONS, PROTEIN_OPTIONS, VENTURI_FLOW, VENTURI_OPTIONS, DEVICE_LABELS, type Tone, type GluBasis, type O2Device,
 } from '@shared/clinicalCalc'
 
@@ -43,6 +43,14 @@ const nut = computed(() => nutrition({ weight: nw.value, height: nh.value, age: 
 // FiO2
 const device = ref<O2Device>('nc'), flow = ref(''), venturi = ref(28), hfnc = ref('40'), o2pao2 = ref('')
 const o2 = computed(() => fio2Estimate({ device: device.value, flow: flow.value, venturi: venturi.value, hfncFio2: hfnc.value, pao2: o2pao2.value }))
+
+// 需要時短效 → 長效＋餐前短效
+const bbDoses = ref<string[]>(['', '', '', ''])
+const bbHours = ref('24'), bbWeight = ref(''), bbRatio = ref(0.5), bbFactor = ref(0.8), bbNpo = ref(false), bbRisk = ref(false)
+const bbBasal = ref<string>(BASAL_INSULINS[0].id), bbBolus = ref<string>(BOLUS_INSULINS[0].id)
+const bb = computed(() => basalBolusFromPrn({ doses: bbDoses.value, hours: bbHours.value, basalRatio: bbRatio.value, factor: bbFactor.value, weight: bbWeight.value, npo: bbNpo.value, highRisk: bbRisk.value }))
+const bbBasalDrug = computed(() => BASAL_INSULINS.find(x => x.id === bbBasal.value)!)
+const bbBolusDrug = computed(() => BOLUS_INSULINS.find(x => x.id === bbBolus.value)!)
 
 const inputCls = 'w-full h-12 px-3 rounded-xl bg-sunken border border-hairline text-lg text-fg tabular-nums outline-none focus:border-accent/60'
 </script>
@@ -102,6 +110,42 @@ const inputCls = 'w-full h-12 px-3 rounded-xl bg-sunken border border-hairline t
           <p class="font-bold" :class="ins.bg < 70 || ins.bg >= 250 ? 'text-danger' : 'text-fg-secondary'">{{ ins.status }}</p>
           <p class="mt-2 text-xs text-muted">ISF {{ ins.isf }} mg/dL/U<template v-if="ins.tddNote">（1700 ÷ TDD {{ ins.tddNote }}）</template></p>
           <p v-if="ins.estimated" class="mt-1 text-xs text-warning">以體重估算 TDD 僅供起始參考，請依實際反應調整</p>
+        </section>
+
+        <!-- 需要時短效 → 長效＋餐前短效 -->
+        <section class="p-4 rounded-2xl bg-surface border border-hairline space-y-3">
+          <p class="font-bold text-fg">由需要時短效換算：長效＋餐前短效</p>
+          <p class="text-xs text-muted">填前幾次短效劑量（U）與涵蓋時數</p>
+          <div class="grid grid-cols-4 gap-2">
+            <input v-for="(_, i) in bbDoses" :key="i" v-model="bbDoses[i]" inputmode="decimal" :placeholder="`第${i + 1}次`" :class="inputCls" />
+          </div>
+          <button @click="bbDoses.push('')" class="text-sm text-accent font-bold">＋ 一次</button>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="text-xs text-muted">涵蓋時數<input v-model="bbHours" inputmode="decimal" :class="inputCls" /></label>
+            <label class="text-xs text-muted">體重 kg（選填）<input v-model="bbWeight" inputmode="decimal" :class="inputCls" /></label>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <button v-for="rt in [0.5, 0.6]" :key="rt" @click="bbRatio = rt" class="h-10 rounded-xl border font-bold text-sm"
+              :class="bbRatio === rt ? 'bg-accent text-white border-accent' : 'border-hairline'">長效 {{ rt * 100 }}：短效 {{ 100 - rt * 100 }}</button>
+          </div>
+          <div class="grid grid-cols-4 gap-2">
+            <button v-for="f in [1, 0.9, 0.8, 0.7]" :key="f" @click="bbFactor = f" class="h-10 rounded-xl border font-bold text-sm"
+              :class="bbFactor === f ? 'bg-accent text-white border-accent' : 'border-hairline'">{{ f * 100 }}%</button>
+          </div>
+          <label class="flex items-center gap-2 text-sm"><input v-model="bbNpo" type="checkbox" />沒進食</label>
+          <label class="flex items-center gap-2 text-sm"><input v-model="bbRisk" type="checkbox" />高風險（>70 歲、Cr ≥2、低血糖史）</label>
+          <select v-model="bbBasal" :class="inputCls"><option v-for="d in BASAL_INSULINS" :key="d.id" :value="d.id">長效：{{ d.label }}</option></select>
+          <select v-model="bbBolus" :class="inputCls"><option v-for="d in BOLUS_INSULINS" :key="d.id" :value="d.id">短效：{{ d.label }}</option></select>
+          <div v-if="bb" class="p-3 rounded-xl bg-accent/10 border border-accent/30 space-y-1">
+            <p class="text-xs text-fg-secondary">總量 {{ bb.total }} U（24 小時 {{ bb.per24 }} U）→ 新的一天總量 <b>{{ bb.tdd }} U</b></p>
+            <p class="text-lg font-black text-accent">{{ bbBasalDrug.label }} {{ bb.basal }} U</p>
+            <p class="text-xs text-muted">{{ bbBasalDrug.freq }}</p>
+            <template v-if="bb.bolusEach">
+              <p class="text-lg font-black text-accent">{{ bbBolusDrug.label }} {{ bb.bolusEach }} U × 三餐</p>
+              <p class="text-xs text-muted">{{ bbBolusDrug.freq }}；沒吃就不打</p>
+            </template>
+            <p v-for="(n, i) in bb.notes" :key="i" class="text-xs" :class="TONE[n.tone]">• {{ n.text }}</p>
+          </div>
         </section>
       </template>
 
