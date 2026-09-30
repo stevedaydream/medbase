@@ -1,8 +1,11 @@
 /**
- * 危急處置卡：數值 → 級距比對與編輯檢查（ADR-017）。純函式，桌機與手機共用。
+ * 數值判讀卡：數值 → 級距比對與編輯檢查（ADR-017）。純函式，桌機與手機共用。
  */
 import type { EmSpec, EmTier, EmCard } from "./types";
 import { FORMULAS, type Formula } from "../handbook/formulas";
+
+/** 比對用的數值：main＝卡片的主要數值；公式可另外提供其他數值（例如血壓卡的 sbp） */
+export type MeasureValues = Record<string, number>;
 
 /** 由公式計算數值的卡片（例如 SBP／DBP → MAP）用的公式 */
 export function measureFormula(spec: EmSpec): Formula | null {
@@ -10,15 +13,21 @@ export function measureFormula(spec: EmSpec): Formula | null {
   return id ? FORMULAS.find(f => f.id === id) ?? null : null;
 }
 
-/** 使用者輸入 → 比對用的數值；inputs 為公式各欄位（沒有公式時用 key "value"） */
-export function measureValue(spec: EmSpec, inputs: Record<string, string>): number | null {
+/** 使用者輸入 → 比對用的數值；inputs 為公式各欄位（沒有公式時用 key "value"）；沒有主要數值時回傳 null */
+export function measureValues(spec: EmSpec, inputs: Record<string, string>): MeasureValues | null {
   const f = measureFormula(spec);
   if (!f) {
     const t = (inputs.value ?? "").trim();
-    return t === "" ? null : Number(t);
+    return t === "" || !Number.isFinite(Number(t)) ? null : { main: Number(t) };
   }
   const nums = Object.fromEntries(Object.entries(inputs).filter(([, v]) => v.trim() !== "").map(([k, v]) => [k, Number(v)]));
-  return f.compute(nums)?.value ?? null;
+  const r = f.compute(nums);
+  return r ? { ...(r.extra ?? {}), main: r.value } : null;
+}
+
+/** 只取主要數值 */
+export function measureValue(spec: EmSpec, inputs: Record<string, string>): number | null {
+  return measureValues(spec, inputs)?.main ?? null;
 }
 
 export interface MatchResult {
@@ -32,23 +41,30 @@ export interface MatchResult {
   uncovered: boolean;
 }
 
-const inRange = (t: EmTier, v: number) => (t.min === null || v >= t.min) && (t.max === null || v <= t.max);
-const sig = (t: EmTier) => JSON.stringify(Object.entries(t.when).sort(([a], [b]) => a.localeCompare(b)));
+const within = (v: number | undefined, min: number | null, max: number | null) =>
+  v !== undefined && Number.isFinite(v) && (min === null || v >= min) && (max === null || v <= max);
+/** 數值是否落在級距範圍（不看是非題） */
+const inTier = (t: EmTier, vals: MeasureValues) =>
+  within(vals[t.on ?? "main"], t.min, t.max) && (t.and ?? []).every(a => within(vals[a.on], a.min, a.max));
+/** 級距分組：同一組條件、同一個比對數值 */
+const sig = (t: EmTier) => JSON.stringify([t.on ?? "main", t.and ?? [], Object.entries(t.when).sort(([a], [b]) => a.localeCompare(b))]);
 const lo = (t: EmTier) => t.min ?? -Infinity;
+const asValues = (v: MeasureValues | number | null): MeasureValues | null =>
+  v === null ? null : typeof v === "number" ? (Number.isFinite(v) ? { main: v } : null) : v;
 
-export function matchTiers(spec: EmSpec, value: number | null, answers: Record<string, boolean | undefined>): MatchResult {
+export function matchTiers(spec: EmSpec, value: MeasureValues | number | null, answers: Record<string, boolean | undefined>): MatchResult {
   const out: MatchResult = { matched: [], needAnswers: [], neighbors: { below: null, above: null }, uncovered: false };
-  if (spec.kind !== "graded" || value === null || !Number.isFinite(value)) return out;
+  const vals = asValues(value);
+  if (spec.kind !== "graded" || !vals) return out;
   const need = new Set<string>();
   for (const t of spec.tiers) {
-    if (!inRange(t, value)) continue;
+    if (!inTier(t, vals)) continue;
     const unknown = Object.keys(t.when).filter(k => answers[k] === undefined);
     if (unknown.length) { unknown.forEach(k => need.add(k)); continue; }
     if (Object.entries(t.when).every(([k, want]) => answers[k] === want)) out.matched.push(t);
   }
   out.needAnswers = spec.conditions.map(c => c.id).filter(id => need.has(id));
   out.uncovered = !out.matched.length && !out.needAnswers.length;
-  // 參考：以第一個符合的級距所在的條件組，找相鄰級距
   const first = out.matched[0];
   if (first) {
     const same = spec.tiers.filter(t => sig(t) === sig(first)).sort((a, b) => lo(a) - lo(b));
@@ -56,6 +72,14 @@ export function matchTiers(spec: EmSpec, value: number | null, answers: Record<s
     out.neighbors = { below: same[i - 1] ?? null, above: same[i + 1] ?? null };
   }
   return out;
+}
+
+/** 目前數值下才需要回答的是非題（沒有數值時為空） */
+export function relevantConditions(spec: EmSpec, value: MeasureValues | number | null): string[] {
+  const vals = asValues(value);
+  if (!vals) return [];
+  const ids = new Set(spec.tiers.filter(t => inTier(t, vals)).flatMap(t => Object.keys(t.when)));
+  return spec.conditions.map(c => c.id).filter(id => ids.has(id));
 }
 
 /** 一張卡要顯示的文字（搜尋用） */
@@ -89,7 +113,7 @@ export function checkSpec(name: string, spec: EmSpec): CheckIssue[] {
     for (const t of spec.tiers) {
       const label = t.title || "（未命名級距）";
       if (t.min !== null && t.max !== null && t.min > t.max) err(`「${label}」下限大於上限`);
-      if (!t.actions.length && !t.meds.length) warn(`「${label}」沒有處置或藥物`);
+      if (t.level !== "normal" && !t.actions.length && !t.meds.length) warn(`「${label}」沒有處置或藥物`);
       for (const k of Object.keys(t.when)) if (!conds.has(k)) err(`「${label}」用到已刪除的是非題`);
       const g = groups.get(sig(t)) ?? [];
       g.push(t);
@@ -125,10 +149,22 @@ export function tierRefs(spec: EmSpec, t: EmTier): EmSpec["refs"] {
 }
 
 /** 級距範圍的顯示文字 */
-export function rangeText(t: EmTier, unit = ""): string {
+export function rangeText(t: { min: number | null; max: number | null }, unit = ""): string {
   const u = unit ? ` ${unit}` : "";
   if (t.min === null && t.max === null) return "不限";
   if (t.min === null) return `≤ ${fmt(t.max!)}${u}`;
   if (t.max === null) return `≥ ${fmt(t.min)}${u}`;
   return `${fmt(t.min)}–${fmt(t.max)}${u}`;
+}
+
+/** 級距範圍（比對的不是主要數值時加上名稱，例如「收縮壓 ≥ 180 mmHg」） */
+export function tierRangeText(spec: EmSpec, t: EmTier): string {
+  const f = measureFormula(spec);
+  const unit = spec.measure?.unit ?? "";
+  const named = !!t.on || !!t.and?.length;
+  const name = (key: string) => key === "main" ? spec.measure?.label ?? "" : f?.inputs.find(i => i.key === key)?.label ?? key;
+  const parts = [{ on: t.on ?? "main", min: t.min, max: t.max }, ...(t.and ?? [])]
+    .filter(p => p.min !== null || p.max !== null)
+    .map(p => `${named ? name(p.on) + " " : ""}${rangeText(p, unit)}`);
+  return parts.join("、") || "不限";
 }

@@ -55,7 +55,7 @@ const SEED_V1: Seed[] = [
       ["CBC／DC、CRP", "血液培養 ×2（抗生素前）", "依懷疑來源：尿液、痰液、傷口或引流液培養、胸部 X 光", "疑敗血症：lactate"],
       ["術後 48–72 小時內的發燒多為發炎反應，生命徵象穩定者先觀察與找來源", "72–96 小時後的發燒多為感染，需完整評估", "疑敗血症：依院內敗血症流程，儘早給抗生素與輸液", "退燒藥依醫囑，注意是否遮蔽病情"],
       ["生命徵象不穩或疑敗血症：立即", "懷疑吻合處滲漏、膿瘍需處理：立即", "其他：依院內規定回報"],
-    ], [R.postopFever, R.sepsisNice, R.ssc], ["em-seed-hypotension"],
+    ], [R.postopFever, R.sepsisNice, R.ssc], ["em-v4-bp"],
     "術後發燒常用「5W」記憶：Wind（肺）、Water（泌尿道）、Wound（傷口）、Walking（DVT）、Wonder drugs（藥物）"),
   },
   {
@@ -67,7 +67,7 @@ const SEED_V1: Seed[] = [
       ["12 導程 ECG（10 分鐘內）並與舊的比較", "Troponin（依院內流程重複追蹤）", "胸部 X 光", "依懷疑：D-dimer 或 CT"],
       ["心電監測、給氧維持目標 SpO2", "建立靜脈通路", "依 ECG 與臨床判斷啟動院內胸痛／STEMI 流程"],
       ["ECG 有 ST 上升或新變化：立即", "生命徵象不穩：立即", "懷疑主動脈剝離、肺栓塞、氣胸：立即"],
-    ], [R.chest], ["em-seed-hypoxemia", "em-seed-hypotension"]),
+    ], [R.chest], ["em-seed-hypoxemia", "em-v4-bp"]),
   },
   {
     uid: "hb-seed-hypotension", name: "低血壓",
@@ -78,7 +78,7 @@ const SEED_V1: Seed[] = [
       ["重測血壓（確認袖帶大小與位置）", "CBC、血型與交叉試驗、生化、lactate", "ECG", "依懷疑：血液培養、心臟超音波"],
       ["平躺，確認兩條可用的靜脈通路", "依醫囑輸液，邊給邊評估", "停用或暫緩降壓藥", "依原因處理：出血準備輸血、敗血症依院內流程"],
       ["MAP <65 或意識改變：立即", "懷疑出血：立即通知主刀或值班外科醫師"],
-    ], [R.ssc], ["em-seed-hypotension"]),
+    ], [R.ssc], ["em-v4-bp"]),
   },
   {
     uid: "hb-seed-dyspnea", name: "喘／血氧低",
@@ -100,7 +100,7 @@ const SEED_V1: Seed[] = [
       ["床邊血糖", "SpO2、必要時血液氣體", "CBC、電解質（Na、Ca）、腎肝功能", "依懷疑：腦部 CT、感染檢查"],
       ["先處理可逆原因：低血糖、缺氧", "檢視並減少可能造成譫妄的藥物", "非藥物照護：定向感、家屬陪伴、日夜作息、眼鏡助聽器", "避免約束，必要時依院內規範"],
       ["GCS 下降、新的局部神經學症狀：立即（啟動院內中風流程）", "低血糖處理後仍未恢復：立即"],
-    ], [R.delirium, R.deliriumSp], ["em-seed-glucose-low", "em-seed-hypoxemia"]),
+    ], [R.delirium, R.deliriumSp], ["em-v4-glucose", "em-seed-hypoxemia"]),
   },
   {
     uid: "hb-seed-agitation", name: "躁動",
@@ -144,7 +144,7 @@ const SEED_V1: Seed[] = [
       ["膀胱超音波（有尿管時先沖洗或更換）", "Creatinine、BUN、電解質（K）", "依懷疑：尿液檢查"],
       ["先排除阻塞", "評估容量後依醫囑輸液", "調整腎毒性藥物", "記錄每小時尿量"],
       ["尿量 <0.5 mL/kg/h 持續數小時、K 高、呼吸喘：立即"],
-    ], [R.oliguria, R.aki, R.retention], ["em-seed-k-high"],
+    ], [R.oliguria, R.aki, R.retention], ["em-v4-k"],
     "KDIGO：尿量 <0.5 mL/kg/h 持續 6 小時以上屬 AKI 分期標準之一"),
   },
   {
@@ -156,7 +156,7 @@ const SEED_V1: Seed[] = [
       ["CBC、凝血功能", "血型與交叉試驗", "依懷疑：傷口培養、影像"],
       ["加壓止血、抬高", "傷口裂開：以無菌濕紗覆蓋、勿塞回", "依醫囑暫停抗凝血藥"],
       ["持續出血或生命徵象改變：立即通知主刀或值班外科醫師", "傷口裂開：立即"],
-    ], [R.wound], ["em-seed-hypotension"]),
+    ], [R.wound], ["em-v4-bp"]),
   },
   {
     uid: "hb-seed-drain", name: "引流液異常",
@@ -230,7 +230,7 @@ const SEED_V2: Seed[] = [
       ["Serum osmolality、urine osmolality、urine Na", "血糖（排除高血糖造成的假性低血鈉）", "依懷疑：TSH、cortisol"],
       ["停用低張輸液與相關藥物", "有嚴重症狀：依危急處置卡給高張食鹽水", "依原因處理（容量不足補液、SIADH 限水等，依醫囑）", "矯正上限：第一個 24 小時 ≤10，之後每 24 小時 ≤8"],
       ["有中度或嚴重症狀：立即", "Na <125 或下降快速：立即"],
-    ], [R2.hypoNa], ["em-seed-na-low"]),
+    ], [R2.hypoNa], ["em-v4-na"]),
   },
   {
     uid: "hb-seed-hypertension", name: "血壓高",
@@ -241,7 +241,7 @@ const SEED_V2: Seed[] = [
       ["有器官損傷疑慮時：ECG、Troponin、腎功能、尿液、必要時影像"],
       ["無器官損傷：處理疼痛、尿滯留、焦慮等原因，恢復平常口服藥，不需緊急降壓", "避免為了數字給靜脈降壓藥或急降", "有器官損傷：依危急處置卡「血壓高」"],
       ["有器官損傷表現：立即", "持續 ≥180/110 且處理原因後未改善：通知醫師"],
-    ], [R2.bp], ["em-seed-bp-high"]),
+    ], [R2.bp], ["em-v4-bp"]),
   },
 ];
 
@@ -280,7 +280,7 @@ const SEED_V3: Seed[] = [
         { title: "Phenylephrine", items: ["起始 100–180 mcg/min，穩定後調低（約 0.4–9 mcg/kg/min）", "純 α，可能反射性心跳變慢；適合心搏過速者"] },
         { title: "Dobutamine（強心）", items: ["2.5–20 mcg/kg/min", "用於心輸出量不足；可能降低血壓、造成心搏過速"] },
       ], [R3.ssc, R3.wikemPressors, R3.openAnes]),
-      notes: DRUG_NOTE, emergency: ["em-seed-hypotension"],
+      notes: DRUG_NOTE, emergency: ["em-v4-bp"],
     },
   },
   {
@@ -302,7 +302,7 @@ const SEED_V3: Seed[] = [
         { title: "Hydralazine", items: ["10 mg 緩慢 IV（起始最多 20 mg），需要時每 4–6 小時重複", "效果較難預測"] },
         { title: "Nitroglycerin", items: ["起始 5 mcg/min，每 3–5 分鐘增加 5 mcg/min", "適合急性冠心症、急性肺水腫"] },
       ], [R3.htn2017, R3.ibccHtn, R3.ich2022, R3.ais2019]),
-      notes: DRUG_NOTE, emergency: ["em-seed-bp-high"],
+      notes: DRUG_NOTE, emergency: ["em-v4-bp"],
     },
   },
   {
@@ -314,12 +314,13 @@ const SEED_V3: Seed[] = [
       ["CBC、凝血功能、BUN／Cr、肝功能", "血型與交叉試驗", "計算 GBS（危急處置卡或公式）", "依懷疑：CT 血管攝影"],
       ["兩條大號靜脈管路，依醫囑輸液復甦", "禁食", "限制性輸血：Hb <7（心血管疾病門檻較高，依醫囑）", "依醫囑暫停抗凝血藥、給 PPI；疑靜脈瘤見危急處置卡", "通知腸胃科安排內視鏡"],
       ["生命徵象不穩、持續吐血或解血便：立即", "疑靜脈瘤出血：立即", "Hb 明顯下降：立即"],
-    ], [R3.acg, R3.baveno], ["em-seed-ugib", "em-seed-hypotension"]),
+    ], [R3.acg, R3.baveno], ["em-seed-ugib", "em-v4-bp"]),
   },
 ];
 
 /** uid 固定：多台電腦各自加入時以 uid 合併；since＝第幾批加入 */
-export const HANDBOOK_SEED_VERSION = 3;
+/** 第 4 批沒有新條目：更新沒改過的條目（危急處置卡合併後的連結） */
+export const HANDBOOK_SEED_VERSION = 4;
 export const HANDBOOK_SEED: (Seed & { since: number })[] = [
   ...SEED_V1.map(e => ({ ...e, since: 1 })),
   ...SEED_V2.map(e => ({ ...e, since: 2 })),

@@ -9,7 +9,7 @@ export interface Formula {
   inputs: FormulaInput[];
   formula: string;
   /** 缺值或不合理時回傳 null */
-  compute: (v: Record<string, number>) => { value: number; unit: string; note?: string } | null;
+  compute: (v: Record<string, number>) => { value: number; unit: string; note?: string; extra?: Record<string, number> } | null;
   normal?: string;
   ref: { title: string; url: string };
 }
@@ -22,7 +22,7 @@ export const FORMULAS: Formula[] = [
     id: "map", name: "平均動脈壓 MAP",
     inputs: [{ key: "sbp", label: "收縮壓", unit: "mmHg" }, { key: "dbp", label: "舒張壓", unit: "mmHg" }],
     formula: "(收縮壓 + 2 × 舒張壓) ÷ 3",
-    compute: v => ok(v.sbp, v.dbp) && v.sbp >= v.dbp ? { value: round((v.sbp + 2 * v.dbp) / 3, 0), unit: "mmHg" } : null,
+    compute: v => ok(v.sbp, v.dbp) && v.sbp >= v.dbp ? { value: round((v.sbp + 2 * v.dbp) / 3, 0), unit: "mmHg", extra: { sbp: v.sbp, dbp: v.dbp } } : null,
     normal: "一般目標 ≥ 65 mmHg",
     ref: { title: "MDCalc: Mean Arterial Pressure (MAP)", url: "https://www.mdcalc.com/calc/74/mean-arterial-pressure-map" },
   },

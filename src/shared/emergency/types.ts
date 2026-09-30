@@ -24,6 +24,12 @@ export interface EmTier {
   notes: string;
   /** 這個級距依據的參考文獻（spec.refs 的索引）；未設定＝整張卡的全部文獻 */
   refs?: number[];
+  /** min／max 比對的數值（公式提供的其他數值，例如 "sbp"）；未設定＝主要數值 */
+  on?: string;
+  /** 另外要同時符合的範圍（例如血壓正常：MAP ≥65 且收縮壓 ≤129） */
+  and?: { on: string; min: number | null; max: number | null }[];
+  /** 程度：normal＝在一般參考範圍、watch＝需注意、urgent＝緊急（畫面用紅色） */
+  level?: "normal" | "watch" | "urgent";
 }
 
 export interface EmCondition { id: string; question: string }

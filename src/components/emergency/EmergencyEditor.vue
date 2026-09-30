@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { loadEmergencyCards, saveEmergencyCard, deleteEmergencyCard, EM_TABLE } from "@/composables/useEmergency";
 import { onTableSynced } from "@/composables/useTableSync";
-import { checkSpec, searchCards, rangeText } from "@/shared/emergency/logic";
+import { checkSpec, searchCards, tierRangeText, measureFormula } from "@/shared/emergency/logic";
 import {
   EM_CATEGORIES, STATUS_LABELS, emptySpec, newEmId, type EmCard, type EmSpec, type EmTier, type EmStatus,
 } from "@/shared/emergency/types";
@@ -171,7 +171,14 @@ function removeRef(j: number) {
                 <input :value="t.min ?? ''" @input="t.min = num(($event.target as HTMLInputElement).value)" class="em-in w-20" placeholder="下限" />
                 <span>–</span>
                 <input :value="t.max ?? ''" @input="t.max = num(($event.target as HTMLInputElement).value)" class="em-in w-20" placeholder="上限" />
-                <span class="text-muted w-28">{{ rangeText(t, form.spec.measure.unit) }}</span>
+                <select v-if="measureFormula(form.spec)" :value="t.on ?? ''" @change="t.on = ($event.target as HTMLSelectElement).value || undefined" class="em-in" title="比對哪個數值">
+                  <option value="">{{ form.spec.measure.label || "主要數值" }}</option>
+                  <option v-for="i in measureFormula(form.spec)!.inputs.filter(x => !x.options)" :key="i.key" :value="i.key">{{ i.label }}</option>
+                </select>
+                <select :value="t.level ?? 'watch'" @change="t.level = ($event.target as HTMLSelectElement).value as EmTier['level']" class="em-in" title="程度">
+                  <option value="normal">正常</option><option value="watch">注意</option><option value="urgent">緊急</option>
+                </select>
+                <span class="text-muted w-40">{{ tierRangeText(form.spec, t) }}</span>
                 <button @click="form.spec.tiers.splice(i, 1)" class="text-danger px-2">✕</button>
               </div>
               <div v-if="form.spec.conditions.length" class="flex flex-wrap gap-3">

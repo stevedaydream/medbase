@@ -4,8 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
 import { data, loadCache, pullRefresh } from '../lib/data'
 import { usePullRefresh } from '../lib/pull'
-import { matchTiers, searchCards, visibleCards, rangeText, tierRefs, measureFormula, measureValue } from '@shared/emergency/logic'
-import { parseSpec, EM_CATEGORIES, STATUS_LABELS, DISCLAIMER, type EmCard, type EmRecheck } from '@shared/emergency/types'
+import { matchTiers, searchCards, visibleCards, tierRangeText, tierRefs, measureFormula, measureValues, relevantConditions } from '@shared/emergency/logic'
+import { parseSpec, EM_CATEGORIES, STATUS_LABELS, DISCLAIMER, type EmCard, type EmRecheck, type EmTier } from '@shared/emergency/types'
 
 /** 危急處置（ADR-017）：離線可用；選卡 → 輸入數值、回答是非題 → 顯示符合級距的處置 */
 const route = useRoute()
@@ -30,8 +30,12 @@ const checked = ref(new Set<string>())
 watch(() => route.query.c, () => { inputs.value = {}; answers.value = {}; checked.value = new Set(); timers.value = [] })
 
 const formula = computed(() => spec.value ? measureFormula(spec.value) : null)
-const value = computed(() => spec.value ? measureValue(spec.value, inputs.value) : null)
-const result = computed(() => spec.value ? matchTiers(spec.value, value.value, answers.value) : null)
+const vals = computed(() => spec.value ? measureValues(spec.value, inputs.value) : null)
+const value = computed(() => vals.value?.main ?? null)
+const result = computed(() => spec.value ? matchTiers(spec.value, vals.value, answers.value) : null)
+const conds = computed(() => spec.value ? relevantConditions(spec.value, vals.value) : [])
+const LEVEL = { urgent: ['border-danger bg-danger/5', 'text-danger'], normal: ['border-success/50', 'text-success'], watch: ['border-warning/60', 'text-warning'] } as const
+const lv = (t: EmTier) => LEVEL[t.level ?? 'watch']
 const unit = computed(() => spec.value?.measure?.unit ?? '')
 const condQ = (id: string) => spec.value?.conditions.find(c => c.id === id)?.question ?? id
 function answer(id: string, v: boolean) { answers.value = { ...answers.value, [id]: answers.value[id] === v ? undefined : v } }
@@ -107,7 +111,7 @@ usePullRefresh(() => pullRefresh(['emergency']))
           <input v-model="inputs.value" inputmode="decimal" placeholder="輸入數值"
             class="mt-1 w-full h-16 px-4 rounded-xl bg-sunken border border-hairline text-3xl font-mono font-black text-fg" />
         </label>
-        <div v-for="c in spec.conditions" :key="c.id" class="space-y-1.5">
+        <div v-for="c in spec.conditions.filter(x => conds.includes(x.id))" :key="c.id" class="space-y-1.5">
           <p class="text-sm" :class="result?.needAnswers.includes(c.id) ? 'text-warning font-bold' : 'text-fg-secondary'">{{ c.question }}</p>
           <div class="grid grid-cols-2 gap-2">
             <button v-for="v in [true, false]" :key="String(v)" @click="answer(c.id, v)"
@@ -120,15 +124,14 @@ usePullRefresh(() => pullRefresh(['emergency']))
       </div>
 
       <template v-if="spec.kind === 'graded' && result && value !== null">
-        <p v-if="!Number.isFinite(value)" class="text-sm font-bold text-danger">數值格式錯誤</p>
         <p v-if="result.needAnswers.length" class="p-3 rounded-xl bg-warning/15 text-sm font-bold text-warning">請回答：{{ result.needAnswers.map(condQ).join('；') }}</p>
         <p v-if="result.uncovered" class="p-4 rounded-xl bg-surface border border-hairline text-sm text-fg-secondary">
           {{ value }} {{ unit }} 不在這張卡的處置範圍內；有疑慮請聯絡醫師。
         </p>
       </template>
 
-      <div v-for="t in result?.matched ?? []" :key="t.id" class="p-4 rounded-2xl bg-surface border-2 border-danger/40 space-y-2">
-        <p class="text-lg font-black text-danger">{{ t.title }} <span class="text-xs font-mono text-muted">{{ rangeText(t, unit) }}</span></p>
+      <div v-for="t in result?.matched ?? []" :key="t.id" class="p-4 rounded-2xl bg-surface border-2 space-y-2" :class="lv(t)[0]">
+        <p class="text-lg font-black" :class="lv(t)[1]">{{ t.level === 'urgent' ? '🚨 ' : t.level === 'normal' ? '✓ ' : '' }}{{ t.title }} <span class="text-xs font-mono text-muted">{{ tierRangeText(spec, t) }}</span></p>
         <button v-for="(a, i) in t.actions" :key="i" @click="toggle(`${t.id}|${i}`)"
           class="w-full flex items-start gap-3 p-3 rounded-xl bg-sunken text-left" :class="checked.has(`${t.id}|${i}`) ? 'opacity-40 line-through' : ''">
           <span class="text-lg leading-none">{{ checked.has(`${t.id}|${i}`) ? '☑' : '☐' }}</span>
@@ -149,8 +152,8 @@ usePullRefresh(() => pullRefresh(['emergency']))
       </div>
 
       <div v-if="result && (result.neighbors.below || result.neighbors.above)" class="text-xs text-muted space-y-0.5">
-        <p v-if="result.neighbors.below">數值較低的一級：{{ result.neighbors.below.title }}（{{ rangeText(result.neighbors.below, unit) }}）</p>
-        <p v-if="result.neighbors.above">數值較高的一級：{{ result.neighbors.above.title }}（{{ rangeText(result.neighbors.above, unit) }}）</p>
+        <p v-if="result.neighbors.below">數值較低的一級：{{ result.neighbors.below.title }}（{{ tierRangeText(spec, result.neighbors.below) }}）</p>
+        <p v-if="result.neighbors.above">數值較高的一級：{{ result.neighbors.above.title }}（{{ tierRangeText(spec, result.neighbors.above) }}）</p>
       </div>
 
       <div v-if="spec.kind === 'general'" class="p-4 rounded-2xl bg-surface border border-hairline space-y-2">

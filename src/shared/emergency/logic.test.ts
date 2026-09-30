@@ -1,67 +1,64 @@
 import { describe, it, expect } from "vitest";
-import { matchTiers, checkSpec, searchCards, visibleCards, rangeText, tierRefs, measureValue } from "./logic";
-import { SEED_CARDS } from "./seed";
-import { emptySpec, parseSpec, type EmCard } from "./types";
+import {
+  matchTiers, checkSpec, searchCards, visibleCards, rangeText, tierRangeText, tierRefs, measureValue, measureValues, relevantConditions,
+} from "./logic";
+import { SEED_CARDS, ACTIVE_SEED_CARDS } from "./seed";
+import { emptySpec, parseSpec } from "./types";
 
-const card = (name: string) => SEED_CARDS.find(c => c.name === name)!.spec;
+const card = (name: string) => ACTIVE_SEED_CARDS.find(c => c.name === name)!.spec;
 const titles = (r: ReturnType<typeof matchTiers>) => r.matched.map(t => t.title);
 
-describe("數值 → 級距", () => {
-  it("K 6.2：中度；ECG 題未答時提示要回答", () => {
-    const r = matchTiers(card("鉀離子高"), 6.2, {});
+describe("合併後的數值卡：輸入數值自動判斷高、低、正常", () => {
+  it("鉀：6.2 中度、只問高血鉀的是非題；2.8 只問低血鉀的；4.2 正常", () => {
+    const k = card("鉀離子");
+    const r = matchTiers(k, 6.2, {});
     expect(titles(r)).toEqual(["中度（6.0–6.4）"]);
-    expect(r.needAnswers).toEqual(["ecg", "lowbg"]);
+    expect(r.needAnswers).toEqual(["hi_ecg", "hi_lowbg"]);
     expect(r.neighbors.below?.title).toBe("輕度（5.5–5.9）");
     expect(r.neighbors.above?.title).toBe("重度（≥6.5）");
+    expect(relevantConditions(k, 2.8)).toEqual(["lo_sym"]);
+    expect(relevantConditions(k, null)).toEqual([]);
+    const n = matchTiers(k, 4.2, {});
+    expect(n.matched.map(t => t.level)).toEqual(["normal"]);
+    expect(n.uncovered).toBe(false);
   });
-  it("K 6.8 有 ECG 變化、血糖偏低：重度＋鈣劑＋葡萄糖輸注", () => {
-    const r = matchTiers(card("鉀離子高"), 6.8, { ecg: true, lowbg: true });
+  it("鉀 6.8 有 ECG 變化、血糖偏低：重度＋鈣劑＋葡萄糖輸注，程度為緊急", () => {
+    const r = matchTiers(card("鉀離子"), 6.8, { hi_ecg: true, hi_lowbg: true });
     expect(titles(r)).toEqual(["重度（≥6.5）", "ECG 變化：先穩定心肌", "治療前血糖偏低：預防低血糖"]);
-    expect(r.needAnswers).toEqual([]);
+    expect(r.matched.map(t => t.level)).toEqual(["urgent", "urgent", "watch"]);
   });
-  it("血糖低依能否口服分流；<54 另加 Level 2", () => {
-    expect(titles(matchTiers(card("血糖低"), 60, { oral: true }))).toEqual(["可口服：給速效醣類"]);
-    expect(titles(matchTiers(card("血糖低"), 45, { oral: false }))).toEqual(["無法口服或意識改變", "Level 2 低血糖（<54）"]);
+  it("血糖：60 可口服、45 不能口服、650 疑 HHS 且有 DKA 表現、120 在目標範圍", () => {
+    const g = card("血糖");
+    expect(titles(matchTiers(g, 60, { lo_oral: true }))).toEqual(["Level 1 低血糖（54–69）", "可口服：給速效醣類"]);
+    expect(titles(matchTiers(g, 45, { lo_oral: false }))).toEqual(["無法口服或意識改變", "Level 2 低血糖（<54）"]);
+    expect(titles(matchTiers(g, 650, { hi_crisis: true }))).toEqual(["血糖 ≥600：疑似 HHS", "DKA／HHS 處置（2024 國際共識）"]);
+    expect(matchTiers(g, 120, {}).matched.map(t => t.level)).toEqual(["normal"]);
   });
-  it("血糖 650 且有 DKA／HHS 表現", () => {
-    expect(titles(matchTiers(card("血糖高"), 650, { crisis: true }))).toEqual(["血糖 ≥600：疑似 HHS", "DKA／HHS 處置（2024 國際共識）"]);
+  it("鈉：122 嚴重症狀給高張食鹽水；140 正常；165 重度", () => {
+    const na = card("鈉離子");
+    expect(titles(matchTiers(na, 122, { lo_severe: true, lo_moderate: false }))).toEqual(["重度（<125）", "嚴重症狀：高張食鹽水"]);
+    expect(matchTiers(na, 140, {}).matched[0].level).toBe("normal");
+    expect(titles(matchTiers(na, 165, { hi_cns: false }))).toEqual(["重度（≥160）"]);
   });
-  it("範圍外：標示未涵蓋", () => {
-    const r = matchTiers(card("鉀離子高"), 4.2, { ecg: false, lowbg: false });
-    expect(r.uncovered).toBe(true);
-    expect(matchTiers(card("鉀離子高"), null, {}).uncovered).toBe(false);
-  });
-});
-
-describe("參考文獻", () => {
-  it("每張文獻版卡片都有連結；級距可指定依據，未指定用全部", () => {
-    for (const c of SEED_CARDS) {
-      expect(c.spec.refs.length, c.name).toBeGreaterThan(0);
-      for (const r of c.spec.refs) expect(r.url, c.name).toMatch(/^https:\/\//);
-    }
-    const hi = card("血糖高");
-    const dka = hi.tiers.find(t => t.id === "c1")!;
-    expect(tierRefs(hi, dka).map(r => r.title)).toEqual([hi.refs[1].title]);
-    const k = card("鉀離子高");
-    expect(tierRefs(k, k.tiers[0]).length).toBe(k.refs.length);
-  });
-});
-
-describe("用公式計算數值", () => {
-  it("血壓低輸入 SBP／DBP 算 MAP；血鈣輸入 Ca／白蛋白算校正鈣", () => {
-    const bp = card("血壓低");
-    expect(measureValue(bp, { sbp: "80", dbp: "50" })).toBe(60);
-    expect(measureValue(bp, { sbp: "80" })).toBeNull();
-    expect(titles(matchTiers(bp, measureValue(bp, { sbp: "80", dbp: "50" }), { sepsis: false }))).toEqual(["低血壓（MAP <65）"]);
-    const ca = card("鈣離子低");
+  it("鈣：輸入 Ca＋白蛋白算校正鈣", () => {
+    const ca = card("鈣離子");
     expect(measureValue(ca, { ca: "6.8", alb: "3" })).toBe(7.6);
-    expect(titles(matchTiers(ca, 7.2, { sym: false }))).toEqual(["重度（<7.6）"]);
-    expect(measureValue(card("鈉離子低"), { value: "128" })).toBe(128);
+    expect(titles(matchTiers(ca, 7.2, { lo_sym: false }))).toEqual(["重度（<7.6）"]);
+    expect(titles(matchTiers(ca, 14.5, { hi_sym: false }))).toEqual(["重度（≥14）"]);
   });
-  it("第 2 批：低血鈉嚴重症狀給高張食鹽水；血壓高無器官損傷不急降", () => {
-    expect(titles(matchTiers(card("鈉離子低"), 122, { severe: true, moderate: false }))).toEqual(["重度（<125）", "嚴重症狀：高張食鹽水"]);
-    expect(titles(matchTiers(card("血壓高"), 190, { organ: false }))).toEqual(["明顯升高、無器官損傷（≥180/110）"]);
-    expect(SEED_CARDS.filter(c => c.since === 2).length).toBe(5);
+  it("血壓：SBP／DBP 一次輸入；低血壓看 MAP、高血壓看收縮壓、正常要兩者都符合", () => {
+    const bp = card("血壓");
+    const v = (s: string, d: string) => measureValues(bp, { sbp: s, dbp: d });
+    expect(v("80", "50")).toEqual({ main: 60, sbp: 80, dbp: 50 });
+    expect(titles(matchTiers(bp, v("80", "50"), { lo_sepsis: false }))).toEqual(["低血壓（MAP <65）"]);
+    expect(titles(matchTiers(bp, v("190", "100"), { hi_organ: false }))).toEqual(["明顯升高、無器官損傷（≥180/110）"]);
+    expect(relevantConditions(bp, v("190", "100"))).toEqual(["hi_organ"]);
+    expect(matchTiers(bp, v("120", "70"), {}).matched.map(t => t.level)).toEqual(["normal"]);
+    expect(titles(matchTiers(bp, v("150", "90"), {}))).toEqual(["血壓偏高"]);
+    const hi = bp.tiers.find(t => t.id === "hi_b2")!;
+    expect(tierRangeText(bp, hi)).toBe("收縮壓 ≥ 180 mmHg");
+  });
+  it("上消化道出血：GBS 計分", () => {
     const ug = card("上消化道出血");
     const v = measureValue(ug, { bun: "30", hb: "9", sbp: "95", hr: "110", female: "0", melena: "1", syncope: "0", liver: "1", hf: "0" });
     expect(v).toBe(4 + 6 + 2 + 1 + 1 + 2);
@@ -69,10 +66,27 @@ describe("用公式計算數值", () => {
   });
 });
 
-describe("編輯檢查", () => {
-  it("首批文獻版卡片沒有錯誤", () => {
-    for (const c of SEED_CARDS) expect(checkSpec(c.name, c.spec).filter(i => i.level === "error"), c.name).toEqual([]);
+describe("首批內容", () => {
+  it("使用中 7 張；高低分開的 10 張改為停用的草稿", () => {
+    expect(ACTIVE_SEED_CARDS.map(c => c.name).sort()).toEqual(["上消化道出血", "血壓", "血氧低", "血糖", "鈉離子", "鈣離子", "鉀離子"].sort());
+    const retired = SEED_CARDS.filter(c => c.retired);
+    expect(retired.length).toBe(10);
+    expect(retired.every(c => c.spec.status === "draft" && c.spec.notes.includes("已由合併版"))).toBe(true);
   });
+  it("沒有錯誤；每張都有文獻連結；合併後級距的文獻索引正確", () => {
+    for (const c of ACTIVE_SEED_CARDS) {
+      expect(checkSpec(c.name, c.spec).filter(i => i.level === "error"), c.name).toEqual([]);
+      expect(c.spec.refs.length, c.name).toBeGreaterThan(0);
+      for (const r of c.spec.refs) expect(r.url, c.name).toMatch(/^https:\/\//);
+      for (const t of c.spec.tiers) for (const i of t.refs ?? []) expect(c.spec.refs[i], `${c.name} ${t.id}`).toBeTruthy();
+    }
+    const g = card("血糖");
+    const dka = g.tiers.find(t => t.id === "hi_c1")!;
+    expect(tierRefs(g, dka).map(r => r.title)).toEqual([g.refs.find(r => r.title.includes("Consensus Report"))!.title]);
+  });
+});
+
+describe("編輯檢查", () => {
   it("重疊為錯誤、空隙為提醒、院內審核版要填依據", () => {
     const s = emptySpec();
     s.measure = { label: "K", unit: "mEq/L", step: 0.1 };
@@ -87,18 +101,17 @@ describe("編輯檢查", () => {
 });
 
 describe("搜尋與顯示", () => {
-  const cards: EmCard[] = SEED_CARDS;
-  it("關鍵字搜尋", () => {
-    expect(searchCards(cards, "喘").map(c => c.name)).toEqual(["血氧低"]);
-    expect(searchCards(cards, "鉀").map(c => c.name)).toEqual(["鉀離子高", "鉀離子低"]);
+  it("關鍵字搜尋（舊的高／低名稱也找得到）", () => {
+    expect(searchCards(ACTIVE_SEED_CARDS, "喘").map(c => c.name)).toEqual(["血氧低"]);
+    expect(searchCards(ACTIVE_SEED_CARDS, "高血鉀").map(c => c.name)).toEqual(["鉀離子"]);
+    expect(searchCards(ACTIVE_SEED_CARDS, "低血鈉").map(c => c.name)).toEqual(["鈉離子"]);
   });
   it("草稿不顯示", () => {
-    const d = { uid: "x", name: "草稿", spec: emptySpec() };
-    expect(visibleCards([...cards, d]).length).toBe(cards.length);
+    expect(visibleCards(SEED_CARDS).length).toBe(ACTIVE_SEED_CARDS.length);
   });
   it("範圍文字與解析", () => {
-    expect(rangeText({ min: null, max: 69 } as never, "mg/dL")).toBe("≤ 69 mg/dL");
-    expect(rangeText({ min: 6.5, max: null } as never)).toBe("≥ 6.5");
+    expect(rangeText({ min: null, max: 69 }, "mg/dL")).toBe("≤ 69 mg/dL");
+    expect(rangeText({ min: 6.5, max: null })).toBe("≥ 6.5");
     expect(parseSpec("{bad")).toBeNull();
     expect(parseSpec(JSON.stringify({ kind: "general" }))!.general.actions).toEqual([]);
   });

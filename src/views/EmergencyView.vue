@@ -4,7 +4,7 @@ import { useRoute } from "vue-router";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { loadEmergencyCards, EM_TABLE } from "@/composables/useEmergency";
 import { onTableSynced } from "@/composables/useTableSync";
-import { matchTiers, searchCards, visibleCards, rangeText, tierRefs, measureFormula, measureValue } from "@/shared/emergency/logic";
+import { matchTiers, searchCards, visibleCards, tierRangeText, tierRefs, measureFormula, measureValues, relevantConditions } from "@/shared/emergency/logic";
 import { EM_CATEGORIES, STATUS_LABELS, DISCLAIMER, type EmCard, type EmTier, type EmRecheck } from "@/shared/emergency/types";
 
 /** 危急處置（ADR-017）：選卡 → 輸入數值、回答是非題 → 顯示符合級距的處置 */
@@ -44,8 +44,14 @@ function pick(c: EmCard) {
 
 const spec = computed(() => selected.value?.spec ?? null);
 const formula = computed(() => spec.value ? measureFormula(spec.value) : null);
-const value = computed(() => spec.value ? measureValue(spec.value, inputs.value) : null);
-const result = computed(() => spec.value ? matchTiers(spec.value, value.value, answers.value) : null);
+const vals = computed(() => spec.value ? measureValues(spec.value, inputs.value) : null);
+const value = computed(() => vals.value?.main ?? null);
+const result = computed(() => spec.value ? matchTiers(spec.value, vals.value, answers.value) : null);
+/** 只問目前數值需要的是非題 */
+const conds = computed(() => spec.value ? relevantConditions(spec.value, vals.value) : []);
+/** 級距外框與標題顏色：緊急紅、正常綠、其他黃 */
+const LEVEL = { urgent: ["border-danger bg-danger/5", "text-danger"], normal: ["border-success/40", "text-success"], watch: ["border-warning/50", "text-warning"] } as const;
+const lv = (t: EmTier) => LEVEL[t.level ?? "watch"];
 const condQ = (id: string) => spec.value?.conditions.find(c => c.id === id)?.question ?? id;
 const unit = computed(() => spec.value?.measure?.unit ?? "");
 
@@ -146,7 +152,7 @@ const tiersToShow = computed<EmTier[]>(() => result.value?.matched ?? []);
               class="w-40 px-3 py-2 rounded-lg bg-sunken border border-hairline text-2xl font-mono font-bold text-fg" />
             <span class="text-sm text-muted">{{ spec.measure.unit }}</span>
           </label>
-          <div v-for="c in spec.conditions" :key="c.id" class="flex items-center gap-3 text-xs"
+          <div v-for="c in spec.conditions.filter(x => conds.includes(x.id))" :key="c.id" class="flex items-center gap-3 text-xs"
             :class="result?.needAnswers.includes(c.id) ? 'text-warning font-bold' : 'text-fg-secondary'">
             <span class="flex-1">{{ c.question }}</span>
             <button v-for="v in [true, false]" :key="String(v)" @click="answer(c.id, v)"
@@ -160,7 +166,6 @@ const tiersToShow = computed<EmTier[]>(() => result.value?.matched ?? []);
         <!-- 結果 -->
         <template v-if="spec.kind === 'graded'">
           <p v-if="value === null" class="text-sm text-muted">輸入數值後顯示對應的處置。</p>
-          <p v-else-if="!Number.isFinite(value)" class="text-sm text-danger font-bold">數值格式錯誤</p>
           <template v-else-if="result">
             <p v-if="result.needAnswers.length" class="p-3 rounded-xl bg-warning/10 border border-warning/30 text-xs text-warning font-bold">
               請回答：{{ result.needAnswers.map(condQ).join("；") }}（會影響處置）
@@ -171,10 +176,10 @@ const tiersToShow = computed<EmTier[]>(() => result.value?.matched ?? []);
           </template>
         </template>
 
-        <div v-for="t in tiersToShow" :key="t.id" class="rounded-2xl bg-surface border-2 border-danger/30 p-4 space-y-3">
+        <div v-for="t in tiersToShow" :key="t.id" class="rounded-2xl bg-surface border-2 p-4 space-y-3" :class="lv(t)[0]">
           <div class="flex items-baseline gap-2">
-            <h3 class="text-base font-black text-danger">{{ t.title }}</h3>
-            <span class="text-xs text-muted font-mono">{{ rangeText(t, unit) }}</span>
+            <h3 class="text-base font-black" :class="lv(t)[1]">{{ t.level === "urgent" ? "🚨 " : t.level === "normal" ? "✓ " : "" }}{{ t.title }}</h3>
+            <span class="text-xs text-muted font-mono">{{ tierRangeText(spec, t) }}</span>
           </div>
           <label v-for="(a, i) in t.actions" :key="i" class="flex items-start gap-3 p-2.5 rounded-lg bg-sunken cursor-pointer select-none"
             :class="checked.has(`${t.id}|${i}`) ? 'opacity-40 line-through' : ''">
@@ -202,8 +207,8 @@ const tiersToShow = computed<EmTier[]>(() => result.value?.matched ?? []);
         </div>
 
         <div v-if="result && (result.neighbors.below || result.neighbors.above)" class="text-xs text-muted space-y-1">
-          <p v-if="result.neighbors.below">數值較低的一級：{{ result.neighbors.below.title }}（{{ rangeText(result.neighbors.below, unit) }}）</p>
-          <p v-if="result.neighbors.above">數值較高的一級：{{ result.neighbors.above.title }}（{{ rangeText(result.neighbors.above, unit) }}）</p>
+          <p v-if="result.neighbors.below">數值較低的一級：{{ result.neighbors.below.title }}（{{ tierRangeText(spec, result.neighbors.below) }}）</p>
+          <p v-if="result.neighbors.above">數值較高的一級：{{ result.neighbors.above.title }}（{{ tierRangeText(spec, result.neighbors.above) }}）</p>
         </div>
 
         <!-- 一般卡 -->

@@ -491,13 +491,104 @@ const SEED_V3: Seed[] = [
   },
 ];
 
-/** uid 固定：多台電腦各自加入時，雲端同步以 uid 合併，不會重複；since＝第幾批加入 */
-export const SEED_VERSION = 3;
-export const SEED_CARDS: (Seed & { since: number })[] = [
-  ...SEED_V1.map(c => ({ ...c, since: 1 })),
-  ...SEED_V2.map(c => ({ ...c, since: 2 })),
-  ...SEED_V3.map(c => ({ ...c, since: 3 })),
+// ── 第 4 批：高／低合併成一張（輸入數值自動判斷高、低、正常）────────────
+const OLD: Record<string, Seed & { since: number }> = Object.fromEntries([
+  ...SEED_V1.map(c => ({ ...c, since: 1 })), ...SEED_V2.map(c => ({ ...c, since: 2 })), ...SEED_V3.map(c => ({ ...c, since: 3 })),
+].map(c => [c.uid, c]));
+
+type Level = "watch" | "urgent";
+interface Part { uid: string; prefix: string; on?: string; urgent: string[] }
+
+/** 把幾張舊卡的級距、是非題、文獻合併成一張，並加上正常範圍 */
+function merge(uid: string, name: string, keywords: string[], measure: EmSpec["measure"], parts: Part[], normal: EmTier, notes: string): Seed {
+  const refs: EmSpec["refs"] = [];
+  const conditions: EmSpec["conditions"] = [];
+  const tiers: EmTier[] = [];
+  const notesAll: string[] = [notes];
+  for (const p of parts) {
+    const s = OLD[p.uid].spec;
+    const refMap = s.refs.map(r => { const i = refs.findIndex(x => x.url === r.url); if (i >= 0) return i; refs.push(r); return refs.length - 1; });
+    for (const c of s.conditions) conditions.push({ id: p.prefix + c.id, question: c.question });
+    for (const t of s.tiers) {
+      const level: Level = p.urgent.includes(t.id) ? "urgent" : "watch";
+      tiers.push({
+        ...t, id: p.prefix + t.id, level,
+        when: Object.fromEntries(Object.entries(t.when).map(([k, v]) => [p.prefix + k, v])),
+        refs: (t.refs?.length ? t.refs : s.refs.map((_, i) => i)).map(i => refMap[i]),
+        ...(p.on ? { on: p.on } : {}),
+      });
+    }
+    if (s.notes) notesAll.push(s.notes);
+  }
+  tiers.push(normal);
+  const first = OLD[parts[0].uid].spec;
+  return {
+    uid, name,
+    spec: base({
+      category: first.category, measure, conditions, tiers, refs,
+      keywords: [...new Set([...keywords, ...parts.flatMap(p => OLD[p.uid].spec.keywords)])],
+      notes: notesAll.filter(Boolean).join("；"),
+    }),
+  };
+}
+
+const NORMAL = (min: number | null, max: number | null, title: string, extra: Partial<EmTier> = {}): EmTier => ({
+  id: "normal", min, max, when: {}, title, level: "normal",
+  actions: ["依院內檢驗參考值判讀；與前次比較變化趨勢"], meds: [], rechecks: [], notes: "", ...extra,
+});
+
+const SEED_V4: Seed[] = [
+  merge("em-v4-glucose", "血糖", ["血糖異常", "glucose"], { label: "血糖", unit: "mg/dL", step: 1 }, [
+    { uid: "em-seed-glucose-low", prefix: "lo_", urgent: ["o2", "l2"] },
+    { uid: "em-seed-glucose-high", prefix: "hi_", urgent: ["h3", "c1"] },
+  ], NORMAL(70, 180, "在住院目標範圍（70–180）"), "住院目標 140–180 mg/dL"),
+  merge("em-v4-k", "鉀離子", ["鉀", "K", "potassium", "電解質"], { label: "K", unit: "mEq/L", step: 0.1 }, [
+    { uid: "em-seed-k-low", prefix: "lo_", urgent: ["l3", "s1"] },
+    { uid: "em-seed-k-high", prefix: "hi_", urgent: ["k3", "e1"] },
+  ], NORMAL(3.5, 5.4, "在一般參考範圍（3.5–5.4）"), "參考範圍依院內檢驗室"),
+  merge("em-v4-na", "鈉離子", ["鈉", "Na", "sodium", "電解質"], { label: "Na", unit: "mEq/L", step: 1 }, [
+    { uid: "em-seed-na-low", prefix: "lo_", urgent: ["n3", "s1"] },
+    { uid: "em-seed-na-high", prefix: "hi_", urgent: ["h3", "c1"] },
+  ], NORMAL(135, 145, "在一般參考範圍（135–145）"), "參考範圍依院內檢驗室"),
+  merge("em-v4-ca", "鈣離子", ["鈣", "Ca", "calcium", "電解質", "校正鈣"], { label: "校正鈣", unit: "mg/dL", step: 0.1, formula: "ca" }, [
+    { uid: "em-seed-ca-low", prefix: "lo_", urgent: ["l2", "s1"] },
+    { uid: "em-seed-ca-high", prefix: "hi_", urgent: ["c3", "s1"] },
+  ], NORMAL(8.5, 10.5, "在一般參考範圍（8.5–10.5）"), "參考範圍依院內檢驗室"),
+  merge("em-v4-bp", "血壓", ["血壓異常", "BP", "MAP"], { label: "MAP", unit: "mmHg", step: 1, formula: "map" }, [
+    { uid: "em-seed-hypotension", prefix: "lo_", urgent: ["p1", "s1"] },
+    { uid: "em-seed-bp-high", prefix: "hi_", on: "sbp", urgent: ["e1"] },
+  ], NORMAL(65, null, "在一般範圍（MAP ≥65、收縮壓 <130）", { and: [{ on: "sbp", min: null, max: 129 }] }),
+  "輸入收縮壓與舒張壓：低血壓看 MAP、高血壓看收縮壓"),
 ];
+
+// 血糖 54–69（Level 1）不論能否口服都先標示
+SEED_V4[0].spec.tiers.unshift({ ...T("lo_l1", 54, 69, {}, "Level 1 低血糖（54–69）", ["依下方「能否口服」處置", "查原因（胰島素、降血糖藥、進食減少）"]), level: "watch", refs: [0] });
+
+/** 合併後停用的舊卡：沒改過的改成草稿（不顯示）；使用者改過的保留 */
+const RETIRED: Record<string, string> = {
+  "em-seed-glucose-low": "血糖", "em-seed-glucose-high": "血糖",
+  "em-seed-k-low": "鉀離子", "em-seed-k-high": "鉀離子",
+  "em-seed-na-low": "鈉離子", "em-seed-na-high": "鈉離子",
+  "em-seed-ca-low": "鈣離子", "em-seed-ca-high": "鈣離子",
+  "em-seed-hypotension": "血壓", "em-seed-bp-high": "血壓",
+};
+
+export interface SeedEntry extends Seed { since: number; retired?: boolean }
+
+/**
+ * uid 固定：多台電腦各自加入時，雲端同步以 uid 合併，不會重複；since＝第幾批加入。
+ * retired：不再加入新電腦，已存在且沒改過的更新成草稿。
+ */
+export const SEED_VERSION = 4;
+export const SEED_CARDS: SeedEntry[] = [
+  ...Object.values(OLD).map(c => RETIRED[c.uid]
+    ? { ...c, retired: true, spec: { ...c.spec, status: "draft" as const, notes: `已由合併版「${RETIRED[c.uid]}」取代，可刪除` } }
+    : c),
+  ...SEED_V4.map(c => ({ ...c, since: 4 })),
+];
+
+/** 使用中的首批卡片（不含停用的舊卡） */
+export const ACTIVE_SEED_CARDS = SEED_CARDS.filter(c => !c.retired);
 
 /** 舊版示範卡（已移除，遷移時刪除） */
 export const DEMO_NAMES = ["Anaphylaxis", "ACLS — VF / pVT"];
