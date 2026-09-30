@@ -143,12 +143,47 @@ export function insulinCorrection(i: InsulinInput) {
 // ── 需要時短效 → 長效＋餐前短效（basal-bolus）─────────────────────
 // 依據：ADA 住院照護（不建議長期只用 sliding scale）；RABBIT 2 Surgery（長效、短效各半）。
 // 換算方式（依醫囑）：前 24 小時需要時劑量總和 × 安全折扣 → 新的一天總量，依比例分長效與三餐短效。
+const INS_REF = {
+  lantus: { title: "ADA: Switching Between Insulin Products (2020)", url: "https://diabetes.org/sites/default/files/2023-10/Switching%20Between%20Insulin%20Products%20in%20Disaster%20Response%20Situations%202020%20-%20English.pdf" },
+  toujeo: { title: "Toujeo Prescribing Information (Sanofi)", url: "https://products.sanofi.us/toujeo/toujeo.pdf" },
+  levemir: { title: "Levemir Prescribing Information (FDA)", url: "https://www.accessdata.fda.gov/drugsatfda_docs/label/2019/021536s054lbl.pdf" },
+  tresiba: { title: "Tresiba Prescribing Information (FDA)", url: "https://www.accessdata.fda.gov/drugsatfda_docs/label/2022/203314s018s020lbl.pdf" },
+  ada: { title: "ADA Standards of Care 2026: Diabetes Care in the Hospital", url: "https://diabetesjournals.org/care/article/49/Supplement_1/S339/163925/16-Diabetes-Care-in-the-Hospital-Standards-of-Care" },
+};
+
+/** 長效胰島素：適合情況、注意事項、換算（依仿單） */
 export const BASAL_INSULINS = [
-  { id: "glargine", label: "Glargine U100（Lantus®）", freq: "SC 每天一次，固定時間" },
-  { id: "glargine300", label: "Glargine U300（Toujeo®）", freq: "SC 每天一次，固定時間；由 U100 換過來常需增加約 10–18%" },
-  { id: "detemir", label: "Detemir（Levemir®）", freq: "SC 每天一次；劑量較大時可分早晚兩次" },
-  { id: "degludec", label: "Degludec（Tresiba®）", freq: "SC 每天一次" },
+  { id: "glargine", label: "Glargine U100（Lantus®）", freq: "SC 每天一次，固定時間",
+    fit: "住院劑量需要每天調整時（1–2 天可達穩定）",
+    caution: "每天固定時間打",
+    convert: "由一天兩次 NPH 換過來：總量減 20%；由 Toujeo 換過來：用 Toujeo 劑量的 80%",
+    refs: [INS_REF.lantus, INS_REF.toujeo] },
+  { id: "glargine300", label: "Glargine U300（Toujeo®）", freq: "SC 每天一次，固定時間",
+    fit: "狀況穩定、準備出院、劑量大（體積較小）、夜間低血糖風險高",
+    caution: "至少 5 天才看得到完整效果，每 3–4 天才調整一次；只有筆型",
+    convert: "由 Lantus 換過來：1:1 開始，常需要多約 10–18%；換回 Lantus：用 80%",
+    refs: [INS_REF.toujeo] },
+  { id: "detemir", label: "Detemir（Levemir®）", freq: "SC 每天一次或兩次",
+    fit: "需要彈性分次給藥時",
+    caution: "作用時間隨劑量變化：0.1 U/kg 約 6 小時，≥0.8 U/kg 約 22–24 小時；一天一次撐不滿 24 小時時分早晚兩次",
+    convert: "依醫囑換算；分兩次時總量不變、平分",
+    refs: [INS_REF.levemir] },
+  { id: "degludec", label: "Degludec（Tresiba®）", freq: "SC 每天一次",
+    fit: "作息不固定、低血糖風險高、狀況穩定的病人",
+    caution: "作用 ≥42 小時，每 3–4 天才調整一次；可改變施打時間但兩次至少間隔 8 小時；低血糖或需停藥時影響持續較久",
+    convert: "依醫囑換算",
+    refs: [INS_REF.tresiba] },
 ] as const;
+
+/** 選哪一種長效的決策點 */
+export const BASAL_CHOICE_TIPS = [
+  "先沿用病人在家使用的長效，並確認院內處方集",
+  "住院期間劑量會一直變動（剛開始、感染或術後、禁食與進食反覆、類固醇劑量在變）：Lantus 或 Levemir，較快穩定、可每天調整",
+  "狀況穩定、準備出院、夜間低血糖風險高：Toujeo 或 Tresiba，曲線較平，但要數天才穩定、每 3–4 天才調整",
+  "劑量很大：Toujeo（體積小），或 Levemir 分早晚兩次",
+  "類固醇造成白天血糖高：常用早上打的 NPH（依醫囑）",
+];
+export const BASAL_CHOICE_REF = INS_REF.ada;
 export const BOLUS_INSULINS = [
   { id: "aspart", label: "Aspart（NovoRapid®）", freq: "SC 三餐飯前 0–15 分鐘" },
   { id: "lispro", label: "Lispro（Humalog®）", freq: "SC 三餐飯前 0–15 分鐘" },

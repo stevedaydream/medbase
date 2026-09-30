@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
-  interpretAbg, estimateTdd, insulinCorrection, basalBolusFromPrn, BASAL_INSULINS, BOLUS_INSULINS,
+  interpretAbg, estimateTdd, insulinCorrection, basalBolusFromPrn, BASAL_INSULINS, BOLUS_INSULINS, BASAL_CHOICE_TIPS, BASAL_CHOICE_REF,
   nutrition, fio2Estimate, STRESS_OPTIONS, PROTEIN_OPTIONS, VENTURI_FLOW, VENTURI_OPTIONS, DEVICE_LABELS,
   type Tone, type GluBasis, type O2Device,
 } from "@/shared/clinicalCalc";
@@ -482,6 +483,20 @@ const fio2Result = computed(() => fio2Estimate({
               <label class="space-y-1"><span class="text-muted">餐前短效藥品</span>
                 <select v-model="bbBolus" class="block px-2 py-2 rounded-lg bg-sunken border border-hairline"><option v-for="d in BOLUS_INSULINS" :key="d.id" :value="d.id">{{ d.label }}</option></select></label>
             </div>
+            <div class="p-3 rounded-lg bg-sunken border border-hairline text-xs space-y-1">
+              <p class="font-bold text-fg">{{ bbBasalDrug.label }}</p>
+              <p><span class="text-success font-bold">適合：</span>{{ bbBasalDrug.fit }}</p>
+              <p><span class="text-warning font-bold">注意：</span>{{ bbBasalDrug.caution }}</p>
+              <p><span class="text-accent font-bold">換算：</span>{{ bbBasalDrug.convert }}</p>
+              <p class="flex flex-wrap gap-x-3 text-muted">📚 <button v-for="rf in bbBasalDrug.refs" :key="rf.url" class="underline hover:text-accent" @click="openUrl(rf.url)">{{ rf.title }}</button></p>
+            </div>
+            <details class="text-xs">
+              <summary class="cursor-pointer font-bold text-fg-secondary">選哪一種長效？（決策點）</summary>
+              <ul class="mt-2 space-y-1 pl-2">
+                <li v-for="t in BASAL_CHOICE_TIPS" :key="t">• {{ t }}</li>
+              </ul>
+              <button class="mt-1 underline text-muted hover:text-accent" @click="openUrl(BASAL_CHOICE_REF.url)">📚 {{ BASAL_CHOICE_REF.title }}</button>
+            </details>
             <div v-if="bb" class="p-4 rounded-xl bg-accent/10 border border-accent/30 space-y-2">
               <p class="text-xs text-fg-secondary">需要時總量 {{ bb.total }} U（24 小時 {{ bb.per24 }} U）× {{ (bbRisk ? Math.min(bbFactor, 0.8) : bbFactor) * 100 }}% → 新的一天總量 <b>{{ bb.tdd }} U</b></p>
               <p class="text-lg font-black text-accent">{{ bbBasalDrug.label }} {{ bb.basal }} U</p>

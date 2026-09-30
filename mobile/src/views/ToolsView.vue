@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
 import {
-  interpretAbg, basalBolusFromPrn, BASAL_INSULINS, BOLUS_INSULINS, estimateTdd, insulinCorrection, nutrition, fio2Estimate,
+  interpretAbg, basalBolusFromPrn, BASAL_INSULINS, BOLUS_INSULINS, BASAL_CHOICE_TIPS, BASAL_CHOICE_REF, estimateTdd, insulinCorrection, nutrition, fio2Estimate,
   STRESS_OPTIONS, PROTEIN_OPTIONS, VENTURI_FLOW, VENTURI_OPTIONS, DEVICE_LABELS, type Tone, type GluBasis, type O2Device,
 } from '@shared/clinicalCalc'
 
@@ -136,6 +136,17 @@ const inputCls = 'w-full h-12 px-3 rounded-xl bg-sunken border border-hairline t
           <label class="flex items-center gap-2 text-sm"><input v-model="bbRisk" type="checkbox" />高風險（>70 歲、Cr ≥2、低血糖史）</label>
           <select v-model="bbBasal" :class="inputCls"><option v-for="d in BASAL_INSULINS" :key="d.id" :value="d.id">長效：{{ d.label }}</option></select>
           <select v-model="bbBolus" :class="inputCls"><option v-for="d in BOLUS_INSULINS" :key="d.id" :value="d.id">短效：{{ d.label }}</option></select>
+          <div class="p-3 rounded-xl bg-sunken border border-hairline text-sm space-y-1">
+            <p><b class="text-success">適合：</b>{{ bbBasalDrug.fit }}</p>
+            <p><b class="text-warning">注意：</b>{{ bbBasalDrug.caution }}</p>
+            <p><b class="text-accent">換算：</b>{{ bbBasalDrug.convert }}</p>
+            <p class="text-[11px] text-muted">📚 <a v-for="rf in bbBasalDrug.refs" :key="rf.url" :href="rf.url" target="_blank" rel="noopener" class="underline mr-2">{{ rf.title }}</a></p>
+          </div>
+          <details class="text-sm">
+            <summary class="font-bold text-fg-secondary">選哪一種長效？（決策點）</summary>
+            <ul class="mt-2 space-y-1"><li v-for="t in BASAL_CHOICE_TIPS" :key="t">• {{ t }}</li></ul>
+            <a :href="BASAL_CHOICE_REF.url" target="_blank" rel="noopener" class="text-[11px] underline text-muted">📚 {{ BASAL_CHOICE_REF.title }}</a>
+          </details>
           <div v-if="bb" class="p-3 rounded-xl bg-accent/10 border border-accent/30 space-y-1">
             <p class="text-xs text-fg-secondary">總量 {{ bb.total }} U（24 小時 {{ bb.per24 }} U）→ 新的一天總量 <b>{{ bb.tdd }} U</b></p>
             <p class="text-lg font-black text-accent">{{ bbBasalDrug.label }} {{ bb.basal }} U</p>
