@@ -40,11 +40,35 @@ describe("weekendAssigns（2026-11，1 號是週日）", () => {
   it("同日 D/N 撞人時 D 順延", () => {
     const r = weekendAssigns({
       ym: "202611", roster, holidays: emptyHolidays(), holidayDuty: {},
-      start: { wkN: "a", satD: "a", sunD: "a" }, carrySunN: null, busy: none,
+      start: { wkN: "a", satD: "a", sunD: "c" }, carrySunN: null, busy: none,
     });
     // 11/7：N=b，週六 D 本應 b → 順延為 c
     expect(fmt(r.assigns).filter(x => x.startsWith("11-07"))).toEqual(["11-07Nb", "11-07Dc"]);
     expect(r.warnings.length).toBeGreaterThan(0);
+  });
+
+  it("六日不連上 D：N 跳過不排 N 的人使週六 D 順延、撞到週日 D 時，週六再往下移一格，之後不再撞", () => {
+    const r = weekendAssigns({
+      ym: "202611", roster: ["a", "b", "c", "d", "e"].map(id => R(id, id === "c" ? { noN: true } : {})),
+      holidays: emptyHolidays(), holidayDuty: {},
+      start: { wkN: "b", satD: "c", sunD: "c" }, carrySunN: null, busy: none,
+    });
+    // 11/7：N 跳過 c 為 d；週六 D 本應 d（撞 N）→ e，但週日 D 也是 e → 週六改 a
+    expect(fmt(r.assigns).filter(x => /^11-0[78]/.test(x))).toEqual(["11-07Nd", "11-08Nd", "11-07Da", "11-08De"]);
+    expect(r.warnings.join()).toContain("週日也輪到 D");
+    expect(fmt(r.assigns).filter(x => /^11-1[45]D/.test(x))).toEqual(["11-14Db", "11-15Da"]);
+  });
+
+  it("月底週六、週日在下個月：依輪序預估週日 D（避開連值的 N）", () => {
+    // 只留 10/31 一個週末（其他週末設為補班日）
+    const h = { ...emptyHolidays(), workdays: [3, 4, 10, 11, 17, 18, 24, 25].map(d => `2026-10-${String(d).padStart(2, "0")}`) };
+    const r = weekendAssigns({
+      ym: "202610", roster: ["a", "b", "c", "d", "e"].map(id => R(id)), holidays: h, holidayDuty: {},
+      start: { wkN: "e", satD: "e", sunD: "a" }, carrySunN: null, busy: none,
+    });
+    // 10/31 N=a；週六 D 本應 a（撞 N）→ b，但 11/1 週日 D 預估也是 b → 週六改 c
+    expect(fmt(r.assigns)).toEqual(["10-31Na", "10-31Dc"]);
+    expect(r.warnings.join()).toContain("週日在下個月");
   });
 
   it("不排 N、夜班轉出不進週末 N；不排 D 不進週末 D", () => {

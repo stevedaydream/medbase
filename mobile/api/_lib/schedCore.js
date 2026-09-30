@@ -154,8 +154,8 @@ function weekendAssigns(inp) {
     if (h.workdays.includes(date)) return false;
     return dow === 6 || dow === 0;
   };
-  function pick(ptr, ok, avoid, label) {
-    const first = nextInOrder(order, end[ptr], ok);
+  function pick(ptr, ok, avoid, label, skip) {
+    const first = nextInOrder(order, end[ptr], (x) => ok(x) && x !== skip);
     const id = nextInOrder(order, end[ptr], (x) => ok(x) && !avoid.has(x));
     if (first && id && first !== id) warnings.push(`${label}：輪到的人當天已有其他班，改由下一位`);
     if (id) end[ptr] = id;
@@ -171,6 +171,13 @@ function weekendAssigns(inp) {
     return next;
   }
   const nOn = /* @__PURE__ */ new Map();
+  function sunDOf(sun, sat) {
+    if (!isWeekendDay(sun, 0) || isHoliday(h, sun) || inCny(h, sun)) return null;
+    const inMonth = ymOfDate(sun) === ym;
+    const n = inMonth ? nOn.get(sun) : nOn.get(sat);
+    const avoid = /* @__PURE__ */ new Set([...inMonth ? inp.busy(sun) : [], ...n ? [n] : []]);
+    return nextInOrder(order, end.sunD, (x) => okD(x) && !avoid.has(x));
+  }
   for (let d = 1; d <= nd; d++) {
     const date = dateStr(ym, d);
     const dow = dowOf(ym, d);
@@ -202,7 +209,14 @@ function weekendAssigns(inp) {
       }
       if (!holSat) {
         const avoid = /* @__PURE__ */ new Set([...inp.busy(date), ...nOn.has(date) ? [nOn.get(date)] : []]);
-        const dd = pick("satD", okD, avoid, `${date} 週六 D`);
+        const sunD = sunDOf(sun, date);
+        let skip = null;
+        if (sunD && nextInOrder(order, end.satD, (x) => okD(x) && !avoid.has(x)) === sunD) {
+          skip = sunD;
+          avoid.add(sunD);
+          warnings.push(`${date} 週六 D 輪到的人週日也輪到 D，改由下一位${ymOfDate(sun) === ym ? "" : "（週日在下個月，依輪序預估，請確認）"}`);
+        }
+        const dd = pick("satD", okD, avoid, `${date} 週六 D`, skip);
         if (dd) out.push({ date, personId: dd, code: "D", source: "weekend" });
       }
     } else {

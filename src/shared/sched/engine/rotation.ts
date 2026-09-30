@@ -65,8 +65,9 @@ export function weekendAssigns(inp: WeekendInput): WeekendOutput {
     return dow === 6 || dow === 0;
   };
 
-  function pick(ptr: keyof WeekendPointers, ok: (id: string) => boolean, avoid: Set<string>, label: string): string | null {
-    const first = nextInOrder(order, end[ptr], ok);
+  /** skip：另外要避開、但不算「當天已有其他班」的人（週六 D 避開週日 D） */
+  function pick(ptr: keyof WeekendPointers, ok: (id: string) => boolean, avoid: Set<string>, label: string, skip?: string | null): string | null {
+    const first = nextInOrder(order, end[ptr], x => ok(x) && x !== skip);
     const id = nextInOrder(order, end[ptr], x => ok(x) && !avoid.has(x));
     if (first && id && first !== id) warnings.push(`${label}：輪到的人當天已有其他班，改由下一位`);
     if (id) end[ptr] = id;
@@ -85,6 +86,15 @@ export function weekendAssigns(inp: WeekendInput): WeekendOutput {
   }
 
   const nOn = new Map<string, string>(); // 日期 → 週末 N 的人（避免同日 D+N）
+
+  /** 預估週日 D 會輪到誰（週日不排 D 時為 null）；週日在下個月時看不到當天其他預填，只避開連值的 N */
+  function sunDOf(sun: string, sat: string): string | null {
+    if (!isWeekendDay(sun, 0) || isHoliday(h, sun) || inCny(h, sun)) return null;
+    const inMonth = ymOfDate(sun) === ym;
+    const n = inMonth ? nOn.get(sun) : nOn.get(sat);
+    const avoid = new Set([...(inMonth ? inp.busy(sun) : []), ...(n ? [n] : [])]);
+    return nextInOrder(order, end.sunD, x => okD(x) && !avoid.has(x));
+  }
   for (let d = 1; d <= nd; d++) {
     const date = dateStr(ym, d);
     const dow = dowOf(ym, d);
@@ -110,7 +120,15 @@ export function weekendAssigns(inp: WeekendInput): WeekendOutput {
       }
       if (!holSat) {
         const avoid = new Set([...inp.busy(date), ...(nOn.has(date) ? [nOn.get(date)!] : [])]);
-        const dd = pick("satD", okD, avoid, `${date} 週六 D`);
+        // 六日不連上 D：週六輪到的人若週日也輪到 D，週六往下移一格（輪序直接跳過，兩條輪序因此錯開）
+        const sunD = sunDOf(sun, date);
+        let skip: string | null = null;
+        if (sunD && nextInOrder(order, end.satD, x => okD(x) && !avoid.has(x)) === sunD) {
+          skip = sunD;
+          avoid.add(sunD);
+          warnings.push(`${date} 週六 D 輪到的人週日也輪到 D，改由下一位${ymOfDate(sun) === ym ? "" : "（週日在下個月，依輪序預估，請確認）"}`);
+        }
+        const dd = pick("satD", okD, avoid, `${date} 週六 D`, skip);
         if (dd) out.push({ date, personId: dd, code: "D", source: "weekend" });
       }
     } else {
