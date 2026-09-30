@@ -24,8 +24,12 @@ export interface HbSpec {
   category: string;
   keywords: string[];
   blocks: HbBlock[];
-  /** 相關的危急處置卡（emergency uid） */
+  /** 相關的數值判讀卡（emergency uid） */
   emergency: string[];
+  /** 相關藥物速查（handbook uid） */
+  drugs: string[];
+  /** 相關計算工具（工具 id，見 tools.ts） */
+  tools: string[];
   refs: { title: string; url: string }[];
   source: string;
   reviewer: string;
@@ -40,7 +44,7 @@ export function emptyHbSpec(section: HbSection = "oncall"): HbSpec {
   return {
     section, category: "", keywords: [],
     blocks: section === "oncall" ? ONCALL_BLOCKS.map(title => ({ title, items: [] })) : [{ title: "", items: [] }],
-    emergency: [], refs: [], source: "", reviewer: "", effective: "", status: "draft", notes: "",
+    emergency: [], drugs: [], tools: [], refs: [], source: "", reviewer: "", effective: "", status: "draft", notes: "",
   };
 }
 

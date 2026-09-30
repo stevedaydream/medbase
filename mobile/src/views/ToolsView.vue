@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
 import {
   correctedCalcium, calciumStatus, interpretAbg, estimateTdd, insulinCorrection, nutrition, fio2Estimate,
@@ -15,7 +16,9 @@ const TOOLS: { id: ToolId; icon: string; label: string }[] = [
   { id: 'nutrition', icon: '🥗', label: '營養' },
   { id: 'fio2', icon: '💨', label: 'FiO₂' },
 ]
-const tool = ref<ToolId>((localStorage.getItem('mb_tool') as ToolId) || 'calcium')
+const route = useRoute()
+/** ?tool= 由「處置及臨床工具」指定要開的工具 */
+const tool = ref<ToolId>((TOOLS.some(t => t.id === route.query.tool) ? route.query.tool as ToolId : null) || (localStorage.getItem('mb_tool') as ToolId) || 'calcium')
 function pickTool(id: ToolId) { tool.value = id; localStorage.setItem('mb_tool', id) }
 
 const TONE: Record<Tone, string> = {

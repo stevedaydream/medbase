@@ -63,7 +63,7 @@ onMounted(async () => {
       ...diseases.map((m) => ({ type: "疾病", label: m.name, sub: m.icd10 ?? "", route: "/sets?tab=disease" })),
       ...exams.map((m) => ({ type: "檢查", label: m.name, sub: m.category ?? "", route: "/sets?tab=examination" })),
       ...surgeries.map((m) => ({ type: "手術", label: m.name, sub: m.category ?? "", route: "/sets?tab=surgery" })),
-      ...protos.map((m) => ({ type: "急救", label: m.name, sub: "Emergency Protocol", route: "/emergency" })),
+      ...protos.map((m) => ({ type: "處置", label: m.name, sub: "數值判讀", route: "/care?tab=value" })),
       ...items.map((m) => ({
         type: "自費",
         label: m.name_zh || m.name_en || m.hospital_code,

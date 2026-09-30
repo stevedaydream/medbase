@@ -14,8 +14,10 @@ const router = createRouter({
     { path: "/surgery",       redirect: { path: "/sets", query: { tab: "surgery" } } },
     { path: "/disease",       redirect: { path: "/sets", query: { tab: "disease" } } },
     { path: "/examination",   redirect: { path: "/sets", query: { tab: "examination" } } },
-    { path: "/emergency", component: () => import("@/views/EmergencyView.vue"), meta: { title: "危急處置" } },
-    { path: "/handbook", component: () => import("@/views/HandbookView.vue"), meta: { title: "工作手冊" } },
+    { path: "/care", component: () => import("@/views/CareView.vue"), meta: { title: "處置及臨床工具", fullHeight: true } },
+    // 危急處置、工作手冊、臨床工具已併入「處置及臨床工具」，保留舊網址轉址
+    { path: "/emergency", redirect: to => ({ path: "/care", query: { tab: "value", ...to.query } }) },
+    { path: "/handbook",  redirect: { path: "/care", query: { tab: "symptom" } } },
     { path: "/items", component: () => import("@/views/ItemsView.vue"), meta: { title: "自費品項" } },
     { path: "/physicians", component: () => import("@/views/PhysiciansView.vue"), meta: { title: "通訊錄" } },
     // 常用分機已併入通訊錄，保留舊網址轉址
@@ -27,7 +29,7 @@ const router = createRouter({
     { path: "/ahk",      component: () => import("@/views/AhkView.vue"),       meta: { title: "AHK 管理",  fullHeight: true } },
     { path: "/schedule", component: () => import("@/views/SchedView.vue"),     meta: { title: "排班表",    fullHeight: true } },
     { path: "/sched",    redirect: "/schedule" },
-    { path: "/tools",        component: () => import("@/views/ToolsView.vue"),       meta: { title: "臨床工具",  fullHeight: true } },
+    { path: "/tools",        redirect: { path: "/care", query: { tab: "tools" } } },
     { path: "/shift-memos",  component: () => import("@/views/ShiftMemosView.vue"),  meta: { title: "規則備忘錄", fullHeight: true } },
     { path: "/settings",     component: () => import("@/views/SettingView.vue"),     meta: { title: "設定" } },
     { path: "/note-polish",  component: () => import("@/views/NotePolishView.vue"),  meta: { title: "病歷潤飾", fullHeight: true } },

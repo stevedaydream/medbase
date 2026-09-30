@@ -19,7 +19,6 @@ const DEFAULT_NAV: NavItem[] = [
   { path: "/physicians",  icon: "👤", label: "通訊錄" },
   { path: "/schedule",    icon: "📅", label: "排班表" },
   { path: "/shift-memos", icon: "📝", label: "規則備忘錄" },
-  { path: "/tools",       icon: "🧮", label: "臨床工具" },
   { path: "/note-polish", icon: "✍️", label: "病歷潤飾" },
   { path: "/research",    icon: "🎓", label: "論文專案" },
 ];
@@ -134,31 +133,21 @@ onUnmounted(() => {
     <!-- Logo -->
     <div class="px-4 py-5 border-b border-hairline">
       <span class="text-lg font-bold tracking-tight text-fg">MedBase</span>
-      <p class="text-xs mt-0.5 text-muted">臨床醫囑查詢系統</p>
+      <p class="text-xs mt-0.5 text-muted">臨床工作平台</p>
       <NpDutySidebarCard />
     </div>
 
     <!-- Emergency protocol link (fixed) -->
     <div class="px-3 pt-4">
       <RouterLink
-        to="/emergency"
+        to="/care"
         class="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors"
-        :class="route.path === '/emergency'
+        :class="route.path === '/care'
           ? 'bg-danger text-white'
           : 'bg-danger/10 text-danger hover:bg-danger/20'"
       >
-        <span class="text-base">🚨</span>
-        <span>危急處置</span>
-      </RouterLink>
-      <RouterLink
-        to="/handbook"
-        class="mt-1.5 flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors"
-        :class="route.path === '/handbook'
-          ? 'bg-accent text-white'
-          : 'bg-accent/10 text-accent hover:bg-accent/20'"
-      >
-        <span class="text-base">📘</span>
-        <span>工作手冊</span>
+        <span class="text-base">🩺</span>
+        <span>處置及臨床工具</span>
       </RouterLink>
     </div>
 

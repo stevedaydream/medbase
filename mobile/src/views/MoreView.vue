@@ -4,7 +4,7 @@ import PageHeader from '../components/PageHeader.vue'
 const LINKS = [
   { to: '/items',    icon: '📦', label: '自費品項',   desc: '院內碼、價格、醫師套組' },
   { to: '/memos',    icon: '📝', label: '規則備忘錄', desc: '上班規則與注意事項' },
-  { to: '/tools',    icon: '🧮', label: '臨床工具',   desc: '校正鈣、ABG、胰島素、營養、FiO₂' },
+  { to: '/care',     icon: '🩺', label: '處置及臨床工具', desc: '依症狀、數值判讀、藥物、計算工具、手冊' },
   { to: '/docs',     icon: '✍️', label: '病例討論／公假心得', desc: '以 AI 產生 Word 文件並分享寄出' },
   { to: '/research', icon: '🎓', label: '論文專案',   desc: '需輸入論文 PIN' },
   { to: '/settings', icon: '⚙️', label: '設定',       desc: '登出、Gemini 金鑰、資料更新' },

@@ -32,10 +32,10 @@ const LIT = "國際指引與教科書整理（見參考文獻），尚未經院�
 const oncall = (category: string, keywords: string[], b: string[][], refs: Ref[], emergency: string[] = [], notes = ""): HbSpec => ({
   section: "oncall", category, keywords,
   blocks: ["電話中先問", "到床邊看", "不能漏掉的危險原因", "初步檢查", "初步處置", "何時通知上級"].map((title, i) => ({ title, items: b[i] ?? [] })),
-  emergency, refs: [R.geeky, ...refs], source: LIT, reviewer: "", effective: "", status: "literature", notes,
+  emergency, drugs: [], tools: [], refs: [R.geeky, ...refs], source: LIT, reviewer: "", effective: "", status: "literature", notes,
 });
 const topic = (section: HbSpec["section"], category: string, keywords: string[], blocks: HbBlock[], refs: Ref[], status: HbSpec["status"] = "literature"): HbSpec => ({
-  section, category, keywords, blocks, emergency: [], refs, source: status === "literature" ? LIT : "", reviewer: "", effective: "", status, notes: "",
+  section, category, keywords, blocks, emergency: [], drugs: [], tools: [], refs, source: status === "literature" ? LIT : "", reviewer: "", effective: "", status, notes: "",
 });
 
 const ASK_VITALS = "生命徵象（BT、HR、BP、RR、SpO2）與意識，和平常比較";
@@ -318,11 +318,25 @@ const SEED_V3: Seed[] = [
   },
 ];
 
+/** 依症狀頁的關聯：相關藥物與計算工具（第 5 批，更新沒改過的條目） */
+const LINKS: Record<string, { drugs?: string[]; tools?: string[] }> = {
+  "hb-seed-chest-pain": { tools: ["abg"] },
+  "hb-seed-hypotension": { drugs: ["hb-seed-vasopressors"], tools: ["map", "abg"] },
+  "hb-seed-dyspnea": { tools: ["abg", "fio2"] },
+  "hb-seed-confusion": { tools: ["abg", "osm"] },
+  "hb-seed-oliguria": { tools: ["crcl"] },
+  "hb-seed-hyponatremia": { tools: ["osm", "na-glu"] },
+  "hb-seed-hypertension": { drugs: ["hb-seed-iv-antihypertensives"], tools: ["map"] },
+  "hb-seed-gi-bleeding": { tools: ["gbs"] },
+  "hb-seed-vasopressors": { tools: ["map"] },
+};
+const withLinks = (e: Seed): Seed => LINKS[e.uid] ? { ...e, spec: { ...e.spec, ...LINKS[e.uid] } } : e;
+
 /** uid 固定：多台電腦各自加入時以 uid 合併；since＝第幾批加入 */
 /** 第 4 批沒有新條目：更新沒改過的條目（危急處置卡合併後的連結） */
-export const HANDBOOK_SEED_VERSION = 4;
+export const HANDBOOK_SEED_VERSION = 5;
 export const HANDBOOK_SEED: (Seed & { since: number })[] = [
-  ...SEED_V1.map(e => ({ ...e, since: 1 })),
-  ...SEED_V2.map(e => ({ ...e, since: 2 })),
-  ...SEED_V3.map(e => ({ ...e, since: 3 })),
+  ...SEED_V1.map(e => ({ ...withLinks(e), since: 1 })),
+  ...SEED_V2.map(e => ({ ...withLinks(e), since: 2 })),
+  ...SEED_V3.map(e => ({ ...withLinks(e), since: 3 })),
 ];

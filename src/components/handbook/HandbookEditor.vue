@@ -9,6 +9,7 @@ import {
 } from "@/shared/handbook/types";
 import type { EmStatus } from "@/shared/emergency/types";
 import { clone } from "@/shared/sched/types";
+import { ALL_TOOLS } from "@/shared/tools";
 
 /** 隨身工作手冊編輯器（ADR-018） */
 const props = defineProps<{ search: string }>();
@@ -61,6 +62,11 @@ function setSection(s: HbSection) {
   spec.section = s;
   if (s === "oncall" && !spec.blocks.some(b => b.items.length)) spec.blocks = ONCALL_BLOCKS.map(title => ({ title, items: [] }));
 }
+function toggleIn(key: "drugs" | "tools", id: string) {
+  const s = form.value!.spec;
+  s[key] = s[key].includes(id) ? s[key].filter(x => x !== id) : [...s[key], id];
+}
+const drugEntries = computed(() => entries.value.filter(e => e.spec.section === "drug"));
 function toggleEm(uid: string) {
   const s = form.value!.spec;
   s.emergency = s.emergency.includes(uid) ? s.emergency.filter(x => x !== uid) : [...s.emergency, uid];
@@ -125,6 +131,16 @@ const STATUSES: EmStatus[] = ["draft", "literature", "published"];
             <label v-for="c in emCards" :key="c.uid" class="flex items-center gap-1">
               <input type="checkbox" :checked="form.spec.emergency.includes(c.uid)" @change="toggleEm(c.uid)" />{{ c.name }}
             </label>
+          </div>
+        </div>
+        <div v-if="form.spec.section === 'oncall' || form.spec.section === 'drug'" class="space-y-2">
+          <div v-if="drugEntries.length"><b class="text-fg-secondary">相關藥物速查</b>
+            <div class="flex flex-wrap gap-3 mt-1"><label v-for="d in drugEntries" :key="d.uid" class="flex items-center gap-1">
+              <input type="checkbox" :checked="form.spec.drugs.includes(d.uid)" @change="toggleIn('drugs', d.uid)" />{{ d.name }}</label></div>
+          </div>
+          <div><b class="text-fg-secondary">相關計算工具</b>
+            <div class="flex flex-wrap gap-3 mt-1"><label v-for="t in ALL_TOOLS" :key="t.id" class="flex items-center gap-1">
+              <input type="checkbox" :checked="form.spec.tools.includes(t.id)" @change="toggleIn('tools', t.id)" />{{ t.name }}</label></div>
           </div>
         </div>
         <label class="block space-y-1"><span class="text-muted">備註</span><input v-model="form.spec.notes" class="hb-in w-full" /></label>

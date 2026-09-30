@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import {
   correctedCalcium, calciumStatus, interpretAbg, estimateTdd, insulinCorrection,
   nutrition, fio2Estimate, STRESS_OPTIONS, PROTEIN_OPTIONS, VENTURI_FLOW, VENTURI_OPTIONS, DEVICE_LABELS,
@@ -10,7 +10,10 @@ import {
 
 type ToolId = "calcium" | "abg" | "glucose" | "nutrition" | "fio2";
 
-const activeTool = ref<ToolId>("calcium");
+/** initial：嵌在「處置及臨床工具」時要先開的工具 */
+const props = defineProps<{ initial?: string }>();
+const activeTool = ref<ToolId>((props.initial as ToolId) || "calcium");
+watch(() => props.initial, id => { if (id) activeTool.value = id as ToolId; });
 
 const tools: { id: ToolId; icon: string; label: string; sub: string }[] = [
   { id: "calcium",   icon: "🧪", label: "校正鈣",    sub: "血清白蛋白校正" },

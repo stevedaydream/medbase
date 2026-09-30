@@ -14,7 +14,7 @@ export const SYNC_TABLE_META: Record<string, { label: string }> = {
   contacts:      { label: "常用分機" },
   ahk:           { label: "AHK 管理" },
   shiftMemos:    { label: "規則備忘錄" },
-  emergency:     { label: "危急處置" },
+  emergency:     { label: "數值判讀" },
   handbook:      { label: "工作手冊" },
   sets:          { label: "套組管理" },
   surgeryTypes:  { label: "手術術式" },

@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "MedBase — 臨床醫囑查詢系統",
+        "title": "MedBase — 臨床工作平台",
         "width": 1280,
         "height": 800,
         "minWidth": 900,

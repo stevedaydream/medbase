@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { loadHandbook, HB_TABLE } from "@/composables/useHandbook";
@@ -12,11 +12,14 @@ import { DISCLAIMER } from "@/shared/emergency/types";
 /** 隨身工作手冊（ADR-018）：值班常見狀況、外科照護、常用公式、行政流程 */
 const router = useRouter();
 type Tab = HbSection | "formula";
-const TABS: { key: Tab; label: string }[] = [
+/** only：嵌在「處置及臨床工具」時只顯示這些分頁；open：一開始要開的條目或公式 id */
+const props = defineProps<{ only?: Tab[]; open?: string }>();
+const ALL_TABS: { key: Tab; label: string }[] = [
   { key: "oncall", label: SECTION_LABELS.oncall }, { key: "surgical", label: SECTION_LABELS.surgical },
   { key: "drug", label: SECTION_LABELS.drug }, { key: "formula", label: "常用公式" }, { key: "admin", label: SECTION_LABELS.admin },
 ];
-const tab = ref<Tab>("oncall");
+const TABS = ALL_TABS.filter(t => !props.only || props.only.includes(t.key));
+const tab = ref<Tab>(TABS[0].key);
 const entries = ref<HbEntry[]>([]);
 const emNames = ref<Record<string, string>>({});
 const q = ref("");
@@ -26,7 +29,15 @@ async function reload() {
   entries.value = visibleEntries(await loadHandbook());
   emNames.value = Object.fromEntries((await loadEmergencyCards()).map(c => [c.uid, c.name]));
   if (selected.value) selected.value = entries.value.find(e => e.uid === selected.value!.uid) ?? null;
+  else if (props.open) openItem(props.open);
 }
+/** 開啟指定條目（切到它所在的分頁）或公式 */
+function openItem(id: string) {
+  const e = entries.value.find(x => x.uid === id);
+  if (e && TABS.some(t => t.key === e.spec.section)) { tab.value = e.spec.section; selected.value = e; return; }
+  if (FORMULAS.some(f => f.id === id) && TABS.some(t => t.key === "formula")) { tab.value = "formula"; pickFormula(id); }
+}
+watch(() => props.open, id => { if (id) openItem(id); });
 onMounted(reload);
 onTableSynced(HB_TABLE, reload);
 
@@ -44,7 +55,7 @@ function pickFormula(id: string) { fid.value = id; inputs.value = {}; }
 
 <template>
   <div class="flex flex-col h-full gap-3">
-    <div class="flex items-center gap-2">
+    <div v-if="TABS.length > 1" class="flex items-center gap-2">
       <button v-for="t in TABS" :key="t.key" @click="setTab(t.key)" class="px-4 py-2 rounded-lg text-sm font-bold"
         :class="tab === t.key ? 'bg-accent text-white' : 'bg-surface border border-hairline text-fg-secondary hover:text-fg'">{{ t.label }}</button>
     </div>
@@ -103,7 +114,7 @@ function pickFormula(id: string) { fid.value = id; inputs.value = {}; }
           </div>
           <p v-if="selected.spec.status === 'literature'" class="p-3 rounded-xl bg-warning/10 border border-warning/30 text-xs font-bold text-warning">⚠ 依國際指引與教科書整理，尚未經院內審核</p>
           <div v-if="selected.spec.emergency.length" class="flex flex-wrap gap-2">
-            <button v-for="u in selected.spec.emergency.filter(x => emNames[x])" :key="u" @click="router.push({ path: '/emergency', query: { c: u } })"
+            <button v-for="u in selected.spec.emergency.filter(x => emNames[x])" :key="u" @click="router.push({ path: '/care', query: { tab: 'value', c: u } })"
               class="px-3 py-1.5 rounded-lg bg-danger/10 border border-danger/30 text-danger text-xs font-bold">🚨 {{ emNames[u] }}</button>
           </div>
           <section v-for="b in selected.spec.blocks.filter(x => x.items.length)" :key="b.title">

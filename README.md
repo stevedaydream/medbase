@@ -1,6 +1,6 @@
 # MedBase
 
-> 臨床醫囑查詢 + 排班系統｜Tauri v2 + Vue 3 + SQLite
+> 臨床工作平台（處置及臨床工具、排班、查詢）｜Tauri v2 + Vue 3 + SQLite
 
 ---
 
