@@ -5,8 +5,8 @@
 import type { EmSpec, EmTier, EmMed } from "./types";
 
 const T = (id: string, min: number | null, max: number | null, when: Record<string, boolean>, title: string,
-  actions: string[], meds: EmMed[] = [], rechecks: EmTier["rechecks"] = [], notes = ""): EmTier =>
-  ({ id, min, max, when, title, actions, meds, rechecks, notes });
+  actions: string[], meds: EmMed[] = [], rechecks: EmTier["rechecks"] = [], notes = "", refs?: number[]): EmTier =>
+  ({ id, min, max, when, title, actions, meds, rechecks, notes, ...(refs ? { refs } : {}) });
 
 const LIT = "國際文獻整理（見參考文獻），尚未經院內審核";
 const base = (x: Partial<EmSpec>): EmSpec => ({
@@ -39,19 +39,19 @@ export const SEED_CARDS: { name: string; spec: EmSpec }[] = [
           "確認進食狀況與相關用藥（類固醇、TPN、管灌）",
           "依院內矯正胰島素方案給予",
           "依醫囑追蹤血糖",
-        ], [INSULIN_SCALE], [], "住院病人一般目標 140–180 mg/dL；文獻不建議只靠 sliding scale 長期控制"),
+        ], [INSULIN_SCALE], [], "住院病人一般目標 140–180 mg/dL；文獻不建議只靠 sliding scale 長期控制", [0]),
         T("h2", 251, 599, {}, "明顯高血糖", [
           "通知醫師",
           "檢查血酮或尿酮、電解質（K）、BUN／Cr",
           "評估 DKA／HHS 表現（若有，勾選上方是非題）",
           "依院內矯正胰島素方案給予",
-        ], [INSULIN_SCALE]),
+        ], [INSULIN_SCALE], [], "", [0, 1]),
         T("h3", 600, null, {}, "血糖 ≥600：疑似 HHS", [
           "立即通知醫師",
           "檢查血漿滲透壓、電解質、BUN／Cr、血酮、血液氣體",
           "建立靜脈通路",
           "依下方 DKA／HHS 處置準備",
-        ]),
+        ], [], [], "", [1]),
         T("c1", 250, null, { crisis: true }, "DKA／HHS 處置（2024 國際共識）", [
           "立即通知醫師，建立靜脈通路",
           "依醫囑快速補充等張晶體液",
@@ -61,7 +61,7 @@ export const SEED_CARDS: { name: string; spec: EmSpec }[] = [
         ], [
           { name: "Regular insulin IV 持續輸注", dose: "0.1 U/kg/h（K ≥3.5 才開始；依醫囑）", alert: true },
           { name: "KCl（加入輸液）", dose: "依 K 值與醫囑", alert: true },
-        ], [{ label: "重測血糖", minutes: 60 }, { label: "重測 K／電解質", minutes: 120 }]),
+        ], [{ label: "重測血糖", minutes: 60 }, { label: "重測 K／電解質", minutes: 120 }], "", [1]),
       ],
       refs: [ADA_HOSP, DKA_2024],
     }),

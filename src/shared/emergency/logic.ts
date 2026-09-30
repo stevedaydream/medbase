@@ -100,6 +100,12 @@ export function checkSpec(name: string, spec: EmSpec): CheckIssue[] {
 
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
+/** 級距依據的參考文獻（未指定時用整張卡的全部文獻） */
+export function tierRefs(spec: EmSpec, t: EmTier): EmSpec["refs"] {
+  const idx = t.refs?.length ? t.refs : spec.refs.map((_, i) => i);
+  return idx.map(i => spec.refs[i]).filter(Boolean);
+}
+
 /** 級距範圍的顯示文字 */
 export function rangeText(t: EmTier, unit = ""): string {
   const u = unit ? ` ${unit}` : "";

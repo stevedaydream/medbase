@@ -22,6 +22,8 @@ export interface EmTier {
   meds: EmMed[];
   rechecks: EmRecheck[];
   notes: string;
+  /** 這個級距依據的參考文獻（spec.refs 的索引）；未設定＝整張卡的全部文獻 */
+  refs?: number[];
 }
 
 export interface EmCondition { id: string; question: string }

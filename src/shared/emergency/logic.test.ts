@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { matchTiers, checkSpec, searchCards, visibleCards, rangeText } from "./logic";
+import { matchTiers, checkSpec, searchCards, visibleCards, rangeText, tierRefs } from "./logic";
 import { SEED_CARDS } from "./seed";
 import { emptySpec, parseSpec, type EmCard } from "./types";
 
@@ -30,6 +30,20 @@ describe("數值 → 級距", () => {
     const r = matchTiers(card("鉀離子高"), 4.2, { ecg: false, lowbg: false });
     expect(r.uncovered).toBe(true);
     expect(matchTiers(card("鉀離子高"), null, {}).uncovered).toBe(false);
+  });
+});
+
+describe("參考文獻", () => {
+  it("每張文獻版卡片都有連結；級距可指定依據，未指定用全部", () => {
+    for (const c of SEED_CARDS) {
+      expect(c.spec.refs.length, c.name).toBeGreaterThan(0);
+      for (const r of c.spec.refs) expect(r.url, c.name).toMatch(/^https:\/\//);
+    }
+    const hi = card("血糖高");
+    const dka = hi.tiers.find(t => t.id === "c1")!;
+    expect(tierRefs(hi, dka).map(r => r.title)).toEqual([hi.refs[1].title]);
+    const k = card("鉀離子高");
+    expect(tierRefs(k, k.tiers[0]).length).toBe(k.refs.length);
   });
 });
 

@@ -76,6 +76,17 @@ function removeCondition(i: number) {
   for (const t of s.tiers) { const w = { ...t.when }; delete w[id]; t.when = w; }
 }
 const STATUSES: EmStatus[] = ["draft", "literature", "published"];
+function toggleRef(t: EmTier, k: number) {
+  const cur = new Set(t.refs ?? []);
+  if (cur.has(k)) cur.delete(k); else cur.add(k);
+  t.refs = [...cur].sort((a, b) => a - b);
+}
+/** 刪除文獻時同步調整各級距的索引 */
+function removeRef(j: number) {
+  const s = form.value!.spec;
+  s.refs.splice(j, 1);
+  for (const t of s.tiers) if (t.refs) t.refs = t.refs.filter(k => k !== j).map(k => (k > j ? k - 1 : k));
+}
 </script>
 
 <template>
@@ -183,6 +194,12 @@ const STATUSES: EmStatus[] = ["draft", "literature", "published"];
                 </div>
               </div>
               <input v-model="t.notes" class="em-in w-full" placeholder="注意事項（選填）" />
+              <div v-if="form.spec.refs.length" class="flex flex-wrap gap-3 items-center">
+                <span class="text-muted">依據文獻（不勾＝全部）</span>
+                <label v-for="(r, k) in form.spec.refs" :key="k" class="flex items-center gap-1">
+                  <input type="checkbox" :checked="t.refs?.includes(k)" @change="toggleRef(t, k)" />[{{ k + 1 }}] {{ r.title.slice(0, 24) || "（未填）" }}
+                </label>
+              </div>
             </div>
           </div>
         </template>
@@ -233,7 +250,7 @@ const STATUSES: EmStatus[] = ["draft", "literature", "published"];
           <div v-for="(r, j) in form.spec.refs" :key="j" class="flex gap-2">
             <input v-model="r.title" class="em-in flex-1" placeholder="標題" />
             <input v-model="r.url" class="em-in flex-1" placeholder="網址" />
-            <button @click="form.spec.refs.splice(j, 1)" class="text-danger px-1">✕</button>
+            <button @click="removeRef(j)" class="text-danger px-1">✕</button>
           </div>
         </div>
 

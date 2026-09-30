@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { loadEmergencyCards } from "@/composables/useEmergency";
-import { matchTiers, searchCards, visibleCards, rangeText } from "@/shared/emergency/logic";
+import { matchTiers, searchCards, visibleCards, rangeText, tierRefs } from "@/shared/emergency/logic";
 import { EM_CATEGORIES, STATUS_LABELS, DISCLAIMER, type EmCard, type EmTier, type EmRecheck } from "@/shared/emergency/types";
 
 /** 危急處置（ADR-017）：選卡 → 輸入數值、回答是非題 → 顯示符合級距的處置 */
@@ -101,6 +101,10 @@ const tiersToShow = computed<EmTier[]>(() => result.value?.matched ?? []);
           <h2 class="text-xl font-black text-danger">{{ selected.name }}</h2>
           <span class="text-2xs px-2 py-0.5 rounded-full"
             :class="spec.status === 'published' ? 'bg-success/10 text-success' : 'bg-warning/15 text-warning'">{{ STATUS_LABELS[spec.status] }}</span>
+          <div class="ml-auto flex flex-wrap gap-1.5 justify-end">
+            <button v-for="(r, i) in spec.refs" :key="r.url" @click="openUrl(r.url)" :title="r.title"
+              class="px-2 py-1 rounded-lg bg-accent/10 border border-accent/30 text-accent text-2xs font-bold hover:bg-accent/20">📚 [{{ i + 1 }}] {{ r.title.length > 28 ? r.title.slice(0, 28) + "…" : r.title }}</button>
+          </div>
         </div>
         <div v-if="spec.status === 'literature'" class="p-3 rounded-xl bg-warning/10 border border-warning/30 text-xs text-warning font-bold">
           ⚠ 依國際文獻整理，尚未經院內審核。處置與劑量以醫囑及院內規範為準。
@@ -163,6 +167,10 @@ const tiersToShow = computed<EmTier[]>(() => result.value?.matched ?? []);
             </button>
           </div>
           <p v-if="t.notes" class="text-xs text-muted">{{ t.notes }}</p>
+          <p v-if="tierRefs(spec, t).length" class="text-2xs text-muted flex flex-wrap gap-x-3 gap-y-1">
+            <span>📚 依據：</span>
+            <button v-for="r in tierRefs(spec, t)" :key="r.url" @click="openUrl(r.url)" class="underline hover:text-accent text-left">[{{ spec.refs.indexOf(r) + 1 }}] {{ r.title }}</button>
+          </p>
         </div>
 
         <div v-if="result && (result.neighbors.below || result.neighbors.above)" class="text-xs text-muted space-y-1">
@@ -207,8 +215,9 @@ const tiersToShow = computed<EmTier[]>(() => result.value?.matched ?? []);
         <!-- 依據 -->
         <div class="border-t border-hairline pt-3 text-2xs text-muted space-y-1">
           <p>依據：{{ spec.source || "—" }}<template v-if="spec.reviewer">　審核：{{ spec.reviewer }}</template><template v-if="spec.effective">　生效：{{ spec.effective }}</template></p>
-          <p v-for="r in spec.refs" :key="r.url">
-            <button class="underline hover:text-accent text-left" @click="openUrl(r.url)">{{ r.title }}</button>
+          <p v-for="(r, i) in spec.refs" :key="r.url">
+            <button class="underline hover:text-accent text-left" @click="openUrl(r.url)">[{{ i + 1 }}] {{ r.title }}</button>
+            <span class="ml-1 opacity-70">{{ r.url }}</span>
           </p>
           <p class="font-bold">{{ DISCLAIMER }}</p>
         </div>
