@@ -160,11 +160,12 @@ export function rangeText(t: { min: number | null; max: number | null }, unit = 
 /** 級距範圍（比對的不是主要數值時加上名稱，例如「收縮壓 ≥ 180 mmHg」） */
 export function tierRangeText(spec: EmSpec, t: EmTier): string {
   const f = measureFormula(spec);
-  const unit = spec.measure?.unit ?? "";
   const named = !!t.on || !!t.and?.length;
-  const name = (key: string) => key === "main" ? spec.measure?.label ?? "" : f?.inputs.find(i => i.key === key)?.label ?? key;
+  const meta = (key: string) => key === "main"
+    ? { label: spec.measure?.label ?? "", unit: spec.measure?.unit ?? "" }
+    : f?.extraLabels?.[key] ?? (() => { const i = f?.inputs.find(x => x.key === key); return { label: i?.label ?? key, unit: i?.unit ?? "" }; })();
   const parts = [{ on: t.on ?? "main", min: t.min, max: t.max }, ...(t.and ?? [])]
     .filter(p => p.min !== null || p.max !== null)
-    .map(p => `${named ? name(p.on) + " " : ""}${rangeText(p, unit)}`);
+    .map(p => { const m = meta(p.on); return `${named ? m.label + " " : ""}${rangeText(p, m.unit)}`; });
   return parts.join("、") || "不限";
 }

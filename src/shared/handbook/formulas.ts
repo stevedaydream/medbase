@@ -16,6 +16,8 @@ export interface Formula {
   ref: { title: string; url: string };
   /** 只給數值判讀卡用，不列在計算工具 */
   hidden?: boolean;
+  /** compute 的 extra 數值名稱與單位（數值判讀卡顯示級距範圍用） */
+  extraLabels?: Record<string, { label: string; unit: string }>;
 }
 
 const ok = (...xs: (number | undefined)[]) => xs.every(x => x !== undefined && Number.isFinite(x));
@@ -49,8 +51,17 @@ export const FORMULAS: Formula[] = [
     id: "map", name: "平均動脈壓 MAP",
     inputs: [{ key: "sbp", label: "收縮壓", unit: "mmHg" }, { key: "dbp", label: "舒張壓", unit: "mmHg" }],
     formula: "(收縮壓 + 2 × 舒張壓) ÷ 3",
-    compute: v => ok(v.sbp, v.dbp) && v.sbp >= v.dbp ? { value: round((v.sbp + 2 * v.dbp) / 3, 0), unit: "mmHg", extra: { sbp: v.sbp, dbp: v.dbp } } : null,
-    normal: "一般目標 ≥ 65 mmHg",
+    compute: v => {
+      if (!ok(v.sbp, v.dbp) || v.sbp < v.dbp || v.sbp <= 0) return null;
+      const pp = v.sbp - v.dbp;
+      return {
+        value: round((v.sbp + 2 * v.dbp) / 3, 0), unit: "mmHg",
+        note: `脈壓 ${pp} mmHg（收縮壓的 ${round(pp / v.sbp * 100, 0)}%）`,
+        extra: { sbp: v.sbp, dbp: v.dbp, pp, ppr: round(pp / v.sbp * 100, 1) },
+      };
+    },
+    extraLabels: { pp: { label: "脈壓", unit: "mmHg" }, ppr: { label: "脈壓／收縮壓", unit: "%" } },
+    normal: "一般約 70–100；≥65 代表灌流壓足夠。脈壓 <收縮壓的 25% 為脈壓過窄",
     ref: { title: "MDCalc: Mean Arterial Pressure (MAP)", url: "https://www.mdcalc.com/calc/74/mean-arterial-pressure-map" },
   },
   {

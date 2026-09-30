@@ -557,9 +557,40 @@ const SEED_V4: Seed[] = [
   merge("em-v4-bp", "血壓", ["血壓異常", "BP", "MAP"], { label: "MAP", unit: "mmHg", step: 1, formula: "map" }, [
     { uid: "em-seed-hypotension", prefix: "lo_", urgent: ["p1", "s1"] },
     { uid: "em-seed-bp-high", prefix: "hi_", on: "sbp", urgent: ["e1"] },
-  ], NORMAL(65, null, "在一般範圍（MAP ≥65、收縮壓 <130）", { and: [{ on: "sbp", min: null, max: 129 }] }),
-  "輸入收縮壓與舒張壓：低血壓看 MAP、高血壓看收縮壓"),
+  ], NORMAL(65, null, "在一般範圍", {
+    and: [{ on: "sbp", min: 90, max: 129 }, { on: "dbp", min: null, max: 79 }, { on: "ppr", min: 25, max: null }],
+  }),
+  "輸入收縮壓與舒張壓：低血壓看 MAP 與收縮壓、高血壓看收縮壓與舒張壓，並檢查脈壓"),
 ];
+
+// 血壓：收縮壓 <90、脈壓過窄、舒張壓偏高（第 6 批補上）
+{
+  const bp = SEED_V4.find(c => c.uid === "em-v4-bp")!.spec;
+  const b1 = bp.tiers.find(t => t.id === "hi_b1")!, b2 = bp.tiers.find(t => t.id === "hi_b2")!, e1 = bp.tiers.find(t => t.id === "hi_e1")!;
+  const lo = bp.tiers.find(t => t.id === "lo_p1")!;
+  const PP_REFS = [
+    { title: "StatPearls: Hypovolemia and Hypovolemic Shock", url: "https://www.ncbi.nlm.nih.gov/books/NBK513297/" },
+    { title: "EMCrit IBCC: Pericardial tamponade", url: "https://emcrit.org/ibcc/tamponade/" },
+  ];
+  const ppRefIdx = PP_REFS.map(r => { bp.refs.push(r); return bp.refs.length - 1; });
+  bp.tiers.push(
+    { ...T("lo_sbp", null, 89, {}, "收縮壓 <90（MAP 尚 ≥65）", [
+      "重測確認，與平常血壓比較",
+      "評估灌流：意識、末梢、尿量、心跳",
+      "找原因：出血、脫水、藥物、敗血症、心因性",
+      "通知醫師",
+    ], [], [{ label: "重測血壓", minutes: 15 }], "", lo.refs), on: "sbp", and: [{ on: "main", min: 65, max: null }], level: "watch" },
+    { ...T("pp_narrow", null, 24.9, {}, "脈壓過窄（<收縮壓的 25%）", [
+      "先重測：確認袖帶大小與位置、換手臂或手動量；必要時動脈導管",
+      "數值屬實代表心搏出量低：評估意識、末梢、尿量、心跳",
+      "找危險原因：出血或低血容、心包填塞、張力性氣胸、心因性休克、肺栓塞",
+      "看頸靜脈、兩側呼吸音、心音；立即通知醫師",
+    ], [], [{ label: "重測血壓", minutes: 5 }], "", ppRefIdx), on: "ppr", level: "urgent" },
+    { ...b1, id: "hi_d1", title: "舒張壓偏高（80–109）", min: 80, max: 109, on: "dbp", and: [{ on: "sbp", min: null, max: 129 }] },
+    { ...b2, id: "hi_d2", title: "舒張壓 ≥110、無器官損傷", min: 110, max: null, on: "dbp", and: [{ on: "sbp", min: null, max: 179 }] },
+    { ...e1, id: "hi_d3", title: "舒張壓 ≥110：高血壓急症", min: 110, max: null, on: "dbp", and: [{ on: "sbp", min: null, max: 179 }] },
+  );
+}
 
 // 血糖 54–69（Level 1）不論能否口服都先標示
 SEED_V4[0].spec.tiers.unshift({ ...T("lo_l1", 54, 69, {}, "Level 1 低血糖（54–69）", ["依下方「能否口服」處置", "查原因（胰島素、降血糖藥、進食減少）"]), level: "watch", refs: [0] });
@@ -710,7 +741,8 @@ export interface SeedEntry extends Seed { since: number; retired?: boolean }
  * uid 固定：多台電腦各自加入時，雲端同步以 uid 合併，不會重複；since＝第幾批加入。
  * retired：不再加入新電腦，已存在且沒改過的更新成草稿。
  */
-export const SEED_VERSION = 5;
+/** 第 6 批沒有新卡：更新沒改過的「血壓」卡（收縮壓 <90、脈壓過窄、舒張壓偏高） */
+export const SEED_VERSION = 6;
 export const SEED_CARDS: SeedEntry[] = [
   ...Object.values(OLD).map(c => RETIRED[c.uid]
     ? { ...c, retired: true, spec: { ...c.spec, status: "draft" as const, notes: `已由合併版「${RETIRED[c.uid]}」取代，可刪除` } }

@@ -49,12 +49,21 @@ describe("合併後的數值卡：輸入數值自動判斷高、低、正常", (
   it("血壓：SBP／DBP 一次輸入；低血壓看 MAP、高血壓看收縮壓、正常要兩者都符合", () => {
     const bp = card("血壓");
     const v = (s: string, d: string) => measureValues(bp, { sbp: s, dbp: d });
-    expect(v("80", "50")).toEqual({ main: 60, sbp: 80, dbp: 50 });
+    expect(v("80", "50")).toMatchObject({ main: 60, sbp: 80, dbp: 50, pp: 30 });
     expect(titles(matchTiers(bp, v("80", "50"), { lo_sepsis: false }))).toEqual(["低血壓（MAP <65）"]);
     expect(titles(matchTiers(bp, v("190", "100"), { hi_organ: false }))).toEqual(["明顯升高、無器官損傷（≥180/110）"]);
     expect(relevantConditions(bp, v("190", "100"))).toEqual(["hi_organ"]);
     expect(matchTiers(bp, v("120", "70"), {}).matched.map(t => t.level)).toEqual(["normal"]);
     expect(titles(matchTiers(bp, v("150", "90"), {}))).toEqual(["血壓偏高"]);
+    // 102/98：MAP 99 在範圍內，但脈壓過窄、舒張壓偏高，不能判為正常
+    const r = matchTiers(bp, v("102", "98"), {});
+    expect(titles(r)).toEqual(["脈壓過窄（<收縮壓的 25%）", "舒張壓偏高（80–109）"]);
+    expect(r.matched[0].level).toBe("urgent");
+    // 88/60：MAP 69，但收縮壓 <90
+    expect(titles(matchTiers(bp, v("88", "60"), {}))).toEqual(["收縮壓 <90（MAP 尚 ≥65）"]);
+    // 150/115：收縮壓看 130–179、舒張壓 ≥110 要問器官損傷
+    expect(relevantConditions(bp, v("150", "115"))).toEqual(["hi_organ"]);
+    expect(tierRangeText(bp, bp.tiers.find(t => t.id === "pp_narrow")!)).toBe("脈壓／收縮壓 ≤ 24.9 %");
     const hi = bp.tiers.find(t => t.id === "hi_b2")!;
     expect(tierRangeText(bp, hi)).toBe("收縮壓 ≥ 180 mmHg");
   });
