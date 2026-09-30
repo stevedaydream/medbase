@@ -51,7 +51,7 @@ export interface EmSpec {
 
 export interface EmCard { uid: string; name: string; spec: EmSpec }
 
-export const EM_CATEGORIES = ["血糖", "電解質", "循環", "呼吸", "急救", "其他"] as const;
+export const EM_CATEGORIES = ["血糖", "電解質", "循環", "呼吸", "消化", "急救", "其他"] as const;
 
 export const STATUS_LABELS: Record<EmStatus, string> = {
   draft: "草稿",

@@ -62,6 +62,10 @@ describe("用公式計算數值", () => {
     expect(titles(matchTiers(card("鈉離子低"), 122, { severe: true, moderate: false }))).toEqual(["重度（<125）", "嚴重症狀：高張食鹽水"]);
     expect(titles(matchTiers(card("血壓高"), 190, { organ: false }))).toEqual(["明顯升高、無器官損傷（≥180/110）"]);
     expect(SEED_CARDS.filter(c => c.since === 2).length).toBe(5);
+    const ug = card("上消化道出血");
+    const v = measureValue(ug, { bun: "30", hb: "9", sbp: "95", hr: "110", female: "0", melena: "1", syncope: "0", liver: "1", hf: "0" });
+    expect(v).toBe(4 + 6 + 2 + 1 + 1 + 2);
+    expect(titles(matchTiers(ug, v, { varix: true }))).toEqual(["需住院處置（GBS ≥2）", "疑似靜脈瘤出血（Baveno VII）"]);
   });
 });
 

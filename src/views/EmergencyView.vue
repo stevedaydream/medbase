@@ -128,7 +128,12 @@ const tiersToShow = computed<EmTier[]>(() => result.value?.matched ?? []);
             <div class="flex flex-wrap items-end gap-3">
               <label v-for="i in formula.inputs" :key="i.key" class="space-y-1">
                 <span class="block text-xs font-bold text-fg-secondary">{{ i.label }} <span class="text-muted font-normal">{{ i.unit }}</span></span>
-                <input v-model="inputs[i.key]" inputmode="decimal" class="w-32 px-3 py-2 rounded-lg bg-sunken border border-hairline text-2xl font-mono font-bold text-fg" />
+                <span v-if="i.options" class="flex gap-1">
+                  <button v-for="o in i.options" :key="o.value" type="button" @click="inputs[i.key] = String(o.value)"
+                    class="px-3 py-2 rounded-lg border text-sm font-bold"
+                    :class="inputs[i.key] === String(o.value) ? 'bg-accent text-white border-accent' : 'bg-sunken border-hairline text-fg'">{{ o.label }}</button>
+                </span>
+                <input v-else v-model="inputs[i.key]" inputmode="decimal" class="w-32 px-3 py-2 rounded-lg bg-sunken border border-hairline text-2xl font-mono font-bold text-fg" />
               </label>
               <p class="pb-2 text-sm text-fg-secondary">→ {{ spec.measure.label }}
                 <b class="text-2xl font-mono text-danger">{{ value ?? "—" }}</b> {{ spec.measure.unit }}</p>

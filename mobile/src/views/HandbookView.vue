@@ -15,7 +15,7 @@ void loadCache()
 
 type Tab = HbSection | 'formula'
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'oncall', label: '值班狀況' }, { key: 'surgical', label: '外科照護' },
+  { key: 'oncall', label: '值班' }, { key: 'surgical', label: '外科' }, { key: 'drug', label: '藥物' },
   { key: 'formula', label: '公式' }, { key: 'admin', label: '行政' },
 ]
 const tab = computed<Tab>(() => (route.query.tab as Tab) || 'oncall')
@@ -44,7 +44,7 @@ usePullRefresh(() => pullRefresh(['handbook', 'emergency']))
   <div class="pad-tabbar">
     <PageHeader :title="title" :back="!!(selected || formula)">
       <div v-if="!selected && !formula" class="px-4 pb-2">
-        <div class="grid grid-cols-4 gap-1 rounded-xl bg-sunken p-1 text-sm font-bold">
+        <div class="grid grid-cols-5 gap-1 rounded-xl bg-sunken p-1 text-sm font-bold">
           <button v-for="t in TABS" :key="t.key" @click="setTab(t.key)" class="h-9 rounded-lg"
             :class="tab === t.key ? 'bg-surface text-accent shadow-sm' : 'text-muted'">{{ t.label }}</button>
         </div>

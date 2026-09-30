@@ -446,11 +446,57 @@ const SEED_V2: Seed[] = [
   },
 ];
 
+const ACG_UGIB = { title: "ACG Clinical Guideline: Upper Gastrointestinal and Ulcer Bleeding (2021)", url: "https://journals.lww.com/ajg/fulltext/2021/05000/acg_clinical_guideline__upper_gastrointestinal_and.14.aspx" };
+const BAVENO = { title: "Baveno VII — Renewing consensus in portal hypertension (J Hepatol 2022)", url: "https://www.journal-of-hepatology.eu/article/S0168-8278(21)02299-6/fulltext" };
+const GBS_REF = { title: "MDCalc: Glasgow-Blatchford Bleeding Score (GBS)", url: "https://www.mdcalc.com/calc/518/glasgow-blatchford-bleeding-score-gbs" };
+
+/** 第 3 批：上消化道出血 */
+const SEED_V3: Seed[] = [
+  {
+    uid: "em-seed-ugib", name: "上消化道出血",
+    spec: base({
+      category: "消化", keywords: ["消化道出血", "GI bleeding", "UGIB", "吐血", "黑便", "hematemesis", "melena", "靜脈瘤", "GBS"],
+      measure: { label: "GBS", unit: "分", step: 1, formula: "gbs" },
+      conditions: [{ id: "varix", question: "疑似靜脈瘤出血？（肝硬化、已知食道胃靜脈瘤）" }],
+      tiers: [
+        T("g0", null, 1, {}, "極低風險（GBS 0–1）", [
+          "指引：急診病人可考慮門診追蹤內視鏡",
+          "住院病人仍需通知醫師、追蹤 Hb 與生命徵象",
+        ], [], [], "", [0, 2]),
+        T("g1", 2, null, {}, "需住院處置（GBS ≥2）", [
+          "建立兩條大號靜脈管路，依醫囑輸液復甦",
+          "抽 CBC、凝血功能、BUN／Cr、血型與交叉試驗",
+          "限制性輸血：Hb <7 輸血（心血管疾病者門檻可較高，依醫囑）",
+          "依醫囑暫停抗凝血與抗血小板藥",
+          "通知腸胃科：復甦後 24 小時內內視鏡",
+          "內視鏡前可給 erythromycin 幫助胃排空",
+          "內視鏡止血後：高劑量 PPI 連續 3 天（持續輸注或間歇給藥）",
+        ], [
+          { name: "Erythromycin", dose: "250 mg IV，於內視鏡前給予（依醫囑）" },
+          { name: "PPI（高劑量，內視鏡止血後）", dose: "每天 ≥80 mg，連續 3 天，例如 80 mg IV bolus 後 8 mg/h 持續輸注（依醫囑）" },
+        ], [{ label: "重測 Hb", minutes: 360 }], "", [0, 2]),
+        T("v1", null, null, { varix: true }, "疑似靜脈瘤出血（Baveno VII）", [
+          "儘早給血管收縮藥物，持續 2–5 天",
+          "預防性抗生素，最多 7 天",
+          "復甦後 12 小時內內視鏡",
+          "限制性輸血：Hb <7 輸血、目標 7–8，避免輸液過量",
+        ], [
+          { name: "Octreotide", dose: "50 mcg IV bolus，接著 50 mcg/h 持續輸注（依醫囑）" },
+          { name: "Ceftriaxone", dose: "1 g IV 每 24 小時，最多 7 天" },
+        ], [], "", [1]),
+      ],
+      notes: "GBS：BUN、Hb、收縮壓、心跳、黑便、暈厥、肝病、心衰竭加總；生命徵象不穩時不必等算完分數，先復甦並通知醫師",
+      refs: [ACG_UGIB, BAVENO, GBS_REF],
+    }),
+  },
+];
+
 /** uid 固定：多台電腦各自加入時，雲端同步以 uid 合併，不會重複；since＝第幾批加入 */
-export const SEED_VERSION = 2;
+export const SEED_VERSION = 3;
 export const SEED_CARDS: (Seed & { since: number })[] = [
   ...SEED_V1.map(c => ({ ...c, since: 1 })),
   ...SEED_V2.map(c => ({ ...c, since: 2 })),
+  ...SEED_V3.map(c => ({ ...c, since: 3 })),
 ];
 
 /** 舊版示範卡（已移除，遷移時刪除） */

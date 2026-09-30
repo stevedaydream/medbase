@@ -65,7 +65,7 @@ function toggleEm(uid: string) {
   const s = form.value!.spec;
   s.emergency = s.emergency.includes(uid) ? s.emergency.filter(x => x !== uid) : [...s.emergency, uid];
 }
-const SECTIONS: HbSection[] = ["oncall", "surgical", "admin"];
+const SECTIONS: HbSection[] = ["oncall", "surgical", "drug", "admin"];
 const STATUSES: EmStatus[] = ["draft", "literature", "published"];
 </script>
 

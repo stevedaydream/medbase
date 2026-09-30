@@ -14,7 +14,7 @@ const router = useRouter();
 type Tab = HbSection | "formula";
 const TABS: { key: Tab; label: string }[] = [
   { key: "oncall", label: SECTION_LABELS.oncall }, { key: "surgical", label: SECTION_LABELS.surgical },
-  { key: "formula", label: "常用公式" }, { key: "admin", label: SECTION_LABELS.admin },
+  { key: "drug", label: SECTION_LABELS.drug }, { key: "formula", label: "常用公式" }, { key: "admin", label: SECTION_LABELS.admin },
 ];
 const tab = ref<Tab>("oncall");
 const entries = ref<HbEntry[]>([]);

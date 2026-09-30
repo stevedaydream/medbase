@@ -91,6 +91,35 @@ export const FORMULAS: Formula[] = [
     ref: { title: "MDCalc: Free Water Deficit in Hypernatremia", url: "https://www.mdcalc.com/calc/113/free-water-deficit-hypernatremia" },
   },
   {
+    id: "gbs", name: "Glasgow-Blatchford 評分（上消化道出血）",
+    inputs: [
+      { key: "bun", label: "BUN", unit: "mg/dL" }, { key: "hb", label: "Hb", unit: "g/dL" },
+      { key: "sbp", label: "收縮壓", unit: "mmHg" }, { key: "hr", label: "心跳", unit: "/min" },
+      { key: "female", label: "性別", unit: "", options: [{ value: 0, label: "男" }, { value: 1, label: "女" }] },
+      { key: "melena", label: "黑便", unit: "", options: [{ value: 0, label: "無" }, { value: 1, label: "有" }] },
+      { key: "syncope", label: "暈厥", unit: "", options: [{ value: 0, label: "無" }, { value: 1, label: "有" }] },
+      { key: "liver", label: "肝病史", unit: "", options: [{ value: 0, label: "無" }, { value: 1, label: "有" }] },
+      { key: "hf", label: "心衰竭", unit: "", options: [{ value: 0, label: "無" }, { value: 1, label: "有" }] },
+    ],
+    formula: "BUN、Hb（依性別）、收縮壓、心跳 ≥100、黑便、暈厥、肝病、心衰竭各項加總（0–23）",
+    compute: v => {
+      if (!ok(v.bun, v.hb, v.sbp, v.hr, v.female, v.melena, v.syncope, v.liver, v.hf)) return null;
+      let s = 0;
+      s += v.bun >= 70 ? 6 : v.bun >= 28 ? 4 : v.bun >= 22.4 ? 3 : v.bun >= 18.2 ? 2 : 0;
+      s += v.female
+        ? (v.hb < 10 ? 6 : v.hb < 12 ? 1 : 0)
+        : (v.hb < 10 ? 6 : v.hb < 12 ? 3 : v.hb < 13 ? 1 : 0);
+      s += v.sbp < 90 ? 3 : v.sbp < 100 ? 2 : v.sbp < 110 ? 1 : 0;
+      s += v.hr >= 100 ? 1 : 0;
+      s += v.melena ? 1 : 0;
+      s += v.syncope ? 2 : 0;
+      s += v.liver ? 2 : 0;
+      s += v.hf ? 2 : 0;
+      return { value: s, unit: "分", note: s <= 1 ? "0–1 分為極低風險（指引：急診可考慮門診追蹤）" : "≥2 分需住院評估與處置" };
+    },
+    ref: { title: "MDCalc: Glasgow-Blatchford Bleeding Score (GBS)", url: "https://www.mdcalc.com/calc/518/glasgow-blatchford-bleeding-score-gbs" },
+  },
+  {
     id: "bmi", name: "BMI／理想體重",
     inputs: [
       { key: "ht", label: "身高", unit: "cm" }, { key: "wt", label: "體重", unit: "kg" },

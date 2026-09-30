@@ -245,9 +245,83 @@ const SEED_V2: Seed[] = [
   },
 ];
 
+const R3 = {
+  wikemPressors: { title: "WikEM: Vasopressors", url: "https://wikem.org/wiki/Vasopressors" },
+  openAnes: { title: "OpenAnesthesia: Vasopressors and Inotropes — Overview and Selection of Agents", url: "https://www.openanesthesia.org/keywords/vasopressors-and-inotropes-overview-and-selection-of-agents/" },
+  ssc: { title: "Surviving Sepsis Campaign Guidelines 2026", url: "https://www.sccm.org/clinical-resources/guidelines/guidelines/surviving-sepsis-campaign-international-guidelines-for-management-of-sepsis-and-septic-shock-2026" },
+  htn2017: { title: "2017 ACC/AHA High Blood Pressure Guideline（Table 19–20：高血壓急症靜脈用藥）", url: "https://www.ahajournals.org/doi/10.1161/HYP.0000000000000065" },
+  ibccHtn: { title: "EMCrit IBCC: Hypertensive emergency & antihypertensive medications", url: "https://emcrit.org/ibcc/htn/" },
+  ich2022: { title: "2022 AHA/ASA Guideline for Spontaneous Intracerebral Hemorrhage", url: "https://www.ahajournals.org/doi/10.1161/STR.0000000000000407" },
+  ais2019: { title: "2019 AHA/ASA Guidelines for the Early Management of Acute Ischemic Stroke", url: "https://www.ahajournals.org/doi/10.1161/STR.0000000000000211" },
+  acg: { title: "ACG Clinical Guideline: Upper Gastrointestinal and Ulcer Bleeding (2021)", url: "https://journals.lww.com/ajg/fulltext/2021/05000/acg_clinical_guideline__upper_gastrointestinal_and.14.aspx" },
+  baveno: { title: "Baveno VII — Renewing consensus in portal hypertension (J Hepatol 2022)", url: "https://www.journal-of-hepatology.eu/article/S0168-8278(21)02299-6/fulltext" },
+} satisfies Record<string, Ref>;
+
+const DRUG_NOTE = "劑量為文獻常用範圍，實際依醫囑；院內泡法與幫浦速率待院內填寫（可新增「院內泡法」段落）";
+
+/** 第 3 批：升壓藥、靜脈降壓藥、消化道出血 */
+const SEED_V3: Seed[] = [
+  {
+    uid: "hb-seed-vasopressors", name: "升壓藥與強心劑",
+    spec: {
+      ...topic("drug", "循環", ["升壓藥", "vasopressor", "norepinephrine", "Levophed", "vasopressin", "epinephrine", "dopamine", "phenylephrine", "dobutamine", "休克"], [
+        { title: "選擇順序（敗血性休克，SSC）", items: [
+          "首選 norepinephrine，目標 MAP 65（≥65 歲可 60–65）",
+          "Norepinephrine 需要量上升時加上 vasopressin（而不是一直加 norepinephrine）",
+          "仍不足時加上 epinephrine",
+          "心功能不全合併低灌流：加 dobutamine 或改用 epinephrine",
+          "Dopamine 心律不整較多，只用於特定病人（例如心跳慢）",
+          "中心靜脈為佳；為了不延誤，可先經周邊大靜脈短期開始，密切觀察外滲",
+        ] },
+        { title: "Norepinephrine", items: ["0.05–0.4 mcg/kg/min（起始約 5–15 mcg/min），依 MAP 調整", "作用：α 為主、少量 β1"] },
+        { title: "Vasopressin", items: ["0.03–0.04 U/min，固定劑量、不調整", "第二線，加在 norepinephrine 上"] },
+        { title: "Epinephrine", items: ["0.01–0.5 mcg/kg/min", "注意心律不整、乳酸上升、高血糖"] },
+        { title: "Dopamine", items: ["2–20 mcg/kg/min", "心律不整風險較高"] },
+        { title: "Phenylephrine", items: ["起始 100–180 mcg/min，穩定後調低（約 0.4–9 mcg/kg/min）", "純 α，可能反射性心跳變慢；適合心搏過速者"] },
+        { title: "Dobutamine（強心）", items: ["2.5–20 mcg/kg/min", "用於心輸出量不足；可能降低血壓、造成心搏過速"] },
+      ], [R3.ssc, R3.wikemPressors, R3.openAnes]),
+      notes: DRUG_NOTE, emergency: ["em-seed-hypotension"],
+    },
+  },
+  {
+    uid: "hb-seed-iv-antihypertensives", name: "靜脈降壓藥",
+    spec: {
+      ...topic("drug", "循環", ["降壓藥", "antihypertensive", "nicardipine", "Perdipine", "labetalol", "esmolol", "hydralazine", "nitroglycerin", "NTG", "高血壓急症"], [
+        { title: "依情境的血壓目標", items: [
+          "一般高血壓急症：第一小時降低 ≤25%，之後 2–6 小時到 160/100–110，24–48 小時內逐步到正常",
+          "主動脈剝離：第一小時收縮壓 <120（先用 β 阻斷劑控制心跳）",
+          "子癇前症、嗜鉻細胞瘤危象：第一小時收縮壓 <140",
+          "自發性腦出血（收縮壓 150–220）：降到 140，維持 130–150；避免 <130",
+          "缺血性中風：血栓溶解前 <185/110、後 24 小時 <180/105；未接受再灌流治療者 ≥220/120 才考慮降壓",
+          "只有數字高、沒有器官損傷：不用靜脈藥（見危急處置卡「血壓高」）",
+        ] },
+        { title: "Nicardipine", items: ["起始 5 mg/h，每 5–15 分鐘增加 2.5 mg/h，最高 15 mg/h"] },
+        { title: "Clevidipine", items: ["起始 1–2 mg/h，每 2–3 分鐘加倍，最高 32 mg/h"] },
+        { title: "Labetalol", items: ["0.3–1 mg/kg（最多 20 mg）緩慢 IV，每 10 分鐘可重複；或 0.4–1 mg/kg/h 持續輸注，最高 3 mg/kg/h", "累積最多 300 mg；氣喘、心跳慢、心衰竭避免"] },
+        { title: "Esmolol", items: ["負荷 0.5–1 mg/kg（1 分鐘），接著 50 mcg/kg/min", "需要時重複負荷並每次增加 50 mcg/kg/min，最高 200 mcg/kg/min"] },
+        { title: "Hydralazine", items: ["10 mg 緩慢 IV（起始最多 20 mg），需要時每 4–6 小時重複", "效果較難預測"] },
+        { title: "Nitroglycerin", items: ["起始 5 mcg/min，每 3–5 分鐘增加 5 mcg/min", "適合急性冠心症、急性肺水腫"] },
+      ], [R3.htn2017, R3.ibccHtn, R3.ich2022, R3.ais2019]),
+      notes: DRUG_NOTE, emergency: ["em-seed-bp-high"],
+    },
+  },
+  {
+    uid: "hb-seed-gi-bleeding", name: "消化道出血",
+    spec: oncall("消化", ["消化道出血", "GI bleeding", "吐血", "黑便", "血便", "咖啡渣", "hematemesis", "melena"], [
+      [ASK_VITALS, "吐血、咖啡渣、黑便或血便？量與次數", "抗凝血、抗血小板、NSAID、類固醇", "肝硬化或靜脈瘤病史", ASK_CONTEXT],
+      ["灌流狀態、意識、姿勢性頭暈", "腹部壓痛、腹膜刺激徵象", "看排泄物或引流（NG 引流液）"],
+      ["大量出血造成休克", "靜脈瘤出血", "主動脈腸道瘻管（主動脈手術後）", "大量下消化道出血", "胃腸道穿孔"],
+      ["CBC、凝血功能、BUN／Cr、肝功能", "血型與交叉試驗", "計算 GBS（危急處置卡或公式）", "依懷疑：CT 血管攝影"],
+      ["兩條大號靜脈管路，依醫囑輸液復甦", "禁食", "限制性輸血：Hb <7（心血管疾病門檻較高，依醫囑）", "依醫囑暫停抗凝血藥、給 PPI；疑靜脈瘤見危急處置卡", "通知腸胃科安排內視鏡"],
+      ["生命徵象不穩、持續吐血或解血便：立即", "疑靜脈瘤出血：立即", "Hb 明顯下降：立即"],
+    ], [R3.acg, R3.baveno], ["em-seed-ugib", "em-seed-hypotension"]),
+  },
+];
+
 /** uid 固定：多台電腦各自加入時以 uid 合併；since＝第幾批加入 */
-export const HANDBOOK_SEED_VERSION = 2;
+export const HANDBOOK_SEED_VERSION = 3;
 export const HANDBOOK_SEED: (Seed & { since: number })[] = [
   ...SEED_V1.map(e => ({ ...e, since: 1 })),
   ...SEED_V2.map(e => ({ ...e, since: 2 })),
+  ...SEED_V3.map(e => ({ ...e, since: 3 })),
 ];

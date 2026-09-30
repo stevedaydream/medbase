@@ -24,6 +24,13 @@ describe("公式", () => {
     expect(f("na-glu").compute({ na: 130, glu: 600 })).toMatchObject({ value: 138 });
     expect(f("bmi").compute({ ht: 170, wt: 72.25, female: 0 })?.value).toBe(25);
   });
+  it("GBS", () => {
+    const base = { bun: 15, hb: 14, sbp: 120, hr: 80, female: 0, melena: 0, syncope: 0, liver: 0, hf: 0 };
+    expect(f("gbs").compute(base)).toMatchObject({ value: 0 });
+    expect(f("gbs").compute({ ...base, bun: 30, hb: 11, sbp: 95, hr: 110, melena: 1 })?.value).toBe(4 + 3 + 2 + 1 + 1);
+    expect(f("gbs").compute({ ...base, female: 1, hb: 11 })?.value).toBe(1);
+    expect(f("gbs").compute({ ...base, bun: 80, hb: 8, sbp: 80, hr: 120, melena: 1, syncope: 1, liver: 1, hf: 1 })?.value).toBe(23);
+  });
   it("缺值回傳 null；每個公式都有參考連結", () => {
     for (const x of FORMULAS) {
       expect(x.compute({}), x.id).toBeNull();
@@ -44,7 +51,8 @@ describe("首批內容", () => {
         expect(e.spec.blocks.every(b => b.items.length), e.name).toBe(true);
       }
     }
-    expect(HANDBOOK_SEED.filter(e => e.spec.section === "oncall").length).toBe(13);
+    expect(HANDBOOK_SEED.filter(e => e.spec.section === "oncall").length).toBe(14);
+    expect(HANDBOOK_SEED.filter(e => e.spec.section === "drug").length).toBe(2);
   });
   it("連到的危急處置卡都存在", () => {
     const em = new Set(SEED_CARDS.map(c => c.uid));

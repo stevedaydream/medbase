@@ -149,7 +149,7 @@ function removeRef(j: number) {
           <label class="block space-y-1"><span class="text-muted">數值來源</span>
             <select :value="form.spec.measure.formula ?? ''" @change="form.spec.measure.formula = ($event.target as HTMLSelectElement).value || undefined" class="em-in w-full">
               <option value="">直接輸入數值</option>
-              <option v-for="f in FORMULAS.filter(x => !x.inputs.some(i => i.options))" :key="f.id" :value="f.id">用公式計算：{{ f.name }}（{{ f.inputs.map(i => i.label).join("、") }}）</option>
+              <option v-for="f in FORMULAS" :key="f.id" :value="f.id">用公式計算：{{ f.name }}（{{ f.inputs.map(i => i.label).join("、") }}）</option>
             </select>
           </label>
           <div class="space-y-2">

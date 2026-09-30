@@ -5,11 +5,12 @@
 import type { EmStatus } from "../emergency/types";
 export { STATUS_LABELS } from "../emergency/types";
 
-export type HbSection = "oncall" | "surgical" | "admin";
+export type HbSection = "oncall" | "surgical" | "drug" | "admin";
 
 export const SECTION_LABELS: Record<HbSection, string> = {
   oncall: "值班常見狀況",
   surgical: "外科照護",
+  drug: "藥物速查",
   admin: "行政流程",
 };
 

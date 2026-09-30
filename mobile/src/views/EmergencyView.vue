@@ -91,7 +91,12 @@ usePullRefresh(() => pullRefresh(['emergency']))
           <div class="grid grid-cols-2 gap-2">
             <label v-for="i in formula.inputs" :key="i.key" class="block">
               <span class="text-sm font-bold text-fg">{{ i.label }} <span class="text-muted font-normal">{{ i.unit }}</span></span>
-              <input v-model="inputs[i.key]" inputmode="decimal"
+              <span v-if="i.options" class="mt-1 grid grid-cols-2 gap-1">
+                <button v-for="o in i.options" :key="o.value" type="button" @click="inputs[i.key] = String(o.value)"
+                  class="h-12 rounded-xl border font-bold"
+                  :class="inputs[i.key] === String(o.value) ? 'bg-accent text-white border-accent' : 'bg-sunken border-hairline text-fg'">{{ o.label }}</button>
+              </span>
+              <input v-else v-model="inputs[i.key]" inputmode="decimal"
                 class="mt-1 w-full h-14 px-3 rounded-xl bg-sunken border border-hairline text-2xl font-mono font-black text-fg" />
             </label>
           </div>
