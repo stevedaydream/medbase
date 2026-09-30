@@ -4,14 +4,14 @@ import { useRoute } from "vue-router";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { loadEmergencyCards, EM_TABLE } from "@/composables/useEmergency";
 import { onTableSynced } from "@/composables/useTableSync";
-import { matchTiers, searchCards, visibleCards, rangeText, tierRefs } from "@/shared/emergency/logic";
+import { matchTiers, searchCards, visibleCards, rangeText, tierRefs, measureFormula, measureValue } from "@/shared/emergency/logic";
 import { EM_CATEGORIES, STATUS_LABELS, DISCLAIMER, type EmCard, type EmTier, type EmRecheck } from "@/shared/emergency/types";
 
 /** 危急處置（ADR-017）：選卡 → 輸入數值、回答是非題 → 顯示符合級距的處置 */
 const cards = ref<EmCard[]>([]);
 const q = ref("");
 const selected = ref<EmCard | null>(null);
-const valueText = ref("");
+const inputs = ref<Record<string, string>>({});
 const answers = ref<Record<string, boolean | undefined>>({});
 const checked = ref(new Set<string>());
 
@@ -37,16 +37,14 @@ const groups = computed(() => {
 
 function pick(c: EmCard) {
   selected.value = c;
-  valueText.value = "";
+  inputs.value = {};
   answers.value = {};
   checked.value = new Set();
 }
 
 const spec = computed(() => selected.value?.spec ?? null);
-const value = computed(() => {
-  const t = valueText.value.trim();
-  return t === "" ? null : Number(t);
-});
+const formula = computed(() => spec.value ? measureFormula(spec.value) : null);
+const value = computed(() => spec.value ? measureValue(spec.value, inputs.value) : null);
 const result = computed(() => spec.value ? matchTiers(spec.value, value.value, answers.value) : null);
 const condQ = (id: string) => spec.value?.conditions.find(c => c.id === id)?.question ?? id;
 const unit = computed(() => spec.value?.measure?.unit ?? "");
@@ -126,9 +124,20 @@ const tiersToShow = computed<EmTier[]>(() => result.value?.matched ?? []);
 
         <!-- 數值與是非題 -->
         <div v-if="spec.kind === 'graded' && spec.measure" class="rounded-2xl bg-surface border border-hairline p-4 space-y-3">
-          <label class="flex items-center gap-3">
+          <template v-if="formula">
+            <div class="flex flex-wrap items-end gap-3">
+              <label v-for="i in formula.inputs" :key="i.key" class="space-y-1">
+                <span class="block text-xs font-bold text-fg-secondary">{{ i.label }} <span class="text-muted font-normal">{{ i.unit }}</span></span>
+                <input v-model="inputs[i.key]" inputmode="decimal" class="w-32 px-3 py-2 rounded-lg bg-sunken border border-hairline text-2xl font-mono font-bold text-fg" />
+              </label>
+              <p class="pb-2 text-sm text-fg-secondary">→ {{ spec.measure.label }}
+                <b class="text-2xl font-mono text-danger">{{ value ?? "—" }}</b> {{ spec.measure.unit }}</p>
+            </div>
+            <p class="text-2xs text-muted font-mono">{{ formula.formula }}</p>
+          </template>
+          <label v-else class="flex items-center gap-3">
             <span class="text-sm font-bold text-fg w-40">{{ spec.measure.label }}</span>
-            <input v-model="valueText" inputmode="decimal" autofocus placeholder="輸入數值"
+            <input v-model="inputs.value" inputmode="decimal" autofocus placeholder="輸入數值"
               class="w-40 px-3 py-2 rounded-lg bg-sunken border border-hairline text-2xl font-mono font-bold text-fg" />
             <span class="text-sm text-muted">{{ spec.measure.unit }}</span>
           </label>

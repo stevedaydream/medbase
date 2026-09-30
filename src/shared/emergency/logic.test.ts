@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { matchTiers, checkSpec, searchCards, visibleCards, rangeText, tierRefs } from "./logic";
+import { matchTiers, checkSpec, searchCards, visibleCards, rangeText, tierRefs, measureValue } from "./logic";
 import { SEED_CARDS } from "./seed";
 import { emptySpec, parseSpec, type EmCard } from "./types";
 
@@ -44,6 +44,24 @@ describe("參考文獻", () => {
     expect(tierRefs(hi, dka).map(r => r.title)).toEqual([hi.refs[1].title]);
     const k = card("鉀離子高");
     expect(tierRefs(k, k.tiers[0]).length).toBe(k.refs.length);
+  });
+});
+
+describe("用公式計算數值", () => {
+  it("血壓低輸入 SBP／DBP 算 MAP；血鈣輸入 Ca／白蛋白算校正鈣", () => {
+    const bp = card("血壓低");
+    expect(measureValue(bp, { sbp: "80", dbp: "50" })).toBe(60);
+    expect(measureValue(bp, { sbp: "80" })).toBeNull();
+    expect(titles(matchTiers(bp, measureValue(bp, { sbp: "80", dbp: "50" }), { sepsis: false }))).toEqual(["低血壓（MAP <65）"]);
+    const ca = card("鈣離子低");
+    expect(measureValue(ca, { ca: "6.8", alb: "3" })).toBe(7.6);
+    expect(titles(matchTiers(ca, 7.2, { sym: false }))).toEqual(["重度（<7.6）"]);
+    expect(measureValue(card("鈉離子低"), { value: "128" })).toBe(128);
+  });
+  it("第 2 批：低血鈉嚴重症狀給高張食鹽水；血壓高無器官損傷不急降", () => {
+    expect(titles(matchTiers(card("鈉離子低"), 122, { severe: true, moderate: false }))).toEqual(["重度（<125）", "嚴重症狀：高張食鹽水"]);
+    expect(titles(matchTiers(card("血壓高"), 190, { organ: false }))).toEqual(["明顯升高、無器官損傷（≥180/110）"]);
+    expect(SEED_CARDS.filter(c => c.since === 2).length).toBe(5);
   });
 });
 

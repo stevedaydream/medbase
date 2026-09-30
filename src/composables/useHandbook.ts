@@ -1,6 +1,7 @@
 import { getDb, dbWrite } from "@/db";
 import { parseHbSpec, emptyHbSpec, type HbEntry, type HbSpec } from "@/shared/handbook/types";
-import { HANDBOOK_SEED } from "@/shared/handbook/seed";
+import { HANDBOOK_SEED, HANDBOOK_SEED_VERSION } from "@/shared/handbook/seed";
+import { addSeedBatches } from "@/composables/useSeedBatches";
 import { touchTable, markDeleted } from "@/composables/useTableSync";
 
 /** 隨身工作手冊（ADR-018）：讀寫 handbook；第一次載入時加入首批內容（固定 uid、最舊時間戳，雲端已有時以雲端為準） */
@@ -12,13 +13,13 @@ interface Row { id: number; uid: string | null; name: string; spec: string | nul
 let seeding: Promise<void> | null = null;
 async function seed(): Promise<void> {
   const db = await getDb();
-  if ((await db.select<{ value: string }[]>("SELECT value FROM app_settings WHERE key=?", [SEEDED])).length) return;
-  for (const e of HANDBOOK_SEED) {
-    await dbWrite("INSERT OR IGNORE INTO handbook (uid, updated_at, name, spec) VALUES (?, ?, ?, ?)",
-      [e.uid, "1970-01-01 00:00:00", e.name, JSON.stringify(e.spec)]);
-  }
-  await dbWrite("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, '1')", [SEEDED]);
-  await touchTable(HB_TABLE);
+  // 舊版程式（handbook_v1_seeded）已加入第 1 批
+  const had = (await db.select<{ value: string }[]>("SELECT value FROM app_settings WHERE key=?", [SEEDED])).length > 0;
+  const added = await addSeedBatches({
+    syncTable: HB_TABLE, localTable: "handbook", versionKey: "handbook_seed_version",
+    assumed: had ? 1 : 0, version: HANDBOOK_SEED_VERSION, seeds: HANDBOOK_SEED,
+  });
+  if (added) await touchTable(HB_TABLE);
 }
 
 export async function loadHandbook(): Promise<HbEntry[]> {

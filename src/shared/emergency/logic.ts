@@ -2,6 +2,24 @@
  * 危急處置卡：數值 → 級距比對與編輯檢查（ADR-017）。純函式，桌機與手機共用。
  */
 import type { EmSpec, EmTier, EmCard } from "./types";
+import { FORMULAS, type Formula } from "../handbook/formulas";
+
+/** 由公式計算數值的卡片（例如 SBP／DBP → MAP）用的公式 */
+export function measureFormula(spec: EmSpec): Formula | null {
+  const id = spec.measure?.formula;
+  return id ? FORMULAS.find(f => f.id === id) ?? null : null;
+}
+
+/** 使用者輸入 → 比對用的數值；inputs 為公式各欄位（沒有公式時用 key "value"） */
+export function measureValue(spec: EmSpec, inputs: Record<string, string>): number | null {
+  const f = measureFormula(spec);
+  if (!f) {
+    const t = (inputs.value ?? "").trim();
+    return t === "" ? null : Number(t);
+  }
+  const nums = Object.fromEntries(Object.entries(inputs).filter(([, v]) => v.trim() !== "").map(([k, v]) => [k, Number(v)]));
+  return f.compute(nums)?.value ?? null;
+}
 
 export interface MatchResult {
   /** 符合數值與條件的級距 */

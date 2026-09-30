@@ -44,7 +44,7 @@ describe("首批內容", () => {
         expect(e.spec.blocks.every(b => b.items.length), e.name).toBe(true);
       }
     }
-    expect(HANDBOOK_SEED.filter(e => e.spec.section === "oncall").length).toBe(11);
+    expect(HANDBOOK_SEED.filter(e => e.spec.section === "oncall").length).toBe(13);
   });
   it("連到的危急處置卡都存在", () => {
     const em = new Set(SEED_CARDS.map(c => c.uid));

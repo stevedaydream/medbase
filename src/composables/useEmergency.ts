@@ -1,6 +1,7 @@
 import { getDb, dbWrite } from "@/db";
 import { parseSpec, emptySpec, type EmCard, type EmSpec } from "@/shared/emergency/types";
-import { SEED_CARDS, DEMO_NAMES } from "@/shared/emergency/seed";
+import { SEED_CARDS, SEED_VERSION, DEMO_NAMES } from "@/shared/emergency/seed";
+import { addSeedBatches } from "@/composables/useSeedBatches";
 import { touchTable, markDeleted } from "@/composables/useTableSync";
 
 /** 雲端逐筆同步的表名（useTableSync／GAS SYNC_TABLES） */
@@ -36,8 +37,19 @@ function fromLegacy(r: Row): EmSpec {
 let migrating: Promise<void> | null = null;
 async function migrate(): Promise<void> {
   const db = await getDb();
-  const done = await db.select<{ value: string }[]>("SELECT value FROM app_settings WHERE key=?", [MIGRATED]);
-  if (done.length) return;
+  const had = (await db.select<{ value: string }[]>("SELECT value FROM app_settings WHERE key=?", [MIGRATED])).length > 0;
+  if (!had) await migrateLegacy();
+  // 舊版程式在遷移時已加入第 1 批
+  const added = await addSeedBatches({
+    syncTable: EM_TABLE, localTable: "emergency_protocols", versionKey: "emergency_seed_version",
+    assumed: had ? 1 : 0, version: SEED_VERSION, seeds: SEED_CARDS,
+  });
+  if (!had || added) await touchTable(EM_TABLE);
+}
+
+/** 舊格式：刪除示範卡、其他轉成一般卡草稿 */
+async function migrateLegacy(): Promise<void> {
+  const db = await getDb();
   const rows = await db.select<Row[]>("SELECT * FROM emergency_protocols");
   for (const r of rows) {
     if (r.spec) continue;
@@ -47,13 +59,7 @@ async function migrate(): Promise<void> {
     }
     else await dbWrite("UPDATE emergency_protocols SET spec=? WHERE id=?", [JSON.stringify(fromLegacy(r)), r.id]);
   }
-  const names = new Set(rows.filter(r => !DEMO_NAMES.includes(r.name) || r.spec).map(r => r.name));
-  for (const c of SEED_CARDS) {
-    // 時間戳用最舊：雲端已有同 uid 的卡（別台電腦先上傳或已修改）時以雲端為準
-    if (!names.has(c.name)) await dbWrite("INSERT OR IGNORE INTO emergency_protocols (uid, updated_at, name, spec) VALUES (?, ?, ?, ?)", [c.uid, "1970-01-01 00:00:00", c.name, JSON.stringify(c.spec)]);
-  }
   await dbWrite("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, '1')", [MIGRATED]);
-  await touchTable(EM_TABLE);
 }
 
 export async function loadEmergencyCards(): Promise<EmCard[]> {

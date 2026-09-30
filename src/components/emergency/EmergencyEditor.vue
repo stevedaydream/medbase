@@ -7,6 +7,7 @@ import {
   EM_CATEGORIES, STATUS_LABELS, emptySpec, newEmId, type EmCard, type EmSpec, type EmTier, type EmStatus,
 } from "@/shared/emergency/types";
 import { clone } from "@/shared/sched/types";
+import { FORMULAS } from "@/shared/handbook/formulas";
 
 /** 危急處置卡編輯器（ADR-017）：分級卡的級距表、是非題、依據與狀態 */
 const props = defineProps<{ search: string }>();
@@ -145,6 +146,12 @@ function removeRef(j: number) {
             <label class="space-y-1"><span class="text-muted">單位</span><input v-model="form.spec.measure.unit" class="em-in w-full" placeholder="mg/dL" /></label>
             <label class="space-y-1"><span class="text-muted">最小間隔（檢查空隙用）</span><input v-model.number="form.spec.measure.step" type="number" step="0.1" class="em-in w-full" /></label>
           </div>
+          <label class="block space-y-1"><span class="text-muted">數值來源</span>
+            <select :value="form.spec.measure.formula ?? ''" @change="form.spec.measure.formula = ($event.target as HTMLSelectElement).value || undefined" class="em-in w-full">
+              <option value="">直接輸入數值</option>
+              <option v-for="f in FORMULAS.filter(x => !x.inputs.some(i => i.options))" :key="f.id" :value="f.id">用公式計算：{{ f.name }}（{{ f.inputs.map(i => i.label).join("、") }}）</option>
+            </select>
+          </label>
           <div class="space-y-2">
             <div class="flex items-center justify-between"><b class="text-fg-secondary">是非題</b>
               <button @click="form.spec.conditions.push({ id: newEmId(), question: '' })" class="text-accent">＋ 新增</button></div>

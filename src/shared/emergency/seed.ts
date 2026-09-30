@@ -26,8 +26,10 @@ const BTS = { title: "BTS Guideline for oxygen use in adults in healthcare and e
 
 const INSULIN_SCALE: EmMed = { name: "短效胰島素（Actrapid／RI）", dose: "依院內 sliding scale（劑量待院內填入）", alert: true };
 
-/** uid 固定：多台電腦各自遷移時，雲端同步以 uid 合併，不會重複 */
-export const SEED_CARDS: { uid: string; name: string; spec: EmSpec }[] = [
+type Seed = { uid: string; name: string; spec: EmSpec };
+
+/** 第 1 批 */
+const SEED_V1: Seed[] = [
   {
     uid: "em-seed-glucose-high",
     name: "血糖高",
@@ -192,7 +194,7 @@ export const SEED_CARDS: { uid: string; name: string; spec: EmSpec }[] = [
     name: "血壓低",
     spec: base({
       category: "循環", keywords: ["低血壓", "hypotension", "休克", "shock", "敗血症", "sepsis", "MAP"],
-      measure: { label: "平均動脈壓 MAP", unit: "mmHg", step: 1 },
+      measure: { label: "平均動脈壓 MAP", unit: "mmHg", step: 1, formula: "map" },
       conditions: [{ id: "sepsis", question: "疑似感染或敗血症？" }],
       tiers: [
         T("p1", null, 64, {}, "低血壓（MAP <65）", [
@@ -254,6 +256,201 @@ export const SEED_CARDS: { uid: string; name: string; spec: EmSpec }[] = [
       refs: [BTS],
     }),
   },
+];
+
+const ESE_NA = { title: "ESE/ESICM/ERBP Clinical practice guideline on diagnosis and treatment of hyponatraemia (2014)", url: "https://pubmed.ncbi.nlm.nih.gov/24569125/" };
+const UCSF_NA = { title: "UCSF Hospital Handbook: Hypernatremia", url: "https://hospitalhandbook.ucsf.edu/content/04-hypernatremia" };
+const NA_RATE = { title: "Hypernatremia and Its Rate of Correction: The Evidence So Far (review)", url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC10961935/" };
+const SFE_HICA = { title: "Society for Endocrinology Emergency Guidance: acute hypercalcaemia in adults", url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC5314807/" };
+const SFE_LOCA = { title: "Society for Endocrinology Emergency Guidance: acute hypocalcaemia in adults", url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC8117371/" };
+const AHA_BP = { title: "AHA Scientific Statement: Management of Elevated Blood Pressure in the Acute Care Setting (2024)", url: "https://www.ahajournals.org/doi/10.1161/HYP.0000000000000238" };
+const ACC_AHA_2017 = { title: "2017 ACC/AHA Guideline for High Blood Pressure in Adults", url: "https://www.ahajournals.org/doi/10.1161/HYP.0000000000000065" };
+
+const CORR_CA = { label: "校正鈣", unit: "mg/dL", step: 0.1, formula: "ca" };
+
+/** 第 2 批：鈉、鈣、血壓 */
+const SEED_V2: Seed[] = [
+  {
+    uid: "em-seed-na-low", name: "鈉離子低",
+    spec: base({
+      category: "電解質", keywords: ["低血鈉", "hyponatremia", "Na", "sodium", "3% NaCl"],
+      measure: { label: "Na", unit: "mEq/L", step: 1 },
+      conditions: [
+        { id: "severe", question: "有嚴重症狀？（嘔吐、抽搐、意識明顯改變、GCS ≤8、心肺抑制）" },
+        { id: "moderate", question: "有中度症狀？（噁心、混亂、頭痛）" },
+      ],
+      tiers: [
+        T("n1", 130, 134, {}, "輕度（130–134）", [
+          "評估容量狀態（脫水、正常、水腫）",
+          "查原因：藥物（利尿劑、SSRI 等）、低張輸液、SIADH、嘔吐",
+          "停用低張輸液，依醫囑追蹤 Na",
+        ]),
+        T("n2", 125, 129, {}, "中度（125–129）", [
+          "通知醫師",
+          "送 serum osmolality、urine osmolality、urine Na",
+          "評估容量狀態並找原因",
+        ]),
+        T("n3", null, 124, {}, "重度（<125）", [
+          "立即通知醫師",
+          "密切追蹤 Na 與神經學狀態",
+          "矯正不可過快：第一個 24 小時上升 ≤10，之後每 24 小時 ≤8",
+        ], [], [{ label: "重測 Na", minutes: 240 }]),
+        T("s1", null, 134, { severe: true }, "嚴重症狀：高張食鹽水", [
+          "立即通知醫師，監測生命徵象",
+          "3% NaCl 150 mL IV 20 分鐘；20 分鐘後測 Na",
+          "可重複，直到 Na 上升 5 或症狀改善",
+          "達到後停止高張食鹽水、找原因；矯正上限同上",
+        ], [
+          { name: "3% NaCl", dose: "150 mL IV，20 分鐘（依醫囑）", alert: true },
+        ], [{ label: "重測 Na", minutes: 20 }]),
+        T("m1", null, 134, { severe: false, moderate: true }, "中度症狀", [
+          "通知醫師",
+          "可單次給 3% NaCl 150 mL IV 20 分鐘（依醫囑），目標 24 小時上升 5",
+          "停用造成低血鈉的藥物與低張輸液",
+        ], [
+          { name: "3% NaCl", dose: "150 mL IV，20 分鐘，單次（依醫囑）", alert: true },
+        ], [{ label: "重測 Na", minutes: 240 }]),
+      ],
+      notes: "矯正過快有滲透壓性脫髓鞘（ODS）風險，酒精、營養不良、低血鉀者更要小心",
+      refs: [ESE_NA],
+    }),
+  },
+  {
+    uid: "em-seed-na-high", name: "鈉離子高",
+    spec: base({
+      category: "電解質", keywords: ["高血鈉", "hypernatremia", "Na", "sodium", "脫水", "自由水"],
+      measure: { label: "Na", unit: "mEq/L", step: 1 },
+      conditions: [{ id: "cns", question: "有意識改變、抽搐等神經學症狀？" }],
+      tiers: [
+        T("h1", 146, 149, {}, "輕度（146–149）", [
+          "評估容量與攝水能力（口渴、進食、意識）",
+          "查原因：不感性流失、腹瀉、利尿、尿崩、高張輸液",
+          "可口服者鼓勵補水；依醫囑追蹤 Na",
+        ]),
+        T("h2", 150, 159, {}, "中度（150–159）", [
+          "通知醫師",
+          "計算自由水缺乏量（工作手冊公式），依醫囑給低張輸液或管灌水",
+          "慢性（>48 小時）矯正速度每 24 小時 ≤10",
+        ], [], [{ label: "重測 Na", minutes: 240 }]),
+        T("h3", 160, null, {}, "重度（≥160）", [
+          "立即通知醫師",
+          "評估容量；休克者先處理低灌流",
+          "依醫囑補充自由水，密切追蹤 Na",
+        ], [], [{ label: "重測 Na", minutes: 120 }]),
+        T("c1", 150, null, { cns: true }, "有神經學症狀", [
+          "立即通知醫師，保護呼吸道",
+          "急性（<48 小時）可較快矯正；依醫囑密切追蹤",
+        ]),
+      ],
+      notes: "自由水缺乏量 ≈ 體液比例 × 體重 × (Na ÷ 140 − 1)",
+      refs: [UCSF_NA, NA_RATE],
+    }),
+  },
+  {
+    uid: "em-seed-ca-high", name: "鈣離子高",
+    spec: base({
+      category: "電解質", keywords: ["高血鈣", "hypercalcemia", "Ca", "calcium"],
+      measure: CORR_CA,
+      conditions: [{ id: "sym", question: "有症狀或 ECG 變化？（意識改變、嘔吐、脫水、心律不整、QT 縮短）" }],
+      tiers: [
+        T("c1", 10.6, 11.9, {}, "輕度（<12）", [
+          "查原因（副甲狀腺、惡性腫瘤、thiazide、鈣片、維生素 D）",
+          "停用含鈣與升鈣藥物，鼓勵補水",
+          "依醫囑追蹤",
+        ]),
+        T("c2", 12.0, 13.9, {}, "中度（12–13.9）", [
+          "通知醫師",
+          "評估脫水；依醫囑 0.9% NaCl 補液（注意心肺功能）",
+          "檢查腎功能、PTH、Mg、P",
+        ], [], [{ label: "重測 Ca", minutes: 360 }]),
+        T("c3", 14.0, null, {}, "重度（≥14）", [
+          "立即通知醫師，心電監測",
+          "0.9% NaCl 積極補液（常見先 1–2 L，再依水分狀態與心肺功能調整）",
+          "補足水分後依醫囑給 bisphosphonate；calcitonin 可短期併用",
+          "腎衰竭或心衰竭無法補液者評估透析",
+        ], [
+          { name: "0.9% NaCl", dose: "依醫囑補液，監測尿量與心肺" },
+          { name: "Zoledronic acid", dose: "4 mg IV ≥15 分鐘（依腎功能調整，依醫囑）", alert: true },
+          { name: "Calcitonin", dose: "依醫囑；療效短，限 48–72 小時" },
+        ], [{ label: "重測 Ca／腎功能", minutes: 360 }]),
+        T("s1", 10.6, null, { sym: true }, "有症狀或 ECG 變化", [
+          "立即通知醫師，心電監測",
+          "依重度流程處理",
+        ]),
+      ],
+      notes: "數值用校正鈣（依白蛋白）；有游離鈣時以游離鈣為準",
+      refs: [SFE_HICA],
+    }),
+  },
+  {
+    uid: "em-seed-ca-low", name: "鈣離子低",
+    spec: base({
+      category: "電解質", keywords: ["低血鈣", "hypocalcemia", "Ca", "calcium", "tetany", "抽搐"],
+      measure: CORR_CA,
+      conditions: [{ id: "sym", question: "有症狀或 ECG 變化？（手腳麻、抽筋、tetany、喉痙攣、抽搐、QT 延長）" }],
+      tiers: [
+        T("l1", 7.6, 8.4, {}, "輕度（7.6–8.4）", [
+          "確認白蛋白、Mg、P、腎功能、PTH、維生素 D",
+          "可口服者依醫囑口服鈣片與維生素 D",
+          "低 Mg 要一起補",
+        ]),
+        T("l2", null, 7.5, {}, "重度（<7.6）", [
+          "立即通知醫師，心電監測",
+          "依醫囑靜脈補鈣",
+          "檢查並補充 Mg",
+        ], [
+          { name: "10% Calcium gluconate", dose: "10–20 mL 加入 50–100 mL D5W，IV 10 分鐘，心電監測下", alert: true },
+          { name: "Calcium gluconate 持續輸注", dose: "10% 100 mL 稀釋於 1 L NS 或 D5W，50–100 mL/h（依醫囑調整）", alert: true },
+        ], [{ label: "重測 Ca", minutes: 240 }]),
+        T("s1", null, 8.4, { sym: true }, "有症狀或 ECG 變化：先靜脈補鈣", [
+          "立即通知醫師，心電監測",
+          "10% calcium gluconate IV 10 分鐘，症狀未緩解可重複",
+          "接續持續輸注，檢查並補充 Mg",
+        ], [
+          { name: "10% Calcium gluconate", dose: "10–20 mL 加入 50–100 mL D5W，IV 10 分鐘", alert: true },
+        ], [{ label: "重測 Ca", minutes: 240 }]),
+      ],
+      notes: "數值用校正鈣；甲狀腺或副甲狀腺術後要特別注意。Calcium chloride 刺激性強，只能走中心靜脈",
+      refs: [SFE_LOCA],
+    }),
+  },
+  {
+    uid: "em-seed-bp-high", name: "血壓高",
+    spec: base({
+      category: "循環", keywords: ["高血壓", "hypertension", "血壓高", "SBP", "高血壓急症"],
+      measure: { label: "收縮壓", unit: "mmHg", step: 1 },
+      conditions: [{ id: "organ", question: "有急性器官損傷表現？（胸痛、喘、神經學症狀、視力改變、急性腎損傷、懷疑主動脈剝離）" }],
+      tiers: [
+        T("b1", 130, 179, {}, "血壓偏高", [
+          "正確測量：合適袖帶、休息 5 分鐘後重測",
+          "找可逆原因：疼痛、焦慮、尿滯留、缺氧、停用平常降壓藥、戒斷",
+          "處理原因即可，不需緊急降壓",
+        ]),
+        T("b2", 180, null, { organ: false }, "明顯升高、無器官損傷（≥180/110）", [
+          "重測並找可逆原因（同上）",
+          "恢復或調整平常口服降壓藥（依醫囑）",
+          "避免靜脈降壓藥與快速降壓",
+          "通知醫師",
+        ], [], [{ label: "重測血壓", minutes: 60 }]),
+        T("e1", 180, null, { organ: true }, "高血壓急症", [
+          "立即通知醫師，心電監測",
+          "依受損器官（中風、急性冠心症、主動脈剝離、肺水腫、子癇前症）決定藥物與目標",
+          "一般第一小時降低 ≤25%（主動脈剝離等例外，依醫囑）",
+        ], [
+          { name: "靜脈降壓藥", dose: "依醫囑選藥與速度", alert: true },
+        ], [{ label: "重測血壓", minutes: 15 }]),
+      ],
+      notes: "舒張壓 ≥110 也屬明顯升高；AHA 2024 建議不再使用「高血壓緊急狀況（urgency）」一詞",
+      refs: [AHA_BP, ACC_AHA_2017],
+    }),
+  },
+];
+
+/** uid 固定：多台電腦各自加入時，雲端同步以 uid 合併，不會重複；since＝第幾批加入 */
+export const SEED_VERSION = 2;
+export const SEED_CARDS: (Seed & { since: number })[] = [
+  ...SEED_V1.map(c => ({ ...c, since: 1 })),
+  ...SEED_V2.map(c => ({ ...c, since: 2 })),
 ];
 
 /** 舊版示範卡（已移除，遷移時刪除） */

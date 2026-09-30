@@ -78,6 +78,19 @@ export const FORMULAS: Formula[] = [
     ref: { title: "MDCalc: Sodium Correction for Hyperglycemia", url: "https://www.mdcalc.com/calc/50/sodium-correction-hyperglycemia" },
   },
   {
+    id: "fwd", name: "自由水缺乏量（高血鈉）",
+    inputs: [
+      { key: "na", label: "Na", unit: "mEq/L" }, { key: "wt", label: "體重", unit: "kg" },
+      { key: "female", label: "性別", unit: "", options: [{ value: 0, label: "男" }, { value: 1, label: "女" }] },
+    ],
+    formula: "體液比例 × 體重 × (Na ÷ 140 − 1)；體液比例 男 0.6、女 0.5（老年人各減 0.1）",
+    compute: v => {
+      if (!ok(v.na, v.wt, v.female) || v.na <= 140) return null;
+      return { value: round((v.female ? 0.5 : 0.6) * v.wt * (v.na / 140 - 1)), unit: "L", note: "估計值；矯正速度與輸液選擇依醫囑" };
+    },
+    ref: { title: "MDCalc: Free Water Deficit in Hypernatremia", url: "https://www.mdcalc.com/calc/113/free-water-deficit-hypernatremia" },
+  },
+  {
     id: "bmi", name: "BMI／理想體重",
     inputs: [
       { key: "ht", label: "身高", unit: "cm" }, { key: "wt", label: "體重", unit: "kg" },

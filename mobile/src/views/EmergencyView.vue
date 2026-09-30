@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
 import { data, loadCache, pullRefresh } from '../lib/data'
 import { usePullRefresh } from '../lib/pull'
-import { matchTiers, searchCards, visibleCards, rangeText, tierRefs } from '@shared/emergency/logic'
+import { matchTiers, searchCards, visibleCards, rangeText, tierRefs, measureFormula, measureValue } from '@shared/emergency/logic'
 import { parseSpec, EM_CATEGORIES, STATUS_LABELS, DISCLAIMER, type EmCard, type EmRecheck } from '@shared/emergency/types'
 
 /** 危急處置（ADR-017）：離線可用；選卡 → 輸入數值、回答是非題 → 顯示符合級距的處置 */
@@ -24,12 +24,13 @@ const selected = computed(() => cards.value.find(c => c.uid === route.query.c) ?
 const spec = computed(() => selected.value?.spec ?? null)
 const open = (c: EmCard) => router.push({ query: { c: c.uid } })
 
-const valueText = ref('')
+const inputs = ref<Record<string, string>>({})
 const answers = ref<Record<string, boolean | undefined>>({})
 const checked = ref(new Set<string>())
-watch(() => route.query.c, () => { valueText.value = ''; answers.value = {}; checked.value = new Set(); timers.value = [] })
+watch(() => route.query.c, () => { inputs.value = {}; answers.value = {}; checked.value = new Set(); timers.value = [] })
 
-const value = computed(() => valueText.value.trim() === '' ? null : Number(valueText.value))
+const formula = computed(() => spec.value ? measureFormula(spec.value) : null)
+const value = computed(() => spec.value ? measureValue(spec.value, inputs.value) : null)
 const result = computed(() => spec.value ? matchTiers(spec.value, value.value, answers.value) : null)
 const unit = computed(() => spec.value?.measure?.unit ?? '')
 const condQ = (id: string) => spec.value?.conditions.find(c => c.id === id)?.question ?? id
@@ -86,9 +87,19 @@ usePullRefresh(() => pullRefresh(['emergency']))
       </div>
 
       <div v-if="spec.kind === 'graded' && spec.measure" class="p-4 rounded-2xl bg-surface border border-hairline space-y-3">
-        <label class="block">
+        <template v-if="formula">
+          <div class="grid grid-cols-2 gap-2">
+            <label v-for="i in formula.inputs" :key="i.key" class="block">
+              <span class="text-sm font-bold text-fg">{{ i.label }} <span class="text-muted font-normal">{{ i.unit }}</span></span>
+              <input v-model="inputs[i.key]" inputmode="decimal"
+                class="mt-1 w-full h-14 px-3 rounded-xl bg-sunken border border-hairline text-2xl font-mono font-black text-fg" />
+            </label>
+          </div>
+          <p class="text-sm text-fg-secondary">{{ spec.measure.label }} ＝ <b class="text-2xl font-mono text-danger">{{ value ?? '—' }}</b> {{ spec.measure.unit }}</p>
+        </template>
+        <label v-else class="block">
           <span class="text-sm font-bold text-fg">{{ spec.measure.label }}（{{ spec.measure.unit }}）</span>
-          <input v-model="valueText" inputmode="decimal" placeholder="輸入數值"
+          <input v-model="inputs.value" inputmode="decimal" placeholder="輸入數值"
             class="mt-1 w-full h-16 px-4 rounded-xl bg-sunken border border-hairline text-3xl font-mono font-black text-fg" />
         </label>
         <div v-for="c in spec.conditions" :key="c.id" class="space-y-1.5">

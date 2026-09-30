@@ -35,7 +35,8 @@ export interface EmSpec {
   kind: "graded" | "general";
   category: string;
   keywords: string[];
-  measure: { label: string; unit: string; step: number } | null;
+  /** formula：由公式計算數值（src/shared/handbook/formulas.ts 的 id），例如輸入 SBP／DBP 算 MAP */
+  measure: { label: string; unit: string; step: number; formula?: string } | null;
   conditions: EmCondition[];
   tiers: EmTier[];
   general: { actions: string[]; meds: EmMed[]; rechecks: EmRecheck[] };

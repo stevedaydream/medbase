@@ -41,7 +41,10 @@ const topic = (section: HbSpec["section"], category: string, keywords: string[],
 const ASK_VITALS = "生命徵象（BT、HR、BP、RR、SpO2）與意識，和平常比較";
 const ASK_CONTEXT = "診斷、術式與術後第幾天、DNR 狀態";
 
-export const HANDBOOK_SEED: { uid: string; name: string; spec: HbSpec }[] = [
+type Seed = { uid: string; name: string; spec: HbSpec };
+
+/** 第 1 批 */
+const SEED_V1: Seed[] = [
   // ── 值班常見狀況 ─────────────────────────────────────────────
   {
     uid: "hb-seed-fever", name: "發燒",
@@ -209,4 +212,42 @@ export const HANDBOOK_SEED: { uid: string; name: string; spec: HbSpec }[] = [
     uid, name,
     spec: topic("admin", "行政", [name], [{ title: "步驟（待院內填寫）", items: [] }, { title: "注意事項", items: [] }], [], "draft"),
   })),
+];
+
+const R2 = {
+  hypoNa: { title: "ESE/ESICM/ERBP Clinical practice guideline on hyponatraemia (2014)", url: "https://pubmed.ncbi.nlm.nih.gov/24569125/" },
+  bp: { title: "AHA Scientific Statement: Management of Elevated Blood Pressure in the Acute Care Setting (2024)", url: "https://www.ahajournals.org/doi/10.1161/HYP.0000000000000238" },
+} satisfies Record<string, Ref>;
+
+/** 第 2 批：低血鈉、血壓高 */
+const SEED_V2: Seed[] = [
+  {
+    uid: "hb-seed-hyponatremia", name: "低血鈉",
+    spec: oncall("電解質", ["低血鈉", "hyponatremia", "Na", "鈉"], [
+      [ASK_VITALS, "Na 多少、前一次多少（下降速度）", "有無噁心、嘔吐、頭痛、混亂、抽搐", "目前輸液種類與速度、利尿劑等藥物"],
+      ["意識與神經學狀態", "容量狀態：黏膜、頸靜脈、水腫、體重、輸入輸出量"],
+      ["有嚴重症狀的急性低血鈉（腦水腫）", "矯正過快造成滲透壓性脫髓鞘", "術後低張輸液造成的急性低血鈉"],
+      ["Serum osmolality、urine osmolality、urine Na", "血糖（排除高血糖造成的假性低血鈉）", "依懷疑：TSH、cortisol"],
+      ["停用低張輸液與相關藥物", "有嚴重症狀：依危急處置卡給高張食鹽水", "依原因處理（容量不足補液、SIADH 限水等，依醫囑）", "矯正上限：第一個 24 小時 ≤10，之後每 24 小時 ≤8"],
+      ["有中度或嚴重症狀：立即", "Na <125 或下降快速：立即"],
+    ], [R2.hypoNa], ["em-seed-na-low"]),
+  },
+  {
+    uid: "hb-seed-hypertension", name: "血壓高",
+    spec: oncall("循環", ["高血壓", "血壓高", "hypertension", "SBP"], [
+      [ASK_VITALS, "血壓多少、平常多少、怎麼量的", "有無胸痛、喘、頭痛、視力模糊、肢體無力、說話不清", "平常降壓藥今天有沒有吃"],
+      ["正確重測：合適袖帶、休息 5 分鐘", "神經學檢查、心肺音", "疼痛、尿滯留（膀胱脹）、焦慮、缺氧"],
+      ["高血壓急症：中風、顱內出血、急性冠心症、主動脈剝離、肺水腫", "子癇前症（孕產婦）"],
+      ["有器官損傷疑慮時：ECG、Troponin、腎功能、尿液、必要時影像"],
+      ["無器官損傷：處理疼痛、尿滯留、焦慮等原因，恢復平常口服藥，不需緊急降壓", "避免為了數字給靜脈降壓藥或急降", "有器官損傷：依危急處置卡「血壓高」"],
+      ["有器官損傷表現：立即", "持續 ≥180/110 且處理原因後未改善：通知醫師"],
+    ], [R2.bp], ["em-seed-bp-high"]),
+  },
+];
+
+/** uid 固定：多台電腦各自加入時以 uid 合併；since＝第幾批加入 */
+export const HANDBOOK_SEED_VERSION = 2;
+export const HANDBOOK_SEED: (Seed & { since: number })[] = [
+  ...SEED_V1.map(e => ({ ...e, since: 1 })),
+  ...SEED_V2.map(e => ({ ...e, since: 2 })),
 ];
