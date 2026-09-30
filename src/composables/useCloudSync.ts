@@ -6,6 +6,7 @@ const SYNC_META: Record<string, { label: string; route: string }> = {
   surgery:       { label: "手術處置",   route: "/sets" },
   shiftMemos:    { label: "規則備忘錄", route: "/shift-memos" },
   emergency:     { label: "危急處置",   route: "/emergency" },
+  handbook:      { label: "工作手冊",   route: "/handbook" },
   ahk:           { label: "AHK 管理",   route: "/ahk" },
   prescriptions: { label: "處方套組",   route: "/sets" },
   items:         { label: "自費品項",   route: "/items" },

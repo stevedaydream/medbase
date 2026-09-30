@@ -57,6 +57,7 @@ const SYNC_UID_TABLES: { table: string; natural: string; js: (r: Row) => string 
   { table: "surgery_types", natural: "name", js: r => txt(r.name) },
   { table: "ahk_scripts",   natural: "name", js: r => txt(r.name) },
   { table: "emergency_protocols", natural: "name", js: r => txt(r.name) },
+  { table: "handbook",      natural: "name", js: r => txt(r.name) },
 ];
 
 /**
@@ -380,6 +381,16 @@ async function initSchema(db: Database) {
   `);
   // 危急處置卡 v2（ADR-017）：整張卡的內容存 JSON（src/shared/emergency/types.ts EmSpec）
   try { await db.execute("ALTER TABLE emergency_protocols ADD COLUMN spec TEXT"); } catch { /* 已存在 */ }
+
+  // 隨身工作手冊（ADR-018）：整篇內容存 JSON（src/shared/handbook/types.ts HbSpec）
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS handbook (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      spec TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
 
   // ── App 全域設定（key-value）────────────────────────────
   await db.execute(`

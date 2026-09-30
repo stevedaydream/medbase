@@ -12,6 +12,8 @@ import { session } from '../lib/session'
 import { sched, doc } from '../lib/sched'
 import type { NoticeItem } from '@shared/sched/types'
 import { parseSpec } from '@shared/emergency/types'
+import { parseHbSpec, SECTION_LABELS } from '@shared/handbook/types'
+import { FORMULAS } from '@shared/handbook/formulas'
 
 /** 首頁：全域搜尋＋今日值班＋最近查看（ADR-013） */
 const router = useRouter()
@@ -36,6 +38,11 @@ const index = computed<Hit[]>(() => {
       const s = parseSpec(r.spec)
       return s && s.status !== 'draft' ? [{ type: '危急', title: r.name, sub: [s.category, ...s.keywords].join(' · '), to: `/emergency?c=${r.uid}` }] : []
     }),
+    ...t.handbook.flatMap(r => {
+      const s = parseHbSpec(r.spec)
+      return s && s.status !== 'draft' ? [{ type: '手冊', title: r.name, sub: [SECTION_LABELS[s.section], s.category, ...s.keywords].join(' · '), to: `/handbook?tab=${s.section}&e=${r.uid}` }] : []
+    }),
+    ...FORMULAS.map(f => ({ type: '公式', title: f.name, sub: f.formula, to: `/handbook?tab=formula&f=${f.id}` })),
   ]
 })
 
@@ -62,6 +69,9 @@ usePullRefresh(() => pullRefresh(['npDuty', 'physicians']))
       </RouterLink>
       <RouterLink to="/emergency" class="flex items-center gap-3 px-4 h-14 rounded-2xl bg-danger text-white font-black text-lg shadow">
         🚨 危急處置<span class="ml-auto text-sm font-bold opacity-80">血糖・K・血壓・血氧 ›</span>
+      </RouterLink>
+      <RouterLink to="/handbook" class="flex items-center gap-3 px-4 h-12 rounded-2xl bg-accent/10 border border-accent/30 text-accent font-black">
+        📘 工作手冊<span class="ml-auto text-sm font-bold opacity-80">值班狀況・外科照護・公式 ›</span>
       </RouterLink>
       <DutyCard />
       <section v-if="recent.length">

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { useRoute } from "vue-router";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { loadEmergencyCards, EM_TABLE } from "@/composables/useEmergency";
 import { onTableSynced } from "@/composables/useTableSync";
@@ -14,10 +15,17 @@ const valueText = ref("");
 const answers = ref<Record<string, boolean | undefined>>({});
 const checked = ref(new Set<string>());
 
+const route = useRoute();
 async function reload() {
   cards.value = visibleCards(await loadEmergencyCards());
   if (selected.value) selected.value = cards.value.find(c => c.uid === selected.value!.uid) ?? null;
+  else openFromQuery();
 }
+function openFromQuery() {
+  const c = cards.value.find(x => x.uid === route.query.c);
+  if (c && selected.value?.uid !== c.uid) pick(c);
+}
+watch(() => route.query.c, openFromQuery);
 onMounted(reload);
 onTableSynced(EM_TABLE, reload);
 

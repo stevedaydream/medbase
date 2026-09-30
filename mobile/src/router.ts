@@ -12,6 +12,7 @@ const router = createRouter({
     { path: '/contacts', component: () => import('./views/ContactsView.vue') },
     { path: '/schedule', component: () => import('./views/ScheduleView.vue') },
     { path: '/emergency', component: () => import('./views/EmergencyView.vue') },
+    { path: '/handbook', component: () => import('./views/HandbookView.vue') },
     { path: '/more',     component: () => import('./views/MoreView.vue') },
     { path: '/items',    component: () => import('./views/ItemsView.vue') },
     { path: '/memos',    component: () => import('./views/MemosView.vue') },

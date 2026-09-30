@@ -284,6 +284,10 @@ const SYNC_CONFIGS: Record<string, SyncConfig> = {
     label: "危急處置", localTable: "emergency_protocols", key: "uid",
     fields: ["uid", "name", "spec"], notNull: ["name"],
   },
+  handbook: {
+    label: "工作手冊", localTable: "handbook", key: "uid",
+    fields: ["uid", "name", "spec"], notNull: ["name"],
+  },
   contacts: {
     label: "常用分機", localTable: "contacts", key: "uid",
     fields: ["uid", "label", "ext", "category", "notes"], notNull: ["label", "ext"],

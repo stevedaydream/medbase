@@ -93,6 +93,7 @@ const SYNC_TABLES = {
   surgeryTypes:  { sheet: 'Sync_SurgeryTypes',  key: 'uid', fields: ['uid', 'name', 'dept', 'notes', 'items'] },
   ahk:           { sheet: 'Sync_AhkScripts',    key: 'uid', fields: ['uid', 'name', 'description', 'filename', 'content'] },
   emergency:     { sheet: 'Sync_Emergency',     key: 'uid', fields: ['uid', 'name', 'spec'] },   // ADR-017 危急處置卡
+  handbook:      { sheet: 'Sync_Handbook',      key: 'uid', fields: ['uid', 'name', 'spec'] },   // ADR-018 隨身工作手冊
 };
 
 // 舊版整份上傳／下載的 action。該表建立同步基準後一律拒絕，

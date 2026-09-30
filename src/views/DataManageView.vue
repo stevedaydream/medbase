@@ -23,6 +23,7 @@ import { touchTable, markDeleted } from "@/composables/useTableSync";
 import { refreshPassAhk } from "@/composables/usePhysicians";
 import NpDutyDataManager from "@/components/NpDutyDataManager.vue";
 import EmergencyEditor from "@/components/emergency/EmergencyEditor.vue";
+import HandbookEditor from "@/components/handbook/HandbookEditor.vue";
 
 // ── 型別定義 ────────────────────────────────────────────────────
 interface Item {
@@ -30,7 +31,7 @@ interface Item {
   purpose: string | null; depts: string[]; unit: string | null;
   price: number | null; supplier: string | null; notes: string | null;
 }
-type Tab = "items" | "emergency" | "npDuty" | "backup";
+type Tab = "items" | "emergency" | "handbook" | "npDuty" | "backup";
 
 // ── 狀態 ────────────────────────────────────────────────────────
 const activeTab   = ref<Tab>("items");
@@ -82,6 +83,8 @@ const items       = ref<Item[]>([]);
 // 危急處置卡由 EmergencyEditor 自行讀寫（ADR-017）
 const emEditor = ref<InstanceType<typeof EmergencyEditor> | null>(null);
 const emCount = ref(0);
+const hbEditor = ref<InstanceType<typeof HandbookEditor> | null>(null);
+const hbCount = ref(0);
 
 // Modal
 const showModal   = ref(false);
@@ -767,6 +770,7 @@ const filteredItems = computed(() => {
 // ── Modal 開關 ───────────────────────────────────────────────────
 function openAdd() {
   if (activeTab.value === "emergency") { emEditor.value?.newCard(); return; }
+  if (activeTab.value === "handbook") { hbEditor.value?.newCard(); return; }
   modalMode.value = "add";
   if (activeTab.value === "items")       itemForm.value = {};
   showModal.value = true;
@@ -824,6 +828,7 @@ async function doDelete() {
 const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
   { key: "items",      icon: "📦", label: "自費品項",   count: () => items.value.length },
   { key: "emergency",  icon: "🚨", label: "危急情境",   count: () => emCount.value },
+  { key: "handbook",   icon: "📘", label: "工作手冊",   count: () => hbCount.value },
   { key: "npDuty",     icon: "🧑‍⚕️", label: "NP／VS 值班", count: () => 0 },
   { key: "backup",     icon: "💾", label: "備份 / 還原", count: () => 0 },
 ];
@@ -867,7 +872,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
           <span v-if="search" @click="search = ''" class="absolute right-3 top-2.5 text-xs text-muted hover:text-fg-secondary cursor-pointer">✕</span>
         </div>
         <!-- 匯入 XLSX -->
-        <label v-if="activeTab !== 'emergency'"
+        <label v-if="activeTab !== 'emergency' && activeTab !== 'handbook'"
           class="relative flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer overflow-hidden border border-hairline bg-elevated text-fg-secondary hover:bg-raised hover:text-fg"
           :class="importing ? 'cursor-wait opacity-80' : ''"
         >
@@ -961,6 +966,8 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
       <!-- ── 危急處置卡（ADR-017）──────────────────── -->
       <EmergencyEditor v-if="activeTab === 'emergency'" ref="emEditor" :search="search"
         @count="n => (emCount = n)" @toast="(k, m) => showToast(k, m)" />
+      <HandbookEditor v-if="activeTab === 'handbook'" ref="hbEditor" :search="search"
+        @count="n => (hbCount = n)" @toast="(k, m) => showToast(k, m)" />
 
       <!-- ── 值班 NP ─────────────────────────────── -->
       <div v-if="activeTab === 'npDuty'" class="flex-1 overflow-y-auto px-8 py-6">

@@ -10,14 +10,14 @@ export type Row = Record<string, string>
 
 export const TABLES = [
   'physicians', 'contacts', 'prescriptions', 'surgery', 'examination', 'disease',
-  'shiftMemos', 'items', 'sets', 'surgeryTypes', 'emergency',
+  'shiftMemos', 'items', 'sets', 'surgeryTypes', 'emergency', 'handbook',
 ] as const
 export type TableName = (typeof TABLES)[number]
 
 export const TABLE_LABELS: Record<TableName | 'npDuty', string> = {
   physicians: '通訊錄', contacts: '單位分機', prescriptions: '處方套組', surgery: '手術處置',
   examination: '檢查處置', disease: '疾病常規', shiftMemos: '規則備忘錄', items: '自費品項',
-  sets: '品項套組', surgeryTypes: '手術術式', emergency: '危急處置', npDuty: 'NP／VS 值班',
+  sets: '品項套組', surgeryTypes: '手術術式', emergency: '危急處置', handbook: '工作手冊', npDuty: 'NP／VS 值班',
 }
 
 interface Meta { version: string; fetchedAt: string }

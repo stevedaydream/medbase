@@ -1,0 +1,60 @@
+import { describe, it, expect } from "vitest";
+import { FORMULAS } from "./formulas";
+import { HANDBOOK_SEED } from "./seed";
+import { SEED_CARDS } from "../emergency/seed";
+import { checkHbSpec, searchHandbook, visibleEntries, parseHbSpec, emptyHbSpec, ONCALL_BLOCKS } from "./types";
+
+const f = (id: string) => FORMULAS.find(x => x.id === id)!;
+
+describe("公式", () => {
+  it("MAP、校正鈣、Anion gap（含白蛋白校正）", () => {
+    expect(f("map").compute({ sbp: 120, dbp: 60 })).toMatchObject({ value: 80 });
+    expect(f("map").compute({ sbp: 60, dbp: 120 })).toBeNull();
+    expect(f("ca").compute({ ca: 8, alb: 2 })).toMatchObject({ value: 9.6 });
+    expect(f("ag").compute({ na: 140, cl: 100, hco3: 24 })).toMatchObject({ value: 16 });
+    expect(f("ag").compute({ na: 140, cl: 100, hco3: 24, alb: 2 })).toMatchObject({ value: 21, note: "未校正 16" });
+  });
+  it("Cockcroft-Gault：女性 × 0.85", () => {
+    expect(f("crcl").compute({ age: 70, wt: 72, cr: 1, female: 0 })).toMatchObject({ value: 70 });
+    expect(f("crcl").compute({ age: 70, wt: 72, cr: 1, female: 1 })).toMatchObject({ value: 60 });
+    expect(f("crcl").compute({ age: 70, wt: 72, cr: 0, female: 0 })).toBeNull();
+  });
+  it("滲透壓、校正鈉、BMI", () => {
+    expect(f("osm").compute({ na: 140, glu: 180, bun: 28 })).toMatchObject({ value: 300 });
+    expect(f("na-glu").compute({ na: 130, glu: 600 })).toMatchObject({ value: 138 });
+    expect(f("bmi").compute({ ht: 170, wt: 72.25, female: 0 })?.value).toBe(25);
+  });
+  it("缺值回傳 null；每個公式都有參考連結", () => {
+    for (const x of FORMULAS) {
+      expect(x.compute({}), x.id).toBeNull();
+      expect(x.ref.url, x.id).toMatch(/^https:\/\//);
+    }
+  });
+});
+
+describe("首批內容", () => {
+  it("文獻版沒有錯誤；值班卡段落齊全；uid 不重複", () => {
+    const uids = new Set<string>();
+    for (const e of HANDBOOK_SEED) {
+      expect(uids.has(e.uid), e.uid).toBe(false);
+      uids.add(e.uid);
+      if (e.spec.status !== "draft") expect(checkHbSpec(e.name, e.spec), e.name).toEqual([]);
+      if (e.spec.section === "oncall") {
+        expect(e.spec.blocks.map(b => b.title)).toEqual([...ONCALL_BLOCKS]);
+        expect(e.spec.blocks.every(b => b.items.length), e.name).toBe(true);
+      }
+    }
+    expect(HANDBOOK_SEED.filter(e => e.spec.section === "oncall").length).toBe(11);
+  });
+  it("連到的危急處置卡都存在", () => {
+    const em = new Set(SEED_CARDS.map(c => c.uid));
+    for (const e of HANDBOOK_SEED) for (const u of e.spec.emergency) expect(em.has(u), `${e.name} → ${u}`).toBe(true);
+  });
+  it("行政流程是草稿、不顯示；搜尋", () => {
+    const vis = visibleEntries(HANDBOOK_SEED);
+    expect(vis.some(e => e.spec.section === "admin")).toBe(false);
+    expect(searchHandbook(vis, "喘").map(e => e.name)).toEqual(["喘／血氧低"]);
+    expect(parseHbSpec("{x")).toBeNull();
+    expect(parseHbSpec(JSON.stringify({ section: "surgical" }))!.blocks).toEqual(emptyHbSpec("surgical").blocks);
+  });
+});

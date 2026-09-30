@@ -148,7 +148,17 @@ onUnmounted(() => {
           : 'bg-danger/10 text-danger hover:bg-danger/20'"
       >
         <span class="text-base">🚨</span>
-        <span>危急情境</span>
+        <span>危急處置</span>
+      </RouterLink>
+      <RouterLink
+        to="/handbook"
+        class="mt-1.5 flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold transition-colors"
+        :class="route.path === '/handbook'
+          ? 'bg-accent text-white'
+          : 'bg-accent/10 text-accent hover:bg-accent/20'"
+      >
+        <span class="text-base">📘</span>
+        <span>工作手冊</span>
       </RouterLink>
     </div>
 

@@ -14,7 +14,8 @@ const router = createRouter({
     { path: "/surgery",       redirect: { path: "/sets", query: { tab: "surgery" } } },
     { path: "/disease",       redirect: { path: "/sets", query: { tab: "disease" } } },
     { path: "/examination",   redirect: { path: "/sets", query: { tab: "examination" } } },
-    { path: "/emergency", component: () => import("@/views/EmergencyView.vue"), meta: { title: "危急情境" } },
+    { path: "/emergency", component: () => import("@/views/EmergencyView.vue"), meta: { title: "危急處置" } },
+    { path: "/handbook", component: () => import("@/views/HandbookView.vue"), meta: { title: "工作手冊" } },
     { path: "/items", component: () => import("@/views/ItemsView.vue"), meta: { title: "自費品項" } },
     { path: "/physicians", component: () => import("@/views/PhysiciansView.vue"), meta: { title: "通訊錄" } },
     // 常用分機已併入通訊錄，保留舊網址轉址
