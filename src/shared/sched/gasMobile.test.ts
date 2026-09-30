@@ -81,6 +81,18 @@ describe("GAS mobileSetPrebook", () => {
     expect((g._schSetPrebook(d, other, "202612", [{ day: 1, v: "OFF" }], NOW) as { error: string }).error).toContain("不在這個月份");
     expect((g._schSetPrebook(d, null, "202612", [], NOW) as { ok: boolean }).ok).toBe(false);
   });
+  it("週日自動補的 OFF：只能改成公假", () => {
+    const d = docs(), me = g._schPerson(d, "111");
+    const pb = JSON.parse(d["prebook:202612"].json);
+    pb.cells["e1|6"] = { v: "OFF", src: "sys", by: "system", at: "t", auto: true };
+    d["prebook:202612"].json = JSON.stringify(pb);
+    d.shifts = doc([{ code: "D", reducesOff: false }, { code: "OFF", reducesOff: false }, { code: "公假", reducesOff: false }]);
+    const r = g._schSetPrebook(d, me, "202612", [{ day: 6, v: "D" }], NOW) as { rejected: { reason: string }[] };
+    expect(r.rejected[0].reason).toContain("只能改成公假");
+    const ok = g._schSetPrebook(d, me, "202612", [{ day: 6, v: "公假" }], NOW) as { applied: unknown[] };
+    expect(ok.applied.length).toBe(1);
+    expect(JSON.parse(d["prebook:202612"].json).cells["e1|6"]).toMatchObject({ v: "公假", src: "emp" });
+  });
   it("標記自己的通知已讀", () => {
     const d = docs(), me = g._schPerson(d, "111");
     expect(g._schMarkRead(d, me, null)).toBe(1);

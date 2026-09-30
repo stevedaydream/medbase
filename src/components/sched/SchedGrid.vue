@@ -196,7 +196,7 @@ function lockedReason(cell?: CellRef): string {
   if (!m) return "此月份不存在";
   if (props.layer === "pre") {
     if (m.status !== "open") return "預班已凍結，請切換到「排班層」";
-    if (cell && ed.prebook.value?.cells[cellKey(cell.personId, cell.day)]?.src === "sys") return "系統預填的格子，請到「月份與輪值」調整";
+    if (cell && ed.prebook.value?.cells[cellKey(cell.personId, cell.day)]?.src === "sys" && !ed.prebook.value?.cells[cellKey(cell.personId, cell.day)]?.auto) return "系統預填的格子，請到「月份與輪值」調整";
     return "只能登記自己的預班";
   }
   if (m.status === "published") {
@@ -268,7 +268,7 @@ function confirmReason(reason: EditReason | null) {
 function canPrefillSwap(c: CellRef) {
   const m = ed.month.value;
   const cell = ed.prebook.value?.cells[cellKey(c.personId, c.day)];
-  return props.layer === "pre" && m?.status === "open" && useSchedSession().role !== "employee" && cell?.src === "sys" && !!cell.v;
+  return props.layer === "pre" && m?.status === "open" && useSchedSession().role !== "employee" && cell?.src === "sys" && !cell.auto && !!cell.v;
 }
 function requestPrefillSwap() {
   if (ctxMenu.value) emit("prefillswap", ctxMenu.value.cell);

@@ -140,7 +140,7 @@ describe("預填換人", () => {
     const next = nOf(s, 14);
     const cells = prefillSwapCells(s, "202611", from, 7);
     expect(cells).toEqual([{ day: 7, code: "N" }, { day: 8, code: "N" }]);
-    const to = ["a", "b", "c", "d", "e"].find(x => x !== from && !["7", "8"].some(d => s.prebooks["202611"].cells[`${x}|${d}`]?.src === "sys"))!;
+    const to = ["a", "b", "c", "d", "e"].find(x => x !== from && !["7", "8"].some(d => { const c = s.prebooks["202611"].cells[`${x}|${d}`]; return c?.src === "sys" && !c.auto; }))!;
     const p = opAddPrefillSwap(s, "202611", from, to, cells, "長假", "排班者", NOW);
     expect(p.notices.map(n => n.personId).sort()).toEqual([from, to].sort());
     s = applyToState(s, p);

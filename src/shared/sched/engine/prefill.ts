@@ -7,11 +7,12 @@ import type {
   CellOrigin, WeekendPointers,
 } from "../types";
 import { cellKey, emptyMonth, clone, CONSTRAINT_MARKS } from "../types";
-import { daysIn, dateStr, dayOfDate, prevYm, dowOf } from "../calendar";
+import { daysIn, dateStr, dayOfDate, prevYm, dowOf, dayTypeOf, inCny } from "../calendar";
 import {
   holidayAssigns, weekendAssigns, duty84Assigns, cnyAssigns, recompute84, recomputeCny, type Assign,
 } from "./rotation";
 import { computeQuotas, handoverV } from "./quota";
+import { staffIds, offSlots, needOf } from "./staffing";
 
 /**
  * 手動指定的「本月第一位」換算成輪序指標（第一位的前一個人），
@@ -146,6 +147,49 @@ export function applyPrefill(pb: PrebookDoc, assigns: Assign[], now: string, rea
   return { doc, notices };
 }
 
+export const AUTO_OFF_REASON = "週日／國定假日自動補休";
+
+/**
+ * 週日、國定假日、春節：預填後沒有任何班的人自動補 OFF（src sys、auto），
+ * 讓每日已休／可休與每人休假天數在預班時就準確。
+ * 不覆蓋任何已登記的格子；要補的人比可休人數多（例如單日人力微調需要有人上班）時當天不補、提示。
+ */
+export function applyAutoOff(
+  m: MonthDoc, pb: PrebookDoc, h: HolidayDoc, shifts: ShiftDef[], now: string,
+): { doc: PrebookDoc; warnings: string[] } {
+  const doc: PrebookDoc = { ym: pb.ym, cells: { ...pb.cells } };
+  const warnings: string[] = [];
+  const takesOff = new Set(shifts.filter(x => x.takesOff).map(x => x.code));
+  const sm = new Map(shifts.map(x => [x.code, x]));
+  const ids = staffIds(m);
+  const cell = cellFnOf(m, doc);
+  for (let d = 1; d <= daysIn(m.ym); d++) {
+    const date = dateStr(m.ym, d);
+    const t = dayTypeOf(m.ym, d, h);
+    const cny = inCny(h, date);
+    if (t !== "sunday" && t !== "holiday" && !cny) continue;
+    const empty = ids.filter(id => !doc.cells[cellKey(id, d)]?.v);
+    if (!empty.length) continue;
+    // 春節由全外科輪值，沒輪到的人都休
+    if (!cny) {
+      const need = needOf(m, d, h);
+      const working = ids.filter(id => sm.get(doc.cells[cellKey(id, d)]?.v ?? "")?.staffing).length;
+      if (working < need.D + need.N + need.S1) {
+        warnings.push(`${date} 當天值班還沒排定（例如國定假日尚未抽籤），未自動補 OFF`);
+        continue;
+      }
+      const already = ids.filter(id => takesOff.has(doc.cells[cellKey(id, d)]?.v ?? "")).length;
+      const room = offSlots(m, d, h, shifts, cell) - already;
+      if (empty.length > room) {
+        warnings.push(`${date} 可休 ${Math.max(0, room)} 人、還沒排班的有 ${empty.length} 人，需要有人上班，未自動補 OFF，請手動排`);
+        continue;
+      }
+    }
+    for (const id of empty) doc.cells[cellKey(id, d)] = { v: "OFF", src: "sys", by: "system", at: now, reason: AUTO_OFF_REASON, auto: true };
+  }
+  return { doc, warnings };
+}
+
 /**
  * 自 fromYm 起重算：8-4 明細、春節、每個「開放預班」月份的預填、週末指標、V 交接與預估 X。
  * 已排班／已發布的月份不動，只作為下一個月的交接依據。
@@ -185,10 +229,12 @@ export function recomputeFrom(s: SchedSnapshot, fromYm: string, now: string, rea
     warnings.push(...w.map(x => `${ym}：${x}`));
     m.weekend.end = end;
     const r = applyPrefill(prebooks[ym], assigns, now, reason);
-    prebooks[ym] = r.doc;
+    const off = applyAutoOff(m, r.doc, s.holidays, s.shifts, now);
+    prebooks[ym] = off.doc;
+    warnings.push(...off.warnings.map(x => `${ym}：${x}`));
     notices.push(...r.notices);
     // 預估配額（決定本月 X，供下月交接）
-    const q = computeQuotas({ month: m, holidays: s.holidays, shifts: s.shifts, items: s.quotaItems, cell: cellFnOf(m, r.doc) });
+    const q = computeQuotas({ month: m, holidays: s.holidays, shifts: s.shifts, items: s.quotaItems, cell: cellFnOf(m, off.doc) });
     for (const [k, mk] of Object.entries(q.markers)) m.markers[k] = mk;
   }
   return { months, prebooks, duty84, cny, notices, warnings };

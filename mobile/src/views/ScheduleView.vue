@@ -123,13 +123,16 @@ function cellOf(personId: string, d: number) {
   return prebook.value?.cells[cellKey(personId, d)]
 }
 const myCell = (d: number) => sched.me ? cellOf(sched.me.id, d) : undefined
+/** 系統預填（輪序）；週日／國定假日自動補的 OFF 另外處理 */
+const isLocked = (d: number) => { const c = myCell(d); return c?.src === 'sys' && !!c.v && !c.auto }
+const isAuto = (d: number) => { const c = myCell(d); return c?.src === 'sys' && !!c.v && !!c.auto }
 /** 當天所有人的預班（公開，唯讀） */
 function dayEntries(d: number) {
   const out: { id: string; name: string; v: string; sys: boolean }[] = []
   for (const [k, c] of Object.entries(prebook.value?.cells ?? {})) {
     const [pid, day] = k.split('|')
     if (Number(day) !== d || !c.v) continue
-    out.push({ id: pid, name: nameOf(pid), v: c.v, sys: c.src === 'sys' })
+    out.push({ id: pid, name: nameOf(pid), v: c.v, sys: c.src === 'sys' && !c.auto })
   }
   return out.sort((a, b) => Number(offCodes.value.has(b.v)) - Number(offCodes.value.has(a.v)) || a.name.localeCompare(b.name))
 }
@@ -140,6 +143,7 @@ const myOffBooked = computed(() => {
   for (let d = 1; d <= pDays.value; d++) { const v = myCell(d)?.v; if (v && offCodes.value.has(v)) n++ }
   return n
 })
+const myAutoOff = computed(() => Array.from({ length: pDays.value }, (_, i) => i + 1).filter(isAuto).length)
 const bookCodes = computed(() => [...shifts.value.filter(s => !s.reducesOff).map(s => s.code), ...CONSTRAINT_MARKS])
 const inRoster = computed(() => !!sched.me && !!est.value && sched.me.id in (est.value.quotas ?? {}))
 
@@ -319,19 +323,19 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
           <div class="flex flex-wrap gap-x-4 gap-y-1">
             <span v-for="it in est.items" :key="it.id"><b>{{ it.name }}</b> {{ est.quotas[sched.me.id]?.[it.id] ?? 0 }}</span>
           </div>
-          <div class="mt-1 text-xs text-muted">已登記休假 {{ myOffBooked }} 天</div>
+          <div class="mt-1 text-xs text-muted">已登記休假 {{ myOffBooked }} 天<template v-if="myAutoOff">（含週日／國定假日自動補休 {{ myAutoOff }} 天）</template></div>
         </div>
 
-        <p class="px-4 mb-2 text-xs text-muted">點日期登記；灰底🔒＝系統預填（8-4、國定假日、週末輪序、春節）。每格下方為「已休／可休」。</p>
+        <p class="px-4 mb-2 text-xs text-muted">點日期登記；灰底🔒＝系統預填（8-4、國定假日、週末輪序、春節），灰底 OFF＝週日／國定假日自動補休（可改公假）。每格下方為「已休／可休」。</p>
         <div class="grid grid-cols-7 gap-1 px-3">
           <div v-for="w in DOW" :key="w" class="text-center text-xs text-muted py-1">{{ w }}</div>
           <div v-for="n in new Date(pY, pM - 1, 1).getDay()" :key="`p${n}`" />
           <button v-for="d in pDays" :key="d" @click="pickDay = d"
             class="relative aspect-square rounded-xl border flex flex-col items-center justify-center"
-            :class="myCell(d)?.src === 'sys' && myCell(d)?.v ? 'bg-raised border-hairline' : myCell(d)?.v ? 'bg-accent/15 border-accent/40' : 'bg-surface border-hairline'">
+            :class="isLocked(d) || isAuto(d) ? 'bg-raised border-hairline' : myCell(d)?.v ? 'bg-accent/15 border-accent/40' : 'bg-surface border-hairline'">
             <span class="text-xs" :class="dowClass(pY, pM, d)">{{ d }}</span>
-            <span class="text-xs font-bold leading-tight" :class="(CONSTRAINT_MARKS as readonly string[]).includes(myCell(d)?.v ?? '') ? 'text-danger' : 'text-accent'">
-              {{ myCell(d)?.v ?? '' }}<span v-if="myCell(d)?.src === 'sys' && myCell(d)?.v">🔒</span>
+            <span class="text-xs font-bold leading-tight" :class="(CONSTRAINT_MARKS as readonly string[]).includes(myCell(d)?.v ?? '') ? 'text-danger' : isAuto(d) ? 'text-muted' : 'text-accent'">
+              {{ myCell(d)?.v ?? '' }}<span v-if="isLocked(d)">🔒</span>
             </span>
             <span class="text-[10px] leading-none mt-0.5" :class="est && offCount(d) >= (est.offSlots[d - 1] ?? 0) ? 'text-danger font-bold' : 'text-muted'">
               {{ offCount(d) }}/{{ est?.offSlots[d - 1] ?? '-' }}
@@ -356,7 +360,12 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
           </div>
 
           <template v-if="inRoster">
-            <template v-if="myCell(pickDay)?.src === 'sys' && myCell(pickDay)?.v">
+            <template v-if="isAuto(pickDay)">
+              <p class="text-sm text-fg-secondary">週日／國定假日自動補休：OFF。要公出的話可以改成公假。</p>
+              <button :disabled="saving || sched.offline" @click="book('公假')"
+                class="w-full h-11 rounded-xl border border-hairline font-bold disabled:opacity-40" :style="codeStyle('公假')">改成公假</button>
+            </template>
+            <template v-else-if="isLocked(pickDay)">
               <p class="text-sm text-fg-secondary">🔒 系統預填：{{ myCell(pickDay)?.v }}（由輪序決定，不能直接改，可以找同事代班或互換）</p>
               <button :disabled="sched.offline" @click="swapSheet = { ym: pYM, mode: 'open', day: pickDay }"
                 class="w-full h-11 rounded-xl bg-accent text-white font-bold disabled:opacity-40">找人代班／互換</button>

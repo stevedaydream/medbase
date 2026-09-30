@@ -51,7 +51,8 @@ export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>, hasLock: Ref<b
     if (!editable.value) return false;
     if (layer.value === "pre") {
       if (!isStaff.value && personId !== session.personId) return false;
-      return prebook.value?.cells[cellKey(personId, day)]?.src !== "sys";
+      const c = prebook.value?.cells[cellKey(personId, day)];
+      return c?.src !== "sys" || !!c.auto;
     }
     return true;
   }

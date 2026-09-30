@@ -142,7 +142,7 @@ export function planEmpSwap(s: OpsState, inp: EmpSwapInput, reqId: string, actor
 
   // 開放預班：只換系統預填
   const pb = s.prebooks[ym];
-  const sysOf = (id: string, d: number) => { const c = pb?.cells[cellKey(id, d)]; return c?.src === "sys" && c.v ? c.v : ""; };
+  const sysOf = (id: string, d: number) => { const c = pb?.cells[cellKey(id, d)]; return c?.src === "sys" && c.v && !c.auto ? c.v : ""; };
   const expand = (id: string, ds: number[]) => {
     for (const d of ds) if (!sysOf(id, d)) throw new Error(`${md(ym, d)} ${nm(id)} 沒有系統預填，預班期間只能換系統預填的班`);
     return uniq(ds.flatMap(d => prefillSwapCells(s, ym, id, d).map(c => c.day)));

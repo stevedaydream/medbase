@@ -561,6 +561,39 @@ function applyPrefill(pb, assigns, now, reason) {
   }
   return { doc, notices };
 }
+const AUTO_OFF_REASON = "週日／國定假日自動補休";
+function applyAutoOff(m, pb, h, shifts, now) {
+  const doc = { ym: pb.ym, cells: { ...pb.cells } };
+  const warnings = [];
+  const takesOff = new Set(shifts.filter((x) => x.takesOff).map((x) => x.code));
+  const sm = new Map(shifts.map((x) => [x.code, x]));
+  const ids = staffIds$1(m);
+  const cell = cellFnOf(m, doc);
+  for (let d = 1; d <= daysIn(m.ym); d++) {
+    const date = dateStr(m.ym, d);
+    const t = dayTypeOf(m.ym, d, h);
+    const cny = inCny(h, date);
+    if (t !== "sunday" && t !== "holiday" && !cny) continue;
+    const empty = ids.filter((id) => !doc.cells[cellKey(id, d)]?.v);
+    if (!empty.length) continue;
+    if (!cny) {
+      const need = needOf(m, d, h);
+      const working = ids.filter((id) => sm.get(doc.cells[cellKey(id, d)]?.v ?? "")?.staffing).length;
+      if (working < need.D + need.N + need.S1) {
+        warnings.push(`${date} 當天值班還沒排定（例如國定假日尚未抽籤），未自動補 OFF`);
+        continue;
+      }
+      const already = ids.filter((id) => takesOff.has(doc.cells[cellKey(id, d)]?.v ?? "")).length;
+      const room = offSlots(m, d, h, shifts, cell) - already;
+      if (empty.length > room) {
+        warnings.push(`${date} 可休 ${Math.max(0, room)} 人、還沒排班的有 ${empty.length} 人，需要有人上班，未自動補 OFF，請手動排`);
+        continue;
+      }
+    }
+    for (const id of empty) doc.cells[cellKey(id, d)] = { v: "OFF", src: "sys", by: "system", at: now, reason: AUTO_OFF_REASON, auto: true };
+  }
+  return { doc, warnings };
+}
 function recomputeFrom(s, fromYm, now, reason) {
   const months = clone(s.months);
   const prebooks = clone(s.prebooks);
@@ -591,9 +624,11 @@ function recomputeFrom(s, fromYm, now, reason) {
     warnings.push(...w.map((x) => `${ym}：${x}`));
     m.weekend.end = end;
     const r = applyPrefill(prebooks[ym], assigns, now, reason);
-    prebooks[ym] = r.doc;
+    const off = applyAutoOff(m, r.doc, s.holidays, s.shifts, now);
+    prebooks[ym] = off.doc;
+    warnings.push(...off.warnings.map((x) => `${ym}：${x}`));
     notices.push(...r.notices);
-    const q = computeQuotas({ month: m, holidays: s.holidays, shifts: s.shifts, items: s.quotaItems, cell: cellFnOf(m, r.doc) });
+    const q = computeQuotas({ month: m, holidays: s.holidays, shifts: s.shifts, items: s.quotaItems, cell: cellFnOf(m, off.doc) });
     for (const [k, mk] of Object.entries(q.markers)) m.markers[k] = mk;
   }
   return { months, prebooks, duty84, cny, notices, warnings };
@@ -752,7 +787,8 @@ function validate(ctx) {
       const eff = effectiveCode(ctx, id, d);
       const s = sm.get(eff);
       const dt = dayTypeOf(m.ym, d, h);
-      const pre = ctx.prebook?.cells[cellKey(id, d)]?.v ?? "";
+      const pc = ctx.prebook?.cells[cellKey(id, d)];
+      const pre = pc?.auto ? "" : pc?.v ?? "";
       work = !eff || s?.isRest ? 0 : work + 1;
       if (on("R1") && scheduling && work === rules.maxConsecutiveWork + 1) {
         out.push({ rule: "R1", personId: id, day: d, message: `${nm} 至 ${d2(d)} 已連續上班 ${work} 天（上限 ${rules.maxConsecutiveWork}）` });
@@ -894,7 +930,7 @@ function prefillSwapCautions(s, ym, to, cells) {
   if (f && cat === "D" && f.noD) out.push("設定不排 D");
   for (const c of cells) {
     const busy = s.prebooks[ym]?.cells[`${to}|${c.day}`];
-    if (busy?.src === "sys" && busy.v) out.push(`${md$1(ym, c.day)} 已有系統預填 ${busy.v}`);
+    if (busy?.src === "sys" && busy.v && !busy.auto) out.push(`${md$1(ym, c.day)} 已有系統預填 ${busy.v}`);
   }
   return out;
 }
@@ -906,7 +942,7 @@ function prefillSwapCells(s, ym, personId, day) {
   const dw = new Date(Number(ym.slice(0, 4)), Number(ym.slice(4)) - 1, day).getDay();
   const other = dw === 6 ? day + 1 : dw === 0 ? day - 1 : 0;
   const oc = other >= 1 && other <= daysIn(ym) ? pb?.cells[`${personId}|${other}`] : void 0;
-  if (code === "N" && oc?.src === "sys" && oc.v === "N") cells.push({ day: other, code: "N" });
+  if (code === "N" && oc?.src === "sys" && !oc.auto && oc.v === "N") cells.push({ day: other, code: "N" });
   return cells.sort((a, b) => a.day - b.day);
 }
 const HARD_RULES = ["R1", "R2", "R7", "R8", "R11"];
@@ -995,7 +1031,7 @@ function planEmpSwap(s, inp, reqId, actor, now, today) {
   const pb = s.prebooks[ym];
   const sysOf = (id, d) => {
     const c = pb?.cells[cellKey(id, d)];
-    return c?.src === "sys" && c.v ? c.v : "";
+    return c?.src === "sys" && c.v && !c.auto ? c.v : "";
   };
   const expand = (id, ds) => {
     for (const d of ds) if (!sysOf(id, d)) throw new Error(`${md(ym, d)} ${nm(id)} 沒有系統預填，預班期間只能換系統預填的班`);

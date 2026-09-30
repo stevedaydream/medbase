@@ -575,7 +575,8 @@ function _schSetPrebook(docs, person, ym, cells, nowIso) {
     const k = person.id + '|' + day;
     const cur = pb.cells[k];
     if (!(day >= 1 && day <= nd)) return rejected.push({ day: day, reason: '日期錯誤' });
-    if (cur && cur.src === 'sys' && cur.v) return rejected.push({ day: day, reason: '系統預填不可修改' });
+    if (cur && cur.src === 'sys' && cur.v && cur.auto && v !== '公假') return rejected.push({ day: day, reason: '週日／國定假日自動補休，只能改成公假' });
+    if (cur && cur.src === 'sys' && cur.v && !cur.auto) return rejected.push({ day: day, reason: '系統預填不可修改' });
     if (v !== null && codes.indexOf(v) < 0) return rejected.push({ day: day, reason: '不允許的班別' });
     const before = cur && cur.v ? cur.v : '';
     if (before === (v || '')) return;

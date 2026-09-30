@@ -292,6 +292,7 @@ export interface PrebookCell {
   by: string;             // HIS 帳號或 "system"
   at: string;             // ISO 時間
   reason?: string;
+  auto?: boolean;         // 週日／國定假日／春節自動補的 OFF（排班者可改、員工只能改公假）
 }
 export interface PrebookDoc {
   ym: string;

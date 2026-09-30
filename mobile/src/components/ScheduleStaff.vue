@@ -91,7 +91,7 @@ function codeStyle(code: string) {
   return { backgroundColor: c.bg, color: c.text }
 }
 const isRest = (d: number) => dayTypeOf(ym.value, d, holidays.value) !== 'weekday'
-const isSys = (id: string, d: number) => { const c = prebook.value?.cells[cellKey(id, d)]; return c?.src === 'sys' && !!c.v && read(id, d) === c.v }
+const isSys = (id: string, d: number) => { const c = prebook.value?.cells[cellKey(id, d)]; return c?.src === 'sys' && !c.auto && !!c.v && read(id, d) === c.v }
 const changed = computed(() => new Set((month.value?.changeLog ?? []).map(c => `${c.personId}|${c.day}`)))
 
 // ── 單日／單人 ────────────────────────────────────────────────

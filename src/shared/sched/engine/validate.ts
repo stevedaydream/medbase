@@ -129,7 +129,8 @@ export function validate(ctx: GridCtx): Issue[] {
       const eff = effectiveCode(ctx, id, d);
       const s = sm.get(eff);
       const dt = dayTypeOf(m.ym, d, h);
-      const pre = ctx.prebook?.cells[cellKey(id, d)]?.v ?? "";
+      const pc = ctx.prebook?.cells[cellKey(id, d)];
+      const pre = pc?.auto ? "" : pc?.v ?? "";
 
       work = !eff || s?.isRest ? 0 : work + 1;
       if (on("R1") && scheduling && work === rules.maxConsecutiveWork + 1) {

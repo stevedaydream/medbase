@@ -285,7 +285,7 @@ export function opEditCells(s: OpsState, ym: string, layer: "pre" | "sched", edi
     for (const e of edits) {
       const k = cellKeyOf(e.personId, e.day);
       const cur = pb.cells[k];
-      if (cur?.src === "sys" && cur.v) continue;
+      if (cur?.src === "sys" && cur.v && !cur.auto) continue;
       const from = cur?.v ?? "";
       if (from === e.value) continue;
       pb.cells[k] = { v: e.value || null, src: "emp", by: o.actorHis || o.actor, at: o.now };
@@ -354,7 +354,7 @@ export function prefillSwapCautions(s: OpsState, ym: string, to: string, cells: 
   if (f && cat === "D" && f.noD) out.push("設定不排 D");
   for (const c of cells) {
     const busy = s.prebooks[ym]?.cells[`${to}|${c.day}`];
-    if (busy?.src === "sys" && busy.v) out.push(`${md(ym, c.day)} 已有系統預填 ${busy.v}`);
+    if (busy?.src === "sys" && busy.v && !busy.auto) out.push(`${md(ym, c.day)} 已有系統預填 ${busy.v}`);
   }
   return out;
 }
@@ -368,7 +368,7 @@ export function prefillSwapCells(s: OpsState, ym: string, personId: string, day:
   const dw = new Date(Number(ym.slice(0, 4)), Number(ym.slice(4)) - 1, day).getDay();
   const other = dw === 6 ? day + 1 : dw === 0 ? day - 1 : 0;
   const oc = other >= 1 && other <= daysIn(ym) ? pb?.cells[`${personId}|${other}`] : undefined;
-  if (code === "N" && oc?.src === "sys" && oc.v === "N") cells.push({ day: other, code: "N" });
+  if (code === "N" && oc?.src === "sys" && !oc.auto && oc.v === "N") cells.push({ day: other, code: "N" });
   return cells.sort((a, b) => a.day - b.day);
 }
 
