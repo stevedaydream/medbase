@@ -11,6 +11,7 @@ const router = createRouter({
     { path: '/sets/:kind/:id', component: () => import('./views/SetDetailView.vue') },
     { path: '/contacts', component: () => import('./views/ContactsView.vue') },
     { path: '/schedule', component: () => import('./views/ScheduleView.vue') },
+    { path: '/emergency', component: () => import('./views/EmergencyView.vue') },
     { path: '/more',     component: () => import('./views/MoreView.vue') },
     { path: '/items',    component: () => import('./views/ItemsView.vue') },
     { path: '/memos',    component: () => import('./views/MemosView.vue') },

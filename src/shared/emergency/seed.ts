@@ -26,8 +26,10 @@ const BTS = { title: "BTS Guideline for oxygen use in adults in healthcare and e
 
 const INSULIN_SCALE: EmMed = { name: "短效胰島素（Actrapid／RI）", dose: "依院內 sliding scale（劑量待院內填入）", alert: true };
 
-export const SEED_CARDS: { name: string; spec: EmSpec }[] = [
+/** uid 固定：多台電腦各自遷移時，雲端同步以 uid 合併，不會重複 */
+export const SEED_CARDS: { uid: string; name: string; spec: EmSpec }[] = [
   {
+    uid: "em-seed-glucose-high",
     name: "血糖高",
     spec: base({
       category: "血糖", keywords: ["高血糖", "hyperglycemia", "DKA", "HHS", "胰島素", "sugar"],
@@ -67,6 +69,7 @@ export const SEED_CARDS: { name: string; spec: EmSpec }[] = [
     }),
   },
   {
+    uid: "em-seed-glucose-low",
     name: "血糖低",
     spec: base({
       category: "血糖", keywords: ["低血糖", "hypoglycemia", "D50", "glucagon", "sugar"],
@@ -99,6 +102,7 @@ export const SEED_CARDS: { name: string; spec: EmSpec }[] = [
     }),
   },
   {
+    uid: "em-seed-k-high",
     name: "鉀離子高",
     spec: base({
       category: "電解質", keywords: ["高血鉀", "hyperkalemia", "K", "potassium", "calcium gluconate"],
@@ -148,6 +152,7 @@ export const SEED_CARDS: { name: string; spec: EmSpec }[] = [
     }),
   },
   {
+    uid: "em-seed-k-low",
     name: "鉀離子低",
     spec: base({
       category: "電解質", keywords: ["低血鉀", "hypokalemia", "K", "potassium", "KCl"],
@@ -183,6 +188,7 @@ export const SEED_CARDS: { name: string; spec: EmSpec }[] = [
     }),
   },
   {
+    uid: "em-seed-hypotension",
     name: "血壓低",
     spec: base({
       category: "循環", keywords: ["低血壓", "hypotension", "休克", "shock", "敗血症", "sepsis", "MAP"],
@@ -211,6 +217,7 @@ export const SEED_CARDS: { name: string; spec: EmSpec }[] = [
     }),
   },
   {
+    uid: "em-seed-hypoxemia",
     name: "血氧低",
     spec: base({
       category: "呼吸", keywords: ["低血氧", "SpO2", "喘", "呼吸窘迫", "hypoxemia", "oxygen", "氧氣"],

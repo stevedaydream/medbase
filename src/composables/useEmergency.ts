@@ -1,6 +1,10 @@
 import { getDb, dbWrite } from "@/db";
 import { parseSpec, emptySpec, type EmCard, type EmSpec } from "@/shared/emergency/types";
 import { SEED_CARDS, DEMO_NAMES } from "@/shared/emergency/seed";
+import { touchTable, markDeleted } from "@/composables/useTableSync";
+
+/** 雲端逐筆同步的表名（useTableSync／GAS SYNC_TABLES） */
+export const EM_TABLE = "emergency";
 
 /**
  * 危急處置卡（ADR-017）：讀寫 emergency_protocols（spec 欄位存整張卡）。
@@ -37,14 +41,19 @@ async function migrate(): Promise<void> {
   const rows = await db.select<Row[]>("SELECT * FROM emergency_protocols");
   for (const r of rows) {
     if (r.spec) continue;
-    if (DEMO_NAMES.includes(r.name)) await dbWrite("DELETE FROM emergency_protocols WHERE id=?", [r.id]);
+    if (DEMO_NAMES.includes(r.name)) {
+      if (r.uid) await markDeleted(EM_TABLE, r.uid);
+      await dbWrite("DELETE FROM emergency_protocols WHERE id=?", [r.id]);
+    }
     else await dbWrite("UPDATE emergency_protocols SET spec=? WHERE id=?", [JSON.stringify(fromLegacy(r)), r.id]);
   }
   const names = new Set(rows.filter(r => !DEMO_NAMES.includes(r.name) || r.spec).map(r => r.name));
   for (const c of SEED_CARDS) {
-    if (!names.has(c.name)) await dbWrite("INSERT INTO emergency_protocols (name, spec) VALUES (?, ?)", [c.name, JSON.stringify(c.spec)]);
+    // 時間戳用最舊：雲端已有同 uid 的卡（別台電腦先上傳或已修改）時以雲端為準
+    if (!names.has(c.name)) await dbWrite("INSERT OR IGNORE INTO emergency_protocols (uid, updated_at, name, spec) VALUES (?, ?, ?, ?)", [c.uid, "1970-01-01 00:00:00", c.name, JSON.stringify(c.spec)]);
   }
   await dbWrite("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, '1')", [MIGRATED]);
+  await touchTable(EM_TABLE);
 }
 
 export async function loadEmergencyCards(): Promise<EmCard[]> {
@@ -58,14 +67,18 @@ export async function saveEmergencyCard(card: { uid: string | null; name: string
   const json = JSON.stringify(card.spec);
   if (card.uid) {
     await dbWrite("UPDATE emergency_protocols SET name=?, spec=? WHERE uid=?", [card.name.trim(), json, card.uid]);
+    await touchTable(EM_TABLE);
     return card.uid;
   }
   const res = await dbWrite("INSERT INTO emergency_protocols (name, spec) VALUES (?, ?)", [card.name.trim(), json]);
   const db = await getDb();
   const r = await db.select<{ uid: string }[]>("SELECT uid FROM emergency_protocols WHERE id=?", [res.lastInsertId]);
+  await touchTable(EM_TABLE);
   return r[0]?.uid ?? "";
 }
 
 export async function deleteEmergencyCard(uid: string): Promise<void> {
+  await markDeleted(EM_TABLE, uid);
   await dbWrite("DELETE FROM emergency_protocols WHERE uid=?", [uid]);
+  await touchTable(EM_TABLE);
 }

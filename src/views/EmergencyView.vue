@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { loadEmergencyCards } from "@/composables/useEmergency";
+import { loadEmergencyCards, EM_TABLE } from "@/composables/useEmergency";
+import { onTableSynced } from "@/composables/useTableSync";
 import { matchTiers, searchCards, visibleCards, rangeText, tierRefs } from "@/shared/emergency/logic";
 import { EM_CATEGORIES, STATUS_LABELS, DISCLAIMER, type EmCard, type EmTier, type EmRecheck } from "@/shared/emergency/types";
 
@@ -13,7 +14,12 @@ const valueText = ref("");
 const answers = ref<Record<string, boolean | undefined>>({});
 const checked = ref(new Set<string>());
 
-onMounted(async () => { cards.value = visibleCards(await loadEmergencyCards()); });
+async function reload() {
+  cards.value = visibleCards(await loadEmergencyCards());
+  if (selected.value) selected.value = cards.value.find(c => c.uid === selected.value!.uid) ?? null;
+}
+onMounted(reload);
+onTableSynced(EM_TABLE, reload);
 
 const list = computed(() => searchCards(cards.value, q.value));
 const groups = computed(() => {

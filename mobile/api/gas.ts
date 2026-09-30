@@ -20,7 +20,7 @@ interface Rule {
 
 const READ_TABLES = new Set([
   "physicians", "contacts", "prescriptions", "surgery", "examination", "disease",
-  "shiftMemos", "items", "sets", "surgeryTypes",
+  "shiftMemos", "items", "sets", "surgeryTypes", "emergency",
 ]);
 
 const CONFIG_KEYS = ["np_duty_url"];

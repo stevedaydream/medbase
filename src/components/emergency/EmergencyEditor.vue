@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { loadEmergencyCards, saveEmergencyCard, deleteEmergencyCard } from "@/composables/useEmergency";
+import { loadEmergencyCards, saveEmergencyCard, deleteEmergencyCard, EM_TABLE } from "@/composables/useEmergency";
+import { onTableSynced } from "@/composables/useTableSync";
 import { checkSpec, searchCards, rangeText } from "@/shared/emergency/logic";
 import {
   EM_CATEGORIES, STATUS_LABELS, emptySpec, newEmId, type EmCard, type EmSpec, type EmTier, type EmStatus,
@@ -20,6 +21,7 @@ async function reload() {
   emit("count", cards.value.length);
 }
 onMounted(reload);
+onTableSynced(EM_TABLE, reload);
 const list = computed(() => searchCards(cards.value, props.search));
 
 function edit(c: EmCard) { form.value = { uid: c.uid, name: c.name, spec: clone(c.spec) }; confirmDel.value = false; }

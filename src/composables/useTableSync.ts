@@ -280,6 +280,10 @@ const SYNC_CONFIGS: Record<string, SyncConfig> = {
     label: "規則備忘錄", localTable: "shift_memos", key: "uid",
     fields: ["uid", "category", "title", "content", "sort_order"], notNull: ["category", "title", "content"],
   },
+  emergency: {
+    label: "危急處置", localTable: "emergency_protocols", key: "uid",
+    fields: ["uid", "name", "spec"], notNull: ["name"],
+  },
   contacts: {
     label: "常用分機", localTable: "contacts", key: "uid",
     fields: ["uid", "label", "ext", "category", "notes"], notNull: ["label", "ext"],

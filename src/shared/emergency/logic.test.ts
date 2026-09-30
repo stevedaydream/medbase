@@ -65,7 +65,7 @@ describe("編輯檢查", () => {
 });
 
 describe("搜尋與顯示", () => {
-  const cards: EmCard[] = SEED_CARDS.map((c, i) => ({ uid: String(i), ...c }));
+  const cards: EmCard[] = SEED_CARDS;
   it("關鍵字搜尋", () => {
     expect(searchCards(cards, "喘").map(c => c.name)).toEqual(["血氧低"]);
     expect(searchCards(cards, "鉀").map(c => c.name)).toEqual(["鉀離子高", "鉀離子低"]);

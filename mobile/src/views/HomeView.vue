@@ -11,6 +11,7 @@ import { matchTerms, copy } from '../lib/ui'
 import { session } from '../lib/session'
 import { sched, doc } from '../lib/sched'
 import type { NoticeItem } from '@shared/sched/types'
+import { parseSpec } from '@shared/emergency/types'
 
 /** 首頁：全域搜尋＋今日值班＋最近查看（ADR-013） */
 const router = useRouter()
@@ -31,6 +32,10 @@ const index = computed<Hit[]>(() => {
     ...t.physicians.map(r => ({ type: '人員', title: r.name, sub: [r.department, r.title, r.ext ? `分機 ${r.ext}` : '', r.his_account ? `HIS ${r.his_account}` : ''].filter(Boolean).join(' · '), to: `/contacts?q=${encodeURIComponent(r.name)}`, copyText: r.ext, copyLabel: '分機' })),
     ...t.contacts.map(r => ({ type: '分機', title: r.label, sub: [r.category, r.ext ? `分機 ${r.ext}` : '', r.notes].filter(Boolean).join(' · '), to: `/contacts?q=${encodeURIComponent(r.label)}`, copyText: r.ext, copyLabel: '分機' })),
     ...t.shiftMemos.map(r => ({ type: '備忘', title: r.title, sub: r.category, to: `/memos/${r.uid}` })),
+    ...t.emergency.flatMap(r => {
+      const s = parseSpec(r.spec)
+      return s && s.status !== 'draft' ? [{ type: '危急', title: r.name, sub: [s.category, ...s.keywords].join(' · '), to: `/emergency?c=${r.uid}` }] : []
+    }),
   ]
 })
 
@@ -54,6 +59,9 @@ usePullRefresh(() => pullRefresh(['npDuty', 'physicians']))
       <p v-else-if="empty && data.offline" class="text-sm text-warning">目前離線，這支手機還沒有資料</p>
       <RouterLink v-if="unreadSched" to="/schedule" class="flex items-center gap-2 px-4 py-3 rounded-2xl bg-accent/10 border border-accent/30 text-sm font-bold text-accent">
         🔔 你有 {{ unreadSched }} 則排班通知<span class="ml-auto">›</span>
+      </RouterLink>
+      <RouterLink to="/emergency" class="flex items-center gap-3 px-4 h-14 rounded-2xl bg-danger text-white font-black text-lg shadow">
+        🚨 危急處置<span class="ml-auto text-sm font-bold opacity-80">血糖・K・血壓・血氧 ›</span>
       </RouterLink>
       <DutyCard />
       <section v-if="recent.length">
