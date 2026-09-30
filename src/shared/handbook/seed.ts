@@ -3,6 +3,7 @@
  * 不照抄任何醫院的手冊；院內規定（行政流程）只建架子待填。uid 固定，多台電腦遷移時以 uid 合併。
  */
 import type { HbSpec, HbBlock } from "./types";
+import { therapyFor } from "./therapy";
 
 type Ref = { title: string; url: string };
 const R = {
@@ -32,10 +33,10 @@ const LIT = "國際指引與教科書整理（見參考文獻），尚未經院�
 const oncall = (category: string, keywords: string[], b: string[][], refs: Ref[], emergency: string[] = [], notes = ""): HbSpec => ({
   section: "oncall", category, keywords,
   blocks: ["電話中先問", "到床邊看", "不能漏掉的危險原因", "初步檢查", "初步處置", "何時通知上級"].map((title, i) => ({ title, items: b[i] ?? [] })),
-  emergency, drugs: [], tools: [], dilutions: [], refs: [R.geeky, ...refs], source: LIT, reviewer: "", effective: "", status: "literature", notes,
+  emergency, drugs: [], tools: [], dilutions: [], therapy: [], refs: [R.geeky, ...refs], source: LIT, reviewer: "", effective: "", status: "literature", notes,
 });
 const topic = (section: HbSpec["section"], category: string, keywords: string[], blocks: HbBlock[], refs: Ref[], status: HbSpec["status"] = "literature"): HbSpec => ({
-  section, category, keywords, blocks, emergency: [], drugs: [], tools: [], dilutions: [], refs, source: status === "literature" ? LIT : "", reviewer: "", effective: "", status, notes: "",
+  section, category, keywords, blocks, emergency: [], drugs: [], tools: [], dilutions: [], therapy: [], refs, source: status === "literature" ? LIT : "", reviewer: "", effective: "", status, notes: "",
 });
 
 const ASK_VITALS = "生命徵象（BT、HR、BP、RR、SpO2）與意識，和平常比較";
@@ -382,14 +383,35 @@ const LINKS: Record<string, { drugs?: string[]; tools?: string[]; emergency?: st
   "hb-seed-vasopressors": { tools: ["pump", "pump-rev", "map"], emergency: ["em-v5-pressor"] },
   "hb-seed-iv-antihypertensives": { tools: ["pump", "pump-rev"], emergency: ["em-v5-antihtn"] },
 };
-const withLinks = (e: Seed): Seed => LINKS[e.uid] ? { ...e, spec: { ...e.spec, ...LINKS[e.uid] } } : e;
+/** 第 7 批：用藥建議（therapy.ts）與術後噁心嘔吐 */
+const SEED_V7: Seed[] = [
+  {
+    uid: "hb-seed-ponv", name: "術後噁心嘔吐",
+    spec: oncall("症狀", ["噁心", "嘔吐", "PONV", "止吐", "nausea", "vomiting"], [
+      [ASK_VITALS, "何時開始、嘔吐次數與內容物（膽汁、血、糞便樣）", "麻醉時已給的預防止吐藥（決定救援用哪一類）", "鴉片類、PCA 使用", ASK_CONTEXT],
+      ["腹脹、腸音、排氣排便（腸阻塞）", "脫水、低血壓", "疼痛、焦慮", "意識、神經學（顱內壓）"],
+      ["腸阻塞、吻合處滲漏", "低血壓或低血糖", "心肌梗塞（上腹痛、噁心）", "顱內病變", "吸入性肺炎風險"],
+      ["依懷疑：電解質、血糖、ECG、腹部 X 光"],
+      ["側躺避免吸入；需要時禁食", "補液、處理疼痛", "救援止吐選和預防用藥不同類的（見用藥建議）", "減少或更換鴉片類"],
+      ["嘔吐持續、腹脹或疑腸阻塞：立即", "咖啡渣或血性嘔吐物：立即", "生命徵象改變：立即"],
+    ], [], [], ""),
+  },
+];
+
+const withLinks = (e: Seed): Seed => {
+  let x = LINKS[e.uid] ? { ...e, spec: { ...e.spec, ...LINKS[e.uid] } } : e;
+  const t = therapyFor(x.uid, x.spec.refs);
+  if (t) x = { ...x, spec: { ...x.spec, therapy: t.therapy, refs: t.refs } };
+  return x;
+};
 
 /** uid 固定：多台電腦各自加入時以 uid 合併；since＝第幾批加入 */
 /** 第 4 批沒有新條目：更新沒改過的條目（危急處置卡合併後的連結） */
-export const HANDBOOK_SEED_VERSION = 6;
+export const HANDBOOK_SEED_VERSION = 7;
 export const HANDBOOK_SEED: (Seed & { since: number })[] = [
   ...SEED_V1.map(e => ({ ...withLinks(e), since: 1 })),
   ...SEED_V2.map(e => ({ ...withLinks(e), since: 2 })),
   ...SEED_V3.map(e => ({ ...withLinks(e), since: 3 })),
   ...SEED_V6.map(e => ({ ...withLinks(e), since: 6 })),
+  ...SEED_V7.map(e => ({ ...withLinks(e), since: 7 })),
 ];

@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
 import EmergencyCardPanel from '../components/EmergencyCardPanel.vue'
+import TherapyList from '../components/TherapyList.vue'
 import { data, loadCache } from '../lib/data'
 import { parseSpec, DISCLAIMER, type EmCard } from '@shared/emergency/types'
 import { parseHbSpec, STATUS_LABELS } from '@shared/handbook/types'
@@ -61,6 +62,7 @@ const toolLink = (id: string) => `/tool/${id}`
           <li v-for="(it, i) in b.items" :key="i" class="text-[15px] text-fg flex gap-2 leading-snug"><span class="text-muted">•</span>{{ it }}</li>
         </ul>
       </section>
+      <TherapyList v-if="entry.spec.therapy?.length" :therapy="entry.spec.therapy" :refs="entry.spec.refs" />
       <p v-if="entry.spec.notes" class="text-sm text-fg-secondary">📝 {{ entry.spec.notes }}</p>
       <div class="pt-3 border-t border-hairline text-[11px] text-muted space-y-1">
         <p v-for="(r, i) in entry.spec.refs" :key="r.url"><a :href="r.url" target="_blank" rel="noopener" class="underline">📚 [{{ i + 1 }}] {{ r.title }}</a></p>

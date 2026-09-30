@@ -5,6 +5,7 @@ import { loadHandbook, HB_TABLE } from "@/composables/useHandbook";
 import { loadEmergencyCards, EM_TABLE } from "@/composables/useEmergency";
 import { onTableSynced } from "@/composables/useTableSync";
 import EmergencyCardPanel from "@/components/emergency/EmergencyCardPanel.vue";
+import TherapyList from "@/components/care/TherapyList.vue";
 import { STATUS_LABELS, searchHandbook, visibleEntries, type HbEntry } from "@/shared/handbook/types";
 import { visibleCards } from "@/shared/emergency/logic";
 import { DISCLAIMER, type EmCard } from "@/shared/emergency/types";
@@ -86,6 +87,11 @@ function pick(e: HbEntry | null) {
             <p v-for="(r, i) in selected.spec.refs" :key="r.url"><button class="underline hover:text-accent text-left" @click="openUrl(r.url)">📚 [{{ i + 1 }}] {{ r.title }}</button></p>
             <p class="font-bold">{{ DISCLAIMER }}</p>
           </div>
+        </div>
+
+        <!-- 用藥建議 -->
+        <div v-if="selected.spec.therapy?.length" class="bg-surface rounded-xl border border-hairline p-5">
+          <TherapyList :therapy="selected.spec.therapy" :refs="selected.spec.refs" />
         </div>
 
         <!-- 數值判讀（直接在這頁輸入） -->

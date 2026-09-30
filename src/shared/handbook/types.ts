@@ -2,7 +2,7 @@
  * 隨身工作手冊（ADR-018）：值班常見狀況、外科照護、行政流程。桌機編輯、手機離線看。
  * 公式計算不存資料，寫在 formulas.ts。
  */
-import type { EmStatus } from "../emergency/types";
+import type { EmStatus, EmMed } from "../emergency/types";
 export { STATUS_LABELS } from "../emergency/types";
 
 export type HbSection = "oncall" | "surgical" | "drug" | "admin";
@@ -18,6 +18,9 @@ export const SECTION_LABELS: Record<HbSection, string> = {
 export const ONCALL_BLOCKS = ["電話中先問", "到床邊看", "不能漏掉的危險原因", "初步檢查", "初步處置", "何時通知上級"] as const;
 
 export interface HbBlock { title: string; items: string[] }
+
+/** 用藥建議（依情境）：值班狀況卡的「用藥建議」 */
+export interface HbTherapy { id: string; scenario: string; meds: EmMed[]; notes: string; refs?: number[] }
 
 /** 院內泡法（藥物速查條目）：泵速換算可一鍵帶入；unit 為劑量單位（0 mcg/kg/min、1 mcg/min、2 mg/h、3 U/min） */
 export interface HbDilution { drug: string; amt: number; vol: number; unit: number; note: string }
@@ -35,6 +38,8 @@ export interface HbSpec {
   tools: string[];
   /** 院內泡法（藥物速查用） */
   dilutions: HbDilution[];
+  /** 用藥建議（依情境） */
+  therapy: HbTherapy[];
   refs: { title: string; url: string }[];
   source: string;
   reviewer: string;
@@ -49,7 +54,7 @@ export function emptyHbSpec(section: HbSection = "oncall"): HbSpec {
   return {
     section, category: "", keywords: [],
     blocks: section === "oncall" ? ONCALL_BLOCKS.map(title => ({ title, items: [] })) : [{ title: "", items: [] }],
-    emergency: [], drugs: [], tools: [], dilutions: [], refs: [], source: "", reviewer: "", effective: "", status: "draft", notes: "",
+    emergency: [], drugs: [], tools: [], dilutions: [], therapy: [], refs: [], source: "", reviewer: "", effective: "", status: "draft", notes: "",
   };
 }
 

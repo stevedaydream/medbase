@@ -156,6 +156,30 @@ const STATUSES: EmStatus[] = ["draft", "literature", "published"];
             <button @click="form.spec.dilutions!.splice(j, 1)" class="text-danger px-1">✕</button>
           </div>
         </div>
+        <div v-if="form.spec.section === 'oncall'" class="p-3 rounded-xl border border-hairline space-y-3">
+          <div class="flex justify-between"><b class="text-fg-secondary">用藥建議（依情境）</b>
+            <button @click="(form.spec.therapy ??= []).push({ id: 't' + Date.now(), scenario: '', meds: [], notes: '', refs: [] })" class="text-accent">＋ 新增情境</button></div>
+          <div v-for="(t, j) in form.spec.therapy ?? []" :key="t.id" class="p-3 rounded-lg bg-sunken space-y-2">
+            <div class="flex gap-2">
+              <input v-model="t.scenario" class="hb-in flex-1 font-bold" placeholder="情境（例：疑敗血症、來源不明）" />
+              <button @click="form.spec.therapy!.splice(j, 1)" class="text-danger px-2">✕</button>
+            </div>
+            <div v-for="(m, k) in t.meds" :key="k" class="flex gap-2 items-center">
+              <input v-model="m.name" class="hb-in w-56" placeholder="藥名（商品名）" />
+              <input v-model="m.dose" class="hb-in flex-1" placeholder="劑量、途徑、頻次" />
+              <label class="flex items-center gap-1 text-danger"><input v-model="m.alert" type="checkbox" />高警訊</label>
+              <button @click="t.meds.splice(k, 1)" class="text-danger px-1">✕</button>
+            </div>
+            <button @click="t.meds.push({ name: '', dose: '', alert: false })" class="text-accent">＋ 藥物</button>
+            <input v-model="t.notes" class="hb-in w-full" placeholder="注意事項" />
+            <div v-if="form.spec.refs.length" class="flex flex-wrap gap-3 items-center">
+              <span class="text-muted">依據文獻</span>
+              <label v-for="(ref, k) in form.spec.refs" :key="k" class="flex items-center gap-1">
+                <input type="checkbox" :checked="t.refs?.includes(k)" @change="t.refs = t.refs?.includes(k) ? t.refs.filter(x => x !== k) : [...(t.refs ?? []), k]" />[{{ k + 1 }}] {{ ref.title.slice(0, 20) }}
+              </label>
+            </div>
+          </div>
+        </div>
         <label class="block space-y-1"><span class="text-muted">備註</span><input v-model="form.spec.notes" class="hb-in w-full" /></label>
 
         <div class="p-4 rounded-xl border border-hairline space-y-2">

@@ -70,8 +70,21 @@ describe("首批內容", () => {
         expect(e.spec.blocks.every(b => b.items.length), e.name).toBe(true);
       }
     }
-    expect(HANDBOOK_SEED.filter(e => e.spec.section === "oncall").length).toBe(14);
+    expect(HANDBOOK_SEED.filter(e => e.spec.section === "oncall").length).toBe(15);
     expect(HANDBOOK_SEED.filter(e => e.spec.section === "drug").length).toBe(3);
+  });
+  it("用藥建議：值班卡都有；每個情境都有藥與文獻，文獻索引有效", () => {
+    const oncall = HANDBOOK_SEED.filter(e => e.spec.section === "oncall");
+    const missing = oncall.filter(e => !e.spec.therapy.length).map(e => e.name);
+    expect(missing).toEqual([]);
+    for (const e of oncall) for (const t of e.spec.therapy) {
+      expect(t.meds.length, e.name + t.scenario).toBeGreaterThan(0);
+      for (const i of t.refs ?? []) expect(e.spec.refs[i], e.name + t.scenario).toBeTruthy();
+    }
+    const pain = HANDBOOK_SEED.find(e => e.uid === "hb-seed-pain")!.spec;
+    expect(pain.therapy.some(t => t.meds.some(m => m.name.startsWith("Naloxone")))).toBe(true);
+    const fever = HANDBOOK_SEED.find(e => e.uid === "hb-seed-fever")!.spec;
+    expect(fever.therapy.map(t => t.scenario)).toContain("院內感染肺炎");
   });
   it("連到的危急處置卡都存在", () => {
     const em = new Set(SEED_CARDS.map(c => c.uid));
