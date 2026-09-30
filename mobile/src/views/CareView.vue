@@ -38,7 +38,7 @@ const valueGroups = computed(() => {
     .map(cat => ({ cat, items: list.filter(c => c.spec.category === cat) })).filter(g => g.items.length)
 })
 const tools = computed(() => ALL_TOOLS.filter(t => !q.value.trim() || `${t.name} ${t.desc}`.toLowerCase().includes(q.value.trim().toLowerCase())))
-const toolLink = (t: ToolRef) => t.kind === 'calc' ? `/tools?tool=${t.calcId}` : `/handbook?tab=formula&f=${t.id}`
+const toolLink = (t: ToolRef) => `/tool/${t.id}`
 
 usePullRefresh(() => pullRefresh(['handbook', 'emergency']))
 </script>

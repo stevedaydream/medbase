@@ -42,7 +42,7 @@ const index = computed<Hit[]>(() => {
       const s = parseHbSpec(r.spec)
       return s && s.status !== 'draft' ? [{ type: '手冊', title: r.name, sub: [SECTION_LABELS[s.section], s.category, ...s.keywords].join(' · '), to: s.section === 'oncall' ? `/care/s/${r.uid}` : `/handbook?tab=${s.section}&e=${r.uid}` }] : []
     }),
-    ...FORMULAS.map(f => ({ type: '公式', title: f.name, sub: f.formula, to: `/handbook?tab=formula&f=${f.id}` })),
+    ...FORMULAS.map(f => ({ type: '公式', title: f.name, sub: f.formula, to: `/tool/${f.id}` })),
   ]
 })
 

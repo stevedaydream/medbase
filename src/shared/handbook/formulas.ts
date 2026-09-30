@@ -1,6 +1,8 @@
 /**
  * 常用公式（ADR-018）：只做公式計算，不換算藥物劑量。桌機與手機共用。
  */
+import { correctedCalcium, calciumStatus } from "../clinicalCalc";
+
 export interface FormulaInput { key: string; label: string; unit: string; options?: { value: number; label: string }[] }
 
 export interface Formula {
@@ -30,7 +32,11 @@ export const FORMULAS: Formula[] = [
     id: "ca", name: "校正鈣（低白蛋白）",
     inputs: [{ key: "ca", label: "血鈣", unit: "mg/dL" }, { key: "alb", label: "白蛋白", unit: "g/dL" }],
     formula: "血鈣 + 0.8 × (4 − 白蛋白)",
-    compute: v => ok(v.ca, v.alb) && v.alb > 0 ? { value: round(v.ca + 0.8 * (4 - v.alb)), unit: "mg/dL" } : null,
+    compute: v => {
+      if (!ok(v.ca, v.alb) || v.alb <= 0) return null;
+      const c = correctedCalcium(v.ca, v.alb)!;
+      return { value: round(c), unit: "mg/dL", note: `${calciumStatus(c)!.label}；處置見數值判讀「鈣離子」` };
+    },
     normal: "約 8.5–10.5 mg/dL（依院內檢驗參考值）",
     ref: { title: "MDCalc: Calcium Correction for Hypoalbuminemia", url: "https://www.mdcalc.com/calc/31/calcium-correction-hypoalbuminemia" },
   },

@@ -25,7 +25,7 @@ const drugNames = computed(() => Object.fromEntries(data.tables.handbook.map(r =
 const cardTab = ref('')
 watch(() => route.params.uid, () => { cardTab.value = '' })
 const active = computed(() => cards.value.find(c => c.uid === cardTab.value) ?? cards.value[0] ?? null)
-const toolLink = (id: string) => { const t = toolById(id)!; return t.kind === 'calc' ? `/tools?tool=${t.calcId}` : `/handbook?tab=formula&f=${t.id}` }
+const toolLink = (id: string) => `/tool/${id}`
 </script>
 
 <template>

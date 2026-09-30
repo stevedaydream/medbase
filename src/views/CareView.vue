@@ -5,7 +5,9 @@ import SymptomPane from "@/components/care/SymptomPane.vue";
 import EmergencyView from "@/views/EmergencyView.vue";
 import HandbookView from "@/views/HandbookView.vue";
 import ToolsView from "@/views/ToolsView.vue";
-import { toolById } from "@/shared/tools";
+import FormulaPanel from "@/components/care/FormulaPanel.vue";
+import { ALL_TOOLS, toolById } from "@/shared/tools";
+import { FORMULAS } from "@/shared/handbook/formulas";
 
 /**
  * 處置及臨床工具：依症狀、數值判讀、藥物速查、計算工具、手冊，一個入口。
@@ -22,9 +24,9 @@ const tab = computed<Tab>(() => (TABS.some(t => t.key === route.query.tab) ? rou
 const q = (k: string) => (typeof route.query[k] === "string" ? route.query[k] as string : undefined);
 const go = (query: Record<string, string>) => router.replace({ path: "/care", query });
 
-// 計算工具：公式（手冊公式）或互動式工具（原臨床工具）
-const tool = computed(() => toolById(q("t") ?? ""));
-const toolKind = computed(() => tool.value?.kind ?? (q("k") === "formula" ? "formula" : "calc"));
+// 計算工具：公式與互動式工具（ABG、FiO₂…）同一份清單
+const tool = computed(() => toolById(q("t") ?? "") ?? ALL_TOOLS[0]);
+const formula = computed(() => FORMULAS.find(f => f.id === tool.value.id) ?? null);
 </script>
 
 <template>
@@ -40,13 +42,15 @@ const toolKind = computed(() => tool.value?.kind ?? (q("k") === "formula" ? "for
     <EmergencyView v-else-if="tab === 'value'" class="flex-1" />
     <HandbookView v-else-if="tab === 'drug'" :only="['drug']" :open="q('e')" class="flex-1" />
     <HandbookView v-else-if="tab === 'manual'" :only="['surgical', 'admin']" :open="q('e')" class="flex-1" />
-    <template v-else>
-      <div class="flex gap-2">
-        <button v-for="k in (['calc', 'formula'] as const)" :key="k" @click="go({ tab: 'tools', k })" class="px-3 py-1.5 rounded-lg text-xs font-bold border"
-          :class="toolKind === k ? 'bg-accent/10 text-accent border-accent/40' : 'bg-surface border-hairline text-fg-secondary'">{{ k === "calc" ? "互動工具" : "公式計算" }}</button>
+    <div v-else class="flex-1 flex gap-4 overflow-hidden">
+      <div class="w-64 shrink-0 bg-surface rounded-xl border border-hairline p-2 overflow-y-auto">
+        <button v-for="t in ALL_TOOLS" :key="t.id" @click="go({ tab: 'tools', t: t.id })" class="w-full text-left px-3 py-2.5 rounded-lg text-sm"
+          :class="tool.id === t.id ? 'bg-accent/10 text-accent font-bold' : 'text-fg-secondary hover:text-fg'">
+          {{ t.name }}<span class="block text-2xs text-muted truncate">{{ t.desc }}</span>
+        </button>
       </div>
-      <ToolsView v-if="toolKind === 'calc'" :initial="tool?.calcId" class="flex-1" />
-      <HandbookView v-else :only="['formula']" :open="tool?.id" class="flex-1" />
-    </template>
+      <FormulaPanel v-if="formula" :formula="formula" class="flex-1" />
+      <ToolsView v-else :initial="tool.calcId" single class="flex-1" />
+    </div>
   </div>
 </template>

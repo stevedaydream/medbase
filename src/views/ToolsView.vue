@@ -1,22 +1,22 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import {
-  correctedCalcium, calciumStatus, interpretAbg, estimateTdd, insulinCorrection,
+  interpretAbg, estimateTdd, insulinCorrection,
   nutrition, fio2Estimate, STRESS_OPTIONS, PROTEIN_OPTIONS, VENTURI_FLOW, VENTURI_OPTIONS, DEVICE_LABELS,
   type Tone, type GluBasis, type O2Device,
 } from "@/shared/clinicalCalc";
 
 // 公式見 shared/clinicalCalc（手機共用，ADR-013）；此處只保留輸入狀態與樣式對應
 
-type ToolId = "calcium" | "abg" | "glucose" | "nutrition" | "fio2";
+// 校正鈣改用「計算工具」的公式版（shared/handbook/formulas.ts）
+type ToolId = "abg" | "glucose" | "nutrition" | "fio2";
 
 /** initial：嵌在「處置及臨床工具」時要先開的工具 */
-const props = defineProps<{ initial?: string }>();
-const activeTool = ref<ToolId>((props.initial as ToolId) || "calcium");
+const props = defineProps<{ initial?: string; single?: boolean }>();
+const activeTool = ref<ToolId>((props.initial as ToolId) || "abg");
 watch(() => props.initial, id => { if (id) activeTool.value = id as ToolId; });
 
 const tools: { id: ToolId; icon: string; label: string; sub: string }[] = [
-  { id: "calcium",   icon: "🧪", label: "校正鈣",    sub: "血清白蛋白校正" },
   { id: "abg",       icon: "🫁", label: "ABG 判讀",  sub: "pH 酸鹼分析" },
   { id: "glucose",   icon: "🩸", label: "血糖試算",  sub: "胰島素校正劑量" },
   { id: "nutrition", icon: "🥗", label: "每日營養",  sub: "熱量與蛋白質需求" },
@@ -34,22 +34,6 @@ const TONE_CLASS: Record<Tone, string> = {
   "secondary":     "text-fg-secondary",
   "muted":         "text-muted",
 };
-
-// ── Tool 1 — 校正鈣 ────────────────────────────────────────────────
-const ca_total   = ref<number | "">("");
-const ca_albumin = ref<number | "">("");
-
-const correctedCa = computed(() => correctedCalcium(ca_total.value, ca_albumin.value));
-
-const CA_STYLE = {
-  low:    { color: "text-accent",  bg: "bg-accent/10 border-accent/20" },
-  high:   { color: "text-danger",  bg: "bg-danger/10 border-danger/20" },
-  normal: { color: "text-success", bg: "bg-success/10 border-success/20" },
-};
-const caStatus = computed(() => {
-  const st = calciumStatus(correctedCa.value);
-  return st ? { label: st.label, ...CA_STYLE[st.level] } : null;
-});
 
 // ── Tool 2 — ABG 判讀 ──────────────────────────────────────────────
 const abg_ph   = ref<number | "">("");
@@ -120,8 +104,8 @@ const fio2Result = computed(() => fio2Estimate({
 <template>
   <div class="accent-cyan flex h-full bg-sunken rounded-2xl overflow-hidden border border-hairline shadow-2xl">
 
-    <!-- ── Left: elegant tool list sidebar ──────────────────────────── -->
-    <div class="w-60 shrink-0 border-r border-hairline flex flex-col bg-surface">
+    <!-- ── Left: elegant tool list sidebar（嵌在計算工具時不顯示）──────── -->
+    <div v-if="!single" class="w-60 shrink-0 border-r border-hairline flex flex-col bg-surface">
       <div class="px-6 py-5 border-b border-hairline flex items-center gap-2.5">
         <span class="text-xl">🎛️</span>
         <div>
@@ -156,85 +140,8 @@ const fio2Result = computed(() => fio2Estimate({
     <!-- ── Right: glassmorphic active tool content ──────────────────── -->
     <div class="flex-1 overflow-y-auto bg-sunken p-8">
 
-      <!-- ══ Tool 1: 校正鈣 ════════════════════════════════════════════ -->
-      <template v-if="activeTool === 'calcium'">
-        <div class="max-w-3xl space-y-6">
-          <div class="border-b border-hairline pb-4">
-            <h2 class="text-lg font-bold text-fg flex items-center gap-2">
-              <span class="text-accent">🧪</span> 校正鈣試算 (Corrected Calcium)
-            </h2>
-            <p class="text-xs text-muted mt-1 font-mono">Formula: Corrected Ca = Total Ca + 0.8 × (4.0 − Albumin)</p>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
-            <!-- Inputs -->
-            <div class="space-y-4">
-              <div>
-                <label class="block text-xs font-semibold text-fg-secondary mb-1.5">實測鈣 (mg/dL)</label>
-                <div class="relative">
-                  <input
-                    v-model.number="ca_total"
-                    type="number"
-                    step="0.1"
-                    placeholder="例：7.8"
-                    class="w-full text-sm px-4 py-3 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
-                  />
-                  <span class="absolute right-4 top-3.5 text-xs text-muted font-mono">mg/dL</span>
-                </div>
-              </div>
-
-              <div>
-                <label class="block text-xs font-semibold text-fg-secondary mb-1.5">血清白蛋白 (g/dL)</label>
-                <div class="relative">
-                  <input
-                    v-model.number="ca_albumin"
-                    type="number"
-                    step="0.1"
-                    placeholder="例：2.5"
-                    class="w-full text-sm px-4 py-3 bg-surface border border-hairline rounded-xl text-fg outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 placeholder-muted transition-all font-mono"
-                  />
-                  <span class="absolute right-4 top-3.5 text-xs text-muted font-mono">g/dL</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Result panel -->
-            <div class="flex flex-col justify-center">
-              <div v-if="correctedCa !== null"
-                class="rounded-2xl border p-6 bg-surface shadow-lg transition-all duration-500"
-                :class="caStatus?.bg + ' ' + (correctedCa < 8.5 ? 'border-accent/30' : correctedCa > 10.5 ? 'border-danger/30' : 'border-success/30')"
-              >
-                <span class="text-xs font-bold text-muted">計算結果</span>
-                <div class="flex items-baseline gap-2 mt-2">
-                  <span class="text-5xl font-extrabold text-fg tracking-tight font-mono">{{ correctedCa.toFixed(2) }}</span>
-                  <span class="text-xs text-fg-secondary font-mono">mg/dL</span>
-                </div>
-                <div class="mt-2 text-xs font-bold tracking-wide" :class="caStatus?.color">{{ caStatus?.label }}</div>
-
-                <div class="mt-6 space-y-1.5 border-t border-hairline pt-4 text-[0.6875rem] text-muted font-sans leading-relaxed">
-                  <div class="flex justify-between"><span>正常範圍：</span><span class="font-mono text-fg-secondary">8.5 – 10.5 mg/dL</span></div>
-                  <div class="flex justify-between"><span>低血鈣風險 (&lt;7.0)：</span><span class="text-accent">有抽搐/痙攣風險</span></div>
-                  <div class="flex justify-between"><span>高血鈣危機 (&gt;12.0)：</span><span class="text-danger">心律不整/意識模糊</span></div>
-                </div>
-              </div>
-
-              <div v-else class="h-full min-h-[180px] flex flex-col items-center justify-center rounded-2xl border border-dashed border-hairline bg-surface text-muted text-xs text-center p-6">
-                <span class="text-3xl mb-3 opacity-30">🧪</span>
-                請在左側輸入實測總鈣及白蛋白數值以進行校正
-              </div>
-            </div>
-          </div>
-
-          <div class="max-w-2xl bg-overlay/[0.02] border border-hairline rounded-xl p-4 text-[0.6875rem] text-muted space-y-1.5">
-            <p class="font-semibold text-fg-secondary mb-1">臨床備忘</p>
-            <p>• 血中大約有 40-50% 的鈣離子是與白蛋白結合。當低白蛋白血症 (Albumin &lt; 4.0 g/dL) 發生時，測得的總鈣量會呈現偽性偏低，因此需要此公式校正。</p>
-            <p>• 若臨床情況複雜（如酸鹼平衡失調、腎功能衰竭），強烈建議直接抽血量測 **游離鈣 (Ionized Calcium)** 最為精準。</p>
-          </div>
-        </div>
-      </template>
-
       <!-- ══ Tool 2: ABG 判讀 ═══════════════════════════════════════════ -->
-      <template v-else-if="activeTool === 'abg'">
+      <template v-if="activeTool === 'abg'">
         <div class="max-w-3xl space-y-6">
           <div class="border-b border-hairline pb-4">
             <h2 class="text-lg font-bold text-fg flex items-center gap-2">

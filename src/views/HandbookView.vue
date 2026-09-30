@@ -5,18 +5,17 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { loadHandbook, HB_TABLE } from "@/composables/useHandbook";
 import { loadEmergencyCards } from "@/composables/useEmergency";
 import { onTableSynced } from "@/composables/useTableSync";
-import { FORMULAS } from "@/shared/handbook/formulas";
 import { SECTION_LABELS, STATUS_LABELS, searchHandbook, visibleEntries, type HbEntry, type HbSection } from "@/shared/handbook/types";
 import { DISCLAIMER } from "@/shared/emergency/types";
 
 /** 隨身工作手冊（ADR-018）：值班常見狀況、外科照護、常用公式、行政流程 */
 const router = useRouter();
-type Tab = HbSection | "formula";
+type Tab = HbSection;
 /** only：嵌在「處置及臨床工具」時只顯示這些分頁；open：一開始要開的條目或公式 id */
 const props = defineProps<{ only?: Tab[]; open?: string }>();
 const ALL_TABS: { key: Tab; label: string }[] = [
   { key: "oncall", label: SECTION_LABELS.oncall }, { key: "surgical", label: SECTION_LABELS.surgical },
-  { key: "drug", label: SECTION_LABELS.drug }, { key: "formula", label: "常用公式" }, { key: "admin", label: SECTION_LABELS.admin },
+  { key: "drug", label: SECTION_LABELS.drug }, { key: "admin", label: SECTION_LABELS.admin },
 ];
 const TABS = ALL_TABS.filter(t => !props.only || props.only.includes(t.key));
 const tab = ref<Tab>(TABS[0].key);
@@ -31,26 +30,18 @@ async function reload() {
   if (selected.value) selected.value = entries.value.find(e => e.uid === selected.value!.uid) ?? null;
   else if (props.open) openItem(props.open);
 }
-/** 開啟指定條目（切到它所在的分頁）或公式 */
+/** 開啟指定條目（切到它所在的分頁） */
 function openItem(id: string) {
   const e = entries.value.find(x => x.uid === id);
   if (e && TABS.some(t => t.key === e.spec.section)) { tab.value = e.spec.section; selected.value = e; return; }
-  if (FORMULAS.some(f => f.id === id) && TABS.some(t => t.key === "formula")) { tab.value = "formula"; pickFormula(id); }
 }
 watch(() => props.open, id => { if (id) openItem(id); });
 onMounted(reload);
 onTableSynced(HB_TABLE, reload);
 
-const list = computed(() => tab.value === "formula" ? [] : searchHandbook(entries.value.filter(e => e.spec.section === tab.value), q.value));
+const list = computed(() => searchHandbook(entries.value.filter(e => e.spec.section === tab.value), q.value));
 function setTab(t: Tab) { tab.value = t; selected.value = null; }
 
-// ── 公式 ─────────────────────────────────────────────────────
-const fid = ref(FORMULAS[0].id);
-const formula = computed(() => FORMULAS.find(f => f.id === fid.value)!);
-const inputs = ref<Record<string, string>>({});
-const values = computed(() => Object.fromEntries(Object.entries(inputs.value).filter(([, v]) => v !== "").map(([k, v]) => [k, Number(v)])));
-const out = computed(() => formula.value.compute(values.value));
-function pickFormula(id: string) { fid.value = id; inputs.value = {}; }
 </script>
 
 <template>
@@ -60,36 +51,7 @@ function pickFormula(id: string) { fid.value = id; inputs.value = {}; }
         :class="tab === t.key ? 'bg-accent text-white' : 'bg-surface border border-hairline text-fg-secondary hover:text-fg'">{{ t.label }}</button>
     </div>
 
-    <!-- 公式 -->
-    <div v-if="tab === 'formula'" class="flex-1 flex gap-4 overflow-hidden">
-      <div class="w-64 shrink-0 bg-surface rounded-xl border border-hairline p-2 overflow-y-auto">
-        <button v-for="f in FORMULAS" :key="f.id" @click="pickFormula(f.id)" class="w-full text-left px-3 py-2.5 rounded-lg text-sm"
-          :class="fid === f.id ? 'bg-accent/10 text-accent font-bold' : 'text-fg-secondary hover:text-fg'">{{ f.name }}</button>
-      </div>
-      <div class="flex-1 bg-surface rounded-xl border border-hairline p-5 space-y-4 overflow-y-auto">
-        <h2 class="text-lg font-black text-fg">{{ formula.name }}</h2>
-        <p class="text-xs text-muted font-mono">{{ formula.formula }}</p>
-        <div class="grid grid-cols-2 gap-3 max-w-xl">
-          <label v-for="i in formula.inputs" :key="i.key" class="space-y-1 text-xs">
-            <span class="text-fg-secondary">{{ i.label }} <span class="text-muted">{{ i.unit }}</span></span>
-            <select v-if="i.options" v-model="inputs[i.key]" class="w-full px-3 py-2 rounded-lg bg-sunken border border-hairline text-sm">
-              <option value="">—</option><option v-for="o in i.options" :key="o.value" :value="String(o.value)">{{ o.label }}</option>
-            </select>
-            <input v-else v-model="inputs[i.key]" inputmode="decimal" class="w-full px-3 py-2 rounded-lg bg-sunken border border-hairline text-lg font-mono" />
-          </label>
-        </div>
-        <div v-if="out" class="p-4 rounded-xl bg-accent/10 border border-accent/30 max-w-xl">
-          <p class="text-3xl font-black text-accent font-mono">{{ out.value }} <span class="text-base">{{ out.unit }}</span></p>
-          <p v-if="out.note" class="text-xs text-fg-secondary mt-1">{{ out.note }}</p>
-        </div>
-        <p v-else class="text-sm text-muted">輸入數值後顯示結果</p>
-        <p v-if="formula.normal" class="text-xs text-muted">參考：{{ formula.normal }}</p>
-        <button class="text-xs underline text-muted hover:text-accent" @click="openUrl(formula.ref.url)">📚 {{ formula.ref.title }}</button>
-      </div>
-    </div>
-
-    <!-- 條目 -->
-    <div v-else class="flex-1 flex gap-4 overflow-hidden">
+    <div class="flex-1 flex gap-4 overflow-hidden">
       <div class="w-64 shrink-0 bg-surface rounded-xl border border-hairline p-2 flex flex-col gap-2">
         <input v-model="q" placeholder="搜尋" class="px-3 py-2 rounded-lg bg-sunken border border-hairline text-xs" />
         <div class="flex-1 overflow-y-auto">

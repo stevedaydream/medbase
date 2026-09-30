@@ -3,34 +3,28 @@ import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
 import {
-  correctedCalcium, calciumStatus, interpretAbg, estimateTdd, insulinCorrection, nutrition, fio2Estimate,
+  interpretAbg, estimateTdd, insulinCorrection, nutrition, fio2Estimate,
   STRESS_OPTIONS, PROTEIN_OPTIONS, VENTURI_FLOW, VENTURI_OPTIONS, DEVICE_LABELS, type Tone, type GluBasis, type O2Device,
 } from '@shared/clinicalCalc'
 
 /** 臨床工具（公式與桌機共用 shared/clinicalCalc） */
-type ToolId = 'calcium' | 'abg' | 'glucose' | 'nutrition' | 'fio2'
+type ToolId = 'abg' | 'glucose' | 'nutrition' | 'fio2'
 const TOOLS: { id: ToolId; icon: string; label: string }[] = [
-  { id: 'calcium', icon: '🧪', label: '校正鈣' },
   { id: 'abg', icon: '🫁', label: 'ABG' },
   { id: 'glucose', icon: '🩸', label: '血糖' },
   { id: 'nutrition', icon: '🥗', label: '營養' },
   { id: 'fio2', icon: '💨', label: 'FiO₂' },
 ]
 const route = useRoute()
+const single = TOOLS.some(t => t.id === route.query.tool)
 /** ?tool= 由「處置及臨床工具」指定要開的工具 */
-const tool = ref<ToolId>((TOOLS.some(t => t.id === route.query.tool) ? route.query.tool as ToolId : null) || (localStorage.getItem('mb_tool') as ToolId) || 'calcium')
+const tool = ref<ToolId>((TOOLS.some(t => t.id === route.query.tool) ? route.query.tool as ToolId : null) || (TOOLS.some(t => t.id === localStorage.getItem('mb_tool')) ? localStorage.getItem('mb_tool') as ToolId : null) || 'abg')
 function pickTool(id: ToolId) { tool.value = id; localStorage.setItem('mb_tool', id) }
 
 const TONE: Record<Tone, string> = {
   'danger-strong': 'text-danger font-bold', danger: 'text-danger', warning: 'text-warning', caution: 'text-warning',
   'accent-strong': 'text-accent font-bold', accent: 'text-accent', success: 'text-success', secondary: 'text-fg-secondary', muted: 'text-muted',
 }
-
-// 校正鈣
-const ca = ref(''), alb = ref('')
-const caV = computed(() => correctedCalcium(ca.value, alb.value))
-const caS = computed(() => calciumStatus(caV.value))
-const CA_TONE = { low: 'text-accent', high: 'text-danger', normal: 'text-success' }
 
 // ABG
 const ph = ref(''), co2 = ref(''), hco3 = ref(''), pao2 = ref(''), fio2 = ref('21')
@@ -55,30 +49,16 @@ const inputCls = 'w-full h-12 px-3 rounded-xl bg-sunken border border-hairline t
 
 <template>
   <div class="accent-cyan pad-tabbar">
-    <PageHeader title="臨床工具" back>
-      <div class="flex gap-1.5 px-4 pb-2 overflow-x-auto no-scrollbar">
+    <PageHeader :title="single ? TOOLS.find(t => t.id === tool)!.label : '臨床工具'" back>
+      <div v-if="!single" class="flex gap-1.5 px-4 pb-2 overflow-x-auto no-scrollbar">
         <button v-for="t in TOOLS" :key="t.id" @click="pickTool(t.id)" class="shrink-0 h-9 px-3 rounded-full text-sm font-bold border"
           :class="tool === t.id ? 'bg-accent text-white border-accent' : 'bg-sunken text-fg-secondary border-hairline'">{{ t.icon }} {{ t.label }}</button>
       </div>
     </PageHeader>
 
     <div class="p-4 space-y-4">
-      <!-- 校正鈣 -->
-      <template v-if="tool === 'calcium'">
-        <section class="rounded-2xl bg-surface border border-hairline p-4 grid grid-cols-2 gap-3">
-          <label class="text-xs font-bold text-muted">總鈣 (mg/dL)<input v-model="ca" inputmode="decimal" :class="inputCls" class="mt-1" /></label>
-          <label class="text-xs font-bold text-muted">白蛋白 (g/dL)<input v-model="alb" inputmode="decimal" :class="inputCls" class="mt-1" /></label>
-        </section>
-        <section v-if="caV !== null && caS" class="rounded-2xl bg-surface border border-hairline p-4 text-center">
-          <p class="text-xs text-muted">校正鈣</p>
-          <p class="text-4xl font-black tabular-nums" :class="CA_TONE[caS.level]">{{ caV.toFixed(2) }}</p>
-          <p class="font-bold" :class="CA_TONE[caS.level]">{{ caS.label }}</p>
-          <p class="mt-2 text-xs text-muted">公式：Ca + 0.8 × (4.0 − Alb)</p>
-        </section>
-      </template>
-
       <!-- ABG -->
-      <template v-else-if="tool === 'abg'">
+      <template v-if="tool === 'abg'">
         <section class="rounded-2xl bg-surface border border-hairline p-4 grid grid-cols-3 gap-3">
           <label class="text-xs font-bold text-muted">pH<input v-model="ph" inputmode="decimal" :class="inputCls" class="mt-1" /></label>
           <label class="text-xs font-bold text-muted">PaCO₂<input v-model="co2" inputmode="decimal" :class="inputCls" class="mt-1" /></label>

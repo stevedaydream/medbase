@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { FORMULAS } from "./formulas";
+import { ALL_TOOLS, toolById } from "../tools";
 import { HANDBOOK_SEED } from "./seed";
 import { SEED_CARDS } from "../emergency/seed";
 import { checkHbSpec, searchHandbook, visibleEntries, parseHbSpec, emptyHbSpec, ONCALL_BLOCKS } from "./types";
@@ -23,6 +24,12 @@ describe("公式", () => {
     expect(f("osm").compute({ na: 140, glu: 180, bun: 28 })).toMatchObject({ value: 300 });
     expect(f("na-glu").compute({ na: 130, glu: 600 })).toMatchObject({ value: 138 });
     expect(f("bmi").compute({ ht: 170, wt: 72.25, female: 0 })?.value).toBe(25);
+  });
+  it("計算工具只有一份清單：校正鈣只留公式版並附判讀", () => {
+    expect(ALL_TOOLS.filter(t => t.name.includes("校正鈣")).map(t => t.id)).toEqual(["ca"]);
+    expect(new Set(ALL_TOOLS.map(t => t.id)).size).toBe(ALL_TOOLS.length);
+    expect(f("ca").compute({ ca: 7, alb: 3 })?.note).toContain("低血鈣");
+    expect(toolById("abg")?.kind).toBe("calc");
   });
   it("GBS", () => {
     const base = { bun: 15, hb: 14, sbp: 120, hr: 80, female: 0, melena: 0, syncope: 0, liver: 0, hf: 0 };
