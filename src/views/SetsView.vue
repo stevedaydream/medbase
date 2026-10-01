@@ -158,15 +158,38 @@ const setTotal = computed(() => {
   return setItems.value.reduce((sum, si) => sum + (si.price ?? 0) * (si.is_optional ? 0 : (si.quantity ?? 1)), 0);
 });
 
+// ── 主治醫師兩段選擇：先科別、再醫師（VS 在前）────────────────────
+const NO_DEPT = "（未填科別）";
+const deptOf = (p: Physician) => p.department?.trim() || NO_DEPT;
+const physDept = ref("");
+const deptOptions = computed(() => {
+  const counts = new Map<string, number>();
+  for (const p of physicians.value) counts.set(deptOf(p), (counts.get(deptOf(p)) ?? 0) + 1);
+  return [...counts.entries()]
+    .sort((a, b) => (a[0] === NO_DEPT ? 1 : b[0] === NO_DEPT ? -1 : a[0].localeCompare(b[0], "zh-TW")))
+    .map(([dept, n]) => ({ dept, n }));
+});
+const deptPhysicians = computed(() => physicians.value
+  .filter(p => !physDept.value || deptOf(p) === physDept.value)
+  .sort((a, b) => b.is_vs - a.is_vs || a.name.localeCompare(b.name, "zh-TW")));
+function onDeptChange() {
+  // 換科別後，原本選的醫師不在這一科就清掉
+  const cur = physicians.value.find(p => p.id === setForm.value.physician_id);
+  if (cur && physDept.value && deptOf(cur) !== physDept.value) { setForm.value.physician_id = null; updateSetName(); }
+}
+
 // ── CRUD：套組 ───────────────────────────────────────────────────
 function openAddSet() {
   setModalMode.value = "add";
   setForm.value = { physician_id: null, surgery_type: "", name: "", notes: "" };
+  physDept.value = "";
   showSetModal.value = true;
 }
 function openEditSet(s: SetRow) {
   setModalMode.value = "edit";
   setForm.value = { ...s };
+  const cur = physicians.value.find(p => p.id === s.physician_id);
+  physDept.value = cur ? deptOf(cur) : "";
   showSetModal.value = true;
 }
 
@@ -509,25 +532,35 @@ async function doDelete() {
           <button @click="showSetModal = false" class="text-muted hover:text-fg text-xl leading-none cursor-pointer">×</button>
         </div>
         <div class="px-5 py-4 space-y-4">
-          <!-- 醫師 -->
+          <!-- 醫師：先選科別，再選醫師 -->
           <div>
-            <label class="text-2xs font-black text-muted mb-1.5 block">主治醫師</label>
-            <div class="relative">
-              <select v-model="setForm.physician_id" @change="updateSetName"
-                class="w-full pl-3 pr-8 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs focus:outline-none focus:border-accent/50 font-bold appearance-none cursor-pointer">
-                <option :value="null">— 未指定醫師 —</option>
-                <optgroup label="VS 主治醫師">
-                  <option v-for="p in physicians.filter(p=>p.is_vs)" :key="p.id" :value="p.id">
-                    {{ p.name }}{{ p.department ? ` (${p.department})` : "" }}
-                  </option>
-                </optgroup>
-                <optgroup label="其他醫師">
-                  <option v-for="p in physicians.filter(p=>!p.is_vs)" :key="p.id" :value="p.id">
-                    {{ p.name }}{{ p.department ? ` (${p.department})` : "" }}
-                  </option>
-                </optgroup>
-              </select>
-              <span class="absolute right-3 top-2.5 text-2xs text-muted pointer-events-none">▼</span>
+            <label class="text-2xs font-black text-muted mb-1.5 block">主治醫師（先選科別）</label>
+            <div class="grid grid-cols-[2fr_3fr] gap-2">
+              <div class="relative">
+                <select v-model="physDept" @change="onDeptChange"
+                  class="w-full pl-3 pr-8 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs focus:outline-none focus:border-accent/50 font-bold appearance-none cursor-pointer">
+                  <option value="">全部科別</option>
+                  <option v-for="d in deptOptions" :key="d.dept" :value="d.dept">{{ d.dept }}（{{ d.n }}）</option>
+                </select>
+                <span class="absolute right-3 top-2.5 text-2xs text-muted pointer-events-none">▼</span>
+              </div>
+              <div class="relative">
+                <select v-model="setForm.physician_id" @change="updateSetName"
+                  class="w-full pl-3 pr-8 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs focus:outline-none focus:border-accent/50 font-bold appearance-none cursor-pointer">
+                  <option :value="null">— 未指定醫師 —</option>
+                  <optgroup v-if="deptPhysicians.some(p => p.is_vs)" label="VS 主治醫師">
+                    <option v-for="p in deptPhysicians.filter(p => p.is_vs)" :key="p.id" :value="p.id">
+                      {{ p.name }}{{ !physDept && p.department ? ` (${p.department})` : "" }}
+                    </option>
+                  </optgroup>
+                  <optgroup v-if="deptPhysicians.some(p => !p.is_vs)" label="其他醫師">
+                    <option v-for="p in deptPhysicians.filter(p => !p.is_vs)" :key="p.id" :value="p.id">
+                      {{ p.name }}{{ !physDept && p.department ? ` (${p.department})` : "" }}
+                    </option>
+                  </optgroup>
+                </select>
+                <span class="absolute right-3 top-2.5 text-2xs text-muted pointer-events-none">▼</span>
+              </div>
             </div>
           </div>
           <!-- 術式 -->
