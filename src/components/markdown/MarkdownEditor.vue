@@ -256,6 +256,8 @@ defineExpose({
   jumpTo,
   /** 目前游標位置（重開分頁時還原） */
   cursor: () => view.value?.state.selection.main.head ?? 0,
+  /** 目前的大綱（切換分頁時立即更新側欄） */
+  outline: () => (view.value ? outlineOf(view.value.state) : []),
   /** 圖片存放位置變了（另存新檔）時重新載入圖片 */
   refreshImages: () => { clearImageCache(); const v = view.value; if (v) v.setState(createState(v.state.doc.toString())); },
 });

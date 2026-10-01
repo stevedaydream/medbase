@@ -31,6 +31,7 @@ const router = createRouter({
     { path: "/sched",    redirect: "/schedule" },
     { path: "/tools",        redirect: { path: "/care", query: { tab: "tools" } } },
     { path: "/shift-memos",  component: () => import("@/views/ShiftMemosView.vue"),  meta: { title: "規則備忘錄", fullHeight: true } },
+    { path: "/docs",         component: () => import("@/views/DocsView.vue"),        meta: { title: "Markdown 文件", fullHeight: true } },
     { path: "/settings",     component: () => import("@/views/SettingView.vue"),     meta: { title: "設定" } },
     { path: "/note-polish",  component: () => import("@/views/NotePolishView.vue"),  meta: { title: "病歷潤飾", fullHeight: true } },
     // 論文專案需先以 HIS 帳號＋PIN 登入（ADR-012）：外層 ResearchGateView 未登入時不掛載子頁面

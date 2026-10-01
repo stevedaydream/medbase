@@ -19,6 +19,7 @@ const DEFAULT_NAV: NavItem[] = [
   { path: "/physicians",  icon: "👤", label: "通訊錄" },
   { path: "/schedule",    icon: "📅", label: "排班表" },
   { path: "/shift-memos", icon: "📝", label: "規則備忘錄" },
+  { path: "/docs",        icon: "📄", label: "Markdown 文件" },
   { path: "/note-polish", icon: "✍️", label: "病歷潤飾" },
   { path: "/research",    icon: "🎓", label: "論文專案" },
 ];
