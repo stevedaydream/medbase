@@ -1,6 +1,7 @@
 import { parseMarkdown, type Token } from "../render";
 import { paperMm, type PrintSettings } from "./settings";
 import { startsWithTitle } from "./docx";
+import { sanitizeHtml } from "../sanitize";
 
 /**
  * Markdown → LaTeX（ctexart，XeLaTeX 編譯）。圖片保留原本的相對路徑，與 .tex 放在同一資料夾即可編譯。
@@ -35,7 +36,10 @@ function inline(children: Token[] | null, notes: Map<string, string>): string {
         out += `\\footnote{${notes.get(label) ?? ""}}`;
         break;
       }
-      case "html_inline": if (/checkbox/.test(t.content)) out += /checked/.test(t.content) ? "$\\boxtimes$ " : "$\\square$ "; break;
+      case "html_inline":
+        // 行內 HTML 標籤略過（內文保留）；只有待辦核取方塊轉成符號
+        if ((t.meta as { trusted?: boolean } | null)?.trusted) out += /checked/.test(t.content) ? "$\\boxtimes$ " : "$\\square$ ";
+        break;
       default: if (t.content) out += texEscape(t.content);
     }
   }
@@ -109,6 +113,14 @@ export function buildLatex(md: string, settings: PrintSettings): string {
         break;
       }
       case "math_block": out.push(`\\[\n${t.content}\n\\]\n`); break;
+      case "html_block": {
+        // 原文 HTML：標題轉章節，其餘只留文字
+        const clean = sanitizeHtml(t.content);
+        const h = /^<h([1-6])[^>]*>/.exec(clean.trim());
+        const text = texEscape(clean.replace(/<br\s*\/?>/g, "\n").replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").trim());
+        if (text) out.push(h ? `\\${SECTIONS[Number(h[1]) - 1]}{${text.replace(/\n+/g, " ")}}\n` : `${text}\n\n`);
+        break;
+      }
       case "hr": out.push("\\noindent\\rule{\\linewidth}{0.4pt}\n\n"); break;
       case "page_break": out.push("\\clearpage\n"); break;
       case "toc": out.push("\\tableofcontents\n\\clearpage\n"); break;

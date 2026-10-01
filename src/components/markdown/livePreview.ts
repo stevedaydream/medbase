@@ -4,6 +4,7 @@ import type { EditorState, Range } from "@codemirror/state";
 import type { SyntaxNodeRef } from "@lezer/common";
 import { ImageWidget, InlineMathWidget } from "./widgets";
 import { frontMatterEnd } from "./blockPreview";
+import { sanitizeTag } from "@/shared/markdown/sanitize";
 
 /** 行內公式 $…$：與 shared/markdown/render 的判斷一致（$ 內側不能是空白、結尾 $ 後不能接數字） */
 const INLINE_MATH = /(?<![\\$])\$(?![\s$])((?:\\.|[^$\\\n])+?)(?<![\s\\])\$(?![\d$])/g;
@@ -56,12 +57,55 @@ function lineTouched(state: EditorState, pos: number) {
   return touches(state, l.from, l.to);
 }
 
+class BreakWidget extends WidgetType {
+  eq() { return true; }
+  toDOM() { return document.createElement("br"); }
+}
+const brWidget = Decoration.replace({ widget: new BreakWidget() });
+
+/** 行內 HTML 能直接套樣式的標籤 */
+const INLINE_HTML = new Set(["b", "strong", "i", "em", "u", "ins", "s", "del", "strike", "sub", "sup", "mark", "kbd", "small", "big", "span", "font", "code"]);
+
+/**
+ * 行內 HTML：同一段落內成對的標籤，游標不在時隱藏標籤並套用樣式；<br> 換成換行。
+ * 樣式屬性先經過白名單（sanitizeTag），不會執行任何 HTML。
+ */
+function inlineHtml(state: EditorState, tags: { from: number; to: number; parent: number }[], out: Range<Decoration>[]) {
+  const stack: { name: string; from: number; to: number; parent: number; style: string }[] = [];
+  for (const t of tags) {
+    const text = state.doc.sliceString(t.from, t.to);
+    const m = /^<(\/?)\s*([a-zA-Z][\w-]*)/.exec(text);
+    if (!m) continue;
+    const name = m[2].toLowerCase();
+    if (name === "br") {
+      if (!touches(state, t.from, t.to)) out.push(brWidget.range(t.from, t.to));
+      continue;
+    }
+    if (!INLINE_HTML.has(name)) continue;
+    if (!m[1]) {
+      const style = /style="([^"]*)"/.exec(sanitizeTag(text))?.[1] ?? "";
+      stack.push({ name, from: t.from, to: t.to, parent: t.parent, style });
+      continue;
+    }
+    const i = stack.map(s => s.name).lastIndexOf(name);
+    if (i < 0) continue;
+    const open = stack.splice(i)[0];
+    if (open.parent !== t.parent || touches(state, open.from, t.to)) continue;
+    out.push(hide.range(open.from, open.to));
+    out.push(hide.range(t.from, t.to));
+    if (open.to < t.from) {
+      out.push(Decoration.mark({ class: `cm-html-${name}`, attributes: open.style ? { style: open.style.replace(/&quot;/g, '"') } : undefined }).range(open.to, t.from));
+    }
+  }
+}
+
 function build(view: EditorView): DecorationSet {
   const { state } = view;
   const out: Range<Decoration>[] = [];
   const doc = state.doc;
   const fmEnd = frontMatterEnd(state);
   const codeRanges: [number, number][] = [];
+  const htmlTags: { from: number; to: number; parent: number }[] = [];
 
   for (const { from, to } of view.visibleRanges) {
     syntaxTree(state).iterate({
@@ -108,6 +152,11 @@ function build(view: EditorView): DecorationSet {
             if (!touches(state, parent.from, parent.to)) out.push(hide.range(node.from, node.to));
             return;
           }
+          case "HTMLTag": {
+            htmlTags.push({ from: node.from, to: node.to, parent: node.node.parent?.from ?? -1 });
+            return;
+          }
+          case "HTMLBlock": return false;
           case "Image": {
             if (touches(state, node.from, node.to)) return false;
             const text = doc.sliceString(node.from, node.to);
@@ -184,6 +233,8 @@ function build(view: EditorView): DecorationSet {
         }
       },
     });
+
+    inlineHtml(state, htmlTags.splice(0), out);
 
     // 行內公式與註腳：Markdown 語法樹沒有這兩種節點，逐行比對
     const inCode = (p: number) => codeRanges.some(([a, b]) => p >= a && p < b);

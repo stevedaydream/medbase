@@ -1,6 +1,7 @@
 import { Facet } from "@codemirror/state";
 import { EditorView, WidgetType } from "@codemirror/view";
 import { createRenderer, renderMath } from "@/shared/markdown/render";
+import { sanitizeHtml } from "@/shared/markdown/sanitize";
 import type { OutlineItem } from "./outline";
 
 /**
@@ -72,6 +73,35 @@ export class FrontMatterWidget extends BlockWidget {
       } else line.textContent = l;
       dom.appendChild(line);
     }
+  }
+}
+
+/** 原文 HTML 區塊：白名單過濾後顯示；相對路徑圖片非同步換成可顯示網址 */
+export class HtmlWidget extends BlockWidget {
+  get cls() { return "cm-md-html"; }
+  render(dom: HTMLElement, view: EditorView) {
+    const PENDING = "md-pending:";
+    // 先放進 template（不會載入圖片），換好網址再放進畫面
+    const tpl = document.createElement("template");
+    const clean = sanitizeHtml(this.source, { resolveSrc: s => PENDING + encodeURIComponent(s) });
+    // 整段都被過濾掉（例如 <script>）：顯示提示，避免看起來像空白
+    if (!clean.replace(/<[^>]+>/g, "").trim() && !/<(img|hr|br)\b/.test(clean)) {
+      dom.textContent = "（已略過不支援的 HTML，點一下查看原文）";
+      dom.classList.add("cm-md-html-skipped");
+      return;
+    }
+    tpl.innerHTML = clean;
+    const resolve = view.state.facet(imageResolver);
+    for (const img of Array.from(tpl.content.querySelectorAll("img"))) {
+      const raw = img.getAttribute("src") ?? "";
+      if (!raw.startsWith(PENDING)) continue;
+      const src = decodeURIComponent(raw.slice(PENDING.length));
+      img.removeAttribute("src");
+      const fail = () => { img.replaceWith(Object.assign(document.createElement("span"), { className: "cm-md-error", textContent: `🖼 ${img.alt || src}（找不到圖片）` })); };
+      if (!resolve) { fail(); continue; }
+      Promise.resolve(resolve(src)).then(u => { if (u) img.src = u; else fail(); }).catch(fail);
+    }
+    dom.appendChild(tpl.content);
   }
 }
 

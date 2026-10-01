@@ -4,7 +4,7 @@ import { syntaxTree } from "@codemirror/language";
 import { splitFrontMatter } from "@/shared/markdown/render";
 import { outlineOf } from "./outline";
 import {
-  TableWidget, MathBlockWidget, MermaidWidget, FrontMatterWidget, TocWidget, PageBreakWidget,
+  TableWidget, MathBlockWidget, MermaidWidget, FrontMatterWidget, TocWidget, PageBreakWidget, HtmlWidget,
 } from "./widgets";
 
 /**
@@ -13,7 +13,7 @@ import {
  * 跨行的區塊裝飾必須由 StateField 提供（ViewPlugin 不能取代換行）。
  */
 
-export interface BlockRange { from: number; to: number; kind: "table" | "math" | "mermaid" | "frontmatter" | "toc" | "pagebreak"; source: string }
+export interface BlockRange { from: number; to: number; kind: "table" | "math" | "mermaid" | "frontmatter" | "toc" | "pagebreak" | "html"; source: string }
 
 const PAGE_BREAK_RE = /^\s*<!--\s*pagebreak\s*-->\s*$/i;
 
@@ -31,6 +31,13 @@ export function findBlocks(state: EditorState): BlockRange[] {
       if (n.from <= fmEnd) return n.name === "Document" ? undefined : false;
       if (n.name === "Table") {
         out.push({ from: doc.lineAt(n.from).from, to: doc.lineAt(n.to).to, kind: "table", source: doc.sliceString(doc.lineAt(n.from).from, doc.lineAt(n.to).to) });
+        return false;
+      }
+      // 原文 HTML 區塊（分頁標記與純註解另外處理）
+      if (n.name === "HTMLBlock") {
+        const from = doc.lineAt(n.from).from, to = doc.lineAt(n.to).to;
+        const text = doc.sliceString(from, to);
+        if (!PAGE_BREAK_RE.test(text.trim()) && !/^\s*<!--[\s\S]*-->\s*$/.test(text)) out.push({ from, to, kind: "html", source: text });
         return false;
       }
       if (n.name === "FencedCode" || n.name === "CodeBlock") {
@@ -94,6 +101,7 @@ function build(state: EditorState): DecorationSet {
       : b.kind === "mermaid" ? new MermaidWidget(b.source, pos)
       : b.kind === "frontmatter" ? new FrontMatterWidget(b.source, pos)
       : b.kind === "toc" ? new TocWidget(b.source, pos, (toc ??= outlineOf(state)))
+      : b.kind === "html" ? new HtmlWidget(b.source, pos)
       : new PageBreakWidget(b.source, pos);
     decos.push(Decoration.replace({ widget, block: true }).range(b.from, b.to));
   }

@@ -17,6 +17,10 @@ export function collectSources(md: string): { images: string[]; mermaid: string[
   const images = new Set<string>(), mermaid = new Set<string>();
   walk(tokens, t => {
     if (t.type === "image") images.add(String(t.attrGet("src") ?? ""));
+    // 原文 HTML 裡的 <img src>
+    if (t.type === "html_block" || t.type === "html_inline") {
+      for (const m of t.content.matchAll(/<img\b[^>]*?\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi)) images.add(m[1] ?? m[2] ?? m[3] ?? "");
+    }
     if (t.type === "fence" && t.info.trim().split(/\s+/)[0]?.toLowerCase() === "mermaid") mermaid.add(t.content);
   });
   return { images: [...images].filter(Boolean), mermaid: [...mermaid] };

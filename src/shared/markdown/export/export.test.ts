@@ -162,3 +162,22 @@ describe("標題不重複", () => {
     expect(d2).toContain('w:val="Title"');
   });
 });
+
+describe("原文 HTML 匯出", () => {
+  it("Word：標題、置中、底線、上下標、顏色", () => {
+    const d = strFromU8(unzipSync(buildDocx('<h1><center>資料正規劃\n<center/>\n\n文字 <u>底線</u> H<sub>2</sub>O <span style="color: red">紅</span>', DEFAULT_PRINT, emptyAssets()))["word/document.xml"]);
+    expect(d).toContain('<w:pStyle w:val="Heading1"/><w:jc w:val="center"/>');
+    expect(d).toContain("資料正規劃");
+    expect(d).toContain('<w:u w:val="single"/>');
+    expect(d).toContain('<w:vertAlign w:val="subscript"/>');
+    expect(d).toContain('<w:color w:val="FF0000"/>');
+  });
+  it("LaTeX：HTML 標題轉章節", () => {
+    expect(buildLatex("<h2>小節</h2>", DEFAULT_PRINT)).toContain("\subsection{小節}");
+  });
+  it("EPUB：HTML 區塊是合法 XHTML", () => {
+    const files = unzipSync(buildEpub("<center>置中<br>換行", DEFAULT_PRINT, emptyAssets(), "urn:uuid:t"));
+    const c = strFromU8(files["OEBPS/chap1.xhtml"]);
+    expect(c).toContain('<div style="text-align: center">置中<br />換行</div>');
+  });
+});

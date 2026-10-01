@@ -1,6 +1,7 @@
 import { zipSync, strToU8 } from "fflate";
 import { parseMarkdown, slugify, type Token } from "../render";
 import { latexToOmml } from "./omml";
+import { sanitizeHtml, sanitizeTag } from "../sanitize";
 import { paperMm, type PrintSettings } from "./settings";
 import { withToc, type ExportAssets, type ImageAsset } from "./html";
 
@@ -26,7 +27,7 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 
 const twip = (mm: number) => Math.round(mm * 56.6929);
 
-interface RunStyle { b?: boolean; i?: boolean; s?: boolean; code?: boolean; link?: string }
+interface RunStyle { b?: boolean; i?: boolean; s?: boolean; u?: boolean; code?: boolean; link?: string; va?: "subscript" | "superscript"; color?: string }
 
 class Builder {
   rels: { id: string; type: string; target: string; external?: boolean }[] = [];
@@ -76,6 +77,8 @@ function textRun(text: string, st: RunStyle): string {
   const pr = [
     st.link ? `<w:rStyle w:val="Hyperlink"/>` : st.code ? `<w:rStyle w:val="InlineCode"/>` : "",
     st.b ? "<w:b/>" : "", st.i ? "<w:i/>" : "", st.s ? "<w:strike/>" : "",
+    st.color ? `<w:color w:val="${st.color}"/>` : "", st.u ? `<w:u w:val="single"/>` : "",
+    st.va ? `<w:vertAlign w:val="${st.va}"/>` : "",
   ].join("");
   return text.split("\t").map((part, i) =>
     `${i ? "<w:r><w:tab/></w:r>" : ""}<w:r>${pr ? `<w:rPr>${pr}</w:rPr>` : ""}<w:t xml:space="preserve">${esc(part)}</w:t></w:r>`).join("");
@@ -83,10 +86,98 @@ function textRun(text: string, st: RunStyle): string {
 
 const isCjk = (c: string | undefined) => !!c && /[⺀-鿿豈-﫿＀-￯]/.test(c);
 
+// ── 原文 HTML（已過白名單）→ Word ───────────────────────────────
+
+const NAMED_COLORS: Record<string, string> = { red: "FF0000", blue: "0000FF", green: "008000", orange: "FFA500", purple: "800080", gray: "808080", grey: "808080", black: "000000", white: "FFFFFF", brown: "A52A2A", navy: "000080", teal: "008080" };
+function hexColor(style: string): string | undefined {
+  const v = /(?:^|;)\s*color:\s*([^;]+)/i.exec(style)?.[1]?.trim().toLowerCase();
+  if (!v) return undefined;
+  const h = /^#([0-9a-f]{3}|[0-9a-f]{6})$/.exec(v)?.[1];
+  if (h) return (h.length === 3 ? h.split("").map(c => c + c).join("") : h).toUpperCase();
+  const rgb = /^rgba?\((\d+)\s*,\s*(\d+)\s*,\s*(\d+)/.exec(v);
+  if (rgb) return rgb.slice(1, 4).map(n => Number(n).toString(16).padStart(2, "0")).join("").toUpperCase();
+  return NAMED_COLORS[v];
+}
+const decodeEnt = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))).replace(/&nbsp;/g, " ").replace(/&amp;/g, "&");
+const attr = (tag: string, name: string) => decodeEnt(new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1] ?? "");
+
+/** 行內 HTML 標籤改變文字樣式；回傳要直接輸出的內容（<br>、<img>） */
+function applyInlineTag(b: Builder, tag: string, st: RunStyle, stack: { name: string; prev: RunStyle }[]): string {
+  const m = /^<(\/?)([a-z][\w-]*)/i.exec(tag);
+  if (!m) return "";
+  const name = m[2].toLowerCase();
+  if (!m[1]) {
+    if (name === "br") return "<w:r><w:br/></w:r>";
+    if (name === "img") {
+      const a = b.assets.images.get(attr(tag, "src"));
+      return a ? b.image(a, attr(tag, "alt")) : textRun(`[圖片：${attr(tag, "alt") || attr(tag, "src")}]`, { i: true });
+    }
+    stack.push({ name, prev: { ...st } });
+    if (name === "b" || name === "strong") st.b = true;
+    else if (name === "i" || name === "em") st.i = true;
+    else if (name === "u" || name === "ins") st.u = true;
+    else if (name === "s" || name === "del") st.s = true;
+    else if (name === "sub") st.va = "subscript";
+    else if (name === "sup") st.va = "superscript";
+    else if (name === "code" || name === "kbd") st.code = true;
+    const color = hexColor(attr(tag, "style"));
+    if (color) st.color = color;
+    return "";
+  }
+  const i = stack.map(x => x.name).lastIndexOf(name);
+  if (i >= 0) { Object.keys(st).forEach(k => delete (st as Record<string, unknown>)[k]); Object.assign(st, stack[i].prev); stack.splice(i); }
+  return "";
+}
+
+const BLOCK_TAGS = new Set(["h1", "h2", "h3", "h4", "h5", "h6", "p", "div", "li", "tr", "blockquote", "pre", "summary", "details", "table", "ul", "ol", "dt", "dd", "figure", "figcaption", "hr"]);
+
+/** HTML 區塊 → 段落：標題、置中／靠右、行內樣式、圖片、換行；表格列以「｜」分隔 */
+function htmlBlock(b: Builder, html: string, out: string[]) {
+  let runs: string[] = [];
+  let pPr: string[] = [];
+  const st: RunStyle = {};
+  const stack: { name: string; prev: RunStyle }[] = [];
+  const blockStack: { name: string; pPr: string[] }[] = [];
+  const flush = () => {
+    if (runs.some(r => r.trim())) out.push(para(runs.join(""), pPr));
+    runs = [];
+  };
+  for (const m of html.matchAll(/<[^>]+>|[^<]+/g)) {
+    const piece = m[0];
+    if (!piece.startsWith("<")) { const text = decodeEnt(piece).replace(/\s*\n\s*/g, " "); if (text.trim() || runs.length) runs.push(textRun(text, st)); continue; }
+    const t = /^<(\/?)([a-z][\w-]*)/i.exec(piece);
+    if (!t) continue;
+    const name = t[2].toLowerCase();
+    if (BLOCK_TAGS.has(name)) {
+      flush();
+      if (name === "hr") { out.push(para("", [`<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="999999"/></w:pBdr>`])); continue; }
+      if (!t[1]) {
+        blockStack.push({ name, pPr });
+        const align = /text-align:\s*(center|right|justify)/i.exec(attr(piece, "style"))?.[1]?.toLowerCase();
+        const h = /^h([1-6])$/.exec(name)?.[1];
+        pPr = [
+          h ? `<w:pStyle w:val="Heading${h}"/>` : pPr.find(x => x.includes("pStyle")) ?? "",
+          align ? `<w:jc w:val="${align === "justify" ? "both" : align}"/>` : pPr.find(x => x.includes("w:jc")) ?? "",
+        ].filter(Boolean);
+        if (name === "pre") st.code = true;
+      } else {
+        const i = blockStack.map(x => x.name).lastIndexOf(name);
+        if (i >= 0) { pPr = blockStack[i].pPr; blockStack.splice(i); }
+        if (name === "pre") st.code = false;
+      }
+      continue;
+    }
+    if (name === "td" || name === "th") { if (t[1] && runs.length) runs.push(textRun("　｜　", {})); continue; }
+    runs.push(applyInlineTag(b, piece, st, stack));
+  }
+  flush();
+}
+
 /** 行內 token → runs */
 function inline(b: Builder, children: Token[] | null): string {
   if (!children) return "";
   const st: RunStyle = {};
+  const htmlStack: { name: string; prev: RunStyle }[] = [];
   const out: string[] = [];
   let linkRuns: string[] | null = null;
   let linkRid = "";
@@ -136,7 +227,8 @@ function inline(b: Builder, children: Token[] | null): string {
         break;
       }
       case "html_inline":
-        if (/type="checkbox"/.test(t.content)) push(textRun(/checked/.test(t.content) ? "☑ " : "☐ ", {}));
+        if ((t.meta as { trusted?: boolean } | null)?.trusted) push(textRun(/checked/.test(t.content) ? "☑ " : "☐ ", {}));
+        else { const tag = sanitizeTag(t.content); if (tag) push(applyInlineTag(b, tag, st, htmlStack)); }
         break;
       default:
         if (t.content) push(textRun(t.content, st));
@@ -220,6 +312,10 @@ function blocks(b: Builder, toks: Token[], start: number, end: number, ctx: Ctx,
         ctx.first = false;
         break;
       }
+      case "html_block":
+        htmlBlock(b, sanitizeHtml(t.content), out);
+        ctx.first = false;
+        break;
       case "hr":
         out.push(para("", [`<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="999999"/></w:pBdr>`]));
         break;

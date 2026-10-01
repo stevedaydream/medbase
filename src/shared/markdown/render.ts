@@ -2,6 +2,7 @@ import MarkdownIt from "markdown-it";
 import type { StateBlock, StateInline, Token } from "markdown-it";
 import footnote from "markdown-it-footnote";
 import katex from "katex";
+import { sanitizeHtml, sanitizeTag } from "./sanitize";
 
 /**
  * 共用 Markdown 渲染（編輯器內預覽、HTML／PDF／EPUB 匯出）。
@@ -110,12 +111,14 @@ function simpleLineRule(name: string, test: (line: string) => boolean) {
 export interface Heading { level: number; text: string; id: string }
 
 export function createRenderer(opts: RenderOptions = {}): ReturnType<typeof MarkdownIt> {
-  const md = new MarkdownIt({ html: false, linkify: true, typographer: false, xhtmlOut: !!opts.xhtml });
+  // 原文 HTML 開啟，但一律經過白名單（sanitize.ts）
+  const md = new MarkdownIt({ html: true, linkify: true, typographer: false, xhtmlOut: !!opts.xhtml });
+  const sanitizeOpts = { resolveSrc: opts.image, xhtml: opts.xhtml };
   md.use(footnote);
   md.inline.ruler.after("escape", "math_inline", mathInline);
   md.block.ruler.before("fence", "math_block", mathBlock, { alt: ["paragraph", "reference", "blockquote", "list"] });
-  md.block.ruler.before("paragraph", "page_break", simpleLineRule("page_break", l => PAGE_BREAK_RE.test(l)));
-  md.block.ruler.before("paragraph", "toc", simpleLineRule("toc", l => /^\[toc\]\s*$/i.test(l.trim())));
+  md.block.ruler.before("html_block", "page_break", simpleLineRule("page_break", l => PAGE_BREAK_RE.test(l)));
+  md.block.ruler.before("html_block", "toc", simpleLineRule("toc", l => /^\[toc\]\s*$/i.test(l.trim())));
 
   const output = opts.math ?? "html";
   md.renderer.rules.math_inline = (t, i) => renderMath(t[i].content, false, output);
@@ -127,6 +130,14 @@ export function createRenderer(opts: RenderOptions = {}): ReturnType<typeof Mark
     const min = Math.min(...hs.map(h => h.level));
     return `<nav class="md-toc">${hs.map(h =>
       `<a class="md-toc-${h.level - min + 1}" href="#${md.utils.escapeHtml(h.id)}">${md.utils.escapeHtml(h.text)}</a>`).join("")}</nav>\n`;
+  };
+
+  // 原文 HTML：區塊整段過濾並補齊；行內逐個標籤過濾（補齊在 core 規則 balance_inline_html）
+  md.renderer.rules.html_block = (t, i) => `${sanitizeHtml(t[i].content, sanitizeOpts)}\n`;
+  md.renderer.rules.html_inline = (t, i) => {
+    const tok = t[i];
+    if ((tok.meta as { trusted?: boolean } | null)?.trusted) return tok.content;
+    return sanitizeTag(tok.content, sanitizeOpts);
   };
 
   // ```mermaid：輸出原始碼容器，由呼叫端（瀏覽器）轉成 SVG
@@ -176,12 +187,37 @@ export function createRenderer(opts: RenderOptions = {}): ReturnType<typeof Mark
           box.content = opts.xhtml
             ? `<input type="checkbox" disabled="disabled"${m[1] === " " ? "" : ' checked="checked"'} /> `
             : `<input type="checkbox" disabled${m[1] === " " ? "" : " checked"}> `;
+          box.meta = { trusted: true };
           t.children!.unshift(box);
           toks[i - 2].attrJoin("class", "md-task");
         }
       }
     }
     (state.env as { headings?: Heading[] }).headings = headings;
+  });
+
+  // 行內 HTML 補齊：同一段落內沒關的標籤在段尾關閉，沒有開頭的結束標籤丟掉（XHTML 必須成對）
+  md.core.ruler.push("balance_inline_html", state => {
+    for (const t of state.tokens) {
+      if (t.type !== "inline" || !t.children) continue;
+      const stack: string[] = [];
+      for (const c of t.children) {
+        if (c.type !== "html_inline" || (c.meta as { trusted?: boolean } | null)?.trusted) continue;
+        const m = /^<(\/?)\s*([a-zA-Z][\w-]*)[^>]*?(\/?)>$/.exec(c.content.trim());
+        if (!m) continue;
+        const name = m[2].toLowerCase();
+        if (["br", "img", "hr", "wbr"].includes(name)) continue;
+        if (!m[1]) { stack.push(name); continue; }
+        const i = stack.lastIndexOf(name);
+        if (i < 0) { c.content = ""; continue; }
+        stack.splice(i, 1);
+      }
+      for (const name of stack.reverse()) {
+        const close = new state.Token("html_inline", "", 0);
+        close.content = `</${name}>`;
+        t.children.push(close);
+      }
+    }
   });
   return md;
 }

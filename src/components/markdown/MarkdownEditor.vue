@@ -294,6 +294,32 @@ defineExpose({
 .md-editor .cm-md-dim { opacity: 0.35; transition: opacity .15s; }
 .md-editor .cm-md-collapsed { height: 0; overflow: hidden; padding: 0; }
 
+/* 原文 HTML（白名單過濾後） */
+.md-editor .cm-md-html-skipped { font-size: 0.75em; color: var(--color-muted); font-style: italic; }
+.md-editor .cm-md-html h1 { font-size: 1.6em; font-weight: 800; }
+.md-editor .cm-md-html h2 { font-size: 1.35em; font-weight: 800; }
+.md-editor .cm-md-html h3 { font-size: 1.15em; font-weight: 800; }
+.md-editor .cm-md-html h4, .md-editor .cm-md-html h5, .md-editor .cm-md-html h6 { font-weight: 800; }
+.md-editor .cm-md-html p { margin: 0.3em 0; }
+.md-editor .cm-md-html ul { list-style: disc; padding-left: 1.5em; }
+.md-editor .cm-md-html ol { list-style: decimal; padding-left: 1.5em; }
+.md-editor .cm-md-html table { border-collapse: collapse; }
+.md-editor .cm-md-html th, .md-editor .cm-md-html td { border: 1px solid var(--color-hairline); padding: 0.2rem 0.5rem; }
+.md-editor .cm-md-html img { max-width: 100%; }
+.md-editor .cm-md-html a { color: var(--color-accent); text-decoration: underline; }
+.md-editor .cm-md-html summary { cursor: pointer; font-weight: 700; }
+.md-editor .cm-md-html mark, .md-editor .cm-html-mark { background: color-mix(in srgb, var(--color-warning) 35%, transparent); color: inherit; }
+.md-editor .cm-md-html kbd, .md-editor .cm-html-kbd { font-family: var(--font-mono, monospace); font-size: 0.85em; border: 1px solid var(--color-hairline); border-bottom-width: 2px; border-radius: 4px; padding: 0 0.3em; }
+.md-editor .cm-html-b, .md-editor .cm-html-strong { font-weight: 700; }
+.md-editor .cm-html-i, .md-editor .cm-html-em { font-style: italic; }
+.md-editor .cm-html-u, .md-editor .cm-html-ins { text-decoration: underline; }
+.md-editor .cm-html-s, .md-editor .cm-html-del, .md-editor .cm-html-strike { text-decoration: line-through; }
+.md-editor .cm-html-sub { vertical-align: sub; font-size: 0.8em; }
+.md-editor .cm-html-sup { vertical-align: super; font-size: 0.8em; }
+.md-editor .cm-html-small { font-size: 0.85em; }
+.md-editor .cm-html-big { font-size: 1.2em; }
+.md-editor .cm-html-code { font-family: var(--font-mono, monospace); font-size: 0.9em; }
+
 /* 區塊預覽 */
 .md-editor .cm-md-block { cursor: text; margin: 0.25rem 0; border-radius: 0.5rem; }
 .md-editor .cm-md-block:hover { outline: 1px dashed var(--color-hairline); outline-offset: 2px; }
