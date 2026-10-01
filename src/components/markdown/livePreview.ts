@@ -2,6 +2,12 @@ import { syntaxTree } from "@codemirror/language";
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import type { EditorState, Range } from "@codemirror/state";
 import type { SyntaxNodeRef } from "@lezer/common";
+import { ImageWidget, InlineMathWidget } from "./widgets";
+import { frontMatterEnd } from "./blockPreview";
+
+/** 行內公式 $…$：與 shared/markdown/render 的判斷一致（$ 內側不能是空白、結尾 $ 後不能接數字） */
+const INLINE_MATH = /(?<![\\$])\$(?![\s$])((?:\\.|[^$\\\n])+?)(?<![\s\\])\$(?![\d$])/g;
+const FOOTNOTE_REF = /\[\^[^\]\s]+\](?!:)/g;
 
 /**
  * 即時排版（Typora 風格）：內容永遠是 Markdown 原文，只用裝飾改變顯示。
@@ -54,16 +60,35 @@ function build(view: EditorView): DecorationSet {
   const { state } = view;
   const out: Range<Decoration>[] = [];
   const doc = state.doc;
+  const fmEnd = frontMatterEnd(state);
+  const codeRanges: [number, number][] = [];
 
   for (const { from, to } of view.visibleRanges) {
     syntaxTree(state).iterate({
       from, to,
       enter: (node: SyntaxNodeRef) => {
         const name = node.name;
+        if (node.to <= fmEnd + 1 && name !== "Document") return false;
+        if (name === "InlineCode" || name === "FencedCode" || name === "CodeBlock") codeRanges.push([node.from, node.to]);
         const heading = /^ATXHeading(\d)$/.exec(name);
         if (heading) {
           out.push(line(`cm-md-h cm-md-h${heading[1]}`).range(doc.lineAt(node.from).from));
           return;
+        }
+        // Setext 標題（下一行 === 或 ---）：文字行套標題樣式，游標不在時收起底線那一行
+        const setext = /^SetextHeading(\d)$/.exec(name);
+        if (setext) {
+          const last = doc.lineAt(node.to);
+          for (let p = node.from; p < last.from;) {
+            const l = doc.lineAt(p);
+            out.push(line(`cm-md-h cm-md-h${setext[1]}`).range(l.from));
+            p = l.to + 1;
+          }
+          if (!touches(state, node.from, node.to)) {
+            out.push(line("cm-md-collapsed").range(last.from));
+            out.push(hide.range(last.from, last.to));
+          }
+          return false;
         }
         switch (name) {
           case "HeaderMark": {
@@ -83,7 +108,16 @@ function build(view: EditorView): DecorationSet {
             if (!touches(state, parent.from, parent.to)) out.push(hide.range(node.from, node.to));
             return;
           }
+          case "Image": {
+            if (touches(state, node.from, node.to)) return false;
+            const text = doc.sliceString(node.from, node.to);
+            const m = /^!\[([^\]]*)\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)$/.exec(text);
+            if (m) out.push(Decoration.replace({ widget: new ImageWidget(m[2], m[1], node.from + 2) }).range(node.from, node.to));
+            return false;
+          }
           case "Link": {
+            // 註腳引用 [^1] 不當連結處理
+            if (doc.sliceString(node.from, node.from + 2) === "[^") return false;
             if (touches(state, node.from, node.to)) return;
             const marks = node.node.getChildren("LinkMark");
             // [文字](網址)：隱藏「[」與「](網址)」
@@ -150,6 +184,24 @@ function build(view: EditorView): DecorationSet {
         }
       },
     });
+
+    // 行內公式與註腳：Markdown 語法樹沒有這兩種節點，逐行比對
+    const inCode = (p: number) => codeRanges.some(([a, b]) => p >= a && p < b);
+    for (let pos = from; pos <= to;) {
+      const line = doc.lineAt(pos);
+      pos = line.to + 1;
+      if (line.to <= fmEnd || line.text.trim().startsWith("$$")) continue;
+      for (const m of line.text.matchAll(INLINE_MATH)) {
+        const a = line.from + m.index!, b = a + m[0].length;
+        if (inCode(a) || touches(state, a, b)) continue;
+        out.push(Decoration.replace({ widget: new InlineMathWidget(m[1], a) }).range(a, b));
+      }
+      if (/^\[\^[^\]\s]+\]:/.test(line.text)) out.push(Decoration.line({ class: "cm-md-fndef" }).range(line.from));
+      for (const m of line.text.matchAll(FOOTNOTE_REF)) {
+        const a = line.from + m.index!;
+        if (!inCode(a)) out.push(Decoration.mark({ class: "cm-md-fnref" }).range(a, a + m[0].length));
+      }
+    }
   }
   return Decoration.set(out, true);
 }

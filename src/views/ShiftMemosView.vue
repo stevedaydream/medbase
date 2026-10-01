@@ -50,6 +50,7 @@ let saveDebounce: ReturnType<typeof setTimeout> | null = null;
 const outline = ref<OutlineItem[]>([]);
 const cursor = ref(0);
 const showOutline = ref(false);
+const inTable = ref(false);
 
 function onEdit(v: string) {
   draft.value = v;
@@ -246,7 +247,7 @@ async function saveTitle() {
         </div>
 
         <!-- Editor Toolbar -->
-        <MarkdownToolbar class="px-6 py-2 border-b border-hairline shrink-0 bg-surface" :editor="editorRef" v-model:source="sourceMode">
+        <MarkdownToolbar class="px-6 py-2 border-b border-hairline shrink-0 bg-surface" :editor="editorRef" v-model:source="sourceMode" :in-table="inTable">
           <button @click="showOutline = !showOutline" title="大綱"
             class="mr-1 px-3 py-1.5 rounded-lg text-2xs font-bold border transition-all cursor-pointer"
             :class="showOutline ? 'bg-accent/10 border-accent/30 text-accent' : 'border-hairline text-muted hover:text-fg'">大綱</button>
@@ -256,7 +257,7 @@ async function saveTitle() {
         <div class="flex-1 min-h-0 flex bg-surface">
           <div class="flex-1 min-w-0 px-6">
             <MarkdownEditor ref="editorRef" :model-value="draft" @update:model-value="onEdit" v-model:source="sourceMode"
-              @outline="outline = $event" @cursor="cursor = $event"
+              @outline="outline = $event" @cursor="cursor = $event" @in-table="inTable = $event" @notice="toast"
               placeholder="輸入內容；支援 Markdown 語法，例如 ## 標題、- 清單、**粗體**" />
           </div>
           <aside v-if="showOutline" class="w-52 shrink-0 border-l border-hairline overflow-y-auto p-2">
