@@ -1,6 +1,6 @@
 # 待辦規劃：Typora 風格 Markdown 編輯器
 
-狀態：第 0 階段完成，編輯核心選定 CodeMirror 6（ADR-019）；已先取代規則備忘錄的編輯器。其餘階段尚未實作。
+狀態：第 0～5 階段已實作（ADR-019，分支 `feature/markdown-editor`）。中文輸入法與 Tauri 內的實際操作尚待使用者驗收；與 Typora 的差異見文末。
 
 ## 目標與範圍
 
@@ -103,12 +103,40 @@
 - [x] 建立代表性測試文件及功能相容性清單。
 - [x] 完成 Tiptap／CodeMirror 核心驗證並記錄選型結果（另比較 Milkdown；採 CodeMirror 6）。
 - [ ] 中文輸入法選字、游標跳動：需在 Tauri 實際打字確認。
-- [ ] 完成日常寫作核心（已有：標題、粗斜體、刪除線、清單、待辦、引用、連結、分隔線、復原／重做、字數；未做：大綱）。
-- [ ] 完成表格、圖片、公式及圖表。
-- [ ] 通過第一個里程碑驗收。
-- [ ] 完成文件管理、復原與寫作模式。
-- [ ] 完成多文件分頁（狀態保留、未儲存提示、重開還原）。
-- [ ] 完成各格式匯出及版面驗收。
-- [ ] 完成列印分頁（手動分頁、標題換頁、避免切斷、頁碼、預覽）。
-- [ ] 完成論文整合、舊資料相容與附件備份還原。
-- [ ] 逐項核對 Typora 功能與操作差異，列明尚未支援項目。
+- [x] 完成日常寫作核心（含大綱、字數）。
+- [x] 完成表格、圖片、公式及圖表。
+- [ ] 通過第一個里程碑驗收（自動測試與網頁版檢查已過；需在 Tauri 內開啟、儲存、重新開啟實測）。
+- [x] 完成文件管理、復原與寫作模式。
+- [x] 完成多文件分頁（狀態保留、未儲存提示、重開還原）。
+- [ ] 完成各格式匯出及版面驗收（產生器已完成並有自動測試；Word／PDF 需用 Word 與列印對話框實際開啟驗收）。
+- [x] 完成列印分頁（手動分頁、標題換頁、避免切斷、頁碼、預覽＝列印對話框）。
+- [x] 完成論文整合、舊資料相容與附件備份還原（備份還原需在 Tauri 內實測）。
+- [x] 逐項核對 Typora 功能與操作差異，列明尚未支援項目（見下節）。
+
+## 實作摘要（對應程式）
+
+| 範圍 | 位置 |
+| --- | --- |
+| 編輯核心、即時排版、區塊預覽 | `src/components/markdown/`（MarkdownEditor、livePreview、blockPreview、widgets、commands、focusMode） |
+| 共用渲染、表格模型 | `src/shared/markdown/render.ts`、`table.ts` |
+| 匯出與版面 | `src/shared/markdown/export/`（html、docx、omml、epub、latex、settings）、`components/markdown/ExportDialog.vue` |
+| Markdown 文件頁 | `src/views/DocsView.vue`、`src/composables/useDocTabs.ts`、`components/markdown/FileTree.vue` |
+| 規則備忘錄 | `src/views/ShiftMemosView.vue`（存 Markdown，舊 HTML 開啟時轉換）；手機 `mobile/src/lib/markdown.ts` |
+| 論文稿件 | `src/components/ManuscriptPanel.vue`、`src/shared/manuscriptMarkdown.ts`、research schema v3 |
+
+## 與 Typora 的差異（尚未支援或做法不同）
+
+- 表格：游標進入表格時改為編輯原文（有增刪列欄、對齊、Tab 換格），不是直接在排版後的儲存格內輸入。
+- 程式碼區塊：顯示 ``` 圍欄與語言名稱，沒有語言下拉選單；匯出的程式碼沒有語法上色。
+- 原文中的 HTML 不渲染、不輸出（安全考量），以原文保留。
+- 圖片：不能拖曳調整大小；不支援上傳到圖床。
+- 未支援的擴充語法：`==標記==`、`^上標^`、`~下標~`、`:emoji:`、flowchart.js／sequence（只支援 Mermaid）。
+- 貼上網頁 HTML 不會自動轉成 Markdown（以純文字貼上）。
+- 檔案樹沒有重新命名、刪除、移動；沒有全資料夾搜尋。
+- 沒有自訂主題 CSS；深淺主題跟隨 MedBase 設定。
+- 沒有拼字檢查、字數目標。
+- 專注與打字機模式只在「Markdown 文件」頁有開關（備忘錄、稿件未提供）。
+- 論文章節不會出現在「Markdown 文件」的分頁列（稿件有自己的段落頁籤）。
+- PDF 透過列印對話框另存，預覽也在列印對話框；不直接寫出 PDF 檔。
+- Word 公式由 MathML 對應到 Word 方程式，常見結構（分數、根號、上下標、求和、矩陣、重音）可編輯；`\color`、特殊字型等樣式會遺失。
+- LaTeX 匯出不轉換 Mermaid（以註解保留原始碼）；手機匯出 Word 時 Mermaid 以原始碼呈現。
