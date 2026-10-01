@@ -11,6 +11,14 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.13",
+    "@lezer/common": "^1.5.3",
+    "@lezer/highlight": "^1.2.5",
+    "@lezer/markdown": "^1.7.2",
     "@tailwindcss/vite": "^4.2.2",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.6.0",
@@ -22,9 +30,6 @@
     "@tauri-apps/plugin-updater": "^2.10.1",
     "@tesseract.js-data/chi_tra": "^1.0.0",
     "@tesseract.js-data/eng": "^1.0.0",
-    "@tiptap/pm": "^3.20.5",
-    "@tiptap/starter-kit": "^3.20.5",
-    "@tiptap/vue-3": "^3.20.5",
     "@vueuse/core": "^14.2.1",
     "docxtemplater": "^3.68.7",
     "duty-doc-reader": "https://codeload.github.com/Alpaq92/JSDoc/tar.gz/821695a884e0c0bb8592a635d9524bb3e116cd67",
@@ -36,6 +41,7 @@
     "tailwindcss": "^4.2.2",
     "tesseract.js": "^6.0.0",
     "tesseract.js-core": "^6.0.0",
+    "turndown": "^7.2.4",
     "vue": "^3.5.13",
     "vue-router": "^4.6.4",
     "xlsx": "^0.18.5"
@@ -43,6 +49,7 @@
   "devDependencies": {
     "@tauri-apps/cli": "^2",
     "@types/qrcode": "^1.5.6",
+    "@types/turndown": "^5.0.6",
     "@vitejs/plugin-vue": "^5.2.1",
     "typescript": "~5.6.2",
     "vite": "^6.0.3",

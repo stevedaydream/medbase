@@ -10,12 +10,14 @@
   "dependencies": {
     "docxtemplater": "^3.71.0",
     "fflate": "^0.8.3",
+    "markdown-it": "^15.0.2",
     "pizzip": "^3.3.0",
     "vue": "^3.5.13",
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
+    "@types/markdown-it": "^14.2.0",
     "@types/node": "^26.6.2",
     "@vitejs/plugin-vue": "^5.2.1",
     "tailwindcss": "^4.2.2",

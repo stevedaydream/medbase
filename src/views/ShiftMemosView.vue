@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
-import { useEditor, EditorContent } from "@tiptap/vue-3";
-import StarterKit from "@tiptap/starter-kit";
-import { getDb } from "@/db";
+import { getDb, dbWrite } from "@/db";
+import MarkdownEditor from "@/components/markdown/MarkdownEditor.vue";
+import { isLegacyHtml } from "@/shared/markdown/format";
+import { htmlToMarkdown } from "@/shared/markdown/fromHtml";
+import { wordCount } from "@/shared/manuscriptFiles";
 import { touchTable, markDeletedById, onTableSynced } from "@/composables/useTableSync";
 import CloudSyncButtons from "@/components/CloudSyncButtons.vue";
 
@@ -33,29 +35,54 @@ function toast(msg: string) {
 }
 
 
-// ── Tiptap editor ────────────────────────────────────────────
+// ── Markdown 編輯器 ──────────────────────────────────────────
+// 舊備忘存 HTML：開啟時轉成 Markdown 顯示，有編輯才存回（不批次轉檔）
+const toEditable = (content: string) => (isLegacyHtml(content) ? htmlToMarkdown(content) : content || "");
+const draft = ref("");
+const sourceMode = ref(false);
+const editorRef = ref<InstanceType<typeof MarkdownEditor>>();
+const words = computed(() => wordCount(draft.value));
 let saveDebounce: ReturnType<typeof setTimeout> | null = null;
 
-const editor = useEditor({
-  extensions: [StarterKit],
-  content: "",
-  editorProps: {
-    attributes: { class: "prose prose-invert prose-sm max-w-none focus:outline-none min-h-[350px] px-2 text-fg-secondary font-sans" }
-  },
-  onUpdate: () => {
-    if (!activeMemo.value) return;
-    if (saveDebounce) clearTimeout(saveDebounce);
-    saveDebounce = setTimeout(autoSave, 800);
-  },
-});
+type Tool = { label: string; title: string; run: () => void; cls?: string };
+const ed = () => editorRef.value;
+const toolGroups: Tool[][] = [
+  [
+    { label: "B", title: "粗體（Ctrl+B）", run: () => ed()?.bold(), cls: "font-black" },
+    { label: "I", title: "斜體（Ctrl+I）", run: () => ed()?.italic(), cls: "italic" },
+    { label: "S", title: "刪除線（Alt+Shift+5）", run: () => ed()?.strike(), cls: "line-through" },
+    { label: "</>", title: "行內程式碼（Ctrl+Shift+`）", run: () => ed()?.code(), cls: "font-mono" },
+  ],
+  [1, 2, 3].map(n => ({ label: `H${n}`, title: `標題 ${n}（Ctrl+${n}；Ctrl+0 改回段落）`, run: () => ed()?.heading(n), cls: "font-bold" })),
+  [
+    { label: "•", title: "項目清單（Ctrl+Shift+]）", run: () => ed()?.bullet() },
+    { label: "1.", title: "編號清單（Ctrl+Shift+[）", run: () => ed()?.ordered() },
+    { label: "☐", title: "待辦清單", run: () => ed()?.task() },
+    { label: "❝", title: "引用（Ctrl+Shift+Q）", run: () => ed()?.quote() },
+  ],
+  [
+    { label: "🔗", title: "連結（Ctrl+K）", run: () => ed()?.link() },
+    { label: "—", title: "分隔線", run: () => ed()?.hr() },
+  ],
+  [
+    { label: "↶", title: "復原（Ctrl+Z）", run: () => ed()?.undo() },
+    { label: "↷", title: "重做（Ctrl+Y／Ctrl+Shift+Z）", run: () => ed()?.redo() },
+  ],
+];
+
+function onEdit(v: string) {
+  draft.value = v;
+  if (!activeMemo.value) return;
+  if (saveDebounce) clearTimeout(saveDebounce);
+  saveDebounce = setTimeout(autoSave, 800);
+}
 
 async function autoSave() {
   saveDebounce = null;
-  if (!activeMemo.value || !editor.value) return;
-  const content = editor.value.getHTML();
+  if (!activeMemo.value) return;
+  const content = draft.value;
   activeMemo.value.content = content;
-  const db = await getDb();
-  await db.execute(
+  await dbWrite(
     "UPDATE shift_memos SET content=?, updated_at=datetime('now','localtime') WHERE id=?",
     [content, activeMemo.value.id]
   );
@@ -72,10 +99,10 @@ onTableSynced("shiftMemos", async () => {
   const activeId = activeMemo.value?.id;
   await load();
   const fresh = memos.value.find(m => m.id === activeId) ?? null;
-  if (!fresh) { activeMemo.value = null; editor.value?.commands.setContent("", { emitUpdate: false }); return; }
+  if (!fresh) { activeMemo.value = null; draft.value = ""; return; }
   const changed = fresh.content !== activeMemo.value?.content;
   activeMemo.value = fresh;
-  if (changed && !saveDebounce) editor.value?.commands.setContent(fresh.content || "", { emitUpdate: false });
+  if (changed && !saveDebounce) draft.value = toEditable(fresh.content);
 });
 async function load() {
   const db = await getDb();
@@ -99,7 +126,7 @@ const filteredMemos = computed(() => {
 function selectMemo(m: ShiftMemo) {
   if (saveDebounce) { clearTimeout(saveDebounce); autoSave(); }
   activeMemo.value = m;
-  editor.value?.commands.setContent(m.content || "", { emitUpdate: false });
+  draft.value = toEditable(m.content);
 }
 
 // ── 新增備忘 ─────────────────────────────────────────────────
@@ -113,8 +140,7 @@ function openAdd() {
 async function confirmAdd() {
   const { category, title } = addForm.value;
   if (!title.trim()) return;
-  const db = await getDb();
-  const res = await db.execute(
+  const res = await dbWrite(
     "INSERT INTO shift_memos (category, title, content) VALUES (?,?,?)",
     [category.trim() || "一般", title.trim(), ""]
   );
@@ -132,12 +158,11 @@ async function confirmAdd() {
 const deleteTarget = ref<ShiftMemo | null>(null);
 async function doDelete() {
   if (!deleteTarget.value) return;
-  const db = await getDb();
   await markDeletedById("shiftMemos", deleteTarget.value.id);
-  await db.execute("DELETE FROM shift_memos WHERE id=?", [deleteTarget.value.id]);
+  await dbWrite("DELETE FROM shift_memos WHERE id=?", [deleteTarget.value.id]);
   if (activeMemo.value?.id === deleteTarget.value.id) {
     activeMemo.value = null;
-    editor.value?.commands.setContent("", { emitUpdate: false });
+    draft.value = "";
   }
   deleteTarget.value = null;
   await load();
@@ -150,8 +175,7 @@ const editingTitle = ref(false);
 const titleDraft   = ref("");
 async function saveTitle() {
   if (!activeMemo.value || !titleDraft.value.trim()) { editingTitle.value = false; return; }
-  const db = await getDb();
-  await db.execute("UPDATE shift_memos SET title=? WHERE id=?", [titleDraft.value.trim(), activeMemo.value.id]);
+  await dbWrite("UPDATE shift_memos SET title=? WHERE id=?", [titleDraft.value.trim(), activeMemo.value.id]);
   activeMemo.value.title = titleDraft.value.trim();
   const idx = memos.value.findIndex(m => m.id === activeMemo.value!.id);
   if (idx >= 0) memos.value[idx].title = titleDraft.value.trim();
@@ -241,39 +265,26 @@ async function saveTitle() {
         </div>
 
         <!-- Editor Toolbar -->
-        <div v-if="editor" class="px-6 py-2 border-b border-hairline flex items-center gap-1 shrink-0 bg-surface">
-          <button @click="editor.chain().focus().toggleBold().run()"
-            :class="editor.isActive('bold') ? 'bg-overlay/10 text-accent font-extrabold' : 'text-muted hover:text-fg-secondary'"
-            class="p-2 rounded-lg text-xs font-bold transition-all cursor-pointer">B</button>
-          
-          <button @click="editor.chain().focus().toggleItalic().run()"
-            :class="editor.isActive('italic') ? 'bg-overlay/10 text-accent font-extrabold' : 'text-muted hover:text-fg-secondary'"
-            class="p-2 rounded-lg text-xs italic transition-all cursor-pointer">I</button>
-          
-          <button @click="editor.chain().focus().toggleHeading({ level: 3 }).run()"
-            :class="editor.isActive('heading', { level: 3 }) ? 'bg-overlay/10 text-accent font-extrabold' : 'text-muted hover:text-fg-secondary'"
-            class="p-2 rounded-lg text-2xs font-bold transition-all cursor-pointer">H3</button>
-          
-          <div class="w-px h-4 bg-overlay/5 mx-2" />
-          
-          <button @click="editor.chain().focus().toggleBulletList().run()"
-            :class="editor.isActive('bulletList') ? 'bg-overlay/10 text-accent' : 'text-muted hover:text-fg-secondary'"
-            class="p-2 rounded-lg text-xs transition-all cursor-pointer">•—</button>
-          
-          <button @click="editor.chain().focus().toggleOrderedList().run()"
-            :class="editor.isActive('orderedList') ? 'bg-overlay/10 text-accent' : 'text-muted hover:text-fg-secondary'"
-            class="p-2 rounded-lg text-xs transition-all cursor-pointer">1.</button>
-          
-          <div class="w-px h-4 bg-overlay/5 mx-2" />
-          
-          <button @click="editor.chain().focus().setHardBreak().run()"
-            class="p-2 rounded-lg text-xs text-muted hover:text-fg-secondary transition-all cursor-pointer">↵</button>
+        <div class="px-6 py-2 border-b border-hairline flex items-center gap-0.5 shrink-0 bg-surface flex-wrap">
+          <template v-for="(group, gi) in toolGroups" :key="gi">
+            <div v-if="gi" class="w-px h-4 bg-overlay/10 mx-1.5" />
+            <button v-for="b in group" :key="b.label" @click="b.run()" :title="b.title"
+              class="min-w-8 px-2 py-1.5 rounded-lg text-xs text-muted hover:text-fg hover:bg-overlay/5 transition-all cursor-pointer"
+              :class="b.cls">{{ b.label }}</button>
+          </template>
+          <button @click="sourceMode = !sourceMode" title="切換排版／原始碼（Ctrl+/）"
+            class="ml-auto px-3 py-1.5 rounded-lg text-2xs font-bold border transition-all cursor-pointer"
+            :class="sourceMode ? 'bg-accent/10 border-accent/30 text-accent' : 'border-hairline text-muted hover:text-fg'">
+            {{ sourceMode ? '原始碼' : '排版' }}
+          </button>
         </div>
 
         <!-- Editor body viewport -->
-        <div class="flex-1 overflow-y-auto px-6 py-5 bg-surface">
-          <EditorContent :editor="editor" />
+        <div class="flex-1 min-h-0 px-6 bg-surface">
+          <MarkdownEditor ref="editorRef" :model-value="draft" @update:model-value="onEdit" v-model:source="sourceMode"
+            placeholder="輸入內容；支援 Markdown 語法，例如 ## 標題、- 清單、**粗體**" />
         </div>
+        <div class="px-6 py-1.5 border-t border-hairline bg-surface text-2xs text-muted flex justify-end shrink-0">{{ words }} 字</div>
       </template>
     </div>
   </div>
@@ -328,22 +339,4 @@ async function saveTitle() {
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateX(-50%) translateY(8px); }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-</style>
-
-<style>
-/* Tiptap prose：顏色跟隨淺色／深色主題變數 */
-.ProseMirror { color: var(--color-fg); }
-.ProseMirror h3 { color: var(--color-fg); font-size: 0.95rem; font-weight: 800; margin: 1rem 0 0.5rem; letter-spacing: 0.025em; border-left: 3px solid var(--color-accent); padding-left: 0.5rem; }
-.ProseMirror ul { list-style: disc; padding-left: 1.25rem; font-size: 0.8rem; line-height: 1.6; }
-.ProseMirror ol { list-style: decimal; padding-left: 1.25rem; font-size: 0.8rem; line-height: 1.6; }
-.ProseMirror li { margin: 0.25rem 0; }
-.ProseMirror strong { color: var(--color-fg); font-weight: 700; }
-.ProseMirror p { margin: 0.5rem 0; font-size: 0.8rem; line-height: 1.6; }
-.ProseMirror p.is-editor-empty:first-child::before {
-  content: attr(data-placeholder);
-  color: var(--color-muted);
-  float: left;
-  height: 0;
-  pointer-events: none;
-}
 </style>
