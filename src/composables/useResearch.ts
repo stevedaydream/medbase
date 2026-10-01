@@ -288,6 +288,7 @@ export async function deleteProject(id: string): Promise<void> {
   await dbWrite("DELETE FROM research_project_authors    WHERE project_id = ?", [id]);
   await dbWrite("DELETE FROM research_refs               WHERE project_id = ?", [id]);
   await dbWrite("DELETE FROM research_manuscript_sections WHERE project_id = ?", [id]);
+  await dbWrite("DELETE FROM research_manuscript_assets  WHERE project_id = ?", [id]);
   await dbWrite("DELETE FROM research_projects           WHERE id = ?",         [id]);
   await markChanged();
 }

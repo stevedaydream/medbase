@@ -5,11 +5,11 @@ import PageHeader from '../components/PageHeader.vue'
 import { data, pullRefresh } from '../lib/data'
 import { usePullRefresh } from '../lib/pull'
 import { pushRecent } from '../lib/records'
-import { sanitizeHtml } from '../lib/sanitize'
+import { renderMemo } from '../lib/markdown'
 
 const route = useRoute()
 const memo = computed(() => data.tables.shiftMemos.find(m => m.uid === route.params.id))
-const html = computed(() => sanitizeHtml(memo.value?.content || ''))
+const html = computed(() => renderMemo(memo.value?.content || ''))
 watch(memo, m => { if (m) pushRecent({ to: route.fullPath, title: m.title, type: '備忘' }) }, { immediate: true })
 
 usePullRefresh(() => pullRefresh(['shiftMemos']))
@@ -35,4 +35,10 @@ usePullRefresh(() => pullRefresh(['shiftMemos']))
 .memo :deep(strong) { font-weight: 700; }
 .memo :deep(a) { color: var(--color-accent); text-decoration: underline; }
 .memo :deep(blockquote) { border-left: 3px solid var(--color-hairline); padding-left: 0.75rem; color: var(--color-fg-secondary); }
+.memo :deep(hr) { border: 0; border-top: 1px solid var(--color-hairline); margin: 1rem 0; }
+.memo :deep(code) { font-family: ui-monospace, monospace; font-size: 0.9em; background: var(--color-sunken); padding: 0 0.25rem; border-radius: 0.25rem; }
+.memo :deep(pre) { background: var(--color-sunken); padding: 0.75rem; border-radius: 0.5rem; overflow-x: auto; }
+.memo :deep(pre code) { padding: 0; background: none; }
+.memo :deep(table) { border-collapse: collapse; margin: 0.5rem 0; display: block; overflow-x: auto; }
+.memo :deep(th), .memo :deep(td) { border: 1px solid var(--color-hairline); padding: 0.25rem 0.5rem; }
 </style>

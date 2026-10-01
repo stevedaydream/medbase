@@ -5,7 +5,12 @@ import PageHeader from '../components/PageHeader.vue'
 import { research, table } from '../lib/research'
 import { toast } from '../lib/ui'
 import { stageMeta, studyTypeLabel } from '@shared/researchMeta'
-import { exportDocx, wordCount } from '@shared/manuscriptFiles'
+import { wordCount } from '@shared/manuscriptFiles'
+import { sectionsToMarkdown, manuscriptTitle, assetIdOf, isMd } from '@shared/manuscriptMarkdown'
+import { renderMarkdown } from '@shared/markdown/render'
+import { buildDocx } from '@shared/markdown/export/docx'
+import { emptyAssets } from '@shared/markdown/export/html'
+import { normalizePrint } from '@shared/markdown/export/settings'
 
 /** 論文專案詳情（唯讀）：概要、作者、稿件；稿件可匯出 Word 並分享 */
 const route = useRoute()
@@ -27,7 +32,20 @@ const authors = computed(() => {
 const sections = computed(() => table('research_manuscript_sections')
   .filter(s => String(s.project_id) === id)
   .sort((a, b) => Number(a.sort_order) - Number(b.sort_order))
-  .map(s => ({ id: String(s.id), title: String(s.title), body: String(s.body ?? '') })))
+  .map(s => ({ id: String(s.id), title: String(s.title), body: String(s.body ?? ''), format: String(s.format ?? 'text') })))
+
+// 稿件圖片（ms-asset:<id>）：備份中的 base64
+const assetRows = computed(() => new Map(table('research_manuscript_assets')
+  .filter(a => String(a.project_id) === id).map(a => [String(a.id), a])))
+function assetUri(src: string): string {
+  const a = assetRows.value.get(assetIdOf(src) ?? '')
+  return a ? `data:${a.mime};base64,${a.data}` : ''
+}
+/** Markdown 段落的顯示（原文 HTML 不輸出，公式用 MathML） */
+const renderedHtml = computed(() => {
+  const s = sections.value[activeSec.value]
+  return s && isMd(s) ? renderMarkdown(s.body, { math: 'mathml', image: assetUri }).html : ''
+})
 const activeSec = ref(0)
 const totalWords = computed(() => sections.value.reduce((n, s) => n + wordCount(s.body), 0))
 
@@ -35,7 +53,18 @@ async function share() {
   if (!sections.value.length) return
   const title = String(project.value?.title ?? 'manuscript')
   const name = `${title.replace(/[\\/:*?"<>|]/g, '_').slice(0, 60)}.docx`
-  const file = new File([exportDocx(sections.value)], name, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+  // 與桌機相同的 Word 匯出（組稿成 Markdown）；圖片取自備份，mermaid 圖表在手機以原始碼呈現
+  const assets = emptyAssets()
+  for (const [aid, a] of assetRows.value) {
+    const bin = atob(String(a.data))
+    assets.images.set(`ms-asset:${aid}`, {
+      bytes: Uint8Array.from(bin, c => c.charCodeAt(0)), mime: String(a.mime),
+      width: Number(a.width) || 600, height: Number(a.height) || 400,
+    })
+  }
+  const settings = normalizePrint({ title: manuscriptTitle(sections.value, title) })
+  const docx = buildDocx(sectionsToMarkdown(sections.value), settings, assets)
+  const file = new File([docx], name, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
   try {
     if (navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title })
     else {
@@ -82,7 +111,8 @@ const FIELDS: [string, string][] = [
         </div>
         <article class="rounded-2xl bg-surface border border-hairline p-4">
           <p class="text-xs text-muted mb-2">{{ wordCount(sections[activeSec]?.body ?? '') }} 字</p>
-          <p class="text-base leading-relaxed text-fg whitespace-pre-wrap font-serif">{{ sections[activeSec]?.body || '（空白）' }}</p>
+          <div v-if="renderedHtml" class="ms-md text-base leading-relaxed text-fg font-serif" v-html="renderedHtml" />
+          <p v-else class="text-base leading-relaxed text-fg whitespace-pre-wrap font-serif">{{ sections[activeSec]?.body || '（空白）' }}</p>
         </article>
       </template>
     </div>
@@ -111,3 +141,18 @@ const FIELDS: [string, string][] = [
     </div>
   </div>
 </template>
+
+<style scoped>
+.ms-md :deep(p), .ms-md :deep(ul), .ms-md :deep(ol), .ms-md :deep(table), .ms-md :deep(blockquote), .ms-md :deep(pre) { margin: 0 0 0.7em; }
+.ms-md :deep(h1), .ms-md :deep(h2), .ms-md :deep(h3), .ms-md :deep(h4) { font-weight: 800; margin: 0.9em 0 0.4em; }
+.ms-md :deep(ul) { list-style: disc; padding-left: 1.25rem; }
+.ms-md :deep(ol) { list-style: decimal; padding-left: 1.25rem; }
+.ms-md :deep(li.md-task) { list-style: none; }
+.ms-md :deep(table) { border-collapse: collapse; display: block; overflow-x: auto; font-size: 0.9em; }
+.ms-md :deep(th), .ms-md :deep(td) { border: 1px solid var(--color-hairline); padding: 0.2rem 0.5rem; }
+.ms-md :deep(blockquote) { border-left: 3px solid var(--color-hairline); padding-left: 0.75rem; color: var(--color-fg-secondary); }
+.ms-md :deep(pre) { background: var(--color-sunken); padding: 0.6rem; border-radius: 0.5rem; overflow-x: auto; font-size: 0.85em; }
+.ms-md :deep(img) { max-width: 100%; border-radius: 0.5rem; }
+.ms-md :deep(.md-math) { overflow-x: auto; text-align: center; }
+.ms-md :deep(.footnotes) { font-size: 0.85em; color: var(--color-fg-secondary); }
+</style>

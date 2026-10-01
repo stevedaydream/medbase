@@ -6,15 +6,15 @@ import SideDrawer from '../components/SideDrawer.vue'
 import { data, type Row, pullRefresh } from '../lib/data'
 import { usePullRefresh } from '../lib/pull'
 import { matchTerms } from '../lib/ui'
+import { memoPlainText } from '../lib/markdown'
 
 /** 規則備忘錄（唯讀）：搜尋標題與內文，☰ 依分類篩選 */
 const q = ref('')
 const drawer = ref(false)
 const category = ref('')
 
-const plain = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()
 const memos = computed(() => data.tables.shiftMemos
-  .map(m => ({ ...m, text: plain(m.content || '') }) as Row & { text: string })
+  .map(m => ({ ...m, text: memoPlainText(m.content || '') }) as Row & { text: string })
   .sort((a, b) => (a.category || '').localeCompare(b.category || '', 'zh-TW') || Number(a.sort_order || 0) - Number(b.sort_order || 0) || a.title.localeCompare(b.title, 'zh-TW')))
 const categories = computed(() => [...new Set(memos.value.map(m => m.category || '一般'))])
 const filtered = computed(() => memos.value.filter(m =>
