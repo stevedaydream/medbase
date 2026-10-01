@@ -152,3 +152,13 @@ describe("EPUB 匯出", () => {
     expect(strFromU8(files["OEBPS/chap2.xhtml"])).toContain('src="images/img1.png"');
   });
 });
+
+describe("標題不重複", () => {
+  it("文件以同名 # 標題開頭時不另加標題", () => {
+    const d = strFromU8(unzipSync(buildDocx("# 研究\n\n內文", normalizePrint({ title: "研究" }), emptyAssets()))["word/document.xml"]);
+    expect(d).not.toContain('w:val="Title"');
+    expect(buildLatex("# 研究\n\n內文", normalizePrint({ title: "研究" }))).not.toContain("\maketitle");
+    const d2 = strFromU8(unzipSync(buildDocx("# 其他\n\n內文", normalizePrint({ title: "研究" }), emptyAssets()))["word/document.xml"]);
+    expect(d2).toContain('w:val="Title"');
+  });
+});

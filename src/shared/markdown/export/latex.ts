@@ -1,5 +1,6 @@
 import { parseMarkdown, type Token } from "../render";
 import { paperMm, type PrintSettings } from "./settings";
+import { startsWithTitle } from "./docx";
 
 /**
  * Markdown → LaTeX（ctexart，XeLaTeX 編譯）。圖片保留原本的相對路徑，與 .tex 放在同一資料夾即可編譯。
@@ -119,6 +120,8 @@ export function buildLatex(md: string, settings: PrintSettings): string {
 
   const [w, h] = paperMm(settings);
   const m = settings.margin;
+  // 文件已用同名 # 標題開頭時不再 \maketitle
+  if (settings.title.trim() && startsWithTitle(tokens, settings.title)) settings = { ...settings, title: "" };
   return `% 由 MedBase 匯出；請用 XeLaTeX 編譯（xelatex 檔名.tex）
 \\documentclass[${Math.round(settings.fontSize)}pt]{ctexart}
 \\usepackage[paperwidth=${w}mm,paperheight=${h}mm,top=${m.top}mm,right=${m.right}mm,bottom=${m.bottom}mm,left=${m.left}mm]{geometry}

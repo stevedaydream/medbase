@@ -344,11 +344,20 @@ function headerFooter(kind: "hdr" | "ftr", content: string): string {
 
 const field = (instr: string) => `<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> ${instr} </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>`;
 
+/** 文件第一個區塊是否就是與標題相同的一級標題 */
+export function startsWithTitle(tokens: Token[], title: string): boolean {
+  const i = tokens.findIndex(t => t.type !== "toc");
+  const t = tokens[i];
+  return !!t && t.type === "heading_open" && t.tag === "h1" && (tokens[i + 1]?.content ?? "").trim() === title.trim();
+}
+
 export function buildDocx(md: string, settings: PrintSettings, assets: ExportAssets): Uint8Array {
   const b = new Builder(settings, assets);
   const { tokens } = parseMarkdown(withToc(md, settings));
   const body: string[] = [];
-  if (settings.title.trim()) body.push(para(textRun(settings.title.trim(), {}), [`<w:pStyle w:val="Title"/>`]));
+  // 文件已用同名的 # 標題開頭時不再另加標題（避免重複）
+  const showTitle = !!settings.title.trim() && !startsWithTitle(tokens, settings.title);
+  if (showTitle) body.push(para(textRun(settings.title.trim(), {}), [`<w:pStyle w:val="Title"/>`]));
   // 註腳需要先編號：先掃過引用順序
   for (const t of tokens) t.children?.forEach(c => {
     if (c.type === "footnote_ref") {
@@ -356,7 +365,7 @@ export function buildDocx(md: string, settings: PrintSettings, assets: ExportAss
       if (!b.footnoteIds.has(label)) b.footnoteIds.set(label, b.footnoteIds.size + 1);
     }
   });
-  blocks(b, tokens, 0, tokens.length, { quote: 0, items: [], first: !settings.title.trim() }, body);
+  blocks(b, tokens, 0, tokens.length, { quote: 0, items: [], first: !showTitle }, body);
 
   // 頁首頁尾
   const [w, h] = paperMm(settings).map(twip);

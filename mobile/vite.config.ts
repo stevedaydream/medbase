@@ -9,7 +9,7 @@ const here = (p: string) => fileURLToPath(new URL(p, import.meta.url))
 // 桌機與手機共用的純邏輯放在 ../src/shared（ADR-013）。
 // Vercel 只安裝 mobile/ 的套件，共用檔案裡 import 的套件一律指到 mobile/node_modules，
 // 否則會往上找 ../node_modules，部署時不存在。
-const SHARED_DEPS = ['fflate', 'pizzip', 'docxtemplater']
+const SHARED_DEPS = ['fflate', 'pizzip', 'docxtemplater', 'markdown-it', 'markdown-it-footnote', 'katex']
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
 

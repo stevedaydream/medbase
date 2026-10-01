@@ -693,7 +693,8 @@ async function initSchema(db: Database) {
  * 版本：app_settings 的 research_schema_version，日後改欄位據此 migration。
  *
  * 去識別化（規格 §6）：本模組不得存放任何可識別病患資訊，
- * 因此 schema 內刻意沒有姓名／病歷號／生日／住院日期／影像等欄位。
+ * 因此 schema 內刻意沒有姓名／病歷號／生日／住院日期等欄位；稿件圖片（v3）只放圖表與示意圖，
+ * 插入前須確認不含可識別病人資訊。
  */
 async function initResearchSchema(db: Database) {
   // ── 論文專案 ────────────────────────────────────────────────
@@ -935,4 +936,23 @@ async function initResearchSchema(db: Database) {
   `);
   await db.execute(`CREATE INDEX IF NOT EXISTS idx_research_ms_project ON research_manuscript_sections(project_id);`);
   await db.execute(`UPDATE app_settings SET value = '2' WHERE key = 'research_schema_version' AND value = '1'`);
+
+  // ── v3：稿件 Markdown（ADR-019）───────────────────────────────────
+  // format：text＝舊的純文字（不當 Markdown 解讀）、md＝Markdown；舊段落維持 text，由使用者預覽後轉換
+  try { await db.execute(`ALTER TABLE research_manuscript_sections ADD COLUMN format TEXT NOT NULL DEFAULT 'text'`); } catch { /* 已存在 */ }
+  // 稿件圖片（圖表、示意圖）：base64 存在本機並隨個人備份；插入前須確認不含可識別病人資訊（規格 §6）
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS research_manuscript_assets (
+      id         TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES research_projects(id) ON DELETE CASCADE,
+      name       TEXT NOT NULL DEFAULT '',
+      mime       TEXT NOT NULL,
+      width      INTEGER,
+      height     INTEGER,
+      data       TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    );
+  `);
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_research_ms_assets_project ON research_manuscript_assets(project_id);`);
+  await db.execute(`UPDATE app_settings SET value = '3' WHERE key = 'research_schema_version' AND value = '2'`);
 }
