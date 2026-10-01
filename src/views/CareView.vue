@@ -6,9 +6,11 @@ import EmergencyView from "@/views/EmergencyView.vue";
 import HandbookView from "@/views/HandbookView.vue";
 import ToolsView from "@/views/ToolsView.vue";
 import FormulaPanel from "@/components/care/FormulaPanel.vue";
+import CloudSyncButtons from "@/components/CloudSyncButtons.vue";
 import { ALL_TOOLS, toolById } from "@/shared/tools";
 import { FORMULAS } from "@/shared/handbook/formulas";
 import { loadHandbook, HB_TABLE } from "@/composables/useHandbook";
+import { EM_TABLE } from "@/composables/useEmergency";
 import { onTableSynced } from "@/composables/useTableSync";
 import { allDilutions, visibleEntries, type HbDilution } from "@/shared/handbook/types";
 
@@ -34,6 +36,14 @@ const dilutions = ref<HbDilution[]>([]);
 async function loadDilutions() { dilutions.value = allDilutions(visibleEntries(await loadHandbook())); }
 onMounted(loadDilutions);
 onTableSynced(HB_TABLE, loadDilutions);
+
+const toastMsg = ref("");
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+function toast(msg: string) {
+  toastMsg.value = msg;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toastMsg.value = ""; }, 4000);
+}
 </script>
 
 <template>
@@ -42,6 +52,7 @@ onTableSynced(HB_TABLE, loadDilutions);
       <h1 class="text-lg font-black text-fg mr-2">處置及臨床工具</h1>
       <button v-for="t in TABS" :key="t.key" @click="go({ tab: t.key })" class="px-4 py-2 rounded-lg text-sm font-bold"
         :class="tab === t.key ? 'bg-accent text-white' : 'bg-surface border border-hairline text-fg-secondary hover:text-fg'">{{ t.label }}</button>
+      <CloudSyncButtons class="ml-auto" :table="[EM_TABLE, HB_TABLE]" @message="toast" />
     </div>
 
     <SymptomPane v-if="tab === 'symptom'" :open="q('e')"
@@ -59,5 +70,16 @@ onTableSynced(HB_TABLE, loadDilutions);
       <FormulaPanel v-if="formula" :formula="formula" :presets="dilutions" class="flex-1" />
       <ToolsView v-else :initial="tool.calcId" single class="flex-1" />
     </div>
+
+    <Transition name="toast">
+      <div v-if="toastMsg" class="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2.5 bg-surface border border-hairline text-fg text-xs font-bold rounded-xl shadow-2xl z-[9999] pointer-events-none">
+        {{ toastMsg }}
+      </div>
+    </Transition>
   </div>
 </template>
+
+<style scoped>
+.toast-enter-active, .toast-leave-active { transition: opacity .25s, transform .25s; }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateX(-50%) translateY(8px); }
+</style>
