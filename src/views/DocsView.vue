@@ -8,11 +8,12 @@ import MarkdownEditor from "@/components/markdown/MarkdownEditor.vue";
 import MarkdownToolbar from "@/components/markdown/MarkdownToolbar.vue";
 import MarkdownOutline from "@/components/markdown/MarkdownOutline.vue";
 import FileTree from "@/components/markdown/FileTree.vue";
+import ExportDialog from "@/components/markdown/ExportDialog.vue";
 import type { OutlineItem } from "@/components/markdown/outline";
 import {
   docs, activeTab, anyDirty, isDirty, tabTitle, loadSession, newDoc, openPath, openWithDialog, saveTab, closeTab,
   moveTab, activate, onEdited, acceptRecover, resolveExternal, checkAllExternal, resolveDocImage, saveDocImage,
-  pickDocImage, docStats, notify, type DocTab,
+  pickDocImage, docStats, notify, loadDocImage, docDir, type DocTab,
 } from "@/composables/useDocTabs";
 
 /**
@@ -147,6 +148,23 @@ async function pickImage() {
   if (p) activeEditor.value?.image(p);
 }
 
+// ── 匯出 ─────────────────────────────────────────────────────────
+const exportOpen = ref(false);
+const exportDir = ref<string | null>(null);
+const exportTab = ref<DocTab | null>(null);
+async function openExport() {
+  const t = activeTab.value;
+  if (!t) return;
+  exportTab.value = t;
+  exportDir.value = await docDir(t);
+  exportOpen.value = true;
+}
+const exportName = computed(() => {
+  const t = exportTab.value;
+  if (!t) return "";
+  return /^#\s+(.+)$/m.exec(t.content)?.[1]?.trim() || tabTitle(t).replace(/\.[^.]+$/, "");
+});
+
 async function save(as = false) {
   const t = activeTab.value;
   if (!t) return;
@@ -166,6 +184,7 @@ function onKey(e: KeyboardEvent) {
   else if (k === "o") { e.preventDefault(); openWithDialog(); }
   else if (k === "w") { e.preventDefault(); if (activeTab.value) requestClose(activeTab.value); }
   else if (k === "\\") { e.preventDefault(); showSide.value = !showSide.value; }
+  else if (k === "p") { e.preventDefault(); openExport(); }
   else if (k === "tab" && docs.tabs.length > 1) {
     e.preventDefault();
     const i = docs.tabs.findIndex(t => t.id === docs.activeId);
@@ -269,7 +288,7 @@ const toggleCls = (on: boolean) => on ? "bg-accent/10 border-accent/30 text-acce
         <button @click="save()" :disabled="!activeTab" class="px-2.5 py-1 rounded-lg border border-hairline text-muted hover:text-fg cursor-pointer">儲存（Ctrl+S）</button>
         <button @click="save(true)" :disabled="!activeTab" class="px-2.5 py-1 rounded-lg border border-hairline text-muted hover:text-fg cursor-pointer">另存新檔</button>
         <button @click="activeEditor?.search()" class="px-2.5 py-1 rounded-lg border border-hairline text-muted hover:text-fg cursor-pointer">搜尋取代（Ctrl+F）</button>
-        <slot name="actions" />
+        <button @click="openExport" :disabled="!activeTab" class="px-2.5 py-1 rounded-lg border border-hairline text-muted hover:text-fg cursor-pointer">匯出／列印（Ctrl+P）</button>
         <div class="flex-1" />
         <button @click="docs.autosave = !docs.autosave" class="px-2.5 py-1 rounded-lg border font-bold cursor-pointer" :class="toggleCls(docs.autosave)" title="編輯後自動存檔">自動儲存</button>
         <button @click="docs.focus = !docs.focus" class="px-2.5 py-1 rounded-lg border font-bold cursor-pointer" :class="toggleCls(docs.focus)" title="只有游標所在段落是正常顏色">專注</button>
@@ -322,6 +341,10 @@ const toggleCls = (on: boolean) => on ? "bg-accent/10 border-accent/30 text-acce
       </div>
     </div>
   </div>
+
+  <ExportDialog v-if="exportTab" :open="exportOpen" :base-name="exportName" :default-dir="exportDir"
+    :get-markdown="() => exportTab!.content" :load-image="src => loadDocImage(exportTab!, src)"
+    @close="exportOpen = false" @notice="notify" />
 
   <!-- 分頁右鍵選單 -->
   <Teleport to="body">

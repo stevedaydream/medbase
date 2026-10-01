@@ -13,6 +13,10 @@ export interface RenderOptions {
   image?: (src: string) => string;
   /** 公式輸出：html（需載入 KaTeX CSS）或 mathml（匯出用，不需字型） */
   math?: "html" | "mathml";
+  /** mermaid 原始碼 → 已繪好的 SVG（匯出時提供）；回傳 null 時輸出原始碼 */
+  mermaid?: (code: string) => string | null;
+  /** 輸出 XHTML（EPUB） */
+  xhtml?: boolean;
 }
 
 export const PAGE_BREAK = "<!-- pagebreak -->";
@@ -106,7 +110,7 @@ function simpleLineRule(name: string, test: (line: string) => boolean) {
 export interface Heading { level: number; text: string; id: string }
 
 export function createRenderer(opts: RenderOptions = {}): ReturnType<typeof MarkdownIt> {
-  const md = new MarkdownIt({ html: false, linkify: true, typographer: false });
+  const md = new MarkdownIt({ html: false, linkify: true, typographer: false, xhtmlOut: !!opts.xhtml });
   md.use(footnote);
   md.inline.ruler.after("escape", "math_inline", mathInline);
   md.block.ruler.before("fence", "math_block", mathBlock, { alt: ["paragraph", "reference", "blockquote", "list"] });
@@ -129,7 +133,11 @@ export function createRenderer(opts: RenderOptions = {}): ReturnType<typeof Mark
   const fence = md.renderer.rules.fence!;
   md.renderer.rules.fence = (tokens, idx, o, env, self) => {
     const info = tokens[idx].info.trim().split(/\s+/)[0]?.toLowerCase();
-    if (info === "mermaid") return `<pre class="mermaid">${md.utils.escapeHtml(tokens[idx].content)}</pre>\n`;
+    if (info === "mermaid") {
+      const svg = opts.mermaid?.(tokens[idx].content);
+      if (svg) return `<figure class="md-mermaid">${svg}</figure>\n`;
+      return `<pre class="mermaid">${md.utils.escapeHtml(tokens[idx].content)}</pre>\n`;
+    }
     return fence(tokens, idx, o, env, self);
   };
 
@@ -165,7 +173,9 @@ export function createRenderer(opts: RenderOptions = {}): ReturnType<typeof Mark
         if (first && m) {
           first.content = first.content.slice(m[0].length);
           const box = new state.Token("html_inline", "", 0);
-          box.content = `<input type="checkbox" disabled${m[1] === " " ? "" : " checked"}> `;
+          box.content = opts.xhtml
+            ? `<input type="checkbox" disabled="disabled"${m[1] === " " ? "" : ' checked="checked"'} /> `
+            : `<input type="checkbox" disabled${m[1] === " " ? "" : " checked"}> `;
           t.children!.unshift(box);
           toks[i - 2].attrJoin("class", "md-task");
         }
@@ -187,6 +197,7 @@ export function renderMarkdown(src: string, opts: RenderOptions = {}): { html: s
 }
 
 /** 給 Word／LaTeX 轉換用的 token 序列 */
+export type { Token };
 export function parseMarkdown(src: string): { tokens: Token[]; env: Record<string, unknown>; frontMatter: string | null } {
   const { yaml, body } = splitFrontMatter(src);
   const md = createRenderer();

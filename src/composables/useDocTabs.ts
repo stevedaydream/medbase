@@ -352,19 +352,35 @@ export async function resolveExternal(t: DocTab, choice: "reload" | "keep") {
 const MIME: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", bmp: "image/bmp" };
 const blobCache = new Map<string, string>();
 
+async function imagePath(t: DocTab, src: string): Promise<string | null> {
+  if (!t.path) return null;
+  const rel = decodeURI(src.replace(/^<|>$/g, ""));
+  return /^([a-zA-Z]:[\\/]|\/|\\\\)/.test(rel) ? rel : await join(await dirname(t.path), rel);
+}
+
+/** 文件內的圖片原始檔（匯出用） */
+export async function loadDocImage(t: DocTab, src: string): Promise<{ bytes: Uint8Array; mime: string } | null> {
+  const abs = await imagePath(t, src);
+  if (!abs || !(await exists(abs))) return null;
+  const ext = abs.split(".").pop()?.toLowerCase() ?? "";
+  return { bytes: await readFile(abs), mime: MIME[ext] ?? "application/octet-stream" };
+}
+
 /** 文件內的相對路徑圖片 → blob 網址 */
 export async function resolveDocImage(t: DocTab, src: string): Promise<string> {
-  if (!t.path) return "";
-  const rel = decodeURI(src.replace(/^<|>$/g, ""));
-  const abs = /^([a-zA-Z]:[\\/]|\/|\\\\)/.test(rel) ? rel : await join(await dirname(t.path), rel);
+  const abs = await imagePath(t, src);
+  if (!abs) return "";
   const cached = blobCache.get(abs);
   if (cached) return cached;
-  const bytes = await readFile(abs);
-  const ext = abs.split(".").pop()?.toLowerCase() ?? "";
-  const url = URL.createObjectURL(new Blob([bytes], { type: MIME[ext] ?? "application/octet-stream" }));
+  const img = await loadDocImage(t, src);
+  if (!img) return "";
+  const url = URL.createObjectURL(new Blob([img.bytes], { type: img.mime }));
   blobCache.set(abs, url);
   return url;
 }
+
+/** 文件所在資料夾（匯出時預設存在旁邊） */
+export const docDir = async (t: DocTab) => (t.path ? await dirname(t.path) : docs.folder);
 
 async function assetsDir(t: DocTab): Promise<string> {
   const dir = await join(await dirname(t.path!), "assets");

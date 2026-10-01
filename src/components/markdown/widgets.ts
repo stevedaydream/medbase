@@ -115,9 +115,10 @@ function loadMermaid() {
 const isDark = () => document.documentElement.dataset.theme === "dark";
 
 /** Mermaid 轉 SVG（編輯器與匯出共用） */
-export async function renderMermaid(code: string, theme: "dark" | "default" = isDark() ? "dark" : "default"): Promise<string> {
+export async function renderMermaid(code: string, theme: "dark" | "default" = isDark() ? "dark" : "default", forExport = false): Promise<string> {
   const mermaid = await loadMermaid();
-  mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme });
+  // 匯出時不用 HTML 標籤（foreignObject）：EPUB 需要合法 XHTML，轉 PNG 時 canvas 也不會被鎖
+  mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme, htmlLabels: !forExport, flowchart: { htmlLabels: !forExport } });
   const { svg } = await mermaid.render(`mmd-${++mermaidSeq}`, code);
   return svg;
 }
