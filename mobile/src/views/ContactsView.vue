@@ -7,11 +7,11 @@ import SideDrawer from '../components/SideDrawer.vue'
 import SecretText from '../components/SecretText.vue'
 import { data, pullRefresh } from '../lib/data'
 import { usePullRefresh } from '../lib/pull'
-import { matchTerms, copy } from '../lib/ui'
+import { matchTerms, copy, telHref } from '../lib/ui'
 
 /**
  * 通訊錄：人員（含 HIS 帳密，作為沒有桌機時的備援）＋單位分機（ADR-013）。
- * 密碼預設遮蔽、點一下露出約 10 秒；分機、HIS 帳號、密碼都可點一下複製。
+ * 密碼預設遮蔽、點一下露出約 10 秒；分機點一下開撥號程式，HIS 帳號、密碼點一下複製。
  */
 type Tab = 'all' | 'person' | 'unit'
 interface Entry {
@@ -92,7 +92,11 @@ usePullRefresh(() => pullRefresh(['physicians', 'contacts']))
             </p>
             <p class="text-xs text-muted">{{ [e.group, e.title].filter(Boolean).join(' · ') || '—' }}</p>
           </div>
-          <button v-if="e.ext" @click="copy(e.ext, '分機')" class="shrink-0 text-right">
+          <a v-if="telHref(e.ext)" :href="telHref(e.ext)" class="shrink-0 text-right">
+            <span class="block font-mono text-lg font-black text-accent tabular-nums leading-tight">{{ e.ext }}</span>
+            <span class="block text-2xs text-muted">📞 點擊撥號</span>
+          </a>
+          <button v-else-if="e.ext" @click="copy(e.ext, '分機')" class="shrink-0 text-right">
             <span class="block font-mono text-lg font-black text-accent tabular-nums leading-tight">{{ e.ext }}</span>
             <span class="block text-2xs text-muted">點擊複製</span>
           </button>

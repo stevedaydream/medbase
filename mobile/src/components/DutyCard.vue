@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { data, type DutyRow } from '../lib/data'
 import { hisByName } from '../lib/records'
-import { copy, useNow } from '../lib/ui'
+import { copy, telHref, useNow } from '../lib/ui'
 import {
   NP_WARDS, VS_PRIMARY, VS_OTHERS, addDays, localDateKey, withCarriedNight, isOnDuty, isTimedShift, shiftLabel, normName,
 } from '@shared/duty'
@@ -65,7 +65,8 @@ const his = (name: string) => hisByName.value.get(normName(name)) ?? ''
               <span class="font-bold text-fg">{{ r.np_name }}</span>
               <button v-if="his(r.np_name)" @click="copy(his(r.np_name), 'HIS 帳號')" class="ml-2 text-xs text-muted font-mono">HIS {{ his(r.np_name) }}</button>
             </span>
-            <button v-if="r.extension" @click="copy(r.extension, '分機')" class="shrink-0 font-mono font-bold text-accent tabular-nums">{{ r.extension }}</button>
+            <a v-if="telHref(r.extension)" :href="telHref(r.extension)" class="shrink-0 font-mono font-bold text-accent tabular-nums">📞 {{ r.extension }}</a>
+            <button v-else-if="r.extension" @click="copy(r.extension, '分機')" class="shrink-0 font-mono font-bold text-accent tabular-nums">{{ r.extension }}</button>
           </div>
         </div>
         <span v-else class="text-sm text-muted">未排</span>

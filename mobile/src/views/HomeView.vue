@@ -7,7 +7,7 @@ import DutyCard from '../components/DutyCard.vue'
 import { data, pullRefresh } from '../lib/data'
 import { usePullRefresh } from '../lib/pull'
 import { recentList } from '../lib/records'
-import { matchTerms, copy } from '../lib/ui'
+import { matchTerms, copy, telHref } from '../lib/ui'
 import { session } from '../lib/session'
 import { sched, doc } from '../lib/sched'
 import type { NoticeItem } from '@shared/sched/types'
@@ -94,7 +94,8 @@ usePullRefresh(() => pullRefresh(['npDuty', 'physicians']))
               <span v-if="h.sub" class="block text-xs text-muted truncate">{{ h.sub }}</span>
             </span>
           </button>
-          <button v-if="h.copyText" @click="copy(h.copyText!, h.copyLabel)" class="shrink-0 h-9 px-3 rounded-lg bg-sunken text-xs font-bold text-fg-secondary">複製{{ h.copyLabel }}</button>
+          <a v-if="h.copyLabel === '分機' && telHref(h.copyText)" :href="telHref(h.copyText)" class="shrink-0 h-9 px-3 flex items-center rounded-lg bg-sunken text-xs font-bold text-fg-secondary">📞 撥號</a>
+          <button v-else-if="h.copyText" @click="copy(h.copyText!, h.copyLabel)" class="shrink-0 h-9 px-3 rounded-lg bg-sunken text-xs font-bold text-fg-secondary">複製{{ h.copyLabel }}</button>
         </div>
       </div>
     </div>

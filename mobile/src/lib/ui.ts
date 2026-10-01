@@ -9,6 +9,17 @@ export function toast(msg: string, ms = 2200) {
   toastTimer = setTimeout(() => { toastMsg.value = '' }, ms)
 }
 
+// ── 撥號 ─────────────────────────────────────────────────────────
+/**
+ * 分機轉成 tel: 連結（點了開啟手機撥號程式並填入號碼）。
+ * 只留撥號字元；寫成「1234／5678」等多支時取第一支；沒有數字時回傳空字串。
+ */
+export function telHref(ext: string | undefined): string {
+  const first = (ext ?? '').split(/[\/／、,，;；]|\s{2,}|或/)[0] ?? ''
+  const num = first.replace(/[^\d*#+]/g, '')
+  return /\d/.test(num) ? `tel:${num.replace(/#/g, '%23')}` : ''
+}
+
 // ── 複製 ─────────────────────────────────────────────────────────
 let clearTimer: ReturnType<typeof setTimeout> | null = null
 
