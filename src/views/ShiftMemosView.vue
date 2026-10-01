@@ -2,6 +2,9 @@
 import { ref, computed, onMounted } from "vue";
 import { getDb, dbWrite } from "@/db";
 import MarkdownEditor from "@/components/markdown/MarkdownEditor.vue";
+import MarkdownToolbar from "@/components/markdown/MarkdownToolbar.vue";
+import MarkdownOutline from "@/components/markdown/MarkdownOutline.vue";
+import type { OutlineItem } from "@/components/markdown/outline";
 import { isLegacyHtml } from "@/shared/markdown/format";
 import { htmlToMarkdown } from "@/shared/markdown/fromHtml";
 import { wordCount } from "@/shared/manuscriptFiles";
@@ -44,31 +47,9 @@ const editorRef = ref<InstanceType<typeof MarkdownEditor>>();
 const words = computed(() => wordCount(draft.value));
 let saveDebounce: ReturnType<typeof setTimeout> | null = null;
 
-type Tool = { label: string; title: string; run: () => void; cls?: string };
-const ed = () => editorRef.value;
-const toolGroups: Tool[][] = [
-  [
-    { label: "B", title: "粗體（Ctrl+B）", run: () => ed()?.bold(), cls: "font-black" },
-    { label: "I", title: "斜體（Ctrl+I）", run: () => ed()?.italic(), cls: "italic" },
-    { label: "S", title: "刪除線（Alt+Shift+5）", run: () => ed()?.strike(), cls: "line-through" },
-    { label: "</>", title: "行內程式碼（Ctrl+Shift+`）", run: () => ed()?.code(), cls: "font-mono" },
-  ],
-  [1, 2, 3].map(n => ({ label: `H${n}`, title: `標題 ${n}（Ctrl+${n}；Ctrl+0 改回段落）`, run: () => ed()?.heading(n), cls: "font-bold" })),
-  [
-    { label: "•", title: "項目清單（Ctrl+Shift+]）", run: () => ed()?.bullet() },
-    { label: "1.", title: "編號清單（Ctrl+Shift+[）", run: () => ed()?.ordered() },
-    { label: "☐", title: "待辦清單", run: () => ed()?.task() },
-    { label: "❝", title: "引用（Ctrl+Shift+Q）", run: () => ed()?.quote() },
-  ],
-  [
-    { label: "🔗", title: "連結（Ctrl+K）", run: () => ed()?.link() },
-    { label: "—", title: "分隔線", run: () => ed()?.hr() },
-  ],
-  [
-    { label: "↶", title: "復原（Ctrl+Z）", run: () => ed()?.undo() },
-    { label: "↷", title: "重做（Ctrl+Y／Ctrl+Shift+Z）", run: () => ed()?.redo() },
-  ],
-];
+const outline = ref<OutlineItem[]>([]);
+const cursor = ref(0);
+const showOutline = ref(false);
 
 function onEdit(v: string) {
   draft.value = v;
@@ -265,24 +246,22 @@ async function saveTitle() {
         </div>
 
         <!-- Editor Toolbar -->
-        <div class="px-6 py-2 border-b border-hairline flex items-center gap-0.5 shrink-0 bg-surface flex-wrap">
-          <template v-for="(group, gi) in toolGroups" :key="gi">
-            <div v-if="gi" class="w-px h-4 bg-overlay/10 mx-1.5" />
-            <button v-for="b in group" :key="b.label" @click="b.run()" :title="b.title"
-              class="min-w-8 px-2 py-1.5 rounded-lg text-xs text-muted hover:text-fg hover:bg-overlay/5 transition-all cursor-pointer"
-              :class="b.cls">{{ b.label }}</button>
-          </template>
-          <button @click="sourceMode = !sourceMode" title="切換排版／原始碼（Ctrl+/）"
-            class="ml-auto px-3 py-1.5 rounded-lg text-2xs font-bold border transition-all cursor-pointer"
-            :class="sourceMode ? 'bg-accent/10 border-accent/30 text-accent' : 'border-hairline text-muted hover:text-fg'">
-            {{ sourceMode ? '原始碼' : '排版' }}
-          </button>
-        </div>
+        <MarkdownToolbar class="px-6 py-2 border-b border-hairline shrink-0 bg-surface" :editor="editorRef" v-model:source="sourceMode">
+          <button @click="showOutline = !showOutline" title="大綱"
+            class="mr-1 px-3 py-1.5 rounded-lg text-2xs font-bold border transition-all cursor-pointer"
+            :class="showOutline ? 'bg-accent/10 border-accent/30 text-accent' : 'border-hairline text-muted hover:text-fg'">大綱</button>
+        </MarkdownToolbar>
 
         <!-- Editor body viewport -->
-        <div class="flex-1 min-h-0 px-6 bg-surface">
-          <MarkdownEditor ref="editorRef" :model-value="draft" @update:model-value="onEdit" v-model:source="sourceMode"
-            placeholder="輸入內容；支援 Markdown 語法，例如 ## 標題、- 清單、**粗體**" />
+        <div class="flex-1 min-h-0 flex bg-surface">
+          <div class="flex-1 min-w-0 px-6">
+            <MarkdownEditor ref="editorRef" :model-value="draft" @update:model-value="onEdit" v-model:source="sourceMode"
+              @outline="outline = $event" @cursor="cursor = $event"
+              placeholder="輸入內容；支援 Markdown 語法，例如 ## 標題、- 清單、**粗體**" />
+          </div>
+          <aside v-if="showOutline" class="w-52 shrink-0 border-l border-hairline overflow-y-auto p-2">
+            <MarkdownOutline :items="outline" :cursor="cursor" @jump="editorRef?.jumpTo($event)" />
+          </aside>
         </div>
         <div class="px-6 py-1.5 border-t border-hairline bg-surface text-2xs text-muted flex justify-end shrink-0">{{ words }} 字</div>
       </template>

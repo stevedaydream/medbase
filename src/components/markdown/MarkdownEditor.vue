@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref, watch, shallowRef } from "vue";
 import { EditorState, Compartment } from "@codemirror/state";
-import { EditorView, keymap, placeholder as cmPlaceholder, drawSelection } from "@codemirror/view";
+import { EditorView, keymap, placeholder as cmPlaceholder, drawSelection, type ViewUpdate } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, undo, redo, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage, markdownKeymap } from "@codemirror/lang-markdown";
-import { syntaxHighlighting, HighlightStyle } from "@codemirror/language";
+import { syntaxHighlighting, syntaxTree, HighlightStyle, defaultHighlightStyle } from "@codemirror/language";
+import { languages } from "@codemirror/language-data";
 import { tags as t } from "@lezer/highlight";
 import { livePreview } from "./livePreview";
+import { outlineOf, type OutlineItem } from "./outline";
 import {
   toggleWrap, setHeading, toggleBullet, toggleOrdered, toggleTask, toggleQuote, insertLink, insertHr,
 } from "./commands";
@@ -22,6 +24,8 @@ const props = withDefaults(defineProps<{ modelValue: string; source?: boolean; p
 const emit = defineEmits<{
   (e: "update:modelValue", v: string): void;
   (e: "update:source", v: boolean): void;
+  (e: "outline", items: OutlineItem[]): void;
+  (e: "cursor", pos: number): void;
 }>();
 
 const host = ref<HTMLDivElement>();
@@ -54,6 +58,14 @@ const shortcuts = keymap.of([
   { key: "Mod-/", run: () => { emit("update:source", !props.source); return true; } },
 ]);
 
+// 大綱：編輯時延後計算，長文件不卡打字
+let outlineTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleOutline(state: EditorState) {
+  if (outlineTimer) clearTimeout(outlineTimer);
+  outlineTimer = setTimeout(() => emit("outline", outlineOf(state)), 250);
+}
+const syntaxTreeChanged = (u: ViewUpdate) => syntaxTree(u.startState) !== syntaxTree(u.state);
+
 function createState(doc: string) {
   return EditorState.create({
     doc,
@@ -61,14 +73,18 @@ function createState(doc: string) {
       history(),
       drawSelection(),
       EditorView.lineWrapping,
-      markdown({ base: markdownLanguage }),
+      // 程式碼區塊依語言名稱（```ts）載入高亮
+      markdown({ base: markdownLanguage, codeLanguages: languages }),
       syntaxHighlighting(highlight),
+      syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       shortcuts,
       keymap.of([...markdownKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
       cmPlaceholder(props.placeholder),
       preview.of(props.source ? [] : livePreview),
       EditorView.contentAttributes.of({ spellcheck: "false" }),
       EditorView.updateListener.of(u => {
+        if (u.selectionSet || u.docChanged) emit("cursor", u.state.selection.main.head);
+        if (u.docChanged || syntaxTreeChanged(u)) scheduleOutline(u.state);
         if (!u.docChanged) return;
         lastEmitted = u.state.doc.toString();
         emit("update:modelValue", lastEmitted);
@@ -79,14 +95,25 @@ function createState(doc: string) {
 
 onMounted(() => {
   view.value = new EditorView({ state: createState(props.modelValue), parent: host.value! });
+  scheduleOutline(view.value.state);
 });
-onBeforeUnmount(() => view.value?.destroy());
+onBeforeUnmount(() => { if (outlineTimer) clearTimeout(outlineTimer); view.value?.destroy(); });
 
 watch(() => props.modelValue, v => {
   if (!view.value || v === lastEmitted) return;
   lastEmitted = v;
   view.value.setState(createState(v));
+  scheduleOutline(view.value.state);
 });
+
+/** 跳到指定位置並捲到畫面上方 */
+function jumpTo(pos: number) {
+  const v = view.value;
+  if (!v) return;
+  const p = Math.min(pos, v.state.doc.length);
+  v.dispatch({ selection: { anchor: p }, effects: EditorView.scrollIntoView(p, { y: "start", yMargin: 24 }) });
+  v.focus();
+}
 watch(() => props.source, s => {
   view.value?.dispatch({ effects: preview.reconfigure(s ? [] : livePreview) });
 });
@@ -110,6 +137,7 @@ defineExpose({
   undo: () => run(undo),
   redo: () => run(redo),
   focus: () => view.value?.focus(),
+  jumpTo,
 });
 </script>
 
