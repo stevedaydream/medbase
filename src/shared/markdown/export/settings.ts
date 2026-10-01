@@ -97,7 +97,7 @@ h1 { font-size: 1.8em; } h2 { font-size: 1.45em; } h3 { font-size: 1.2em; }
 p, ul, ol, blockquote, table, pre, figure { margin: 0 0 0.8em; }
 a { color: #1d4ed8; }
 code { font-family: Consolas, "Courier New", monospace; font-size: 0.9em; background: #f2f2f2; padding: 0 0.2em; border-radius: 3px; }
-pre { background: #f6f6f6; padding: 0.7em 0.9em; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; }
+pre { background: #f6f8fa; padding: 0.7em 0.9em; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 pre code { background: none; padding: 0; }
 blockquote { border-left: 3px solid #ccc; padding-left: 0.9em; color: #444; margin-left: 0; }
 table { border-collapse: collapse; }

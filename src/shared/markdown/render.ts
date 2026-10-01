@@ -18,6 +18,8 @@ export interface RenderOptions {
   mermaid?: (code: string) => string | null;
   /** 輸出 XHTML（EPUB） */
   xhtml?: boolean;
+  /** 程式碼上色：回傳已跳脫、帶樣式的 HTML；null＝不上色 */
+  highlight?: (code: string, lang: string) => string | null;
 }
 
 export const PAGE_BREAK = "<!-- pagebreak -->";
@@ -149,6 +151,8 @@ export function createRenderer(opts: RenderOptions = {}): ReturnType<typeof Mark
       if (svg) return `<figure class="md-mermaid">${svg}</figure>\n`;
       return `<pre class="mermaid">${md.utils.escapeHtml(tokens[idx].content)}</pre>\n`;
     }
+    const colored = info && opts.highlight?.(tokens[idx].content, info);
+    if (colored) return `<pre class="md-code"><code class="language-${md.utils.escapeHtml(info)}">${colored}</code></pre>\n`;
     return fence(tokens, idx, o, env, self);
   };
 

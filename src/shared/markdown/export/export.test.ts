@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { unzipSync, strFromU8 } from "fflate";
 import { buildDocx } from "./docx";
-import { buildHtml, emptyAssets, type ExportAssets } from "./html";
+import { buildHtml, emptyAssets, codeKey, type ExportAssets } from "./html";
 import { buildLatex, texEscape } from "./latex";
 import { buildEpub, splitChapters } from "./epub";
 import { latexToOmml, parseXml } from "./omml";
@@ -179,5 +179,34 @@ describe("原文 HTML 匯出", () => {
     const files = unzipSync(buildEpub("<center>置中<br>換行", DEFAULT_PRINT, emptyAssets(), "urn:uuid:t"));
     const c = strFromU8(files["OEBPS/chap1.xhtml"]);
     expect(c).toContain('<div style="text-align: center">置中<br />換行</div>');
+  });
+});
+
+describe("程式碼上色匯出", () => {
+  const md = "```sql\nselect 1;\n-- 註解\n```";
+  const assets = () => {
+    const a = emptyAssets();
+    a.code.set(codeKey("sql", "select 1;\n-- 註解\n"), [
+      { text: "select", color: "CF222E" }, { text: " 1;\n" }, { text: "-- 註解", color: "6E7781", italic: true }, { text: "\n" },
+    ]);
+    return a;
+  };
+  it("HTML：行內樣式上色", () => {
+    const html = buildHtml(md, DEFAULT_PRINT, assets());
+    expect(html).toContain('<pre class="md-code"><code class="language-sql"><span style="color:#CF222E">select</span>');
+    expect(html).toContain('<span style="color:#6E7781;font-style:italic">-- 註解</span>');
+  });
+  it("Word：每行一段、帶顏色，不多出空行", () => {
+    const d = strFromU8(unzipSync(buildDocx(md, DEFAULT_PRINT, assets()))["word/document.xml"]);
+    expect(d).toContain('<w:color w:val="CF222E"/>');
+    expect((d.match(/<w:pStyle w:val="Code"\/>/g) ?? []).length).toBe(2);
+  });
+  it("沒有上色結果時維持單色", () => {
+    expect(buildHtml(md, DEFAULT_PRINT, emptyAssets())).toContain('<pre><code class="language-sql">');
+  });
+  it("LaTeX：listings 認得的語言用 lstlisting", () => {
+    const tex = buildLatex(md, DEFAULT_PRINT);
+    expect(tex).toContain("\\begin{lstlisting}[language=SQL]");
+    expect(buildLatex("```foo\nx\n```", DEFAULT_PRINT)).toContain("\\begin{verbatim}");
   });
 });

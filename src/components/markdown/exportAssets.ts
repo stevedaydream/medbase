@@ -1,9 +1,12 @@
 import { parseMarkdown, type Token } from "@/shared/markdown/render";
-import { emptyAssets, type ExportAssets, type ImageAsset } from "@/shared/markdown/export/html";
+import { emptyAssets, codeKey, type ExportAssets, type ImageAsset, type CodeSeg } from "@/shared/markdown/export/html";
+import { LanguageDescription } from "@codemirror/language";
+import { languages } from "@codemirror/language-data";
+import { highlightCode, classHighlighter } from "@lezer/highlight";
 import { renderMermaid } from "./widgets";
 
 /**
- * 匯出前在瀏覽器準備素材：讀取圖片（量尺寸、非 PNG/JPEG/GIF 轉 PNG）、mermaid 轉 SVG 與 PNG。
+ * 匯出前在瀏覽器準備素材：讀取圖片（量尺寸、非 PNG/JPEG/GIF 轉 PNG）、mermaid 轉 SVG 與 PNG、程式碼上色。
  * loadImage 由頁面提供（本機文件讀相對路徑檔案、論文稿件讀資料庫）。
  */
 export type ImageLoader = (src: string) => Promise<{ bytes: Uint8Array; mime: string } | null>;
@@ -12,18 +15,59 @@ function walk(tokens: Token[], fn: (t: Token) => void) {
   for (const t of tokens) { fn(t); if (t.children) walk(t.children, fn); }
 }
 
-export function collectSources(md: string): { images: string[]; mermaid: string[] } {
+// ── 程式碼上色（白底配色，類似 GitHub 淺色主題）──────────────────
+const CODE_COLORS: [RegExp, Omit<CodeSeg, "text">][] = [
+  [/tok-comment/, { color: "6E7781", italic: true }],
+  [/tok-keyword|tok-operatorKeyword|tok-controlKeyword|tok-modifier/, { color: "CF222E" }],
+  [/tok-string|tok-url|tok-regexp|tok-character/, { color: "0A3069" }],
+  [/tok-number|tok-bool|tok-atom|tok-literal|tok-null/, { color: "0550AE" }],
+  [/tok-typeName|tok-className|tok-namespace/, { color: "953800" }],
+  [/tok-definition|tok-function|tok-macroName/, { color: "8250DF" }],
+  [/tok-propertyName|tok-attributeName/, { color: "0550AE" }],
+  [/tok-meta|tok-labelName|tok-processingInstruction/, { color: "8250DF" }],
+  [/tok-inserted/, { color: "116329" }],
+  [/tok-deleted|tok-invalid/, { color: "82071E" }],
+  [/tok-heading|tok-strong/, { bold: true }],
+  [/tok-emphasis/, { italic: true }],
+];
+function styleOf(classes: string): Omit<CodeSeg, "text"> {
+  for (const [re, s] of CODE_COLORS) if (re.test(classes)) return s;
+  return {};
+}
+
+/** 依語言名稱載入解析器並上色；不認得的語言回傳 null */
+export async function highlightToSegs(code: string, lang: string): Promise<CodeSeg[] | null> {
+  const desc = LanguageDescription.matchLanguageName(languages, lang, true);
+  if (!desc) return null;
+  const support = await desc.load();
+  const tree = support.language.parser.parse(code);
+  const segs: CodeSeg[] = [];
+  highlightCode(code, tree, classHighlighter,
+    (text, classes) => { const s = styleOf(classes); const last = segs[segs.length - 1];
+      // 相鄰同樣式合併，Word 的 run 少一點
+      if (last && last.color === s.color && last.bold === s.bold && last.italic === s.italic) last.text += text;
+      else segs.push({ text, ...s }); },
+    () => { const last = segs[segs.length - 1]; if (last && !last.color && !last.bold && !last.italic) last.text += "\n"; else segs.push({ text: "\n" }); });
+  return segs.some(s => s.color || s.bold || s.italic) ? segs : null;
+}
+
+export function collectSources(md: string): { images: string[]; mermaid: string[]; code: { lang: string; code: string }[] } {
   const { tokens } = parseMarkdown(md);
   const images = new Set<string>(), mermaid = new Set<string>();
+  const code: { lang: string; code: string }[] = [];
   walk(tokens, t => {
     if (t.type === "image") images.add(String(t.attrGet("src") ?? ""));
     // 原文 HTML 裡的 <img src>
     if (t.type === "html_block" || t.type === "html_inline") {
       for (const m of t.content.matchAll(/<img\b[^>]*?\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi)) images.add(m[1] ?? m[2] ?? m[3] ?? "");
     }
-    if (t.type === "fence" && t.info.trim().split(/\s+/)[0]?.toLowerCase() === "mermaid") mermaid.add(t.content);
+    if (t.type === "fence") {
+      const lang = t.info.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+      if (lang === "mermaid") mermaid.add(t.content);
+      else if (lang && lang !== "text") code.push({ lang, code: t.content });
+    }
   });
-  return { images: [...images].filter(Boolean), mermaid: [...mermaid] };
+  return { images: [...images].filter(Boolean), mermaid: [...mermaid], code };
 }
 
 function loadImg(url: string): Promise<HTMLImageElement> {
@@ -83,7 +127,15 @@ export interface PrepareResult { assets: ExportAssets; warnings: string[] }
 export async function prepareAssets(md: string, loadImage: ImageLoader, opts: { png: boolean }): Promise<PrepareResult> {
   const assets = emptyAssets();
   const warnings: string[] = [];
-  const { images, mermaid } = collectSources(md);
+  const { images, mermaid, code: codeBlocks } = collectSources(md);
+  for (const c of codeBlocks) {
+    const key = codeKey(c.lang, c.code);
+    if (assets.code.has(key)) continue;
+    try {
+      const segs = await highlightToSegs(c.code, c.lang);
+      if (segs) assets.code.set(key, segs);
+    } catch { /* 上色失敗就維持單色 */ }
+  }
   for (const src of images) {
     if (/^https?:/i.test(src)) continue;
     try {

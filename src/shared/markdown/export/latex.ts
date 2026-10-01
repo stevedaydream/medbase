@@ -46,6 +46,15 @@ function inline(children: Token[] | null, notes: Map<string, string>): string {
   return out;
 }
 
+/** Markdown 語言名稱 → listings 的語言名稱 */
+const LISTINGS: Record<string, string> = {
+  sql: "SQL", mysql: "SQL", python: "Python", py: "Python", java: "Java", c: "C", cpp: "C++", "c++": "C++",
+  bash: "bash", sh: "sh", shell: "bash", zsh: "bash", r: "R", ruby: "Ruby", rb: "Ruby", php: "PHP", perl: "Perl",
+  html: "HTML", xml: "XML", matlab: "Matlab", octave: "Octave", haskell: "Haskell", lisp: "Lisp", fortran: "Fortran",
+  pascal: "Pascal", tex: "TeX", latex: "TeX", sas: "SAS", vbscript: "VBScript", vhdl: "VHDL", verilog: "Verilog",
+  erlang: "erlang", tcl: "tcl", make: "make", makefile: "make", scilab: "Scilab", ocaml: "Caml", cobol: "Cobol", ada: "Ada",
+};
+
 const SECTIONS = ["section", "subsection", "subsubsection", "paragraph", "subparagraph", "subparagraph"];
 
 export function buildLatex(md: string, settings: PrintSettings): string {
@@ -109,7 +118,12 @@ export function buildLatex(md: string, settings: PrintSettings): string {
       case "fence": case "code_block": {
         const info = t.info.trim().split(/\s+/)[0]?.toLowerCase();
         if (info === "mermaid") out.push(`% mermaid 圖表（LaTeX 無法直接轉換，原始碼如下）\n${t.content.split("\n").map(l => `% ${l}`).join("\n")}\n`);
-        else out.push(`\\begin{verbatim}\n${t.content.replace(/\n$/, "")}\n\\end{verbatim}\n`);
+        else {
+          // listings 認得的語言交給它上色；其他維持 verbatim
+          const lang = info ? LISTINGS[info] : undefined;
+          const body = t.content.replace(/\n$/, "");
+          out.push(lang ? `\\begin{lstlisting}[language=${lang}]\n${body}\n\\end{lstlisting}\n` : `\\begin{verbatim}\n${body}\n\\end{verbatim}\n`);
+        }
         break;
       }
       case "math_block": out.push(`\\[\n${t.content}\n\\]\n`); break;
@@ -137,7 +151,8 @@ export function buildLatex(md: string, settings: PrintSettings): string {
   return `% 由 MedBase 匯出；請用 XeLaTeX 編譯（xelatex 檔名.tex）
 \\documentclass[${Math.round(settings.fontSize)}pt]{ctexart}
 \\usepackage[paperwidth=${w}mm,paperheight=${h}mm,top=${m.top}mm,right=${m.right}mm,bottom=${m.bottom}mm,left=${m.left}mm]{geometry}
-\\usepackage{amsmath,amssymb,graphicx,booktabs,hyperref,ulem,fancyhdr,lastpage}
+\\usepackage{amsmath,amssymb,graphicx,booktabs,hyperref,ulem,fancyhdr,lastpage,listings,xcolor}
+\\lstset{basicstyle=\\ttfamily\\small,breaklines=true,frame=single,rulecolor=\\color{gray!40},backgroundcolor=\\color{gray!6},keywordstyle=\\color[HTML]{CF222E}\\bfseries,stringstyle=\\color[HTML]{0A3069},commentstyle=\\color[HTML]{6E7781}\\itshape,showstringspaces=false,columns=fullflexible}
 \\normalem
 \\linespread{${settings.lineHeight / 1.2}}
 \\pagestyle{fancy}\\fancyhf{}

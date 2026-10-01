@@ -1,7 +1,7 @@
 import { zipSync, strToU8 } from "fflate";
 import { renderMarkdown, splitFrontMatter } from "../render";
 import { DOC_CSS, type PrintSettings } from "./settings";
-import { withToc, type ExportAssets } from "./html";
+import { withToc, codeKey, codeSegsHtml, type ExportAssets } from "./html";
 
 /**
  * Markdown → EPUB 3：依一級標題分章；圖片放進 images/、mermaid 內嵌 SVG、公式用 MathML。
@@ -48,6 +48,7 @@ export function buildEpub(md: string, settings: PrintSettings, assets: ExportAss
       xhtml: true, math: "mathml",
       image: src => imageNames.get(src) ?? (/^https?:/i.test(src) ? src : ""),
       mermaid: code => assets.mermaidSvg.get(code) ?? null,
+      highlight: (code, lang) => { const s = assets.code.get(codeKey(lang, code)); return s ? codeSegsHtml(s) : null; },
     });
     const file = `chap${i + 1}.xhtml`;
     const name = c.title || (i === 0 ? title : `第 ${i + 1} 章`);

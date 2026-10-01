@@ -3,7 +3,7 @@ import { parseMarkdown, slugify, type Token } from "../render";
 import { latexToOmml } from "./omml";
 import { sanitizeHtml, sanitizeTag } from "../sanitize";
 import { paperMm, type PrintSettings } from "./settings";
-import { withToc, type ExportAssets, type ImageAsset } from "./html";
+import { withToc, codeKey, type ExportAssets, type ImageAsset } from "./html";
 
 /**
  * Markdown → Word（.docx，直接組 OOXML）。
@@ -301,8 +301,26 @@ function blocks(b: Builder, toks: Token[], start: number, end: number, ctx: Ctx,
           const png = b.assets.mermaidPng.get(t.content);
           if (png) { out.push(para(b.image(png, "圖表"), [`<w:jc w:val="center"/>`])); break; }
         }
-        const lines = t.content.replace(/\n$/, "").split("\n");
-        lines.forEach(l => out.push(para(textRun(l || " ", {}), [`<w:pStyle w:val="Code"/>`])));
+        // 有上色結果時逐行輸出有顏色的文字；否則單色
+        const segs = info ? b.assets.code.get(codeKey(info, t.content)) : undefined;
+        if (segs) {
+          let lineRuns: string[] = [];
+          const flushLine = () => { out.push(para(lineRuns.join("") || textRun(" ", {}), [`<w:pStyle w:val="Code"/>`])); lineRuns = []; };
+          const all = segs.slice();
+          // 結尾的換行不另外產生空行
+          const last = all[all.length - 1];
+          if (last && last.text.endsWith("\n")) all[all.length - 1] = { ...last, text: last.text.slice(0, -1) };
+          for (const s of all) {
+            s.text.split("\n").forEach((part, k) => {
+              if (k > 0) flushLine();
+              if (part) lineRuns.push(textRun(part, { color: s.color, b: s.bold, i: s.italic }));
+            });
+          }
+          flushLine();
+        } else {
+          const lines = t.content.replace(/\n$/, "").split("\n");
+          lines.forEach(l => out.push(para(textRun(l || " ", {}), [`<w:pStyle w:val="Code"/>`])));
+        }
         ctx.first = false;
         break;
       }
