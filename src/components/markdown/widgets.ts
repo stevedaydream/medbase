@@ -1,5 +1,7 @@
 import { Facet } from "@codemirror/state";
 import { EditorView, WidgetType } from "@codemirror/view";
+import { LanguageDescription } from "@codemirror/language";
+import { languages } from "@codemirror/language-data";
 import { createRenderer, renderMath } from "@/shared/markdown/render";
 import { sanitizeHtml } from "@/shared/markdown/sanitize";
 import type { OutlineItem } from "./outline";
@@ -203,4 +205,138 @@ export class InlineMathWidget extends WidgetType {
     return s;
   }
   ignoreEvent() { return false; }
+}
+
+// ── 程式碼區塊語言標籤（Typora 風格）──────────────────────────────
+
+interface LangOption { label: string; value: string; keys: string }
+let langOptions: LangOption[] | null = null;
+/** 語言清單：CodeMirror 支援上色的語言＋ Mermaid 圖表 */
+function getLangOptions(): LangOption[] {
+  if (langOptions) return langOptions;
+  const opts: LangOption[] = languages.map(d => {
+    const simple = d.name.toLowerCase().replace(/\s+/g, "");
+    const value = /^[a-z0-9-]+$/.test(simple) ? simple : (d.alias.find(a => /^[a-z0-9-]+$/.test(a)) ?? simple);
+    return { label: d.name, value, keys: [d.name, ...d.alias, ...d.extensions].join(" ").toLowerCase() };
+  });
+  opts.push({ label: "Mermaid 圖表", value: "mermaid", keys: "mermaid 圖表 flowchart diagram" });
+  opts.push({ label: "純文字", value: "text", keys: "text plain txt 純文字" });
+  langOptions = opts.sort((a, b) => a.label.localeCompare(b.label));
+  return langOptions;
+}
+
+function langLabel(lang: string): string {
+  if (!lang) return "";
+  const l = lang.split(/\s+/)[0];
+  if (l.toLowerCase() === "mermaid") return "Mermaid 圖表";
+  return LanguageDescription.matchLanguageName(languages, l, true)?.name ?? l;
+}
+
+export class CodeLangWidget extends WidgetType {
+  constructor(readonly lang: string, readonly lineFrom: number, readonly code: string) { super(); }
+  eq(o: CodeLangWidget) { return o.lang === this.lang && o.lineFrom === this.lineFrom && o.code === this.code; }
+
+  /** 把開頭圍欄的語言改成 value */
+  private setLang(view: EditorView, value: string) {
+    const line = view.state.doc.lineAt(this.lineFrom);
+    const m = /^(\s*)(`{3,}|~{3,})/.exec(line.text);
+    if (!m) return;
+    const from = line.from + m[0].length;
+    view.dispatch({ changes: { from, to: line.to, insert: value }, userEvent: "input" });
+    view.focus();
+  }
+
+  toDOM(view: EditorView) {
+    const bar = document.createElement("span");
+    bar.className = "cm-md-codebar";
+    const langBtn = document.createElement("button");
+    langBtn.type = "button";
+    langBtn.className = "cm-md-codelang";
+    langBtn.textContent = langLabel(this.lang) || "選擇語言";
+    if (!this.lang) langBtn.classList.add("cm-md-codelang-empty");
+    langBtn.title = "選擇程式語言（上色依此語言）";
+    const copyBtn = document.createElement("button");
+    copyBtn.type = "button";
+    copyBtn.className = "cm-md-codecopy";
+    copyBtn.textContent = "複製";
+    copyBtn.title = "複製程式碼";
+    copyBtn.addEventListener("mousedown", e => e.preventDefault());
+    copyBtn.addEventListener("click", async e => {
+      e.preventDefault();
+      try { await navigator.clipboard.writeText(this.code); copyBtn.textContent = "已複製"; }
+      catch { copyBtn.textContent = "無法複製"; }
+      setTimeout(() => { copyBtn.textContent = "複製"; }, 1500);
+    });
+
+    let menu: HTMLElement | null = null;
+    const close = () => { menu?.remove(); menu = null; document.removeEventListener("mousedown", outside, true); };
+    const outside = (e: MouseEvent) => { if (!bar.contains(e.target as Node)) close(); };
+    langBtn.addEventListener("mousedown", e => e.preventDefault());
+    langBtn.addEventListener("click", e => {
+      e.preventDefault();
+      if (menu) { close(); return; }
+      menu = document.createElement("span");
+      menu.className = "cm-md-langmenu";
+      const input = document.createElement("input");
+      input.placeholder = "搜尋語言…";
+      input.value = "";
+      const list = document.createElement("span");
+      list.className = "cm-md-langlist";
+      let active = 0;
+      let shown: LangOption[] = [];
+      const render = () => {
+        const q = input.value.trim().toLowerCase();
+        shown = getLangOptions().filter(o => !q || o.keys.includes(q) || o.label.toLowerCase().includes(q)).slice(0, 80);
+        // 輸入的文字不在清單時，也可以直接用（自訂語言名稱）
+        if (q && !shown.some(o => o.value === q)) shown.push({ label: `使用「${input.value.trim()}」`, value: input.value.trim(), keys: q });
+        active = Math.min(active, Math.max(0, shown.length - 1));
+        list.textContent = "";
+        shown.forEach((o, i) => {
+          const item = document.createElement("button");
+          item.type = "button";
+          item.className = `cm-md-langitem${i === active ? " cm-md-langitem-active" : ""}${o.value === this.lang ? " cm-md-langitem-current" : ""}`;
+          item.textContent = o.label;
+          item.addEventListener("mousedown", ev => { ev.preventDefault(); close(); this.setLang(view, o.value); });
+          list.appendChild(item);
+        });
+      };
+      input.addEventListener("input", () => { active = 0; render(); });
+      input.addEventListener("keydown", ev => {
+        if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+          ev.preventDefault();
+          active = (active + (ev.key === "ArrowDown" ? 1 : shown.length - 1)) % Math.max(1, shown.length);
+          render();
+          list.children[active]?.scrollIntoView({ block: "nearest" });
+        } else if (ev.key === "Enter") {
+          ev.preventDefault();
+          const o = shown[active];
+          close();
+          if (o) this.setLang(view, o.value);
+        } else if (ev.key === "Escape") {
+          ev.preventDefault();
+          close();
+          view.focus();
+        }
+        ev.stopPropagation();
+      });
+      menu.append(input, list);
+      bar.appendChild(menu);
+      render();
+      input.focus();
+      document.addEventListener("mousedown", outside, true);
+    });
+
+    // 點標籤列空白處：游標移到圍欄行，改為編輯原文
+    bar.addEventListener("mousedown", e => {
+      if ((e.target as HTMLElement).closest("button, input, .cm-md-langmenu")) return;
+      e.preventDefault();
+      const line = view.state.doc.lineAt(this.lineFrom);
+      view.dispatch({ selection: { anchor: line.to } });
+      view.focus();
+    });
+    bar.append(langBtn, copyBtn);
+    return bar;
+  }
+  // 標籤列內的點擊、輸入都由元件自己處理，不交給編輯器
+  ignoreEvent() { return true; }
 }

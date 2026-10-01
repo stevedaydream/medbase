@@ -2,7 +2,7 @@ import { syntaxTree } from "@codemirror/language";
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import type { EditorState, Range } from "@codemirror/state";
 import type { SyntaxNodeRef } from "@lezer/common";
-import { ImageWidget, InlineMathWidget } from "./widgets";
+import { ImageWidget, InlineMathWidget, CodeLangWidget } from "./widgets";
 import { frontMatterEnd } from "./blockPreview";
 import { sanitizeTag } from "@/shared/markdown/sanitize";
 
@@ -227,6 +227,23 @@ function build(view: EditorView): DecorationSet {
               const l = doc.lineAt(p);
               out.push(line("cm-md-codeblock").range(l.from));
               p = l.to + 1;
+            }
+            if (name === "FencedCode") {
+              // 開頭圍欄（```語言）：游標不在這一行時換成語言標籤列；結尾圍欄收起
+              const first = doc.lineAt(node.from), last = doc.lineAt(node.to);
+              const info = node.node.getChild("CodeInfo");
+              const lang = info ? doc.sliceString(info.from, info.to).trim() : "";
+              const text = node.node.getChild("CodeText");
+              const code = text ? doc.sliceString(text.from, text.to) : "";
+              if (!lineTouched(state, first.from) && first.to > first.from) {
+                out.push(line("cm-md-code-head").range(first.from));
+                out.push(Decoration.replace({ widget: new CodeLangWidget(lang, first.from, code) }).range(first.from, first.to));
+              }
+              const closed = last.number > first.number && /^\s*(```+|~~~+)\s*$/.test(last.text);
+              if (closed && !lineTouched(state, last.from)) {
+                out.push(line("cm-md-collapsed").range(last.from));
+                out.push(hide.range(last.from, last.to));
+              }
             }
             return;
           }

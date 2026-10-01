@@ -285,6 +285,19 @@ defineExpose({
 .md-editor .cm-md-h4, .md-editor .cm-md-h5, .md-editor .cm-md-h6 { font-size: 1em; padding-top: 0.3em; }
 .md-editor .cm-md-quote { border-left: 3px solid var(--color-hairline); padding-left: 0.75rem; color: var(--color-fg-secondary); }
 .md-editor .cm-md-codeblock { background: var(--color-sunken); font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.85em; }
+/* 程式碼區塊標籤列（語言選單、複製） */
+.md-editor .cm-md-code-head { position: relative; }
+.md-editor .cm-md-codebar { display: flex; justify-content: flex-end; gap: 0.35rem; position: relative; cursor: text; font-family: inherit; }
+.md-editor .cm-md-codebar button { font-size: 0.75rem; padding: 0 0.5rem; border-radius: 0.35rem; color: var(--color-muted); cursor: pointer; line-height: 1.5; }
+.md-editor .cm-md-codebar button:hover { color: var(--color-fg); background: color-mix(in srgb, var(--color-fg) 8%, transparent); }
+.md-editor .cm-md-codelang { font-weight: 700; color: var(--color-accent) !important; }
+.md-editor .cm-md-codelang-empty { font-weight: 400; color: var(--color-muted) !important; font-style: italic; }
+.md-editor .cm-md-langmenu { position: absolute; right: 3.5rem; top: 1.6em; z-index: 20; width: 13rem; display: flex; flex-direction: column; background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 0.6rem; box-shadow: 0 10px 30px rgb(0 0 0 / 0.2); padding: 0.35rem; font-family: inherit; }
+.md-editor .cm-md-langmenu input { width: 100%; padding: 0.25rem 0.5rem; border-radius: 0.4rem; border: 1px solid var(--color-hairline); background: var(--color-sunken); color: var(--color-fg); font-size: 0.8rem; outline: none; }
+.md-editor .cm-md-langlist { display: flex; flex-direction: column; max-height: 14rem; overflow-y: auto; margin-top: 0.3rem; }
+.md-editor .cm-md-langitem { text-align: left; font-size: 0.8rem !important; padding: 0.2rem 0.5rem !important; color: var(--color-fg) !important; }
+.md-editor .cm-md-langitem-active { background: color-mix(in srgb, var(--color-accent) 15%, transparent) !important; }
+.md-editor .cm-md-langitem-current { font-weight: 700; color: var(--color-accent) !important; }
 .md-editor .cm-md-hr { background: linear-gradient(var(--color-hairline), var(--color-hairline)) center / 100% 1px no-repeat; }
 .md-editor .cm-md-bullet { color: var(--color-muted); display: inline-block; width: 1em; text-align: center; }
 .md-editor .cm-md-task { margin: 0 0.35em 0 0; vertical-align: middle; cursor: pointer; accent-color: var(--color-accent); }
