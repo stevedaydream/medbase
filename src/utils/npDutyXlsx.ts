@@ -15,6 +15,7 @@ export interface NpDutyImportRow {
   shift: string;
   notes: string;
   sourceSheet: string;
+  resolution?: "file" | "saved" | "history" | "manual" | "unresolved";
 }
 
 export interface NpDutyParseResult {
@@ -22,6 +23,7 @@ export interface NpDutyParseResult {
   warnings: string[];
   errors: string[];
   sheetNames: string[];
+  sourcePeople?: Array<{ name: string; staffCode: string; extension: string; group: string }>;
 }
 
 type CellValue = string | number | boolean | Date | null | undefined;
