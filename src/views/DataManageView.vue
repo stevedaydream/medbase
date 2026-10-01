@@ -22,6 +22,8 @@ import {
 import { touchTable, markDeleted } from "@/composables/useTableSync";
 import { refreshPassAhk } from "@/composables/usePhysicians";
 import NpDutyDataManager from "@/components/NpDutyDataManager.vue";
+import ItemFormModal from "@/components/ItemFormModal.vue";
+import ComboInput from "@/components/ComboInput.vue";
 import EmergencyEditor from "@/components/emergency/EmergencyEditor.vue";
 import HandbookEditor from "@/components/handbook/HandbookEditor.vue";
 
@@ -96,15 +98,22 @@ const showConfirm  = ref(false);
 const itemForm   = ref<Partial<Item>>({});
 // ── 批次新增品項 ─────────────────────────────────────────────────
 interface BatchItemRow {
-  hospital_code: string; name_zh: string; purpose: string;
+  hospital_code: string; name_zh: string; name_en: string; purpose: string;
   deptsStr: string; price: string; supplier: string;
 }
 const showBatchAdd = ref(false);
 const batchRows    = ref<BatchItemRow[]>([]);
 const batchSaving  = ref(false);
 
+/** 用途分類下拉選單：既有品項的分類＋批次表格中剛輸入的新分類 */
+const purposeOptions = computed(() => [
+  ...items.value.map(m => m.purpose ?? ""),
+  ...batchRows.value.map(r => r.purpose),
+].filter(p => p.trim()));
+const existingCodes = computed(() => new Set(items.value.map(m => m.hospital_code)));
+
 function emptyBatchRow(): BatchItemRow {
-  return { hospital_code: "", name_zh: "", purpose: "", deptsStr: "", price: "", supplier: "" };
+  return { hospital_code: "", name_zh: "", name_en: "", purpose: "", deptsStr: "", price: "", supplier: "" };
 }
 function openBatchAdd() {
   batchRows.value = [emptyBatchRow()];
@@ -120,8 +129,8 @@ async function saveBatchItems() {
     for (const r of valid) {
       const code = r.hospital_code.trim();
       await dbWrite(
-        `INSERT OR IGNORE INTO items (hospital_code,name_zh,purpose,unit,price,supplier,notes) VALUES (?,?,?,?,?,?,?)`,
-        [code, r.name_zh||null, r.purpose||null, null,
+        `INSERT OR IGNORE INTO items (hospital_code,name_zh,name_en,purpose,unit,price,supplier,notes) VALUES (?,?,?,?,?,?,?,?)`,
+        [code, r.name_zh||null, r.name_en.trim()||null, r.purpose.trim()||null, null,
          r.price !== "" ? Number(r.price) : null, r.supplier||null, null]
       );
       const depts = r.deptsStr.split(";").map(s => s.trim()).filter(Boolean);
@@ -783,30 +792,9 @@ function openEdit(row: any) {
 function closeModal() { showModal.value = false; }
 
 // ── CRUD：items ──────────────────────────────────────────────────
-async function saveItem() {
-  const f  = itemForm.value;
-  if (!f.hospital_code?.trim()) return;
-  if (modalMode.value === "add") {
-    await dbWrite(
-      `INSERT OR IGNORE INTO items (hospital_code,name_en,name_zh,purpose,unit,price,supplier,notes)
-       VALUES (?,?,?,?,?,?,?,?)`,
-      [f.hospital_code, f.name_en||null, f.name_zh||null, f.purpose||null,
-       f.unit||null, f.price??null, f.supplier||null, f.notes||null]);
-  } else {
-    await dbWrite(
-      `UPDATE items SET name_en=?,name_zh=?,purpose=?,unit=?,price=?,supplier=?,notes=?
-       WHERE hospital_code=?`,
-      [f.name_en||null, f.name_zh||null, f.purpose||null,
-       f.unit||null, f.price??null, f.supplier||null, f.notes||null, f.hospital_code]);
-  }
-  // 同步 item_depts
-  const depts: string[] = (f as any).depts ?? [];
-  await dbWrite("DELETE FROM item_depts WHERE hospital_code=?", [f.hospital_code]);
-  for (const dept of depts) {
-    await dbWrite("INSERT OR IGNORE INTO item_depts (hospital_code,dept) VALUES (?,?)", [f.hospital_code, dept]);
-  }
-  closeModal(); await loadAll();
-  await touchTable("items");
+async function onItemSaved() {
+  closeModal();
+  await loadAll();
 }
 async function deleteItem(row: Item) {
   await markDeleted("items", row.hospital_code);
@@ -1236,87 +1224,9 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
   <!-- ════════════════════════════════════════════════
        Modal 容器
   ════════════════════════════════════════════════ -->
-  <Teleport to="body">
-    <div v-if="showModal"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-sunken/60 backdrop-blur-sm"
-      @click.self="closeModal">
-
-      <!-- ── 自費品項 Modal ─────────────────────── -->
-      <div v-if="activeTab === 'items'"
-        class="w-full max-w-lg bg-surface rounded-2xl border border-hairline shadow-2xl overflow-hidden">
-        <div class="flex items-center justify-between px-6 py-4 border-b border-hairline">
-          <h3 class="font-bold text-fg text-sm">{{ modalMode === "add" ? "新增" : "編輯" }}品項</h3>
-          <button @click="closeModal" class="text-muted hover:text-fg-secondary text-lg leading-none cursor-pointer">✕</button>
-        </div>
-        <div class="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">院內碼 *</label>
-              <input v-model="itemForm.hospital_code" :disabled="modalMode==='edit'"
-                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono font-bold focus:outline-none focus:border-accent/50 disabled:opacity-40 disabled:cursor-not-allowed"
-                placeholder="M1A01234" />
-            </div>
-            <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">計價單位</label>
-              <input v-model="itemForm.unit"
-                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-medium focus:outline-none focus:border-accent/50"
-                placeholder="個 / 支 / 組" />
-            </div>
-          </div>
-          <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">中文品名</label>
-            <input v-model="itemForm.name_zh"
-              class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-bold focus:outline-none focus:border-accent/50"
-              placeholder="請輸入中文品名..." />
-          </div>
-          <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">英文品名</label>
-            <input v-model="itemForm.name_en"
-              class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-medium focus:outline-none focus:border-accent/50"
-              placeholder="English Name / Description..." />
-          </div>
-          <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">耗材用途分類</label>
-            <input v-model="itemForm.purpose"
-              class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-bold focus:outline-none focus:border-accent/50"
-              placeholder="例如：止血劑 / Mesh人工網膜 / 骨釘" />
-          </div>
-          <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">適用科別（多科請用分號分隔，如：骨科;一般外科）</label>
-            <input
-              :value="(itemForm as any).depts?.join(';') ?? ''"
-              @input="(itemForm as any).depts = ($event.target as HTMLInputElement).value.split(';').map((s:string)=>s.trim()).filter(Boolean)"
-              class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-bold focus:outline-none focus:border-accent/50"
-              placeholder="骨科;一般外科;心臟外科" />
-          </div>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">自費金額 (NTD)</label>
-              <input v-model.number="itemForm.price" type="number"
-                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono font-bold focus:outline-none focus:border-accent/50"
-                placeholder="0" />
-            </div>
-            <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">材料廠商名稱</label>
-              <input v-model="itemForm.supplier"
-                class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-medium focus:outline-none focus:border-accent/50"
-                placeholder="進口商或供應商" />
-            </div>
-          </div>
-          <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">備註資訊</label>
-            <textarea v-model="itemForm.notes" rows="2"
-              class="w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs font-medium focus:outline-none focus:border-accent/50 resize-none leading-relaxed" />
-          </div>
-        </div>
-        <div class="flex justify-end gap-2 px-6 py-4 border-t border-hairline bg-surface">
-          <button @click="closeModal" class="px-4 py-2 rounded-xl text-xs font-bold text-fg-secondary hover:text-fg hover:bg-overlay/5 cursor-pointer transition-colors">取消</button>
-          <button @click="saveItem" class="px-5 py-2 rounded-xl bg-accent border border-accent/30 hover:bg-accent text-white text-xs font-bold cursor-pointer shadow-lg shadow-accent/10">儲存品項</button>
-        </div>
-      </div>
-
-    </div>
-  </Teleport>
+  <ItemFormModal :open="showModal && activeTab === 'items'" :mode="modalMode" :item="itemForm"
+    :purposes="purposeOptions" :existing-codes="existingCodes"
+    @close="closeModal" @saved="onItemSaved" />
 
   <!-- ════ 批次新增品項 Modal ════ -->
   <Teleport to="body">
@@ -1341,7 +1251,8 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
               <tr class="text-muted text-2xs font-bold">
                 <th class="px-3 py-3 w-32">院內碼 *</th>
                 <th class="px-3 py-3">中文品名</th>
-                <th class="px-3 py-3 w-36">用途分類</th>
+                <th class="px-3 py-3">英文品名</th>
+                <th class="px-3 py-3 w-40">用途分類</th>
                 <th class="px-3 py-3 w-40">適用科別 (用分號 ;)</th>
                 <th class="px-3 py-3 w-28">自費金額</th>
                 <th class="px-3 py-3 w-32">廠商名稱</th>
@@ -1362,8 +1273,12 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
                     class="w-full px-2.5 py-1.5 bg-sunken border border-hairline focus:border-accent/50 rounded-lg text-xs text-fg outline-none transition-all" />
                 </td>
                 <td class="px-2 py-2">
-                  <input v-model="row.purpose" placeholder="止血棉..."
+                  <input v-model="row.name_en" placeholder="English name..."
                     class="w-full px-2.5 py-1.5 bg-sunken border border-hairline focus:border-accent/50 rounded-lg text-xs text-fg outline-none transition-all" />
+                </td>
+                <td class="px-2 py-2">
+                  <ComboInput v-model="row.purpose" :options="purposeOptions" add-label="新增類別" placeholder="止血棉..."
+                    input-class="w-full px-2.5 py-1.5 bg-sunken border border-hairline focus:border-accent/50 rounded-lg text-xs text-fg outline-none transition-all" />
                 </td>
                 <td class="px-2 py-2">
                   <input v-model="row.deptsStr" placeholder="骨科;外科"
