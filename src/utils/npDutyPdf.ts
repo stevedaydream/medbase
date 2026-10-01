@@ -23,7 +23,8 @@ function localIsoDate(year: number, month: number, day: number): string | null {
 }
 
 function normalize(value: string): string {
-  return value.replace(/\s+/g, "").replace(/[．。]/g, ".").trim();
+  return value.normalize("NFKC").replace(/\s+/g, "").replace(/[．。]/g, ".")
+    .replace(/[○◯〇●◎⊙◉①-⑳]/g, "").trim();
 }
 
 async function pageTexts(page: PDFPageProxy): Promise<PositionedText[]> {
@@ -64,7 +65,7 @@ function parseNpMapping(items: PositionedText[]): Map<string, StaffInfo> {
   const npOnly = items.filter(item => item.x >= 285 && item.x < 405 && item.top >= 200 && item.top < 480);
   for (const line of groupLines(npOnly)) {
     const joined = normalize(line.map(item => item.text).join(""));
-    const match = joined.match(/[○◯]?([a-z])[.]?([\u3400-\u9fff]{2,4})(\d{5})?/i);
+    const match = joined.match(/([a-z])[.]?([\u3400-\u9fff]{2,4})(\d{5})?/i);
     if (!match) continue;
     result.set(match[1].toLowerCase(), { name: match[2], extension: match[3] ?? "" });
   }
@@ -142,19 +143,17 @@ function addNpCell(
   const shifts = ["白八", "夜八"];
   codes.forEach((code, index) => {
     const person = mapping.get(code);
-    if (!person) {
-      warnings.push(`${dutyDate} ${ward}：找不到代號 ${code} 的 NP 對照`);
-      return;
-    }
+    if (!person && !warnings.includes(`NP 代號 ${code} 需要確認人員`)) warnings.push(`NP 代號 ${code} 需要確認人員`);
     rows.push({
       dutyDate,
       ward,
-      npName: person.name,
+      npName: person?.name ?? "",
       staffCode: code,
-      extension: person.extension,
+      extension: person?.extension ?? "",
       shift: shifts[index] ?? `班別 ${index + 1}`,
       notes: "",
       sourceSheet,
+      resolution: person ? "file" : "unresolved",
     });
   });
 }
@@ -171,19 +170,17 @@ function addVsCell(
   const codes = cell.split("/").map(code => code.replace(/\D/g, "")).filter(Boolean);
   for (const code of codes) {
     const person = mapping.get(code);
-    if (!person) {
-      warnings.push(`${dutyDate} ${unit}：找不到代號 ${code} 的 VS 對照`);
-      continue;
-    }
+    if (!person && !warnings.includes(`${unit} VS 代號 ${code} 需要確認人員`)) warnings.push(`${unit} VS 代號 ${code} 需要確認人員`);
     rows.push({
       dutyDate,
       ward: unit,
-      npName: person.name,
+      npName: person?.name ?? "",
       staffCode: code,
-      extension: person.extension,
+      extension: person?.extension ?? "",
       shift: "值班",
       notes: "VS",
       sourceSheet: "PDF",
+      resolution: person ? "file" : "unresolved",
     });
   }
 }
@@ -262,5 +259,10 @@ export async function parseNpDutyPdf(data: ArrayBuffer, fallbackMonth: string): 
     warnings: dedupedWarnings,
     errors,
     sheetNames: ["PDF 第 1 頁", "PDF 第 2 頁"],
+    sourcePeople: [
+      ...[...mapping].map(([staffCode, person]) => ({ ...person, staffCode, group: "NP" })),
+      ...[...vsMapping].map(([staffCode, person]) => ({ ...person, staffCode, group: "VS" })),
+      ...[...specialtyVsMappings].flatMap(([group, people]) => [...people].map(([staffCode, person]) => ({ ...person, staffCode, group }))),
+    ],
   };
 }

@@ -14,11 +14,20 @@ import {
   parseNpDutyWorkbook, type NpDutyImportRow, type NpDutyParseResult,
 } from "@/utils/npDutyXlsx";
 import { parseNpDutyPdf } from "@/utils/npDutyPdf";
+import { parseDutyWordText, readDutyDocx } from "@/utils/npDutyWord";
+import { recognizeDutyImages, rosterMatchesFromOcr } from "@/utils/npDutyOcr";
+import { applyDutyCorrection, dutyCodeKey, reconcileDutyRows,
+  type DutyPerson, type SavedDutyMap } from "@/utils/npDutyMatch";
 
 const fileInput = ref<HTMLInputElement | null>(null);
 const rosterMonth = ref(localDateKey().slice(0, 7));
 const selectedFile = ref<File | null>(null);
+const selectedFileNames = ref("");
 const preview = ref<NpDutyParseResult | null>(null);
+const history = ref<DutyPerson[]>([]);
+const savedPeople = ref<SavedDutyMap>({});
+const pendingCorrections = ref<SavedDutyMap>({});
+const correctionInputs = ref<SavedDutyMap>({});
 const parsing = ref(false);
 const importing = ref(false);
 const status = ref("");
@@ -29,8 +38,32 @@ const previewSummary = computed(() => [
   ...NP_WARDS.map(ward => ({ ward, count: preview.value?.rows.filter(row => row.ward === ward).length ?? 0 })),
   { ward: "VS", count: preview.value?.rows.filter(row => isVsDutyUnit(row.ward)).length ?? 0 },
 ]);
-const previewRows = computed(() => preview.value?.rows.slice(0, 12) ?? []);
-const canImport = computed(() => Boolean(preview.value?.rows.length && !preview.value.errors.length && selectedFile.value));
+const previewRows = computed(() => preview.value?.rows ?? []);
+const unresolved = computed(() => {
+  const groups = new Map<string, { key: string; row: NpDutyImportRow; count: number }>();
+  for (const row of previewRows.value.filter(row => !row.npName.trim())) {
+    const key = dutyCodeKey(row);
+    const existing = groups.get(key);
+    if (existing) existing.count++;
+    else groups.set(key, { key, row, count: 1 });
+  }
+  return [...groups.values()];
+});
+const previewPeople = computed(() => [...new Map(previewRows.value
+  .filter(row => row.npName.trim())
+  .map(row => [`${isNpWard(row.ward) ? "NP" : "VS"}|${row.npName}|${row.staffCode}`, row])).values()]);
+const priorMonth = computed(() => {
+  const months = [...new Set(history.value.map(row => row.duty_date.slice(0, 7)))].sort();
+  const eligible = months.filter(month => month <= (previewMonths.value[0] ?? rosterMonth.value));
+  return eligible[eligible.length - 1];
+});
+const latestPriorPeople = computed(() => {
+  const month = priorMonth.value;
+  return new Set(month ? history.value.filter(row => row.duty_date.startsWith(month)).map(row => row.np_name) : []);
+});
+const newPeople = computed(() => [...new Set(previewPeople.value.map(row => row.npName))].filter(name => !latestPriorPeople.value.has(name)));
+const missingPeople = computed(() => [...latestPriorPeople.value].filter(name => !previewPeople.value.some(row => row.npName === name)));
+const canImport = computed(() => Boolean(previewRows.value.length && !preview.value?.errors.length && !unresolved.value.length && selectedFile.value));
 
 const cloud = useCloudSettings();
 const syncing = ref(false);
@@ -185,29 +218,94 @@ async function loadLastImport() {
 
 function resetPreview() {
   selectedFile.value = null;
+  selectedFileNames.value = "";
   preview.value = null;
+  pendingCorrections.value = {};
+  correctionInputs.value = {};
   status.value = "";
   if (fileInput.value) fileInput.value.value = "";
 }
 
 async function handleFile(event: Event) {
-  const file = (event.target as HTMLInputElement).files?.[0];
-  if (!file) return;
+  const files = [...((event.target as HTMLInputElement).files ?? [])];
+  if (!files.length) return;
+  const documents = files.filter(file => /\.(pdf|xlsx|xls|docx|doc)$/i.test(file.name));
+  const images = files.filter(file => /\.(png|jpe?g|webp|bmp|tiff?)$/i.test(file.name));
+  if (documents.length !== 1 || documents.length + images.length !== files.length) {
+    preview.value = { rows: [], warnings: [], errors: ["請選擇一份 PDF／Word／Excel 班表，可另外加選圖片名冊"], sheetNames: [] };
+    selectedFile.value = null;
+    return;
+  }
+  const file = documents[0];
   selectedFile.value = file;
+  selectedFileNames.value = files.map(item => item.name).join(" + ");
   preview.value = null;
+  pendingCorrections.value = {};
+  correctionInputs.value = {};
   status.value = "";
   parsing.value = true;
   try {
     const buffer = await file.arrayBuffer();
-    preview.value = file.name.toLowerCase().endsWith(".pdf")
-      ? await parseNpDutyPdf(buffer, rosterMonth.value)
-      : parseNpDutyWorkbook(buffer, rosterMonth.value);
+    const lower = file.name.toLowerCase();
+    let embeddedImages: Uint8Array[] = [];
+    if (lower.endsWith(".pdf")) preview.value = await parseNpDutyPdf(buffer, rosterMonth.value);
+    else if (lower.endsWith(".doc")) {
+      const { default: docToText } = await import("duty-doc-reader");
+      const text = docToText(buffer);
+      if (!text) throw new Error("無法讀取此舊版 Word 檔，請另存為 .docx 再試");
+      preview.value = parseDutyWordText(text, rosterMonth.value);
+      embeddedImages = docToText.images(buffer).map(image => image.bytes);
+    } else if (lower.endsWith(".docx")) {
+      const docx = readDutyDocx(buffer);
+      preview.value = parseDutyWordText(docx.text, rosterMonth.value, docx.calendar);
+      embeddedImages = docx.images;
+    } else preview.value = parseNpDutyWorkbook(buffer, rosterMonth.value);
+
+    const db = await getDb();
+    history.value = await db.select<DutyPerson[]>(
+      "SELECT duty_date,ward,np_name,staff_code,extension FROM np_duty_assignments ORDER BY duty_date DESC");
+    const saved = await db.select<{ value: string }[]>("SELECT value FROM app_settings WHERE key=?", ["np_duty_person_corrections"]);
+    try { savedPeople.value = saved[0]?.value ? JSON.parse(saved[0].value) as SavedDutyMap : {}; }
+    catch { savedPeople.value = {}; }
+    if (preview.value) {
+      let ocrText = "";
+      if (images.length || embeddedImages.length) {
+        try { ocrText = await recognizeDutyImages([...images, ...embeddedImages]); }
+        catch (error) { preview.value.warnings.push(`圖片辨識失敗，仍可手動校正：${(error as Error).message}`); }
+      }
+      const imagePeople = rosterMatchesFromOcr(ocrText, preview.value.rows);
+      preview.value.rows = preview.value.rows.map(row => {
+        if (row.npName.trim()) return row;
+        const person = imagePeople[dutyCodeKey(row)];
+        return person ? { ...row, npName: person.name, extension: person.extension, resolution: "file" as const } : row;
+      });
+      const npRosterNames = preview.value.sourcePeople?.filter(person => person.group === "NP").map(person => person.name) ?? [];
+      const wordRoster = (lower.endsWith(".doc") || lower.endsWith(".docx")) && npRosterNames.length
+        ? new Set([...npRosterNames,
+          ...Object.values(imagePeople).map(person => person.name)])
+        : undefined;
+      preview.value.rows = reconcileDutyRows(preview.value.rows, history.value, savedPeople.value, wordRoster);
+      for (const row of preview.value.rows) {
+        const key = dutyCodeKey(row);
+        if (!row.npName.trim() && !correctionInputs.value[key]) correctionInputs.value[key] = { name: "", extension: "" };
+      }
+      preview.value.warnings = preview.value.warnings.filter(warning => !warning.includes("需要確認人員"));
+    }
     if (preview.value.errors.length) status.value = "檔案尚未通過匯入檢查";
   } catch (error) {
     preview.value = { rows: [], warnings: [], errors: [`解析失敗：${(error as Error).message}`], sheetNames: [] };
   } finally {
     parsing.value = false;
   }
+}
+
+function applyCorrection(key: string) {
+  const person = correctionInputs.value[key];
+  if (!person?.name.trim()) { status.value = "請先輸入對應姓名"; return; }
+  const correction = { name: person.name.trim(), extension: person.extension.trim() };
+  pendingCorrections.value = { ...pendingCorrections.value, [key]: correction };
+  if (preview.value) preview.value.rows = applyDutyCorrection(preview.value.rows, key, correction);
+  status.value = `已校正 ${key}；確認匯入後會記住此對照`;
 }
 
 async function confirmImport() {
@@ -236,15 +334,19 @@ async function confirmImport() {
          (duty_date,ward,np_name,staff_code,extension,shift,notes,source_file,imported_at)
          VALUES (?,?,?,?,?,?,?,?,datetime('now','localtime'))`,
         [row.dutyDate, row.ward, row.npName, row.staffCode || null, row.extension || null,
-          row.shift, row.notes || null, selectedFile.value.name],
+          row.shift, row.notes || null, selectedFileNames.value],
       );
+    }
+
+    if (Object.keys(pendingCorrections.value).length) {
+      await dbWrite("INSERT OR REPLACE INTO app_settings (key,value) VALUES (?,?)",
+        ["np_duty_person_corrections", JSON.stringify({ ...savedPeople.value, ...pendingCorrections.value })]);
+      savedPeople.value = { ...savedPeople.value, ...pendingCorrections.value };
     }
 
     const count = preview.value.rows.length;
     await loadLastImport();
-    preview.value = null;
-    selectedFile.value = null;
-    if (fileInput.value) fileInput.value.value = "";
+    resetPreview();
     await afterLocalChange(months);
     status.value = `已匯入 ${count} 筆，更新 ${months.join("、")}｜${status.value}`;
   } catch (error) {
@@ -304,7 +406,7 @@ function rowLabel(row: NpDutyImportRow) {
           <h3 class="font-bold text-fg text-sm">NP／VS 值班</h3>
         </div>
         <p class="mt-1 text-xs leading-relaxed text-fg-secondary">
-          匯入外科秘書每月提供的 PDF 或 Excel，更新側邊欄 NP 與各外科別 VS 值班人員。
+          匯入外科秘書每月提供的 PDF、Word 或 Excel，更新側邊欄 NP 與各外科別 VS 值班人員。
         </p>
       </div>
       <div class="flex items-start gap-3">
@@ -340,7 +442,7 @@ function rowLabel(row: NpDutyImportRow) {
       </label>
       <label class="block">
         <span class="mb-1.5 block text-xs font-semibold text-fg-secondary">班表檔案</span>
-        <input ref="fileInput" type="file" accept=".pdf,.xlsx,.xls" @change="handleFile"
+        <input ref="fileInput" type="file" multiple accept=".pdf,.doc,.docx,.xlsx,.xls,.png,.jpg,.jpeg,.webp,.bmp,.tif,.tiff" @change="handleFile"
           class="block w-full rounded-xl border border-hairline bg-sunken px-3 py-1.5 text-xs text-fg file:mr-3 file:rounded-lg file:border-0 file:bg-accent/10 file:px-3 file:py-1.5 file:font-bold file:text-accent" />
       </label>
       <button @click="downloadTemplate" class="rounded-xl border border-hairline bg-elevated px-4 py-2 text-xs font-bold text-fg-secondary hover:bg-raised">
@@ -349,7 +451,7 @@ function rowLabel(row: NpDutyImportRow) {
     </div>
 
     <p class="text-xs leading-relaxed text-muted">
-      PDF：解析第一頁 9A／9B／8A 的 NP，以及 ICU、總值與各外科別 VS；姓名與分機由第二頁代號表帶入。NP 斜線前為白八、斜線後為夜八。Excel：欄位使用日期、單位、姓名、班別，可選填代號、分機與備註。
+      可選一份 PDF、.doc、.docx 或 Excel；Word 可同時加選圖片名冊辨識代號與姓名。辨識不到的代號會先比對已儲存的校正與舊班表，再請你確認。NP 斜線前為白八、斜線後為夜八。Excel 欄位為日期、單位、姓名、班別，可選填代號、分機與備註。
     </p>
 
     <div v-if="parsing" class="rounded-xl border border-hairline bg-sunken px-4 py-3 text-xs text-muted">正在解析班表…</div>
@@ -370,22 +472,51 @@ function rowLabel(row: NpDutyImportRow) {
         <p v-if="preview.warnings.length > 8">另有 {{ preview.warnings.length - 8 }} 項警告</p>
       </div>
 
+      <div v-if="unresolved.length" class="rounded-xl border border-warning/30 bg-warning/5 px-4 py-3 space-y-3">
+        <p class="text-xs font-bold text-warning">尚有 {{ unresolved.length }} 個代號找不到人員；校正後才能匯入</p>
+        <div v-for="item in unresolved" :key="item.key" class="flex flex-wrap items-center gap-2 text-xs">
+          <span class="w-44 text-fg-secondary">{{ isNpWard(item.row.ward) ? 'NP' : item.row.ward + ' VS' }} · {{ item.row.staffCode }}（{{ item.count }} 筆）</span>
+          <input v-model="correctionInputs[item.key].name" list="duty-person-options" placeholder="姓名" class="rounded border border-hairline bg-sunken px-2 py-1 text-fg" />
+          <input v-model="correctionInputs[item.key].extension" placeholder="分機（選填）" class="w-28 rounded border border-hairline bg-sunken px-2 py-1 text-fg" />
+          <button @click="applyCorrection(item.key)" class="rounded bg-accent px-2.5 py-1 font-bold text-white">套用校正</button>
+        </div>
+        <datalist id="duty-person-options">
+          <option v-for="name in [...new Set([...(preview.sourcePeople ?? []).map(person => person.name), ...history.map(person => person.np_name)])]" :key="name" :value="name" />
+        </datalist>
+        <p class="text-2xs text-muted">校正會套用到檔案中同代號的所有日期，確認匯入後儲存供下次使用。</p>
+      </div>
+
+      <div v-if="previewPeople.length" class="rounded-xl border border-hairline bg-sunken px-4 py-3 text-xs space-y-2">
+        <h4 class="font-bold text-fg">本次值班人員 · {{ previewPeople.length }} 筆代號／姓名</h4>
+        <p class="leading-relaxed text-fg-secondary">
+          <span v-for="(person, index) in previewPeople" :key="`${person.ward}-${person.staffCode}-${person.npName}`">
+            {{ index ? '、' : '' }}{{ person.npName }}<span class="text-muted">（{{ isNpWard(person.ward) ? 'NP' : person.ward }} {{ person.staffCode || '無代號' }}{{ person.resolution === 'history' ? '，依舊班表' : person.resolution === 'saved' ? '，依已存校正' : person.resolution === 'manual' ? '，本次校正' : '' }}）</span>
+          </span>
+        </p>
+        <p v-if="priorMonth" class="text-muted">與 {{ priorMonth }} 既有班表比較：新出現 {{ newPeople.length }} 人<span v-if="newPeople.length">（{{ newPeople.join('、') }}）</span>；這次未出現 {{ missingPeople.length }} 人<span v-if="missingPeople.length">（{{ missingPeople.join('、') }}）</span>。</p>
+      </div>
+
+      <details v-if="preview.sourcePeople?.length" class="rounded-xl border border-hairline px-4 py-3 text-xs">
+        <summary class="cursor-pointer font-bold text-fg">檔案原始名冊 · {{ preview.sourcePeople.length }} 人（展開核對）</summary>
+        <p class="mt-2 leading-relaxed text-fg-secondary">
+          <span v-for="(person, index) in preview.sourcePeople" :key="`${person.group}-${person.staffCode}-${person.name}`">{{ index ? '、' : '' }}{{ person.group }} {{ person.staffCode || '未辨識代號' }} {{ person.name }}<span v-if="person.extension"> {{ person.extension }}</span></span>
+        </p>
+      </details>
+
       <div v-if="previewRows.length" class="overflow-hidden rounded-xl border border-hairline">
-        <table class="w-full text-xs">
+        <div class="max-h-96 overflow-auto"><table class="w-full text-xs">
           <thead class="bg-sunken text-fg-secondary">
             <tr><th class="px-3 py-2 text-left">日期／單位／班別</th><th class="px-3 py-2 text-left">人員</th><th class="px-3 py-2 text-left">代號／分機</th></tr>
           </thead>
           <tbody class="divide-y divide-hairline">
             <tr v-for="row in previewRows" :key="`${rowLabel(row)}-${row.npName}`">
               <td class="px-3 py-2 text-fg-secondary">{{ rowLabel(row) }}</td>
-              <td class="px-3 py-2 font-semibold text-fg">{{ row.npName }}</td>
+              <td class="px-3 py-2 font-semibold text-fg">{{ row.npName || '待校正' }}</td>
               <td class="px-3 py-2 text-muted">{{ row.staffCode || '—' }}<span v-if="row.extension"> · {{ row.extension }}</span></td>
             </tr>
           </tbody>
-        </table>
-        <p v-if="preview.rows.length > previewRows.length" class="border-t border-hairline bg-sunken px-3 py-2 text-xs text-muted">
-          預覽前 {{ previewRows.length }} 筆，共 {{ preview.rows.length }} 筆。
-        </p>
+        </table></div>
+        <p class="border-t border-hairline bg-sunken px-3 py-2 text-xs text-muted">共 {{ previewRows.length }} 筆班次，可捲動檢查全部。</p>
       </div>
 
       <p v-if="canImport" class="text-xs text-warning">
