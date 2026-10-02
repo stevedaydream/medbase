@@ -55,16 +55,31 @@ function parseSheet(values: (string | number)[][]): Row[] {
     days: Array.from({ length: 31 }, (_, i) => { const v = r[i + 1]; return v != null && v !== '' ? String(v) : null }),
   }))
 }
-async function loadSchedule() {
+/**
+ * 已發布班表：先顯示手機暫存；雲端版本（同步時取得，ADR-022）與暫存相同就不重新下載。
+ * 雲端還沒有這個月的分頁時不下載；force（下拉更新）一律重新下載。
+ */
+interface CachedSheet { rows: Row[]; version: string }
+async function loadSchedule(force = false) {
   sError.value = ''
-  const key = `schedule:${sYM.value}`
-  const cached = await kvGet<Row[]>(key)
-  rows.value = cached ?? []
+  const ym = sYM.value
+  const key = `schedule:${ym}`
+  const raw = await kvGet<CachedSheet | Row[]>(key)
+  const cached: CachedSheet | null = Array.isArray(raw) ? { rows: raw, version: '' } : raw ?? null
+  if (ym !== sYM.value) return
+  rows.value = cached?.rows ?? []
+  const versions = sched.sheetVersions
+  const remoteVer = versions?.[`Schedule_${ym}`] ?? ''
+  if (!force && versions) {
+    if (!remoteVer) { sLoading.value = false; return }
+    if (cached?.version === remoteVer) { sLoading.value = false; return }
+  }
   sLoading.value = !cached
   try {
-    const r = await gas<{ data: (string | number)[][] }>('getSchedule', { sheetName: `Schedule_${sYM.value}` })
+    const r = await gas<{ data: (string | number)[][]; version?: string }>('getSchedule', { sheetName: `Schedule_${ym}` })
+    if (ym !== sYM.value) return
     rows.value = parseSheet(r.data ?? [])
-    await kvSet(key, rows.value)
+    await kvSet(key, { rows: JSON.parse(JSON.stringify(rows.value)), version: r.version ?? '' })
   } catch (e) {
     if (!(e instanceof ApiError && e.code === 'OFFLINE') && !cached) sError.value = (e as Error).message.includes('不存在') ? '' : (e as Error).message
     if (!cached) rows.value = []
@@ -72,7 +87,9 @@ async function loadSchedule() {
     sLoading.value = false
   }
 }
-watch(sYM, loadSchedule, { immediate: true })
+watch(sYM, () => loadSchedule(), { immediate: true })
+// 同步後雲端版本變了（別人發布或修改）才重新下載
+watch(() => sched.sheetVersions?.[`Schedule_${sYM.value}`], (v, old) => { if (v && v !== old) void loadSchedule() })
 
 const myName = computed(() => sched.me?.name ?? session.user?.name ?? '')
 const isMine = (name: string) => !!myName.value && name.replace(/^[A-Z]/, '').trim() === myName.value
@@ -207,7 +224,7 @@ async function closeNotices() {
 }
 
 usePullRefresh(async () => {
-  await Promise.all([loadSchedule(), syncSchedDocs(), inbox.value?.load()])
+  await Promise.all([loadSchedule(true), syncSchedDocs(), inbox.value?.load()])
   return sched.offline ? '目前離線，顯示手機裡的資料' : sError.value || sched.error || '已更新：班表與預班'
 })
 
@@ -239,7 +256,7 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
         <span class="font-bold">{{ sy }} 年 {{ sm }} 月</span>
         <button @click="moveS(1)" class="w-10 h-10 rounded-xl bg-surface border border-hairline text-lg">›</button>
       </div>
-      <SwapInbox v-if="sched.me" ref="inbox" :me="sched.me.id" :name-of="nameOf" @changed="loadSchedule(); syncSchedDocs()" />
+      <SwapInbox v-if="sched.me" ref="inbox" :me="sched.me.id" :name-of="nameOf" @changed="loadSchedule(true); syncSchedDocs()" />
       <p v-if="sLoading" class="py-12 text-center text-sm text-muted">載入中…</p>
       <p v-else-if="sError" class="py-12 text-center text-sm text-danger">{{ sError }}</p>
       <p v-else-if="!rows.length" class="py-12 text-center text-sm text-muted">此月尚無已發布的班表</p>

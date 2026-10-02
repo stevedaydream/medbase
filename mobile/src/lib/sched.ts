@@ -1,6 +1,7 @@
 import { reactive } from 'vue'
 import { gas, ApiError } from './api'
 import { kvGet, kvSet } from './kv'
+import { session } from './session'
 import { syncOnce, type LocalMeta, type PutResult } from '@shared/sched/sync'
 
 /**
@@ -20,6 +21,8 @@ export const sched = reactive({
   lastSyncAt: '',
   error: '',
   conflicts: [] as string[],
+  /** 已發布班表分頁的版本（Schedule_YYYYMM → 時間戳，ADR-022）；null＝雲端尚未提供，班表一律重新下載 */
+  sheetVersions: null as Record<string, string> | null,
 })
 
 const META_KEY = 'sched:meta'
@@ -29,7 +32,7 @@ export const isStaff = () => sched.me?.role === 'scheduler' || sched.me?.role ==
 
 async function persist() {
   await kvSet('sched:docs', local)
-  await kvSet(META_KEY, { me: sched.me, lastSyncAt: sched.lastSyncAt })
+  await kvSet(META_KEY, { me: sched.me, meHis, lastSyncAt: sched.lastSyncAt, sheetVersions: sched.sheetVersions })
 }
 
 function parse(key: string) {
@@ -40,26 +43,45 @@ let loadPromise: Promise<void> | null = null
 export function loadSchedCache(): Promise<void> {
   loadPromise ??= (async () => {
     local = (await kvGet<Record<string, Doc>>('sched:docs')) ?? {}
-    const meta = await kvGet<{ me: SchedMe | null; lastSyncAt: string }>(META_KEY)
+    const meta = await kvGet<{ me: SchedMe | null; meHis?: string; lastSyncAt: string; sheetVersions?: Record<string, string> | null }>(META_KEY)
     sched.me = meta?.me ?? null
+    meHis = meta?.meHis ?? ''
     sched.lastSyncAt = meta?.lastSyncAt ?? ''
+    sched.sheetVersions = meta?.sheetVersions ?? null
     for (const k of Object.keys(local)) parse(k)
     sched.loaded = true
   })()
   return loadPromise
 }
 
-const remote = {
-  list: async () => (await gas<{ docs: { key: string; version: string }[] }>('schList')).docs,
-  get: async (keys: string[]) => {
-    const out: { key: string; version: string; json: string }[] = []
-    for (let i = 0; i < keys.length; i += 100) {
-      out.push(...(await gas<{ docs: { key: string; version: string; json: string }[] }>('schGet', { keys: keys.slice(i, i + 100) })).docs)
-    }
-    return out
-  },
-  put: async (items: { key: string; json: string; base: string | null }[]) =>
-    (await gas<{ results: PutResult[] }>('schPut', { items })).results,
+/** 這次 App 啟動後已向伺服器確認過身分的 HIS 帳號（換帳號或重新啟動才再查 schMe） */
+let meHis = ''
+let meChecked = ''
+
+type ListResult = { docs: { key: string; version: string }[]; sheets?: Record<string, string> }
+
+/** 每次同步一個 remote：版本清單只查一次，同步與清除看不到的文件共用 */
+const makeRemote = () => {
+  let listed: Promise<ListResult> | null = null
+  const listAll = () => (listed ??= gas<ListResult>('schList'))
+  return {
+    listAll,
+    list: async () => (await listAll()).docs,
+    get: remoteGet,
+    put: remotePut,
+  }
+}
+
+async function remoteGet(keys: string[]) {
+  const out: { key: string; version: string; json: string }[] = []
+  for (let i = 0; i < keys.length; i += 100) {
+    out.push(...(await gas<{ docs: { key: string; version: string; json: string }[] }>('schGet', { keys: keys.slice(i, i + 100) })).docs)
+  }
+  return out
+}
+
+async function remotePut(items: { key: string; json: string; base: string | null }[]) {
+  return (await gas<{ results: PutResult[] }>('schPut', { items })).results
 }
 
 const localApi = {
@@ -89,11 +111,19 @@ export function syncSchedDocs(): Promise<void> {
     sched.syncing = true
     sched.error = ''
     try {
-      sched.me = (await gas<{ person: SchedMe | null }>('schMe')).person
+      // 身分每次啟動或換帳號才查一次（角色很少變，省一次往返）
+      const his = session.user?.his ?? ''
+      if (!sched.me || meChecked !== his || meHis !== his) {
+        sched.me = (await gas<{ person: SchedMe | null }>('schMe')).person
+        meChecked = meHis = his
+      }
+      const remote = makeRemote()
       const rep = await syncOnce(localApi, remote)
       sched.conflicts = rep.conflicts
-      // 伺服器不再給看的文件（角色變更）從本機移除
-      const visible = new Set((await remote.list()).map(d => d.key))
+      const listed = await remote.listAll()
+      sched.sheetVersions = listed.sheets ?? null
+      // 伺服器不再給看的文件（角色變更）從本機移除；清單是同步前查的，這次上傳成功的也算看得到
+      const visible = new Set([...listed.docs.map(d => d.key), ...rep.uploaded, ...rep.merged, ...rep.conflicts])
       for (const k of Object.keys(local)) if (!visible.has(k) && !local[k].dirty) { delete local[k]; delete sched.docs[k] }
       sched.offline = false
       sched.lastSyncAt = new Date().toISOString()

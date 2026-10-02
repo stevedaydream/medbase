@@ -495,6 +495,7 @@ function _schPut(docs, items) {
 // Sheets 會把「8-4」這類班別自動轉成日期，寫入前一律設純文字；
 // 已被轉成日期的舊格子，讀出時還原成「月-日」（班別代碼不會是真正的日期）。
 function _writeScheduleSheet(sh, rows) {
+  _scheduleVersionSet(sh.getName());
   const hd = ['姓名'];
   for (let d = 1; d <= 31; d++) hd.push(d + '日');
   sh.clearContents();
@@ -504,6 +505,37 @@ function _writeScheduleSheet(sh, rows) {
     range.setNumberFormat('@');
     range.setValues(rows.map(r => r.map(v => (v == null ? '' : String(v)))));
   }
+}
+
+// 班表分頁版本（ADR-022）：每次寫入記時間戳，schList 一併回傳，手機版本相同就不重新下載
+const SCH_VER_PREFIX = 'schver:';
+
+function _scheduleVersionSet(name) {
+  const v = new Date().toISOString();
+  PropertiesService.getScriptProperties().setProperty(SCH_VER_PREFIX + name, v);
+  return v;
+}
+
+/** 單一分頁的版本；舊分頁還沒有版本時補一個 */
+function _scheduleVersion(name) {
+  return PropertiesService.getScriptProperties().getProperty(SCH_VER_PREFIX + name) || _scheduleVersionSet(name);
+}
+
+/**
+ * 所有班表分頁的版本 { Schedule_YYYYMM: 時間戳 }。
+ * 第一次呼叫時替既有的班表分頁補上版本，之後只讀 Script Properties（不開試算表）。
+ */
+function _scheduleVersions(ss) {
+  const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('schver_init')) {
+    const sid = _getConfigValue('schedule_spreadsheet_id');
+    const tss = sid ? SpreadsheetApp.openById(sid) : ss;
+    tss.getSheets().map(s => s.getName()).filter(n => /^Schedule_\d{6}$/.test(n)).forEach(_scheduleVersion);
+    props.setProperty('schver_init', '1');
+  }
+  const all = props.getProperties(), out = {};
+  Object.keys(all).forEach(k => { if (k.indexOf(SCH_VER_PREFIX) === 0) out[k.slice(SCH_VER_PREFIX.length)] = all[k]; });
+  return out;
 }
 
 function _readScheduleValues(sh, tz) {
@@ -737,7 +769,7 @@ function doPost(e) {
         }
         const sh = tss.getSheetByName(p.sheetName);
         if (!sh) return json({ ok: false, error: '班表分頁不存在' });
-        return json({ ok: true, data: _readScheduleValues(sh, tss.getSpreadsheetTimeZone()) });
+        return json({ ok: true, data: _readScheduleValues(sh, tss.getSpreadsheetTimeZone()), version: _scheduleVersion(p.sheetName) });
       }
 
       // ── 取得 Config 值 ─────────────────────────────────────────
@@ -1384,7 +1416,7 @@ function doPost(e) {
         const docs = _schReadAll(_schSheet(ss));
         const person = p._mobile ? _schPerson(docs, p._mobile.his) : null;
         const keys = Object.keys(docs).filter(k => !p._mobile || _schIsStaff(person) || _schEmployeeKey(k));
-        return json({ ok: true, docs: keys.map(k => ({ key: k, version: docs[k].version })) });
+        return json({ ok: true, docs: keys.map(k => ({ key: k, version: docs[k].version })), sheets: _scheduleVersions(ss) });
       }
       case 'schGet': {
         const docs = _schReadAll(_schSheet(ss));
@@ -1481,7 +1513,7 @@ function handleApi(p) {
         }
         const sh = tss.getSheetByName(p.sheetName);
         if (!sh) return { ok: false, error: '班表分頁不存在' };
-        return { ok: true, data: _readScheduleValues(sh, tss.getSpreadsheetTimeZone()) };
+        return { ok: true, data: _readScheduleValues(sh, tss.getSpreadsheetTimeZone()), version: _scheduleVersion(p.sheetName) };
       }
       case 'getConfig': {
         const cfg = ss.getSheetByName('Config');

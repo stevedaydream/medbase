@@ -126,6 +126,7 @@ describe("GAS 班表分頁：8-4 不被當成日期", () => {
   it("讀取時把被 Sheets 轉成日期的格子還原為「月-日」；寫入前設純文字", () => {
     const ctx: Record<string, unknown> = {
       Utilities: { formatDate: (d: Date) => `${d.getMonth() + 1}-${d.getDate()}` },
+      PropertiesService: { getScriptProperties: () => ({ setProperty() {}, getProperty: () => null }) },
     };
     vm.createContext(ctx);
     vm.runInContext(readFileSync("gas/scheduler.gs", "utf8") + "\n;this.api = { _readScheduleValues, _writeScheduleSheet };", ctx);
@@ -136,9 +137,39 @@ describe("GAS 班表分頁：8-4 不被當成日期", () => {
     expect(api._readScheduleValues(sheet, "Asia/Taipei")).toEqual([["姓名", "1日"], ["王子建", "8-4"], ["黃郁芳", "D"]]);
     const formats: string[] = [];
     let written: unknown[][] = [];
-    const out = { clearContents() {}, getRange: (r: number) => ({ setValues(v: unknown[][]) { if (r === 2) written = v; }, setNumberFormat(fmt: string) { formats.push(fmt); return this; } }) };
+    const out = { getName: () => "Schedule_202611", clearContents() {}, getRange:(r: number) => ({ setValues(v: unknown[][]) { if (r === 2) written = v; }, setNumberFormat(fmt: string) { formats.push(fmt); return this; } }) };
     api._writeScheduleSheet(out, [["王子建", "8-4", null]]);
     expect(formats).toEqual(["@"]);
     expect(written).toEqual([["王子建", "8-4", ""]]);
+  });
+});
+
+describe("GAS 班表分頁版本（ADR-022）", () => {
+  function gasWithProps(sheets: string[]) {
+    const store: Record<string, string> = {};
+    const props = {
+      setProperty: (k: string, v: string) => { store[k] = v; },
+      getProperty: (k: string) => store[k] ?? null,
+      getProperties: () => ({ ...store }),
+    };
+    const ss = { getSheets: () => sheets.map(n => ({ getName: () => n })) };
+    const ctx: Record<string, unknown> = { PropertiesService: { getScriptProperties: () => props } };
+    vm.createContext(ctx);
+    vm.runInContext(readFileSync("gas/scheduler.gs", "utf8")
+      + "\n;_getConfigValue = () => '';this.api = { _scheduleVersions, _scheduleVersion, _writeScheduleSheet };", ctx);
+    return { api: ctx.api as Api, store, ss };
+  }
+  it("第一次列出時替既有班表分頁補版本；寫入班表時更新版本", async () => {
+    const { api, store, ss } = gasWithProps(["Schedule_202610", "Config", "Schedule_202611"]);
+    const v1 = api._scheduleVersions(ss) as Record<string, string>;
+    expect(Object.keys(v1).sort()).toEqual(["Schedule_202610", "Schedule_202611"]);
+    expect(store.schver_init).toBe("1");
+    await new Promise(r => setTimeout(r, 5));
+    const sheet = { getName: () => "Schedule_202611", clearContents() {}, getRange: () => ({ setValues() {}, setNumberFormat() { return this; } }) };
+    api._writeScheduleSheet(sheet, []);
+    const v2 = api._scheduleVersions(ss) as Record<string, string>;
+    expect(v2.Schedule_202611 > v1.Schedule_202611).toBe(true);
+    expect(v2.Schedule_202610).toBe(v1.Schedule_202610);
+    expect(api._scheduleVersion("Schedule_202612")).toBeTruthy();
   });
 });
