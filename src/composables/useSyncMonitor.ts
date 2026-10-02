@@ -16,6 +16,7 @@ export const SYNC_TABLE_META: Record<string, { label: string }> = {
   shiftMemos:    { label: "規則備忘錄" },
   emergency:     { label: "數值判讀" },
   handbook:      { label: "工作手冊" },
+  sdm:           { label: "SDM 範本" },
   sets:          { label: "套組管理" },
   surgeryTypes:  { label: "手術術式" },
   npDuty:        { label: "值班 NP" },

@@ -6,9 +6,10 @@ import SurgeryView from "@/views/SurgeryView.vue";
 import DiseaseView from "@/views/DiseaseView.vue";
 import ExaminationView from "@/views/ExaminationView.vue";
 import SetsView from "@/views/SetsView.vue";
+import SdmView from "@/views/SdmView.vue";
 
 /**
- * 套組管理：處方套組、手術處置、疾病常規、檢查處置、品項套組以分頁標籤合併。
+ * 套組管理：處方套組、手術處置、疾病常規、檢查處置、品項套組、SDM 範本以分頁標籤合併。
  * 分頁記在網址 ?tab=，舊網址（/prescriptions 等）由 router 轉址到對應分頁。
  * KeepAlive 保留各分頁的選取與搜尋狀態。
  */
@@ -18,6 +19,7 @@ const TABS = [
   { key: "disease",       label: "疾病常規", icon: "🏥", component: DiseaseView },
   { key: "examination",   label: "檢查處置", icon: "🔬", component: ExaminationView },
   { key: "sets",          label: "品項套組", icon: "🗂️", component: SetsView },
+  { key: "sdm",           label: "SDM",      icon: "📝", component: SdmView },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 

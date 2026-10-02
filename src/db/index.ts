@@ -58,6 +58,7 @@ const SYNC_UID_TABLES: { table: string; natural: string; js: (r: Row) => string 
   { table: "ahk_scripts",   natural: "name", js: r => txt(r.name) },
   { table: "emergency_protocols", natural: "name", js: r => txt(r.name) },
   { table: "handbook",      natural: "name", js: r => txt(r.name) },
+  { table: "sdm_templates", natural: "name", js: r => txt(r.name) },
 ];
 
 /**
@@ -385,6 +386,16 @@ async function initSchema(db: Database) {
   // 隨身工作手冊（ADR-018）：整篇內容存 JSON（src/shared/handbook/types.ts HbSpec）
   await db.execute(`
     CREATE TABLE IF NOT EXISTS handbook (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      spec TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+
+  // SDM 範本（ADR-021）：整份內容存 JSON（src/shared/sdm/types.ts SdmSpec）
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS sdm_templates (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       spec TEXT,

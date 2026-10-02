@@ -7,6 +7,7 @@ const SYNC_META: Record<string, { label: string; route: string }> = {
   shiftMemos:    { label: "規則備忘錄", route: "/shift-memos" },
   emergency:     { label: "數值判讀",   route: "/care?tab=value" },
   handbook:      { label: "工作手冊",   route: "/care" },
+  sdm:           { label: "SDM 範本",   route: "/sets" },
   ahk:           { label: "AHK 管理",   route: "/ahk" },
   prescriptions: { label: "處方套組",   route: "/sets" },
   items:         { label: "自費品項",   route: "/items" },
