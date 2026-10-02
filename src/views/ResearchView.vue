@@ -183,12 +183,12 @@ function badgeClass(s: string): string {
       <div class="flex-1"></div>
 
       <select v-model="studyType" @change="load()"
-        class="px-3 py-1.5 rounded-lg bg-sunken border border-hairline text-fg-secondary text-2xs outline-none focus:border-accent/50 cursor-pointer">
+        class="px-3 py-1.5 rounded-lg bg-sunken border border-hairline text-fg-secondary text-xs outline-none focus:border-accent/50 cursor-pointer">
         <option value="">所有研究類型</option>
         <option v-for="t in STUDY_TYPES" :key="t.key" :value="t.key">{{ t.label }}</option>
       </select>
 
-      <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sunken border border-hairline text-2xs text-fg-secondary cursor-pointer">
+      <label class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sunken border border-hairline text-xs text-fg-secondary cursor-pointer">
         <input type="checkbox" v-model="archived" @change="load()" class="accent-accent" />
         已封存
       </label>
@@ -210,7 +210,7 @@ function badgeClass(s: string): string {
         </template>
         <template v-else>
           <p class="text-fg-secondary text-xs font-semibold">還沒有論文專案</p>
-          <p class="text-muted text-2xs mt-1">從選題開始，把一篇論文的所有非寫作事務放進來管理</p>
+          <p class="text-muted text-xs mt-1">從選題開始，把一篇論文的所有非寫作事務放進來管理</p>
           <button @click="openCreate"
             class="mt-4 px-5 py-2.5 rounded-xl bg-accent text-white text-xs font-bold hover:bg-accent-hover shadow-lg shadow-accent/10 cursor-pointer">
             建立第一篇
@@ -221,11 +221,11 @@ function badgeClass(s: string): string {
       <table v-else class="w-full text-left border-collapse">
         <thead class="sticky top-0 bg-surface z-10">
           <tr class="border-b border-hairline">
-            <th class="px-6 py-2.5 text-2xs font-bold text-muted uppercase tracking-widest">標題</th>
-            <th class="px-3 py-2.5 text-2xs font-bold text-muted uppercase tracking-widest w-24">階段</th>
-            <th class="px-3 py-2.5 text-2xs font-bold text-muted uppercase tracking-widest w-28">類型</th>
-            <th class="px-3 py-2.5 text-2xs font-bold text-muted uppercase tracking-widest w-44">目前期刊</th>
-            <th class="px-3 py-2.5 text-2xs font-bold text-muted uppercase tracking-widest w-28 text-right">距上次變更</th>
+            <th class="px-6 py-2.5 text-xs font-bold text-muted uppercase tracking-widest">標題</th>
+            <th class="px-3 py-2.5 text-xs font-bold text-muted uppercase tracking-widest w-24">階段</th>
+            <th class="px-3 py-2.5 text-xs font-bold text-muted uppercase tracking-widest w-28">類型</th>
+            <th class="px-3 py-2.5 text-xs font-bold text-muted uppercase tracking-widest w-44">目前期刊</th>
+            <th class="px-3 py-2.5 text-xs font-bold text-muted uppercase tracking-widest w-28 text-right">距上次變更</th>
             <th class="px-6 py-2.5 text-2xs font-bold text-muted uppercase tracking-widest w-24"></th>
           </tr>
         </thead>
@@ -243,15 +243,15 @@ function badgeClass(s: string): string {
           >
             <td class="px-6 py-2.5">
               <div class="text-xs text-fg font-semibold leading-snug">{{ r.title }}</div>
-              <div v-if="r.title_zh" class="text-2xs text-muted mt-0.5">{{ r.title_zh }}</div>
+              <div v-if="r.title_zh" class="text-xs text-muted mt-0.5">{{ r.title_zh }}</div>
             </td>
             <td class="px-3 py-2.5">
               <span class="inline-block px-2 py-0.5 rounded-md text-2xs font-bold border" :class="badgeClass(r.stage)">
                 {{ stageMeta(r.stage).label }}
               </span>
             </td>
-            <td class="px-3 py-2.5 text-2xs text-fg-secondary">{{ studyTypeLabel(r.study_type) }}</td>
-            <td class="px-3 py-2.5 text-2xs text-fg-secondary truncate" :title="r.journal_name ?? ''">
+            <td class="px-3 py-2.5 text-xs text-fg-secondary">{{ studyTypeLabel(r.study_type) }}</td>
+            <td class="px-3 py-2.5 text-xs text-fg-secondary truncate" :title="r.journal_name ?? ''">
               {{ r.journal_name ?? "—" }}
             </td>
             <td class="px-3 py-2.5 text-2xs text-right font-mono tabular-nums"
@@ -260,7 +260,7 @@ function badgeClass(s: string): string {
             </td>
             <td class="px-6 py-2.5">
               <span v-if="isStalled(r)"
-                class="inline-block px-2 py-0.5 rounded-md text-2xs font-bold border bg-warning/10 border-warning/30 text-warning"
+                class="inline-block px-2 py-0.5 rounded-md text-xs font-bold border bg-warning/10 border-warning/30 text-warning"
                 :title="r.stage === 'under_review' ? '審稿中超過 90 天' : '超過 180 天無進展'">
                 停滯
               </span>
@@ -271,7 +271,7 @@ function badgeClass(s: string): string {
     </div>
 
     <!-- Footer hint -->
-    <div v-if="rows.length" class="px-6 py-2 border-t border-hairline bg-surface shrink-0 text-2xs text-muted">
+    <div v-if="rows.length" class="px-6 py-2 border-t border-hairline bg-surface shrink-0 text-xs text-muted">
       ↑ ↓ 移動　Enter 開啟
     </div>
   </div>
@@ -290,13 +290,13 @@ function badgeClass(s: string): string {
 
         <div class="px-5 py-4 space-y-3.5 overflow-y-auto">
           <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">論文標題（英文）*</label>
+            <label class="text-xs font-bold text-muted mb-1 block">論文標題（英文）*</label>
             <input v-model="form.title" autofocus
               class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50"
               placeholder="A rare presentation of…" />
           </div>
           <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">中文暫稱</label>
+            <label class="text-xs font-bold text-muted mb-1 block">中文暫稱</label>
             <input v-model="form.title_zh"
               class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50"
               placeholder="方便搜尋用" />
@@ -308,14 +308,14 @@ function badgeClass(s: string): string {
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">研究類型</label>
+              <label class="text-xs font-bold text-muted mb-1 block">研究類型</label>
               <select v-model="form.study_type"
                 class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50 cursor-pointer">
                 <option v-for="t in STUDY_TYPES" :key="t.key" :value="t.key">{{ t.label }}</option>
               </select>
             </div>
             <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">科別</label>
+              <label class="text-xs font-bold text-muted mb-1 block">科別</label>
               <input v-model="form.specialty"
                 class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50"
                 placeholder="骨科 / 整外 / 泌尿…" />
@@ -324,14 +324,14 @@ function badgeClass(s: string): string {
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">起始階段</label>
+              <label class="text-xs font-bold text-muted mb-1 block">起始階段</label>
               <select v-model="form.stage"
                 class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50 cursor-pointer">
                 <option v-for="s in ALL_STAGES" :key="s.key" :value="s.key as Stage">{{ s.label }}</option>
               </select>
             </div>
             <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">IRB 案號</label>
+              <label class="text-xs font-bold text-muted mb-1 block">IRB 案號</label>
               <input v-model="form.irb_number"
                 class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50"
                 placeholder="選填" />
@@ -339,7 +339,7 @@ function badgeClass(s: string): string {
           </div>
 
           <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">本機專案資料夾</label>
+            <label class="text-xs font-bold text-muted mb-1 block">本機專案資料夾</label>
             <input v-model="form.repo_path"
               class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono focus:outline-none focus:border-accent/50"
               placeholder="I:\paper\case-report-01（選填）" />
@@ -351,7 +351,7 @@ function badgeClass(s: string): string {
               ? 'bg-success/10 border-success/30'
               : 'bg-warning/10 border-warning/30'">
             <input type="checkbox" v-model="form.deident_confirmed" class="mt-0.5 accent-accent shrink-0" />
-            <span class="text-2xs leading-relaxed"
+            <span class="text-xs leading-relaxed"
               :class="form.deident_confirmed ? 'text-success' : 'text-warning'">
               本專案於本模組中不會輸入任何可識別病患資訊（姓名、病歷號、身分證號、完整生日、住院日期、影像檔）。
             </span>

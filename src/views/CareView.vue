@@ -64,7 +64,7 @@ function toast(msg: string) {
       <div class="w-64 shrink-0 bg-surface rounded-xl border border-hairline p-2 overflow-y-auto">
         <button v-for="t in ALL_TOOLS" :key="t.id" @click="go({ tab: 'tools', t: t.id })" class="w-full text-left px-3 py-2.5 rounded-lg text-sm"
           :class="tool.id === t.id ? 'bg-accent/10 text-accent font-bold' : 'text-fg-secondary hover:text-fg'">
-          {{ t.name }}<span class="block text-2xs text-muted truncate">{{ t.desc }}</span>
+          {{ t.name }}<span class="block text-xs text-muted truncate">{{ t.desc }}</span>
         </button>
       </div>
       <FormulaPanel v-if="formula" :formula="formula" :presets="dilutions" class="flex-1" />

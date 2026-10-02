@@ -233,7 +233,7 @@ const toggleCls = (on: boolean) => on ? "bg-accent/10 border-accent/30 text-acce
   <div class="flex h-full bg-surface rounded-2xl border border-hairline overflow-hidden text-fg" @click="menu = null">
     <!-- 側欄 -->
     <aside v-if="showSide" class="w-60 shrink-0 flex flex-col border-r border-hairline bg-sunken">
-      <div class="flex shrink-0 border-b border-hairline text-2xs font-bold">
+      <div class="flex shrink-0 border-b border-hairline text-xs font-bold">
         <button v-for="p in ([['files', '檔案'], ['outline', '大綱'], ['recent', '最近']] as const)" :key="p[0]" @click="panel = p[0]"
           class="flex-1 py-2 cursor-pointer" :class="panel === p[0] ? 'text-accent border-b-2 border-accent' : 'text-muted hover:text-fg'">{{ p[1] }}</button>
       </div>
@@ -283,7 +283,7 @@ const toggleCls = (on: boolean) => on ? "bg-accent/10 border-accent/30 text-acce
       </div>
 
       <!-- 檔案動作與模式 -->
-      <div class="flex items-center gap-1.5 px-4 py-1.5 border-b border-hairline shrink-0 text-2xs flex-wrap">
+      <div class="flex items-center gap-1.5 px-4 py-1.5 border-b border-hairline shrink-0 text-xs flex-wrap">
         <button @click="openWithDialog" class="px-2.5 py-1 rounded-lg border border-hairline text-muted hover:text-fg cursor-pointer">開啟（Ctrl+O）</button>
         <button @click="save()" :disabled="!activeTab" class="px-2.5 py-1 rounded-lg border border-hairline text-muted hover:text-fg cursor-pointer">儲存（Ctrl+S）</button>
         <button @click="save(true)" :disabled="!activeTab" class="px-2.5 py-1 rounded-lg border border-hairline text-muted hover:text-fg cursor-pointer">另存新檔</button>
@@ -332,7 +332,7 @@ const toggleCls = (on: boolean) => on ? "bg-accent/10 border-accent/30 text-acce
       </div>
 
       <!-- 狀態列 -->
-      <div v-if="activeTab && stats" class="flex items-center gap-4 px-4 py-1 border-t border-hairline bg-sunken text-2xs text-muted shrink-0">
+      <div v-if="activeTab && stats" class="flex items-center gap-4 px-4 py-1 border-t border-hairline bg-sunken text-xs text-muted shrink-0">
         <span class="flex-1 min-w-0 truncate">{{ activeTab.path ?? '尚未儲存' }}</span>
         <span>{{ stats.words.toLocaleString() }} 字</span>
         <span>{{ stats.chars.toLocaleString() }} 字元</span>

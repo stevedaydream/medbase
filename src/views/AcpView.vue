@@ -148,7 +148,7 @@ const tabs = [
           <!-- Total Score Card -->
           <div class="col-span-4 bg-surface border border-hairline rounded-2xl p-5 flex flex-col justify-center items-center relative overflow-hidden group shadow-lg">
             <div class="absolute -right-8 -top-8 w-24 h-24 rounded-full bg-accent/5 blur-2xl group-hover:scale-150 transition-all duration-700"></div>
-            <p class="text-2xs font-black text-muted mb-2">總完成率 (Overall Completion)</p>
+            <p class="text-xs font-black text-muted mb-2">總完成率 (Overall Completion)</p>
             <p class="text-4xl font-black font-mono tracking-tight drop-shadow-[0_0_15px_rgba(245,158,11,0.1)] transition-colors" 
                :class="Number(totalStats.rate) >= 80 ? 'text-success drop-shadow-[0_0_15px_rgba(52,211,153,0.15)]' : 'text-warning'">
               {{ totalStats.rate }}<span class="text-lg font-bold ml-0.5">%</span>
@@ -187,7 +187,7 @@ const tabs = [
                   </p>
                 </div>
                 <button @click.stop="saveRecord" v-if="t.key === 'procedure'" 
-                        class="px-3 py-1.5 rounded-xl text-2xs font-bold text-white bg-accent hover:bg-accent border border-accent/30 transition-all shadow-lg shadow-accent/10 hover:shadow-accent/20 active:scale-95 flex items-center gap-1 cursor-pointer">
+                        class="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-accent hover:bg-accent border border-accent/30 transition-all shadow-lg shadow-accent/10 hover:shadow-accent/20 active:scale-95 flex items-center gap-1 cursor-pointer">
                   <span>💾</span>
                   <span>儲存</span>
                 </button>
@@ -243,14 +243,14 @@ const tabs = [
               <!-- Status Buttons -->
               <div class="flex bg-sunken p-1 rounded-xl border border-hairline shrink-0 shadow-inner">
                 <button @click="evalStates[item.id].status = 'prescribed'" 
-                        class="px-4 py-1.5 rounded-lg text-2xs font-black transition-all cursor-pointer"
+                        class="px-4 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer"
                         :class="evalStates[item.id]?.status === 'prescribed' 
                           ? 'bg-success border border-success/20 text-white shadow-lg shadow-success/10' 
                           : 'text-muted hover:text-fg-secondary'">
                   已開
                 </button>
                 <button @click="evalStates[item.id].status = 'unprescribed'" 
-                        class="px-4 py-1.5 rounded-lg text-2xs font-black transition-all cursor-pointer"
+                        class="px-4 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer"
                         :class="evalStates[item.id]?.status === 'unprescribed' 
                           ? 'bg-elevated border border-hairline text-fg-secondary shadow-inner' 
                           : 'text-muted hover:text-fg-secondary'">

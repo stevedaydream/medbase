@@ -164,7 +164,7 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
       <div v-if="!selected" class="flex-1 flex flex-col items-center justify-center gap-3 text-muted py-12">
         <span class="text-4xl animate-pulse">🔪</span>
         <p class="text-xs font-black">請選擇術式，或點擊 ＋ 新增</p>
-        <span class="text-2xs text-center text-muted max-w-xs mt-1 leading-relaxed">
+        <span class="text-xs text-center text-muted max-w-xs mt-1 leading-relaxed">
           收錄各術式術前禁食/備血/Consent、術後引流/換藥/飲食等 Order Set。
         </span>
       </div>
@@ -205,7 +205,7 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
         <!-- Tab Content -->
         <div class="flex-1 flex flex-col min-h-0 space-y-4">
           <div class="bg-sunken border border-hairline rounded-2xl p-5 flex flex-col flex-1 overflow-hidden shadow-inner">
-            <p class="text-2xs font-black text-muted mb-4">
+            <p class="text-xs font-black text-muted mb-4">
               {{ activeTab === 'pre' ? '術前醫囑參考 (Pre-op Orders)' : '術後醫囑參考 (Post-op Orders)' }}
             </p>
             <div class="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
@@ -245,13 +245,13 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
           <div class="overflow-y-auto px-6 py-5 space-y-4 flex-1 custom-scrollbar">
             <div class="flex gap-4">
               <div class="flex-1">
-                <label class="text-muted text-2xs font-black block mb-1.5">術式名稱 <span class="text-danger">*</span></label>
+                <label class="text-muted text-xs font-black block mb-1.5">術式名稱 <span class="text-danger">*</span></label>
                 <input v-model="form.name"
                   class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-accent/50 font-bold"
                   placeholder="如：腹腔鏡膽囊切除、TKA、右半大腸切除" />
               </div>
               <div class="w-48">
-                <label class="text-muted text-2xs font-black block mb-1.5">科別</label>
+                <label class="text-muted text-xs font-black block mb-1.5">科別</label>
                 <input v-model="form.category"
                   class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-accent/50 font-bold"
                   placeholder="如：一般外科" />
@@ -259,7 +259,7 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
             </div>
             
             <div>
-              <label class="text-muted text-2xs font-black block mb-1.5">備註說明</label>
+              <label class="text-muted text-xs font-black block mb-1.5">備註說明</label>
               <input v-model="form.indication"
                 class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-accent/50 font-bold"
                 placeholder="如：限擇期手術，急診另行修改" />
@@ -268,7 +268,7 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
             <!-- 術前/術後並排 -->
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="text-muted text-2xs font-black block mb-1.5">
+                <label class="text-muted text-xs font-black block mb-1.5">
                   術前常規（每行一筆）
                   <span class="text-muted font-mono font-bold ml-1">({{ preCount }})</span>
                 </label>
@@ -277,7 +277,7 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
                   class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs font-mono outline-none focus:border-accent/50 resize-none custom-scrollbar font-medium" />
               </div>
               <div>
-                <label class="text-muted text-2xs font-black block mb-1.5">
+                <label class="text-muted text-xs font-black block mb-1.5">
                   術後常規（每行一筆）
                   <span class="text-muted font-mono font-bold ml-1">({{ postCount }})</span>
                 </label>
@@ -288,7 +288,7 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
             </div>
 
             <div>
-              <label class="text-muted text-2xs font-black block mb-1.5">備註</label>
+              <label class="text-muted text-xs font-black block mb-1.5">備註</label>
               <textarea v-model="form.notes" rows="2"
                 class="w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-accent/50 resize-none custom-scrollbar font-medium" />
             </div>

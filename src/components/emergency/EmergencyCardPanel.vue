@@ -138,7 +138,7 @@ const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, 
         </button>
       </div>
       <p v-if="t.notes" class="text-xs text-muted">{{ t.notes }}</p>
-      <p v-if="tierRefs(spec, t).length" class="text-2xs text-muted flex flex-wrap gap-x-3 gap-y-1">
+      <p v-if="tierRefs(spec, t).length" class="text-xs text-muted flex flex-wrap gap-x-3 gap-y-1">
         <span>📚 依據：</span>
         <button v-for="r in tierRefs(spec, t)" :key="r.url" @click="openUrl(r.url)" class="underline hover:text-accent text-left">[{{ spec.refs.indexOf(r) + 1 }}] {{ r.title }}</button>
       </p>
@@ -184,7 +184,7 @@ const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, 
     </div>
 
     <!-- 依據 -->
-    <div class="border-t border-hairline pt-3 text-2xs text-muted space-y-1">
+    <div class="border-t border-hairline pt-3 text-xs text-muted space-y-1">
       <p>依據：{{ spec.source || "—" }}<template v-if="spec.reviewer">　審核：{{ spec.reviewer }}</template><template v-if="spec.effective">　生效：{{ spec.effective }}</template></p>
       <p v-for="(r, i) in spec.refs" :key="r.url">
         <button class="underline hover:text-accent text-left" @click="openUrl(r.url)">[{{ i + 1 }}] {{ r.title }}</button>

@@ -134,43 +134,43 @@ const field = "w-full px-2.5 py-1.5 rounded-lg bg-sunken border border-hairline 
               class="text-left px-3 py-2.5 rounded-xl border cursor-pointer"
               :class="kind === k.key ? 'border-accent bg-accent/5' : 'border-hairline hover:border-accent/40'">
               <span class="block text-sm font-black" :class="kind === k.key ? 'text-accent' : 'text-fg'">{{ k.label }}</span>
-              <span class="block text-2xs text-muted mt-0.5 leading-snug">{{ k.desc }}</span>
+              <span class="block text-xs text-muted mt-0.5 leading-snug">{{ k.desc }}</span>
             </button>
           </div>
 
           <section class="space-y-3">
             <label class="block">
-              <span class="text-2xs font-bold text-muted">文件標題</span>
+              <span class="text-xs font-bold text-muted">文件標題</span>
               <input v-model="s.title" :class="field" />
             </label>
             <template v-if="usesPage">
               <p class="text-xs font-black text-fg-secondary pt-1">版面與分頁</p>
               <div class="grid grid-cols-4 gap-3">
-                <label class="block"><span class="text-2xs font-bold text-muted">紙張</span>
+                <label class="block"><span class="text-xs font-bold text-muted">紙張</span>
                   <select v-model="s.paper" :class="field"><option v-for="p in PAPERS" :key="p" :value="p">{{ p }}</option></select></label>
-                <label class="block"><span class="text-2xs font-bold text-muted">方向</span>
+                <label class="block"><span class="text-xs font-bold text-muted">方向</span>
                   <select v-model="s.landscape" :class="field"><option :value="false">直式</option><option :value="true">橫式</option></select></label>
-                <label class="block"><span class="text-2xs font-bold text-muted">字級（pt）</span>
+                <label class="block"><span class="text-xs font-bold text-muted">字級（pt）</span>
                   <input v-model.number="s.fontSize" type="number" min="8" max="20" step="0.5" :class="field" /></label>
-                <label class="block"><span class="text-2xs font-bold text-muted">行距</span>
+                <label class="block"><span class="text-xs font-bold text-muted">行距</span>
                   <input v-model.number="s.lineHeight" type="number" min="1" max="3" step="0.1" :class="field" /></label>
               </div>
               <div class="grid grid-cols-4 gap-3">
                 <label v-for="side in (['top', 'right', 'bottom', 'left'] as const)" :key="side" class="block">
-                  <span class="text-2xs font-bold text-muted">{{ { top: '上', right: '右', bottom: '下', left: '左' }[side] }}邊界（mm）</span>
+                  <span class="text-xs font-bold text-muted">{{ { top: '上', right: '右', bottom: '下', left: '左' }[side] }}邊界（mm）</span>
                   <input v-model.number="s.margin[side]" type="number" min="0" max="60" :class="field" />
                 </label>
               </div>
               <div class="grid grid-cols-3 gap-3">
-                <label class="block"><span class="text-2xs font-bold text-muted">頁首文字</span>
+                <label class="block"><span class="text-xs font-bold text-muted">頁首文字</span>
                   <input v-model="s.header" placeholder="不顯示" :class="field" /></label>
-                <label class="block"><span class="text-2xs font-bold text-muted">頁尾文字</span>
+                <label class="block"><span class="text-xs font-bold text-muted">頁尾文字</span>
                   <input v-model="s.footer" placeholder="不顯示" :class="field" /></label>
-                <label class="block"><span class="text-2xs font-bold text-muted">頁碼</span>
+                <label class="block"><span class="text-xs font-bold text-muted">頁碼</span>
                   <select v-model="s.pageNumber" :class="field"><option v-for="p in PAGE_NUMBERS" :key="p.v" :value="p.v">{{ p.label }}</option></select></label>
               </div>
               <div class="grid grid-cols-3 gap-3 items-end">
-                <label class="block"><span class="text-2xs font-bold text-muted">標題前自動換頁</span>
+                <label class="block"><span class="text-xs font-bold text-muted">標題前自動換頁</span>
                   <select v-model="s.headingBreak" :class="field">
                     <option :value="0">不換頁</option><option :value="1">一級標題</option>
                     <option :value="2">一、二級標題</option><option :value="3">一至三級標題</option>
@@ -179,7 +179,7 @@ const field = "w-full px-2.5 py-1.5 rounded-lg bg-sunken border border-hairline 
                   <input type="checkbox" v-model="s.toc" class="accent-accent" />在文件開頭插入目錄
                 </label>
               </div>
-              <p class="text-2xs text-muted leading-relaxed">
+              <p class="text-xs text-muted leading-relaxed">
                 手動分頁：在內文工具列按「⤓」插入分頁標記。表格、圖片、公式、程式碼區塊不會被切到兩頁，標題不會單獨留在頁尾。
                 <template v-if="kind === 'pdf'">按「匯出」後開啟列印對話框，右側預覽就是實際的 PDF 分頁。</template>
               </p>

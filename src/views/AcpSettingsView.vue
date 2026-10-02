@@ -172,7 +172,7 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
 
         <div class="flex-1 flex flex-col overflow-hidden">
           <div class="flex items-center gap-2 mb-4 shrink-0">
-            <span class="text-2xs font-black text-muted">目前類別 /</span>
+            <span class="text-xs font-black text-muted">目前類別 /</span>
             <h4 class="text-xs font-black text-fg-secondary">管理「{{ tabs.find(t=>t.key===activeTab)?.label }}」項目細項</h4>
           </div>
           
@@ -198,11 +198,11 @@ const tabs: { key: CategoryType; label: string; icon: string }[] = [
                        class="flex-1 bg-sunken border border-accent/50 rounded-lg px-3 py-1.5 text-xs text-fg outline-none" 
                        autofocus />
                 <button @click="updateItem" 
-                        class="text-2xs bg-accent hover:bg-accent text-white px-3 py-1.5 rounded-lg font-bold cursor-pointer transition-colors">
+                        class="text-xs bg-accent hover:bg-accent text-white px-3 py-1.5 rounded-lg font-bold cursor-pointer transition-colors">
                   儲存
                 </button>
                 <button @click="editingItemId = null" 
-                        class="text-2xs text-muted hover:text-fg-secondary px-2 font-bold cursor-pointer">
+                        class="text-xs text-muted hover:text-fg-secondary px-2 font-bold cursor-pointer">
                   取消
                 </button>
               </div>

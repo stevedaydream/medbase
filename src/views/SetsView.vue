@@ -430,11 +430,11 @@ async function doDelete() {
             <div class="flex items-center gap-2.5 mt-2 flex-wrap">
               <span v-if="activeSet.phys_name" class="text-2xs font-bold bg-surface border border-hairline text-fg-secondary px-2 py-0.5 rounded-full">👨‍⚕️ {{ activeSet.phys_name }}</span>
               <span v-if="activeSet.surgery_type" class="text-2xs font-bold bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 rounded-full">🔪 {{ activeSet.surgery_type }}</span>
-              <span v-if="activeSet.notes" class="text-2xs text-muted italic max-w-sm truncate">{{ activeSet.notes }}</span>
+              <span v-if="activeSet.notes" class="text-xs text-muted italic max-w-sm truncate">{{ activeSet.notes }}</span>
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
-            <span class="text-2xs font-bold text-muted mr-2 bg-sunken px-2 py-1 border border-hairline rounded-lg">
+            <span class="text-xs font-bold text-muted mr-2 bg-sunken px-2 py-1 border border-hairline rounded-lg">
               {{ setItems.filter(i => !i.is_optional).length }} 必用 /
               {{ setItems.filter(i => i.is_optional).length }} PRN
             </span>
@@ -453,7 +453,7 @@ async function doDelete() {
         <div class="flex-1 overflow-auto custom-scrollbar">
           <table class="w-full text-xs border-collapse">
             <thead class="sticky top-0 bg-surface border-b border-hairline z-10">
-              <tr class="text-fg-secondary text-2xs font-black">
+              <tr class="text-fg-secondary text-xs font-black">
                 <th class="text-left px-5 py-4 font-bold">院內碼</th>
                 <th class="text-left px-5 py-4 font-bold">品名</th>
                 <th class="text-center px-4 py-4 font-bold w-28">數量</th>
@@ -534,7 +534,7 @@ async function doDelete() {
         <div class="px-5 py-4 space-y-4">
           <!-- 醫師：先選科別，再選醫師 -->
           <div>
-            <label class="text-2xs font-black text-muted mb-1.5 block">主治醫師（先選科別）</label>
+            <label class="text-xs font-black text-muted mb-1.5 block">主治醫師（先選科別）</label>
             <div class="grid grid-cols-[2fr_3fr] gap-2">
               <div class="relative">
                 <select v-model="physDept" @change="onDeptChange"
@@ -565,19 +565,19 @@ async function doDelete() {
           </div>
           <!-- 術式 -->
           <div>
-            <label class="text-2xs font-black text-muted mb-1.5 block">術式名稱</label>
+            <label class="text-xs font-black text-muted mb-1.5 block">術式名稱</label>
             <input v-model="setForm.surgery_type" @input="updateSetName" placeholder="如 TKR / THR / 肩關節鏡…"
               class="w-full px-3.5 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50 font-bold" />
           </div>
           <!-- 套組名稱 -->
           <div>
-            <label class="text-2xs font-black text-muted mb-1.5 block">套組顯示名稱 *</label>
+            <label class="text-xs font-black text-muted mb-1.5 block">套組顯示名稱 *</label>
             <input v-model="setForm.name" placeholder="系統自動產生，或手動覆寫"
               class="w-full px-3.5 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50 font-bold" />
           </div>
           <!-- 備註 -->
           <div>
-            <label class="text-2xs font-black text-muted mb-1.5 block">備註說明</label>
+            <label class="text-xs font-black text-muted mb-1.5 block">備註說明</label>
             <input v-model="setForm.notes" placeholder="其他配製或備註"
               class="w-full px-3.5 py-2 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50 font-bold" />
           </div>
@@ -599,7 +599,7 @@ async function doDelete() {
         <div class="flex items-center justify-between px-5 py-4 border-b border-hairline bg-sunken shrink-0">
           <div>
             <h3 class="text-xs font-black text-fg">加入品項到「{{ activeSet?.name }}」</h3>
-            <p class="text-2xs text-muted mt-0.5">搜尋後勾選，可換關鍵字繼續找；勾好的品項會留在右側，最後一次加入。</p>
+            <p class="text-xs text-muted mt-0.5">搜尋後勾選，可換關鍵字繼續找；勾好的品項會留在右側，最後一次加入。</p>
           </div>
           <button @click="showAddItem = false" class="text-muted hover:text-fg text-xl leading-none cursor-pointer">×</button>
         </div>
@@ -631,7 +631,7 @@ async function doDelete() {
                     <span class="block text-xs text-fg font-bold truncate">{{ s.name_zh || s.name_en }}</span>
                     <span v-if="s.name_zh && s.name_en" class="block text-2xs text-muted truncate">{{ s.name_en }}</span>
                   </span>
-                  <span v-if="inSet.has(s.hospital_code)" class="text-2xs text-muted shrink-0">已在套組</span>
+                  <span v-if="inSet.has(s.hospital_code)" class="text-xs text-muted shrink-0">已在套組</span>
                   <span v-else-if="s.purpose" class="text-2xs bg-accent/10 text-accent px-2 py-0.5 rounded-full shrink-0 max-w-24 truncate">{{ s.purpose }}</span>
                   <span class="text-success font-mono text-xs shrink-0 font-bold w-16 text-right">{{ s.price ? `$${s.price.toLocaleString()}` : "" }}</span>
                 </label>
@@ -645,7 +645,7 @@ async function doDelete() {
           <div class="w-80 shrink-0 flex flex-col bg-sunken">
             <div class="px-4 py-3 border-b border-hairline shrink-0 flex items-center justify-between">
               <span class="text-xs font-black text-fg">已勾選 {{ picked.length }} 項</span>
-              <button v-if="picked.length" @click="picked = []" class="text-2xs text-muted hover:text-danger cursor-pointer">全部取消</button>
+              <button v-if="picked.length" @click="picked = []" class="text-xs text-muted hover:text-danger cursor-pointer">全部取消</button>
             </div>
             <div class="flex-1 overflow-y-auto custom-scrollbar">
               <p v-if="!picked.length" class="py-12 text-center text-xs text-muted px-4">左側勾選的品項會暫存在這裡</p>

@@ -86,44 +86,44 @@ const field = "w-full px-3 py-2 rounded-xl bg-sunken border border-hairline text
         <div class="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">院內碼 *</label>
+              <label class="text-xs font-bold text-muted mb-1 block">院內碼 *</label>
               <input v-model="form.hospital_code" :disabled="mode === 'edit'" placeholder="M1A01234"
                 :class="field" class="font-mono font-bold disabled:opacity-40 disabled:cursor-not-allowed" />
             </div>
             <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">計價單位</label>
+              <label class="text-xs font-bold text-muted mb-1 block">計價單位</label>
               <input v-model="form.unit" placeholder="個 / 支 / 組" :class="field" />
             </div>
           </div>
           <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">中文品名</label>
+            <label class="text-xs font-bold text-muted mb-1 block">中文品名</label>
             <input v-model="form.name_zh" placeholder="請輸入中文品名..." :class="field" class="font-bold" />
           </div>
           <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">英文品名</label>
+            <label class="text-xs font-bold text-muted mb-1 block">英文品名</label>
             <input v-model="form.name_en" placeholder="English Name / Description..." :class="field" />
           </div>
           <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">耗材用途分類（可選既有分類或輸入新分類）</label>
+            <label class="text-xs font-bold text-muted mb-1 block">耗材用途分類（可選既有分類或輸入新分類）</label>
             <ComboInput v-model="form.purpose" :options="purposes" add-label="新增類別"
               placeholder="例如：止血劑 / Mesh人工網膜 / 骨釘" :input-class="`${field} font-bold`" />
           </div>
           <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">適用科別（多科請用分號分隔，如：骨科;一般外科）</label>
+            <label class="text-xs font-bold text-muted mb-1 block">適用科別（多科請用分號分隔，如：骨科;一般外科）</label>
             <input v-model="deptsText" placeholder="骨科;一般外科;心臟外科" :class="field" class="font-bold" />
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">自費金額 (NTD)</label>
+              <label class="text-xs font-bold text-muted mb-1 block">自費金額 (NTD)</label>
               <input v-model.number="form.price" type="number" placeholder="0" :class="field" class="font-mono font-bold" />
             </div>
             <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">材料廠商名稱</label>
+              <label class="text-xs font-bold text-muted mb-1 block">材料廠商名稱</label>
               <input v-model="form.supplier" placeholder="進口商或供應商" :class="field" />
             </div>
           </div>
           <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">備註資訊</label>
+            <label class="text-xs font-bold text-muted mb-1 block">備註資訊</label>
             <textarea v-model="form.notes" rows="2" :class="field" class="resize-none leading-relaxed" />
           </div>
           <p v-if="err" class="text-xs text-danger font-bold">{{ err }}</p>

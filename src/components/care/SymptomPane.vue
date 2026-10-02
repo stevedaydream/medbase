@@ -51,7 +51,7 @@ function pick(e: HbEntry | null) {
       <div class="flex-1 overflow-y-auto">
         <button v-for="e in symptoms" :key="e.uid" @click="pick(e)" class="w-full text-left px-3 py-2.5 rounded-lg text-sm"
           :class="selected?.uid === e.uid ? 'bg-accent/10 text-accent font-bold' : 'text-fg-secondary hover:text-fg'">
-          {{ e.name }}<span class="block text-2xs text-muted">{{ e.spec.category }}</span>
+          {{ e.name }}<span class="block text-xs text-muted">{{ e.spec.category }}</span>
         </button>
         <p v-if="!symptoms.length" class="text-xs text-muted text-center py-8">沒有符合的症狀</p>
       </div>

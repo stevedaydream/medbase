@@ -138,12 +138,12 @@ async function exportDocx() {
 
     <!-- ── Metadata 表單 ──────────────────────────────────────── -->
     <section>
-      <h3 class="text-2xs font-black text-muted mb-2.5">
+      <h3 class="text-xs font-black text-muted mb-2.5">
         表單資料 — {{ tpl.heading }}
       </h3>
       <div class="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-3">
         <div v-for="f in tpl.fields" :key="f.key" class="flex flex-col gap-1">
-          <label class="text-2xs font-bold text-muted">{{ f.label }}</label>
+          <label class="text-xs font-bold text-muted">{{ f.label }}</label>
 
           <!-- toggle -->
           <div v-if="f.type === 'toggle' && f.toggleOptions" class="flex gap-1.5">
@@ -189,7 +189,7 @@ async function exportDocx() {
                    [color-scheme:dark]" />
         </div>
       </div>
-      <p v-if="leaveDays !== null" class="mt-2 text-2xs font-bold text-success">
+      <p v-if="leaveDays !== null" class="mt-2 text-xs font-bold text-success">
         起迄共 {{ leaveDays }} 日
       </p>
     </section>
@@ -197,16 +197,16 @@ async function exportDocx() {
     <!-- ── 來源輸入 ──────────────────────────────────────────── -->
     <section>
       <div class="flex items-center gap-3 mb-2.5">
-        <h3 class="text-2xs font-black text-muted">來源資料</h3>
+        <h3 class="text-xs font-black text-muted">來源資料</h3>
         <button @click="fileInput?.click()"
-          class="text-2xs font-bold px-3 py-1.5 rounded-xl border border-hairline bg-surface text-fg-secondary
+          class="text-xs font-bold px-3 py-1.5 rounded-xl border border-hairline bg-surface text-fg-secondary
                  hover:text-accent hover:border-accent/30 transition-all cursor-pointer">
           ＋ 上傳 PDF / PPTX
         </button>
         <input ref="fileInput" type="file" accept=".pdf,.pptx" multiple class="hidden" @change="onFilesSelected" />
 
         <button @click="deidentify = !deidentify"
-          class="text-2xs font-bold px-3 py-1.5 rounded-xl border transition-all cursor-pointer ml-auto"
+          class="text-xs font-bold px-3 py-1.5 rounded-xl border transition-all cursor-pointer ml-auto"
           :class="deidentify
             ? 'bg-warning/15 border-warning/30 text-warning'
             : 'bg-surface border-hairline text-muted hover:text-fg-secondary'">
@@ -249,10 +249,10 @@ async function exportDocx() {
 
     <!-- ── 結構化區塊（可編輯）──────────────────────────────── -->
     <section>
-      <h3 class="text-2xs font-black text-muted mb-2.5">結構化內容（可微調）</h3>
+      <h3 class="text-xs font-black text-muted mb-2.5">結構化內容（可微調）</h3>
       <div class="space-y-3">
         <div v-for="b in tpl.blocks" :key="b.key" class="flex flex-col gap-1.5">
-          <label class="text-2xs font-bold text-accent">{{ b.label }}</label>
+          <label class="text-xs font-bold text-accent">{{ b.label }}</label>
           <textarea
             v-model="blocks[b.key]"
             rows="4"

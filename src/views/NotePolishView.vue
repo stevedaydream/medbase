@@ -561,7 +561,7 @@ async function pullTemplatesFromCloud() {
         >
           <span class="text-muted text-2xs inline-block transition-transform duration-200"
             :class="templateEditorOpen ? 'rotate-90' : ''">▶</span>
-          <span class="text-2xs font-black text-muted group-hover:text-fg-secondary transition-colors">
+          <span class="text-xs font-black text-muted group-hover:text-fg-secondary transition-colors">
             格式設定
           </span>
         </button>
@@ -570,12 +570,12 @@ async function pullTemplatesFromCloud() {
 
         <!-- Profile 選擇器 -->
         <div class="flex items-center gap-1.5 shrink-0">
-          <span class="text-2xs text-muted">設定檔:</span>
+          <span class="text-xs text-muted">設定檔:</span>
 
           <select
             :value="activeProfile"
             @change="switchProfile(($event.target as HTMLSelectElement).value)"
-            class="text-2xs font-bold bg-surface border border-hairline rounded-lg px-2 py-1
+            class="text-xs font-bold bg-surface border border-hairline rounded-lg px-2 py-1
                    text-fg focus:outline-none focus:border-accent/50 cursor-pointer"
           >
             <option v-for="p in profiles" :key="p" :value="p">{{ displayProfile(p) }}</option>
@@ -591,18 +591,18 @@ async function pullTemplatesFromCloud() {
                      placeholder:text-muted focus:outline-none font-bold"
             />
             <button @click="confirmAddProfile"
-              class="text-2xs font-bold px-2 py-1 rounded-lg bg-accent/10 border border-accent/30 text-accent hover:bg-accent/20 transition-all cursor-pointer">
+              class="text-xs font-bold px-2 py-1 rounded-lg bg-accent/10 border border-accent/30 text-accent hover:bg-accent/20 transition-all cursor-pointer">
               確認
             </button>
             <button @click="addingProfile = false"
-              class="text-2xs font-bold px-2 py-1 rounded-lg bg-surface border border-hairline text-fg-secondary hover:text-fg transition-all cursor-pointer">
+              class="text-xs font-bold px-2 py-1 rounded-lg bg-surface border border-hairline text-fg-secondary hover:text-fg transition-all cursor-pointer">
               取消
             </button>
           </template>
           <template v-else>
             <button
               @click="startAddProfile"
-              class="text-2xs font-bold px-2 py-1 rounded-lg border border-hairline bg-surface text-fg-secondary hover:text-accent hover:border-accent/30 transition-all cursor-pointer"
+              class="text-xs font-bold px-2 py-1 rounded-lg border border-hairline bg-surface text-fg-secondary hover:text-accent hover:border-accent/30 transition-all cursor-pointer"
               title="新增個人設定檔">＋</button>
             <button
               v-if="activeProfile !== 'default'"
@@ -622,19 +622,19 @@ async function pullTemplatesFromCloud() {
         <div class="ml-auto flex items-center gap-1.5 shrink-0">
           <button
             @click="saveTemplateEdits" :disabled="!isDirty"
-            class="text-2xs font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+            class="text-xs font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
             :class="isDirty
               ? 'bg-accent/10 border-accent/30 text-accent hover:bg-accent/20'
               : 'bg-surface border-hairline text-muted'"
           >💾 儲存設定</button>
           <button
             @click="pullTemplatesFromCloud" :disabled="templateSyncing"
-            class="text-2xs font-bold px-2.5 py-1 rounded-lg border border-hairline bg-surface text-fg-secondary hover:text-accent hover:border-accent/30 disabled:opacity-40 transition-all cursor-pointer"
+            class="text-xs font-bold px-2.5 py-1 rounded-lg border border-hairline bg-surface text-fg-secondary hover:text-accent hover:border-accent/30 disabled:opacity-40 transition-all cursor-pointer"
             title="從雲端還原設定至目前設定檔"
           >{{ templateSyncing ? '…' : '↓' }} 載入雲端</button>
           <button
             @click="pushTemplatesToCloud" :disabled="templateSyncing"
-            class="text-2xs font-bold px-2.5 py-1 rounded-lg border border-hairline bg-surface text-fg-secondary hover:text-accent hover:border-accent/30 disabled:opacity-40 transition-all cursor-pointer"
+            class="text-xs font-bold px-2.5 py-1 rounded-lg border border-hairline bg-surface text-fg-secondary hover:text-accent hover:border-accent/30 disabled:opacity-40 transition-all cursor-pointer"
             title="將目前設定檔備份至雲端"
           >{{ templateSyncing ? '…' : '↑' }} 備份雲端</button>
         </div>
@@ -656,7 +656,7 @@ async function pullTemplatesFromCloud() {
             />
           </div>
           <div class="flex flex-col gap-1.5">
-            <label class="text-2xs font-black text-muted">
+            <label class="text-xs font-black text-muted">
               範例輸出樣板 <span class="normal-case font-normal text-muted">— 格式越具體效果越好</span>
             </label>
             <textarea
@@ -673,7 +673,7 @@ async function pullTemplatesFromCloud() {
 
     <!-- ── 病人資訊列 ───────────────────────────────────────────────── -->
     <div v-if="mode === 'polish'" class="flex items-center gap-4 px-6 py-2.5 border-b border-hairline bg-surface shrink-0">
-      <span class="text-2xs text-muted font-black shrink-0">病人資料:</span>
+      <span class="text-xs text-muted font-black shrink-0">病人資料:</span>
       <div class="flex items-center gap-2">
         <input v-model="patientId" placeholder="病歷號"
           class="w-32 text-xs px-3 py-1.5 bg-sunken border border-hairline rounded-xl text-fg
@@ -690,7 +690,7 @@ async function pullTemplatesFromCloud() {
     <!-- ── 輸入區 ───────────────────────────────────────────────────── -->
     <div v-if="mode === 'polish'" class="flex flex-col border-b border-hairline overflow-hidden p-4 pb-2" style="flex: 1 1 0">
       <div class="flex items-center px-2 pb-2 shrink-0">
-        <span class="text-2xs font-black text-muted">病歷草稿</span>
+        <span class="text-xs font-black text-muted">病歷草稿</span>
         <button v-if="inputText" @click="inputText = ''"
           class="ml-auto text-xs font-bold text-muted hover:text-fg-secondary transition-colors cursor-pointer">
           清除內容
@@ -760,7 +760,7 @@ async function pullTemplatesFromCloud() {
     <!-- ── 輸出區 ───────────────────────────────────────────────────── -->
     <div v-if="mode === 'polish'" class="flex flex-col p-4 pt-2 overflow-hidden" style="flex: 1 1 0">
       <div class="flex items-center px-2 pb-2 shrink-0">
-        <span class="text-2xs font-black text-muted">整理結果</span>
+        <span class="text-xs font-black text-muted">整理結果</span>
       </div>
       <div class="flex-1 overflow-y-auto bg-sunken border border-hairline rounded-2xl px-5 py-4 custom-scrollbar">
         <pre v-if="outputText" class="text-xs text-fg whitespace-pre-wrap font-mono leading-relaxed select-all">{{ outputText }}</pre>
@@ -815,7 +815,7 @@ async function pullTemplatesFromCloud() {
 
       <!-- 輸入列 -->
       <div class="shrink-0 px-5 py-4 border-t border-hairline bg-sunken">
-        <div v-if="!apiKey" class="mb-2 text-2xs text-warning font-bold flex items-center gap-1">
+        <div v-if="!apiKey" class="mb-2 text-xs text-warning font-bold flex items-center gap-1">
           <span>⚠️</span> 請先至設定頁填入 Gemini API Key
         </div>
         <div class="flex gap-3 items-end">
@@ -846,10 +846,10 @@ async function pullTemplatesFromCloud() {
         </div>
         <!-- Model selector -->
         <div class="flex items-center gap-2 mt-2">
-          <span class="text-2xs text-muted">模型:</span>
+          <span class="text-xs text-muted">模型:</span>
           <div class="relative">
             <select v-model="selectedModel" @change="onModelChange"
-              class="text-2xs pl-2.5 pr-7 py-1 bg-surface border border-hairline rounded-lg text-fg-secondary
+              class="text-xs pl-2.5 pr-7 py-1 bg-surface border border-hairline rounded-lg text-fg-secondary
                      focus:outline-none cursor-pointer appearance-none font-bold">
               <option v-for="m in MODELS" :key="m.id" :value="m.id">{{ m.label }}</option>
             </select>
@@ -881,7 +881,7 @@ async function pullTemplatesFromCloud() {
             </div>
             <table v-else class="w-full text-xs border-collapse">
               <thead class="sticky top-0 bg-surface z-10 border-b border-hairline">
-                <tr class="text-fg-secondary text-2xs font-black">
+                <tr class="text-fg-secondary text-xs font-black">
                   <th class="text-left px-5 py-3.5 font-bold">時間</th>
                   <th class="text-left px-4 py-3.5 font-bold">病歷號</th>
                   <th class="text-left px-4 py-3.5 font-bold">姓名</th>
@@ -913,7 +913,7 @@ async function pullTemplatesFromCloud() {
             </table>
           </div>
 
-          <div class="px-5 py-3 border-t border-hairline bg-sunken shrink-0 text-2xs font-bold text-muted">
+          <div class="px-5 py-3 border-t border-hairline bg-sunken shrink-0 text-xs font-bold text-muted">
             共 {{ records.length }} 筆記錄，點擊列表可載入
           </div>
         </div>

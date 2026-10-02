@@ -142,7 +142,7 @@ const stepCount = computed(() =>
           title="新增藥物配製參考">＋</button>
       </div>
 
-      <p class="text-muted text-2xs font-black mb-2 px-1">{{ filtered.length }} 筆資料</p>
+      <p class="text-muted text-xs font-black mb-2 px-1">{{ filtered.length }} 筆資料</p>
 
       <!-- Sync Actions -->
       <CloudSyncButtons class="mb-3 shrink-0" table="prescriptions" @synced="onSynced" @message="toast" />
@@ -169,7 +169,7 @@ const stepCount = computed(() =>
       <div v-if="!selected" class="flex flex-col items-center justify-center h-full gap-3 text-muted text-xs font-bold italic py-16">
         <span class="text-5xl animate-pulse">💊</span>
         <span>選擇右側/左側藥物配製參考，或按 ＋ 新增</span>
-        <span class="text-2xs text-center text-muted max-w-xs mt-1 leading-relaxed not-italic">收錄升壓劑泡法、特殊稀釋步驟、抗生素劑量注意事項等</span>
+        <span class="text-xs text-center text-muted max-w-xs mt-1 leading-relaxed not-italic">收錄升壓劑泡法、特殊稀釋步驟、抗生素劑量注意事項等</span>
       </div>
 
       <div v-else class="space-y-6">
@@ -205,7 +205,7 @@ const stepCount = computed(() =>
 
         <!-- 配製步驟 -->
         <div class="bg-overlay/[0.02] border border-hairline rounded-xl p-5">
-          <p class="text-muted text-2xs font-black mb-4">
+          <p class="text-muted text-xs font-black mb-4">
             配製 &amp; 給藥步驟 · {{ parseSteps(selected.orders).length }} 步
           </p>
           <ol class="space-y-3.5">
@@ -247,27 +247,27 @@ const stepCount = computed(() =>
           </div>
           <div class="overflow-y-auto px-5 py-4 space-y-4 flex-1 custom-scrollbar">
             <div>
-              <label class="text-muted text-2xs font-black block mb-1.5">藥物 / 處方名稱 <span class="text-danger">*</span></label>
+              <label class="text-muted text-xs font-black block mb-1.5">藥物 / 處方名稱 <span class="text-danger">*</span></label>
               <input v-model="form.name"
                 class="w-full px-3.5 py-2 text-xs rounded-xl bg-sunken border border-hairline text-fg focus:outline-none focus:border-warning/50 font-bold"
                 placeholder="如：Dopamine、FOY、Ceftriaxone" />
             </div>
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="text-muted text-2xs font-black block mb-1.5">分類</label>
+                <label class="text-muted text-xs font-black block mb-1.5">分類</label>
                 <input v-model="form.category"
                   class="w-full px-3.5 py-2 text-xs rounded-xl bg-sunken border border-hairline text-fg focus:outline-none focus:border-warning/50 font-bold"
                   placeholder="如：升壓劑、抗生素、消化科" />
               </div>
               <div>
-                <label class="text-muted text-2xs font-black block mb-1.5">濃度 / 規格</label>
+                <label class="text-muted text-xs font-black block mb-1.5">濃度 / 規格</label>
                 <input v-model="form.indication"
                   class="w-full px-3.5 py-2 text-xs rounded-xl bg-sunken border border-hairline text-fg focus:outline-none focus:border-warning/50 font-mono font-bold"
                   placeholder="如：200mg in 250mL NS" />
               </div>
             </div>
             <div>
-              <label class="text-muted text-2xs font-black flex items-center justify-between mb-1.5">
+              <label class="text-muted text-xs font-black flex items-center justify-between mb-1.5">
                 <span>配製 &amp; 給藥步驟（每行一步）</span>
                 <span class="text-muted font-bold">{{ stepCount }} 步</span>
               </label>
@@ -276,7 +276,7 @@ const stepCount = computed(() =>
                 class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono focus:outline-none focus:border-warning/50 resize-none custom-scrollbar leading-relaxed" />
             </div>
             <div>
-              <label class="text-danger/80 text-2xs font-black block mb-1.5">⚠️ 注意事項 / 警語</label>
+              <label class="text-danger/80 text-xs font-black block mb-1.5">⚠️ 注意事項 / 警語</label>
               <textarea v-model="form.notes" rows="3"
                 placeholder="如：腎功能不全需減量；避免與 alkaline solution 混用"
                 class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-danger/30 text-fg text-xs focus:outline-none focus:border-danger resize-none leading-relaxed" />

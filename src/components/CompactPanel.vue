@@ -220,7 +220,7 @@ refreshList();
         class="flex-1 py-2.5 flex flex-col items-center gap-0.5 text-xs transition-colors"
         :class="activeTab === tab.id ? 'bg-elevated text-fg' : 'text-muted hover:text-fg-secondary hover:bg-elevated/40'">
         <span class="text-base leading-none">{{ tab.icon }}</span>
-        <span class="text-2xs leading-none">{{ tab.label }}</span>
+        <span class="text-xs leading-none">{{ tab.label }}</span>
       </button>
     </div>
 

@@ -58,7 +58,7 @@ function setTab(t: Tab) { tab.value = t; selected.value = null; }
         <div class="flex-1 overflow-y-auto">
           <button v-for="e in list" :key="e.uid" @click="selected = e" class="w-full text-left px-3 py-2.5 rounded-lg text-sm"
             :class="selected?.uid === e.uid ? 'bg-accent/10 text-accent font-bold' : 'text-fg-secondary hover:text-fg'">
-            {{ e.name }}<span class="block text-2xs text-muted">{{ e.spec.category }}</span>
+            {{ e.name }}<span class="block text-xs text-muted">{{ e.spec.category }}</span>
           </button>
           <p v-if="!list.length" class="text-xs text-muted text-center py-8">{{ tab === 'admin' ? '院內流程尚未填寫（到「資料管理 › 工作手冊」編輯）' : '沒有符合的條目' }}</p>
         </div>
@@ -95,7 +95,7 @@ function setTab(t: Tab) { tab.value = t; selected.value = null; }
             </ul>
           </section>
           <p v-if="selected.spec.notes" class="text-xs text-fg-secondary">📝 {{ selected.spec.notes }}</p>
-          <div class="border-t border-hairline pt-3 text-2xs text-muted space-y-1">
+          <div class="border-t border-hairline pt-3 text-xs text-muted space-y-1">
             <p>依據：{{ selected.spec.source || "—" }}<template v-if="selected.spec.reviewer">　審核：{{ selected.spec.reviewer }}</template></p>
             <p v-for="(r, i) in selected.spec.refs" :key="r.url"><button class="underline hover:text-accent text-left" @click="openUrl(r.url)">[{{ i + 1 }}] {{ r.title }}</button></p>
             <p class="font-bold">{{ DISCLAIMER }}</p>
