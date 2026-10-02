@@ -514,6 +514,7 @@ function _readScheduleValues(sh, tz) {
 // 員工只能讀 prebook:*、est:*、shifts、holidays、精簡的 people 與自己的通知，寫入只能透過 mobileSetPrebook。
 const SCH_MARKS = ['勿休', '勿值'];
 const SCH_DEFAULT_CODES = ['D', 'NrsD', 'N', 'S1', 'H3', 'OFF', '公假'];
+const SCH_DEFAULT_OFF_CODES = ['OFF', '公假'];
 
 function _schParse(docs, key, fallback) {
   try { return docs[key] ? JSON.parse(docs[key].json) : fallback; } catch (e) { return fallback; }
@@ -557,7 +558,7 @@ function _schDaysIn(ym) {
 
 /**
  * 員工登記自己的預班。cells: [{ day, v }]（v 為 null＝清空）。
- * 驗證：月份為開放預班、本人在名單且在職、不可改系統預填、值限班別（不含離開單位類）或勿休／勿值。
+ * 驗證：月份為開放預班、本人在名單且在職、不可改系統預填、值限班別（不含離開單位類；遠期月份只限休假類）或勿休／勿值。
  * 直接改 docs（呼叫端負責寫回）；回傳 { ok, applied, rejected[] }。
  */
 function _schSetPrebook(docs, person, ym, cells, nowIso) {
@@ -568,7 +569,11 @@ function _schSetPrebook(docs, person, ym, cells, nowIso) {
   const me = (month.roster || []).find(r => r.personId === person.id);
   if (!me || !me.flags || !me.flags.active) return { ok: false, error: '你不在這個月份的排班名單中' };
   const shifts = _schParse(docs, 'shifts', null);
-  const codes = (shifts ? shifts.filter(x => !x.reducesOff).map(x => x.code) : SCH_DEFAULT_CODES).concat(SCH_MARKS);
+  // 遠期月份（prefilled === false）只能登記休假類與限制註記（ADR-020）
+  const far = month.prefilled === false;
+  const codes = (shifts
+    ? shifts.filter(x => far ? x.takesOff : !x.reducesOff).map(x => x.code)
+    : (far ? SCH_DEFAULT_OFF_CODES : SCH_DEFAULT_CODES)).concat(SCH_MARKS);
   const nd = _schDaysIn(ym);
   const pb = _schParse(docs, 'prebook:' + ym, { ym: ym, cells: {} });
   const rejected = [], applied = [];
@@ -579,7 +584,7 @@ function _schSetPrebook(docs, person, ym, cells, nowIso) {
     if (!(day >= 1 && day <= nd)) return rejected.push({ day: day, reason: '日期錯誤' });
     if (cur && cur.src === 'sys' && cur.v && cur.auto && v !== '公假') return rejected.push({ day: day, reason: '週日／國定假日自動補休，只能改成公假' });
     if (cur && cur.src === 'sys' && cur.v && !cur.auto) return rejected.push({ day: day, reason: '系統預填不可修改' });
-    if (v !== null && codes.indexOf(v) < 0) return rejected.push({ day: day, reason: '不允許的班別' });
+    if (v !== null && codes.indexOf(v) < 0) return rejected.push({ day: day, reason: far ? '遠期月份只能登記休假' : '不允許的班別' });
     const before = cur && cur.v ? cur.v : '';
     if (before === (v || '')) return;
     pb.cells[k] = { v: v, src: 'emp', by: person.id, at: nowIso };

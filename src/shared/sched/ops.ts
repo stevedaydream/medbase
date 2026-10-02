@@ -5,9 +5,9 @@
 import type {
   MonthDoc, PrebookDoc, Duty84Doc, CnyDoc, DebtRec, NoticeItem, RuleParams, EstDoc, Person, LockInfo,
 } from "./types";
-import { newId, clone } from "./types";
-import { nextYm, ymParts, daysIn } from "./calendar";
-import { recomputeFrom, startScheduling, cellFnOf, type SchedSnapshot, type Notice } from "./engine/prefill";
+import { newId, clone, cellKey, CONSTRAINT_MARKS, OPEN_MONTHS, NEAR_MONTHS } from "./types";
+import { nextYm, prevYm, toYm, ymParts, daysIn } from "./calendar";
+import { recomputeFrom, startScheduling, cellFnOf, newMonthFrom, type SchedSnapshot, type Notice } from "./engine/prefill";
 import { computeQuotas } from "./engine/quota";
 import { settleDebts, targetsWithSwaps } from "./engine/swaps";
 
@@ -69,7 +69,7 @@ export function buildEst(s: OpsState, m: MonthDoc, now: string): EstDoc {
   return {
     ym: m.ym, status: m.status, offSlots: q.offSlots,
     quotas: m.status === "published" && m.frozenQuotas ? m.frozenQuotas : q.quotas,
-    items: items.map(i => ({ id: i.id, name: i.name })), updatedAt: now,
+    items: items.map(i => ({ id: i.id, name: i.name })), updatedAt: now, prefilled: m.prefilled !== false,
   };
 }
 
@@ -165,6 +165,120 @@ export function opRevert(s: OpsState, ym: string, actor: string, now: string): O
   p.ests.push(buildEst(applyToState(s, p), m, now));
   return p;
 }
+
+// ── 退回開放預班（ADR-020）───────────────────────────────────────────
+/** 開始排班時由預班帶入的值（與 startScheduling 相同規則） */
+function prebookSeed(s: OpsState, ym: string, personId: string, day: number): string {
+  const v = s.prebooks[ym]?.cells[cellKey(personId, day)]?.v ?? "";
+  return (CONSTRAINT_MARKS as readonly string[]).includes(v) ? "" : v;
+}
+
+/** 退回會捨棄的排班層修改格數（與預班帶入值不同的格子） */
+export function reopenLoss(s: OpsState, ym: string): number {
+  const m = s.months[ym];
+  if (!m || m.status !== "scheduling") return 0;
+  let n = 0;
+  for (const r of m.roster) {
+    for (let d = 1; d <= daysIn(ym); d++) {
+      if ((m.schedule[r.personId]?.[d - 1] ?? "") !== prebookSeed(s, ym, r.personId, d)) n++;
+    }
+  }
+  return n;
+}
+
+/**
+ * 排班中 → 開放預班：捨棄排班層、V/X 與換班紀錄（預填換人保留，回到預班時的樣子），
+ * 通知全體重新開放，並自本月起往後重算預填。下個月已開始排班時不可退回。
+ */
+export function opReopen(s: OpsState, ym: string, actor: string, now: string): OpPatch {
+  const m0 = s.months[ym];
+  if (!m0 || m0.status !== "scheduling") throw new Error("此月份不在排班中");
+  const nxt = s.months[nextYm(ym)];
+  if (nxt && nxt.status !== "open") throw new Error(`${nextYm(ym)} 已開始排班，無法退回`);
+  const lost = reopenLoss(s, ym);
+  const m = clone(m0);
+  m.status = "open";
+  m.schedule = {};
+  m.origin = {};
+  m.markers = {};
+  m.swaps = [];
+  m.startedAt = null;
+  m.frozenQuotas = null;
+  let p: OpPatch = { ...emptyPatch(), months: [m] };
+  p.logs.push({ scope: ym, action: "退回開放預班", detail: `排班層 ${lost} 格修改已捨棄；預班重新開放`, actor });
+  const { y, m: mm } = ymParts(ym);
+  p.notices = m.roster.filter(r => r.flags.active).map(r => notice(r.personId, `${y}/${mm} 重新開放預班，可以再修改登記`, now));
+  p = mergePatch(p, opRecompute(applyToState(s, p), ym, `${ym} 退回開放預班`, now));
+  return p;
+}
+
+// ── 自動維持開放範圍（ADR-020）──────────────────────────────────────
+/** 以 today 計算開放範圍：下個月起 OPEN_MONTHS 個月，前 NEAR_MONTHS 個月為近期 */
+export function monthWindow(today: Date): { near: string[]; far: string[] } {
+  const all = Array.from({ length: OPEN_MONTHS }, (_, i) => toYm(today.getFullYear(), today.getMonth() + 2 + i));
+  return { near: all.slice(0, NEAR_MONTHS), far: all.slice(NEAR_MONTHS) };
+}
+
+/** 遠期月份名單：沿用最近一個已預填月份的名單與人力表，去掉人員主檔已停用的人 */
+function syncFar(s: OpsState, m: MonthDoc, tpl: MonthDoc): MonthDoc {
+  const out = clone(m);
+  const inactive = new Set(s.people.filter(p => !p.active).map(p => p.id));
+  out.roster = clone(tpl.roster).filter(r => !inactive.has(r.personId));
+  out.staffing.base = clone(tpl.staffing.base);
+  return out;
+}
+
+/**
+ * 補齊開放範圍：建立缺少的月份（遠期，不預填）、遠期名單跟著最近的已預填月份、
+ * 進入近期的月份第一次預填（覆蓋員工預約時通知）。沒有任何月份時不動作；無變動時回傳空 patch。
+ */
+export function opEnsureMonths(s: OpsState, today: Date, actor: string, now: string): OpPatch {
+  const yms = Object.keys(s.months).sort();
+  if (!yms.length) return emptyPatch();
+  const { near, far } = monthWindow(today);
+  const nearEnd = near[near.length - 1];
+  const end = far[far.length - 1] ?? nearEnd;
+  let p = emptyPatch();
+  let cur = s;
+  const put = (m: MonthDoc, pb?: PrebookDoc) => {
+    const q: OpPatch = { ...emptyPatch(), months: [m], prebooks: pb ? [pb] : [] };
+    p = mergePatch(p, q);
+    cur = applyToState(cur, q);
+  };
+
+  for (let ym = nextYm(yms[yms.length - 1]); ym <= end; ym = nextYm(ym)) {
+    const m = newMonthFrom(cur.months[prevYm(ym)], ym);
+    m.prefilled = false;
+    put(m, cur.prebooks[ym] ? undefined : { ym, cells: {} });
+    p.logs.push({ scope: ym, action: "自動建立月份", detail: `遠期月份（只開放登記休假），範圍到 ${end}`, actor });
+  }
+
+  const entered: string[] = [];
+  let tpl: MonthDoc | undefined;
+  for (const ym of Object.keys(cur.months).sort()) {
+    const m = cur.months[ym];
+    if (m.prefilled !== false) { tpl = m; continue; }
+    if (m.status !== "open") continue;
+    const synced = tpl ? syncFar(cur, m, tpl) : clone(m);
+    if (ym <= nearEnd) {
+      synced.prefilled = true;
+      entered.push(ym);
+      put(synced);
+      p.logs.push({ scope: ym, action: "進入近期", detail: "開始系統預填（覆蓋到的預約會通知本人）", actor });
+      tpl = synced;
+    } else if (!same(synced, m)) {
+      put(synced);
+      p.logs.push({ scope: ym, action: "遠期名單同步", detail: `沿用 ${tpl!.ym} 的人員與人力表`, actor });
+    }
+  }
+
+  if (entered.length) p = mergePatch(p, opRecompute(cur, entered[0], "進入近期，開始預填", now));
+  else for (const m of p.months) p.ests.push(buildEst(cur, cur.months[m.ym], now));
+  return p;
+}
+
+export const isEmptyPatch = (p: OpPatch) =>
+  !p.months.length && !p.prebooks.length && !p.notices.length && !p.logs.length && !p.ests.length && !p.duty84 && !p.cny && !p.debts;
 
 export function opCreateSwap(s: OpsState, ym: string, day: number, a: string, b: string, note: string, actor: string, now: string): OpPatch {
   const m = clone(s.months[ym]);
@@ -282,6 +396,9 @@ export function opEditCells(s: OpsState, ym: string, layer: "pre" | "sched", edi
   if (layer === "pre") {
     if (m0.status !== "open") throw new Error("這個月份的預班已凍結");
     const pb = clone(s.prebooks[ym] ?? { ym, cells: {} });
+    // 遠期月份只能登記休假類與限制註記（ADR-020）
+    const farOk = (v: string) => !v || (CONSTRAINT_MARKS as readonly string[]).includes(v) || !!s.shifts.find(x => x.code === v)?.takesOff;
+    if (m0.prefilled === false && edits.some(e => !farOk(e.value))) throw new Error("遠期月份只能登記休假");
     for (const e of edits) {
       const k = cellKeyOf(e.personId, e.day);
       const cur = pb.cells[k];

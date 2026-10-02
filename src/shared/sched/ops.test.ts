@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   opRecompute, opStartMonth, opPublish, opRevert, opCreateSwap, opDeleteSwap, lockDecision, cellChangeNotices, opEditCells,
-  applyToState, opAddPrefillSwap, opRemovePrefillSwap, prefillSwapCells, type OpsState,
+  applyToState, opAddPrefillSwap, opRemovePrefillSwap, prefillSwapCells, opEnsureMonths, opReopen, reopenLoss, monthWindow, isEmptyPatch, type OpsState,
 } from "./ops";
 import { newMonthFrom } from "./engine/prefill";
 import { DEFAULT_SHIFTS, DEFAULT_QUOTA_ITEMS, DEFAULT_RULES, emptyFlags, emptyMonth, type Person } from "./types";
@@ -163,5 +163,93 @@ describe("預填換人", () => {
     const dPerson = Object.entries(s.prebooks["202611"].cells).find(([k, c]) => k.endsWith("|7") && c.v === "D")![0].split("|")[0];
     const p2 = opAddPrefillSwap(s, "202611", from, dPerson, [{ day: 7, code: "N" }], "", "x", NOW);
     expect(p2.months[0].prefillSwaps![0].note).toContain("已有系統預填 D");
+  });
+});
+
+describe("自動維持開放範圍（ADR-020）", () => {
+  const TODAY = new Date(2026, 9, 2); // 2026-10-02 → 範圍 202611–202704，近期 202611、202612
+  const prefilledCells = (st: OpsState, ym: string) => Object.values(st.prebooks[ym]?.cells ?? {}).filter(c => c.src === "sys").length;
+
+  it("範圍：下個月起 6 個月，前 2 個月為近期；跨年正確", () => {
+    expect(monthWindow(TODAY)).toEqual({ near: ["202611", "202612"], far: ["202701", "202702", "202703", "202704"] });
+    expect(monthWindow(new Date(2026, 11, 31)).near).toEqual(["202701", "202702"]);
+  });
+
+  it("建立缺少的月份為遠期、不預填；已預填的月份不受影響；再跑一次沒有變動", () => {
+    let s = base();
+    s = applyToState(s, opRecompute(s, "202611", "x", NOW));
+    const p = opEnsureMonths(s, TODAY, "排班者", NOW);
+    s = applyToState(s, p);
+    expect(Object.keys(s.months).sort()).toEqual(["202610", "202611", "202612", "202701", "202702", "202703", "202704"]);
+    // 202612 位於近期：建立後立即預填
+    expect(s.months["202612"].prefilled).toBe(true);
+    expect(prefilledCells(s, "202612")).toBeGreaterThan(0);
+    for (const ym of ["202701", "202702", "202703", "202704"]) {
+      expect(s.months[ym].prefilled).toBe(false);
+      expect(prefilledCells(s, ym)).toBe(0);
+      expect(p.ests.find(e => e.ym === ym)?.prefilled).toBe(false);
+    }
+    expect(s.months["202611"].prefilled).toBeUndefined();
+    expect(p.logs.filter(l => l.action === "自動建立月份").map(l => l.scope)).toEqual(["202612", "202701", "202702", "202703", "202704"]);
+    expect(isEmptyPatch(opEnsureMonths(s, TODAY, "排班者", NOW))).toBe(true);
+  });
+
+  it("遠期名單跟著最近的已預填月份；停用的人移出", () => {
+    let s = base();
+    s = applyToState(s, opEnsureMonths(s, TODAY, "x", NOW));
+    s.months["202612"] = { ...s.months["202612"], roster: s.months["202612"].roster.filter(r => r.personId !== "e") };
+    s.people = s.people.map(p => p.id === "d" ? { ...p, active: false } : p);
+    s = applyToState(s, opEnsureMonths(s, TODAY, "x", NOW));
+    expect(s.months["202704"].roster.map(r => r.personId)).toEqual(["a", "b", "c"]);
+    expect(s.months["202612"].roster.map(r => r.personId)).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("月份進入近期時第一次預填：覆蓋員工預約並通知", () => {
+    let s = base();
+    s = applyToState(s, opEnsureMonths(s, TODAY, "x", NOW));
+    expect(s.months["202701"].prefilled).toBe(false);
+    // 遠期先登記整月休假，進入近期後輪序一定會覆蓋到
+    const cells: Record<string, { v: string; src: "emp"; by: string; at: string }> = {};
+    for (let d = 1; d <= 31; d++) cells[`a|${d}`] = { v: "OFF", src: "emp", by: "a", at: NOW };
+    s.prebooks["202701"] = { ym: "202701", cells };
+    const p = opEnsureMonths(s, new Date(2026, 11, 1), "x", NOW);
+    s = applyToState(s, p);
+    expect(s.months["202701"].prefilled).toBe(true);
+    expect(prefilledCells(s, "202701")).toBeGreaterThan(0);
+    expect(p.notices.some(n => n.personId === "a")).toBe(true);
+    expect(p.logs.some(l => l.scope === "202701" && l.action === "進入近期")).toBe(true);
+    expect(Object.keys(s.months)).toContain("202705");
+  });
+
+  it("沒有任何月份時不動作；遠期月份不能開始排班", () => {
+    expect(isEmptyPatch(opEnsureMonths({ ...base(), months: {}, prebooks: {} }, TODAY, "x", NOW))).toBe(true);
+    const s = applyToState(base(), opEnsureMonths(base(), TODAY, "x", NOW));
+    expect(() => opStartMonth(s, "202701", true, "x", NOW)).toThrow("遠期月份");
+  });
+});
+
+describe("退回開放預班（ADR-020）", () => {
+  it("捨棄排班層與換班、保留預填換人、通知全體並重算", () => {
+    let s = base();
+    s = applyToState(s, opRecompute(s, "202611", "x", NOW));
+    s = applyToState(s, opStartMonth(s, "202611", false, "x", NOW));
+    s = applyToState(s, opEditCells(s, "202611", "sched", [{ personId: "a", day: 2, value: "D" }, { personId: "b", day: 3, value: "N" }], { actor: "x", actorPersonId: null, actorHis: "", now: NOW }));
+    s = applyToState(s, opCreateSwap(s, "202611", 4, "a", "b", "", "x", NOW));
+    expect(reopenLoss(s, "202611")).toBeGreaterThanOrEqual(2);
+    const p = opReopen(s, "202611", "排班者", NOW);
+    const m = p.months.find(x => x.ym === "202611")!;
+    expect(m).toMatchObject({ status: "open", schedule: {}, swaps: [], startedAt: null });
+    expect(m.markers.D?.v).toBe("c"); // 重算後 V 交接回來
+    expect(p.notices.map(n => n.personId).sort()).toEqual(["a", "b", "c", "d", "e"]);
+    expect(p.logs[0]).toMatchObject({ action: "退回開放預班", actor: "排班者" });
+    expect(p.ests.find(e => e.ym === "202611")?.status).toBe("open");
+  });
+  it("不在排班中、或下個月已開始排班時不可退回", () => {
+    let s = base();
+    expect(() => opReopen(s, "202611", "x", NOW)).toThrow("不在排班中");
+    s = applyToState(s, opRecompute(s, "202611", "x", NOW));
+    s = applyToState(s, opStartMonth(s, "202611", false, "x", NOW));
+    s.months["202612"] = { ...newMonthFrom(s.months["202611"], "202612"), status: "scheduling" };
+    expect(() => opReopen(s, "202611", "x", NOW)).toThrow("已開始排班");
   });
 });

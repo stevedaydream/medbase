@@ -4,7 +4,7 @@ import { sched, doc } from '../lib/sched'
 import { toast } from '../lib/ui'
 import {
   snapshot, lockOf, hasLock, acquireLock, releaseLock, startMonth, publishMonth, revertMonth,
-  editCells, createSwap, deleteSwap, settleDebt, addPrefillSwap, removePrefillSwap, LockedError,
+  editCells, createSwap, deleteSwap, settleDebt, addPrefillSwap, removePrefillSwap, reopenMonth, reopenLoss, LockedError,
 } from '../lib/schedOps'
 import { colorOf } from '@shared/sched/palette'
 import { daysIn, dowOf, dayTypeOf, dateStr, prevYm } from '@shared/sched/calendar'
@@ -193,6 +193,9 @@ async function run(fn: () => Promise<unknown>, ok?: string) {
   } finally { busy.value = false }
 }
 const confirmForce = ref(false)
+// 排班中 → 開放預班（ADR-020）：先顯示會捨棄幾格
+const reopenAsk = ref<number | null>(null)
+watch(ym, () => { reopenAsk.value = null })
 async function onStart(force = false) {
   busy.value = true
   try { await startMonth(ym.value, force); confirmForce.value = false; toast('已開始排班') } catch (e) {
@@ -237,7 +240,7 @@ const mD = computed(() => Number(ym.value.slice(4)))
 
 <template>
   <section class="py-3 space-y-2">
-    <p v-if="!yms.length" class="py-12 text-center text-sm text-muted">尚無月份（請在桌機匯入或新增）</p>
+    <p v-if="!yms.length" class="py-12 text-center text-sm text-muted">尚無月份（請在桌機匯入起點月份）</p>
     <template v-else>
       <!-- 頂端列 -->
       <div class="px-3 flex items-center gap-2 flex-wrap">
@@ -246,14 +249,16 @@ const mD = computed(() => Number(ym.value.slice(4)))
         </select>
         <span v-if="month" class="px-2 py-0.5 rounded-full border text-xs font-bold"
           :class="month.status === 'open' ? 'border-accent text-accent' : month.status === 'scheduling' ? 'border-warning text-warning' : 'border-success text-success'">
-          {{ STATUS[month.status] }}{{ postEdit ? '・修改中' : '' }}
+          {{ STATUS[month.status] }}{{ month.prefilled === false ? '・遠期' : '' }}{{ postEdit ? '・修改中' : '' }}
         </span>
         <span v-if="mine" class="text-xs text-success font-bold">🔒 本機持鎖</span>
         <span v-else-if="lock" class="text-xs text-warning font-bold">🔒 {{ lock.name }} 排班中</span>
       </div>
       <div v-if="month" class="px-3 flex gap-2 flex-wrap">
-        <button v-if="month.status === 'open'" :disabled="busy" @click="onStart()" class="h-9 px-3 rounded-lg bg-accent text-white text-sm font-bold disabled:opacity-40">開始排班</button>
+        <button v-if="month.status === 'open'" :disabled="busy || month.prefilled === false" @click="onStart()" class="h-9 px-3 rounded-lg bg-accent text-white text-sm font-bold disabled:opacity-40">開始排班</button>
+        <p v-if="month.status === 'open' && month.prefilled === false" class="w-full text-xs text-muted">遠期月份：只開放登記休假，進入近期（前 2 個月）後才預填、才能開始排班</p>
         <template v-if="month.status === 'scheduling'">
+          <button :disabled="busy" @click="reopenAsk = reopenLoss(ym)" class="h-9 px-3 rounded-lg border border-hairline text-sm">退回開放預班…</button>
           <button v-if="!mine" :disabled="busy" @click="run(() => acquireLock(ym), '已取得排班鎖')" class="h-9 px-3 rounded-lg border border-warning text-warning text-sm font-bold">取得排班鎖</button>
           <button v-else :disabled="busy" @click="showPublish = true" class="h-9 px-3 rounded-lg bg-success text-white text-sm font-bold">發布…</button>
         </template>
@@ -273,6 +278,13 @@ const mD = computed(() => Number(ym.value.slice(4)))
       <div v-if="confirmForce" class="mx-3 p-3 rounded-xl bg-warning/10 border border-warning/40 text-sm space-y-2">
         <p class="text-warning">{{ prevYm(ym) }} 尚未發布，X 還沒定案。</p>
         <button @click="onStart(true)" class="h-9 px-3 rounded-lg border border-warning text-warning font-bold">強制以目前 X 交接</button>
+      </div>
+      <div v-if="reopenAsk !== null" class="mx-3 p-3 rounded-xl bg-warning/10 border border-warning/40 text-sm space-y-2">
+        <p class="text-warning">退回開放預班會捨棄排班層{{ reopenAsk ? ` ${reopenAsk} 格修改` : '' }}與換班紀錄，預班重新開放並通知全體。</p>
+        <div class="flex gap-2">
+          <button :disabled="busy" @click="run(async () => { await reopenMonth(ym); reopenAsk = null }, '已退回開放預班，已通知全體')" class="h-9 px-3 rounded-lg border border-warning text-warning font-bold disabled:opacity-40">確認退回</button>
+          <button @click="reopenAsk = null" class="h-9 px-3 text-muted">取消</button>
+        </div>
       </div>
 
       <!-- 檢視切換 -->

@@ -630,7 +630,7 @@ function recomputeFrom(s, fromYm, now, reason) {
   for (const ym of yms) {
     if (ym < fromYm) continue;
     const m = months[ym];
-    if (m.status !== "open") continue;
+    if (m.status !== "open" || m.prefilled === false) continue;
     const prev = months[prevYm(ym)];
     if (prev) {
       for (const it of s.quotaItems) {
@@ -903,7 +903,8 @@ function buildEst(s, m, now) {
     offSlots: q.offSlots,
     quotas: m.status === "published" && m.frozenQuotas ? m.frozenQuotas : q.quotas,
     items: items.map((i) => ({ id: i.id, name: i.name })),
-    updatedAt: now
+    updatedAt: now,
+    prefilled: m.prefilled !== false
   };
 }
 function opRecompute(s, from, reason, now) {

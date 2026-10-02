@@ -85,6 +85,9 @@ export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>, hasLock: Ref<b
     }
   }
 
+  const isFarCode = (v: string) =>
+    (CONSTRAINT_MARKS as readonly string[]).includes(v) || !!store.shifts.find(s => s.code === v)?.takesOff;
+
   function newPreCell(v: string): PrebookCell {
     return { v: v || null, src: "emp", by: session.his || actorName(), at: new Date().toISOString() };
   }
@@ -97,6 +100,10 @@ export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>, hasLock: Ref<b
     if (needsReason.value && !reason?.text.trim()) { lastError.value = "修改已發布班表必須填寫原因"; return 0; }
     if (l === "sched" && (CONSTRAINT_MARKS as readonly string[]).includes(value)) {
       lastError.value = "勿休／勿值是預班註記，請在預班層登記"; return 0;
+    }
+    // 遠期月份（ADR-020）只能登記休假類與限制註記
+    if (l === "pre" && value && month.value?.prefilled === false && !isFarCode(value)) {
+      lastError.value = "遠期月份只能登記休假"; return 0;
     }
     const changes: Change[] = [];
     let skipped = 0;

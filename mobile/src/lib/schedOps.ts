@@ -1,8 +1,8 @@
 import { gas } from './api'
-import { sched, doc, writeLocalDoc, syncSchedDocs } from './sched'
+import { sched, doc, writeLocalDoc, syncSchedDocs, isStaff } from './sched'
 import {
   opStartMonth, opPublish, opRevert, opCreateSwap, opDeleteSwap, opSettleDebt, opEditCells, lockDecision,
-  opAddPrefillSwap, opRemovePrefillSwap,
+  opAddPrefillSwap, opRemovePrefillSwap, opReopen, reopenLoss as sharedReopenLoss, opEnsureMonths, isEmptyPatch,
   type OpsState, type OpPatch, type CellEdit,
 } from '@shared/sched/ops'
 import {
@@ -149,4 +149,30 @@ export async function removePrefillSwap(ym: string, group: string): Promise<void
 export async function settleDebt(id: string, note: string): Promise<void> {
   await applyPatch(opSettleDebt(snapshot(), id, note, actor(), now()))
   await syncSchedDocs()
+}
+
+/** 排班中 → 開放預班（ADR-020）：捨棄排班層，預班重新開放並通知全體 */
+export async function reopenMonth(ym: string): Promise<void> {
+  requireOnline()
+  const p = opReopen(snapshot(), ym, actor(), now())
+  await acquireLock(ym)
+  await applyPatch(p)
+  await releaseLock(ym)
+}
+
+export const reopenLoss = (ym: string) => sharedReopenLoss(snapshot(), ym)
+
+/** 自動維持開放範圍（ADR-020）：排班者同步成功後執行；有變動才寫入並再同步一次 */
+let ensuring = false
+export async function autoEnsureMonths(): Promise<void> {
+  if (ensuring || !isStaff() || sched.offline || sched.error) return
+  ensuring = true
+  try {
+    const p = opEnsureMonths(snapshot(), new Date(), actor(), now())
+    if (isEmptyPatch(p)) return
+    await applyPatch(p)
+    await syncSchedDocs()
+  } finally {
+    ensuring = false
+  }
 }

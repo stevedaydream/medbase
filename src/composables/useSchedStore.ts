@@ -10,9 +10,8 @@ import {
   type Person, type ShiftDef, type QuotaItem, type RuleParams, type HolidayDoc, type HolidayDutyDoc,
   type Duty84Doc, type CnyDoc, type MonthDoc, type PrebookDoc, type NoticeItem, type LogDoc, type DebtRec, type LockInfo, type EstDoc,
 } from "@/shared/sched/types";
-import { emptyHolidays, nextYm } from "@/shared/sched/calendar";
-import { newMonthFrom } from "@/shared/sched/engine/prefill";
-import { opRecompute, opStartMonth, type OpsState, type OpPatch } from "@/shared/sched/ops";
+import { emptyHolidays } from "@/shared/sched/calendar";
+import { opRecompute, opStartMonth, opEnsureMonths, isEmptyPatch, type OpsState, type OpPatch } from "@/shared/sched/ops";
 import { parseMonthSheet, parse84 } from "@/utils/sched/excelImport";
 import { useSchedSession } from "@/composables/useSchedSession";
 import { buildImport, type ImportReport, type LegacyUser, type PhysicianHis } from "@/utils/sched/importApply";
@@ -297,18 +296,13 @@ export async function recompute(fromYm: string | null, reason: string): Promise<
   return { notices: p.notices.length, warnings: p.warnings };
 }
 
-/** 新增最後一個月份的下一個月（開放預班），沿用上月人員設定，並重算預填 */
-export async function addNextMonth(): Promise<string> {
+/** 自動維持開放範圍（ADR-020）：建立缺少的月份、同步遠期名單、進入近期的月份預填；回傳是否有變動 */
+export async function ensureMonths(): Promise<boolean> {
   await ensureSchedLoaded();
-  const yms = sortedYms();
-  const last = yms[yms.length - 1];
-  if (!last) throw new Error("尚無任何月份，請先匯入起點月份");
-  const ym = nextYm(last);
-  await saveMonth(newMonthFrom(state.months[last], ym));
-  if (!state.prebooks[ym]) await savePrebook({ ym, cells: {} });
-  await appendLog(ym, "新增月份", `沿用 ${last} 的人員設定與人力表`, actorName());
-  await recompute(ym, "新增月份");
-  return ym;
+  const p = opEnsureMonths(snapshot(), new Date(), actorName(), new Date().toISOString());
+  if (isEmptyPatch(p)) return false;
+  await applyPatch(p);
+  return true;
 }
 
 /** 開始排班：預班凍結、帶入排班層、交接 V 並算出配額（上月未發布需 force） */

@@ -6,7 +6,8 @@ import { session, unlock, logout } from './lib/session'
 import { loadCache, refresh, data } from './lib/data'
 import { sched, syncSchedDocs } from './lib/sched'
 import { computed, onMounted, onUnmounted } from 'vue'
-import { toastMsg } from './lib/ui'
+import { toastMsg, toast } from './lib/ui'
+import { autoEnsureMonths } from './lib/schedOps'
 import { installPullRefresh, pullDistance, pulling, PULL_THRESHOLD } from './lib/pull'
 
 installPullRefresh()
@@ -19,6 +20,9 @@ watch(() => session.user, (u) => {
   if (u) { loadCache().then(() => refresh()); void syncSchedDocs() }
   else if (route.path !== '/login') router.replace('/login')
 }, { immediate: true })
+
+// 排班者每次同步成功後自動維持開放範圍（ADR-020）
+watch(() => sched.lastSyncAt, () => { void autoEnsureMonths().catch(e => toast(`自動維持月份失敗：${(e as Error).message}`)) })
 
 // 離線橫條：瀏覽器離線或最近一次連線失敗時一直顯示，附資料時間
 const netOnline = ref(navigator.onLine)

@@ -6,7 +6,7 @@ import {
 } from "@/composables/useSchedStore";
 import {
   opPublish, opRevert, opCreateSwap, opDeleteSwap, opSettleDebt, revertDeadline as sharedDeadline,
-  opAddPrefillSwap, opRemovePrefillSwap,
+  opAddPrefillSwap, opRemovePrefillSwap, opReopen, reopenLoss as sharedReopenLoss,
   lockDecision, monthTargets as sharedTargets, publishRows,
 } from "@/shared/sched/ops";
 import { useSchedSession, getMachineId } from "@/composables/useSchedSession";
@@ -93,6 +93,18 @@ export async function revertMonth(ym: string): Promise<void> {
   await acquireLock(ym);
   await applyPatch(p);
   await syncSched();
+}
+
+/** 排班中 → 開放預班（ADR-020）：捨棄排班層，預班重新開放並通知全體 */
+export async function reopenMonth(ym: string): Promise<void> {
+  await acquireLock(ym);
+  await applyPatch(opReopen(snapshot(), ym, actorName(), new Date().toISOString()));
+  await releaseLock(ym);
+  await syncSched();
+}
+
+export function reopenLoss(ym: string): number {
+  return sharedReopenLoss(snapshot(), ym);
 }
 
 // ── 發布後修改 ───────────────────────────────────────────────────────

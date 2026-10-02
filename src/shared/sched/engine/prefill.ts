@@ -201,7 +201,7 @@ export function applyAutoOff(
 }
 
 /**
- * 自 fromYm 起重算：8-4 明細、春節、每個「開放預班」月份的預填、週末指標、V 交接與預估 X。
+ * 自 fromYm 起重算：8-4 明細、春節、每個「開放預班」月份的預填、週末指標、V 交接與預估 X（遠期月份略過）。
  * 已排班／已發布的月份不動，只作為下一個月的交接依據。
  */
 export function recomputeFrom(s: SchedSnapshot, fromYm: string, now: string, reason: string): RecomputeResult {
@@ -227,7 +227,8 @@ export function recomputeFrom(s: SchedSnapshot, fromYm: string, now: string, rea
   for (const ym of yms) {
     if (ym < fromYm) continue;
     const m = months[ym];
-    if (m.status !== "open") continue;
+    // 遠期月份不預填，進入近期時才第一次預填（ADR-020）
+    if (m.status !== "open" || m.prefilled === false) continue;
     const prev = months[prevYm(ym)];
     // V 交接
     if (prev) {
@@ -267,6 +268,7 @@ export function startScheduling(
   const prev = s.months[prevYm(ym)];
   if (!m) return { month: m, error: "月份不存在" };
   if (m.status !== "open") return { month: m, error: "此月份已開始排班" };
+  if (m.prefilled === false) return { month: m, error: "遠期月份尚未預填，進入近期後才能開始排班" };
   if (prev && prev.status !== "published" && !opts.force) return { month: m, error: "上個月尚未發布" };
   const pb = s.prebooks[ym];
   const nd = daysIn(ym);
