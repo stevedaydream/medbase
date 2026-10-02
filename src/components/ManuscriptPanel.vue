@@ -381,9 +381,9 @@ async function confirmImport(mode: "replace" | "append") {
           <p class="text-xs text-muted mt-1">原文中的 * # - 等符號會保留為文字，換行與段落不變。轉換後顯示如右側。</p>
         </div>
         <div class="flex-1 min-h-0 grid grid-cols-2 gap-3">
-          <div class="flex flex-col min-h-0"><p class="text-2xs font-bold text-muted mb-1">原文</p>
+          <div class="flex flex-col min-h-0"><p class="text-xs font-bold text-muted mb-1">原文</p>
             <pre class="flex-1 overflow-auto rounded-xl bg-sunken p-3 text-xs whitespace-pre-wrap font-serif">{{ draftBody }}</pre></div>
-          <div class="flex flex-col min-h-0"><p class="text-2xs font-bold text-muted mb-1">轉換後</p>
+          <div class="flex flex-col min-h-0"><p class="text-xs font-bold text-muted mb-1">轉換後</p>
             <div class="ms-preview flex-1 overflow-auto rounded-xl bg-sunken p-3 text-xs font-serif" v-html="convertPreview" /></div>
         </div>
         <div class="flex gap-2 justify-end">

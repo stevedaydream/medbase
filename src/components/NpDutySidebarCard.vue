@@ -99,7 +99,7 @@ onUnmounted(() => {
 <template>
   <section class="mt-3 rounded-xl border border-accent/20 bg-accent/[0.05] p-2.5" aria-label="NP 與 VS 值班">
     <div class="flex items-center justify-between mb-2 gap-1">
-      <div class="flex rounded-md bg-sunken p-0.5 text-2xs font-bold">
+      <div class="flex rounded-md bg-sunken p-0.5 text-xs font-bold">
         <button
           v-for="v in (['today', 'tomorrow'] as const)" :key="v"
           @click="switchView(v)"
@@ -129,7 +129,7 @@ onUnmounted(() => {
         :title="downloadUrl">
         ⬇ 下載班表
       </button>
-      <p v-else class="text-2xs text-muted leading-snug">可在「資料管理 → NP／VS 值班」設定班表下載網址</p>
+      <p v-else class="text-xs text-muted leading-snug">可在「資料管理 → NP／VS 值班」設定班表下載網址</p>
     </div>
 
     <div v-else class="space-y-1.5">
@@ -162,7 +162,7 @@ onUnmounted(() => {
       </div>
       </div>
       <button v-if="group === 'VS'" @click="showOtherVs = !showOtherVs"
-        class="w-full rounded px-1 py-0.5 text-2xs font-bold text-muted hover:bg-accent/10 hover:text-accent transition-colors cursor-pointer">
+        class="w-full rounded px-1 py-0.5 text-xs font-bold text-muted hover:bg-accent/10 hover:text-accent transition-colors cursor-pointer">
         {{ showOtherVs ? '▴ 收合其他科別' : `▾ 其他科別（${otherVsUnits.length}）` }}
       </button>
     </div>

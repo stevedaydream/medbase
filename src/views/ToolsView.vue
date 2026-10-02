@@ -149,7 +149,7 @@ const fio2Result = computed(() => fio2Estimate({
           <span class="text-xl leading-none shrink-0 transition-transform duration-300 group-hover:scale-110">{{ t.icon }}</span>
           <div class="min-w-0">
             <div class="text-xs font-bold tracking-wide uppercase transition-colors" :class="activeTool === t.id ? 'text-accent' : 'text-fg-secondary'">{{ t.label }}</div>
-            <div class="text-2xs text-muted leading-tight mt-0.5 font-sans truncate">{{ t.sub }}</div>
+            <div class="text-xs text-muted leading-tight mt-0.5 font-sans truncate">{{ t.sub }}</div>
           </div>
         </button>
       </nav>
@@ -224,7 +224,7 @@ const fio2Result = computed(() => fio2Estimate({
               </div>
 
               <!-- Quick normal values -->
-              <div class="bg-overlay/[0.01] border border-hairline rounded-2xl p-4 text-2xs text-muted grid grid-cols-2 gap-3 font-mono leading-relaxed">
+              <div class="bg-overlay/[0.01] border border-hairline rounded-2xl p-4 text-xs text-muted grid grid-cols-2 gap-3 font-mono leading-relaxed">
                 <div>
                   <p class="font-bold text-fg-secondary mb-1">生理正常值參考</p>
                   <div>pH: 7.35 – 7.45</div>
@@ -320,7 +320,7 @@ const fio2Result = computed(() => fio2Estimate({
                     ]"
                     :key="b.key"
                     @click="glu_basis = b.key as 'tdd' | 'weight' | 'isf'"
-                    class="px-2 py-2 rounded-lg text-2xs font-bold border transition-all cursor-pointer"
+                    class="px-2 py-2 rounded-lg text-xs font-bold border transition-all cursor-pointer"
                     :class="glu_basis === b.key
                       ? 'bg-accent/10 border-accent/30 text-accent'
                       : 'bg-sunken border-hairline text-muted hover:text-fg-secondary'"
@@ -456,7 +456,7 @@ const fio2Result = computed(() => fio2Estimate({
           <div class="max-w-3xl bg-surface border border-hairline rounded-xl p-5 space-y-4">
             <div>
               <p class="text-sm font-bold text-fg">由需要時短效劑量換算：長效＋餐前短效（basal-bolus）</p>
-              <p class="text-2xs text-muted mt-1">ADA 不建議長期只用需要時短效；填入前幾次的短效劑量（例如 8、10、4、6 U）與涵蓋時數</p>
+              <p class="text-xs text-muted mt-1">ADA 不建議長期只用需要時短效；填入前幾次的短效劑量（例如 8、10、4、6 U）與涵蓋時數</p>
             </div>
             <div class="flex flex-wrap items-end gap-2">
               <label v-for="(_, i) in bbDoses" :key="i" class="space-y-1 text-xs"><span class="text-muted">第 {{ i + 1 }} 次（U）</span>
@@ -500,9 +500,9 @@ const fio2Result = computed(() => fio2Estimate({
             <div v-if="bb" class="p-4 rounded-xl bg-accent/10 border border-accent/30 space-y-2">
               <p class="text-xs text-fg-secondary">需要時總量 {{ bb.total }} U（24 小時 {{ bb.per24 }} U）× {{ (bbRisk ? Math.min(bbFactor, 0.8) : bbFactor) * 100 }}% → 新的一天總量 <b>{{ bb.tdd }} U</b></p>
               <p class="text-lg font-black text-accent">{{ bbBasalDrug.label }} {{ bb.basal }} U</p>
-              <p class="text-2xs text-muted">{{ bbBasalDrug.freq }}</p>
+              <p class="text-xs text-muted">{{ bbBasalDrug.freq }}</p>
               <p v-if="bb.bolusEach" class="text-lg font-black text-accent">{{ bbBolusDrug.label }} {{ bb.bolusEach }} U × 三餐</p>
-              <p v-if="bb.bolusEach" class="text-2xs text-muted">{{ bbBolusDrug.freq }}；沒吃就不打</p>
+              <p v-if="bb.bolusEach" class="text-xs text-muted">{{ bbBolusDrug.freq }}；沒吃就不打</p>
               <p v-for="(n, i) in bb.notes" :key="i" class="text-xs" :class="TONE_CLASS[n.tone]">• {{ n.text }}</p>
             </div>
             <p v-else class="text-xs text-muted">填入需要時劑量後顯示建議</p>
@@ -603,25 +603,25 @@ const fio2Result = computed(() => fio2Estimate({
                     <span class="text-4xl font-extrabold text-fg tracking-tight font-mono">{{ nutResult.tdee }}</span>
                     <span class="text-xs text-fg-secondary">kcal / 每日</span>
                   </div>
-                  <div class="text-2xs text-muted mt-1">基礎代謝率 (BMR): {{ nutResult.bmr }} kcal</div>
+                  <div class="text-xs text-muted mt-1">基礎代謝率 (BMR): {{ nutResult.bmr }} kcal</div>
                 </div>
 
                 <!-- Detail Grid -->
                 <div class="grid grid-cols-2 gap-3">
                   <div class="rounded-xl border border-hairline bg-surface p-4">
-                    <p class="text-2xs font-bold text-muted">蛋白質目標</p>
+                    <p class="text-xs font-bold text-muted">蛋白質目標</p>
                     <p class="text-2xl font-bold text-accent font-mono mt-1">{{ nutResult.protein }} <span class="text-xs font-normal text-muted">g</span></p>
                     <p class="text-2xs text-muted font-mono mt-1">{{ nut_protein }} g/kg × {{ nut_weight }} kg</p>
                   </div>
 
                   <div class="rounded-xl border border-hairline bg-surface p-4">
-                    <p class="text-2xs font-bold text-muted">醣/脂分配估算</p>
+                    <p class="text-xs font-bold text-muted">醣/脂分配估算</p>
                     <p class="text-base font-bold text-fg font-mono mt-1.5">{{ nutResult.carb }}g <span class="text-xs text-muted">/ {{ nutResult.fat }}g</span></p>
                     <p class="text-xs text-muted mt-1">碳水40% / 脂肪30%</p>
                   </div>
 
                   <div class="rounded-xl border border-hairline bg-surface p-4">
-                    <p class="text-2xs font-bold text-muted">BMI / 標準體重 (IBW)</p>
+                    <p class="text-xs font-bold text-muted">BMI / 標準體重 (IBW)</p>
                     <p class="text-xl font-bold font-mono mt-1" :class="Number(nutResult.bmi) < 18.5 ? 'text-accent' : Number(nutResult.bmi) > 24 ? 'text-danger' : 'text-success'">
                       {{ nutResult.bmi }}
                     </p>
@@ -629,7 +629,7 @@ const fio2Result = computed(() => fio2Estimate({
                   </div>
 
                   <div class="rounded-xl border border-hairline bg-surface p-4">
-                    <p class="text-2xs font-bold text-muted">快速熱量區間</p>
+                    <p class="text-xs font-bold text-muted">快速熱量區間</p>
                     <p class="text-sm font-bold text-fg-secondary font-mono mt-2">
                       {{ Math.round(Number(nut_weight) * 25) }} – {{ Math.round(Number(nut_weight) * 30) }} <span class="text-xs font-normal">kcal</span>
                     </p>
@@ -694,7 +694,7 @@ const fio2Result = computed(() => fio2Estimate({
                     {{ v }}%
                   </button>
                 </div>
-                <p class="text-2xs text-muted font-sans mt-1">💡 文氏面罩在此設定下需配合同步給予流量：**≥ {{ venturiMap[o2_venturi] }} L/min**</p>
+                <p class="text-xs text-muted font-sans mt-1">💡 文氏面罩在此設定下需配合同步給予流量：**≥ {{ venturiMap[o2_venturi] }} L/min**</p>
               </div>
 
               <!-- HFNC specifics -->
@@ -755,7 +755,7 @@ const fio2Result = computed(() => fio2Estimate({
                     <span class="text-5xl font-extrabold text-fg tracking-tight font-mono">{{ fio2Result.fio2 }}</span>
                     <span class="text-lg text-fg-secondary font-mono">% FiO₂</span>
                   </div>
-                  <p class="text-2xs text-muted font-sans mt-1.5 leading-relaxed">{{ fio2Result.note }}</p>
+                  <p class="text-xs text-muted font-sans mt-1.5 leading-relaxed">{{ fio2Result.note }}</p>
                 </div>
 
                 <div v-if="fio2Result.pf !== null" class="pt-4 border-t border-hairline space-y-1.5">

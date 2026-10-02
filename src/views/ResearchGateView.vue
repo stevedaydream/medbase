@@ -187,7 +187,7 @@ async function confirmRestore() {
             {{ busy ? '驗證中…' : mode === 'setup' ? '設定並進入' : '進入' }}
           </button>
         </div>
-        <p class="text-2xs text-muted leading-relaxed">
+        <p class="text-xs text-muted leading-relaxed">
           離開論文專案超過 30 分鐘需重新輸入 PIN；關閉 MedBase 後需重新登入。修改會自動備份到你的雲端空間，其他人無法讀取。
         </p>
       </form>

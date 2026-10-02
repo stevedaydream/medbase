@@ -483,7 +483,7 @@ function rowLabel(row: NpDutyImportRow) {
         <datalist id="duty-person-options">
           <option v-for="name in [...new Set([...(preview.sourcePeople ?? []).map(person => person.name), ...history.map(person => person.np_name)])]" :key="name" :value="name" />
         </datalist>
-        <p class="text-2xs text-muted">校正會套用到檔案中同代號的所有日期，確認匯入後儲存供下次使用。</p>
+        <p class="text-xs text-muted">校正會套用到檔案中同代號的所有日期，確認匯入後儲存供下次使用。</p>
       </div>
 
       <div v-if="previewPeople.length" class="rounded-xl border border-hairline bg-sunken px-4 py-3 text-xs space-y-2">

@@ -347,18 +347,18 @@ const currentIndex = computed(() =>
       <div class="px-6 py-4 border-b border-hairline shrink-0 bg-surface">
         <div class="flex items-start gap-3">
           <button @click="router.push('/research')"
-            class="mt-0.5 px-2.5 py-1.5 rounded-lg bg-elevated border border-hairline text-fg-secondary text-2xs font-bold hover:bg-raised transition-colors shrink-0 cursor-pointer">← 清單</button>
+            class="mt-0.5 px-2.5 py-1.5 rounded-lg bg-elevated border border-hairline text-fg-secondary text-xs font-bold hover:bg-raised transition-colors shrink-0 cursor-pointer">← 清單</button>
 
           <div class="flex-1 min-w-0">
             <h2 class="text-sm font-bold text-fg leading-snug">{{ project.title }}</h2>
-            <p v-if="project.title_zh" class="text-2xs text-muted mt-0.5">{{ project.title_zh }}</p>
+            <p v-if="project.title_zh" class="text-xs text-muted mt-0.5">{{ project.title_zh }}</p>
           </div>
 
           <span class="px-2.5 py-1 rounded-md text-2xs font-bold border shrink-0" :class="badgeClass(project.stage)">
             {{ stageMeta(project.stage).label }}
           </span>
           <span v-if="project.archived"
-            class="px-2.5 py-1 rounded-md text-2xs font-bold border border-hairline bg-elevated text-muted shrink-0">已封存</span>
+            class="px-2.5 py-1 rounded-md text-xs font-bold border border-hairline bg-elevated text-muted shrink-0">已封存</span>
         </div>
 
         <!-- 階段進度條 -->
@@ -379,10 +379,10 @@ const currentIndex = computed(() =>
 
         <!-- rejected 分支：拒稿後可回到 submitted 換期刊（規格 §2.2）-->
         <div class="mt-1.5 flex items-center gap-2">
-          <span class="text-2xs text-muted">拒稿分支</span>
+          <span class="text-xs text-muted">拒稿分支</span>
           <button
             @click="changeStage(STAGE_REJECTED.key)"
-            class="px-2.5 py-1 rounded-md text-2xs font-bold border transition-all cursor-pointer"
+            class="px-2.5 py-1 rounded-md text-xs font-bold border transition-all cursor-pointer"
             :class="project.stage === STAGE_REJECTED.key
               ? 'bg-warning/10 border-warning/30 text-warning ring-1 ring-warning/40'
               : 'bg-sunken border-hairline text-muted hover:text-fg-secondary'"
@@ -390,7 +390,7 @@ const currentIndex = computed(() =>
           <template v-if="project.stage === 'rejected'">
             <span class="text-2xs text-muted">→</span>
             <button @click="changeStage('submitted')"
-              class="px-2.5 py-1 rounded-md text-2xs font-bold border border-accent/30 bg-accent/10 text-accent hover:bg-accent/20 transition-all cursor-pointer">
+              class="px-2.5 py-1 rounded-md text-xs font-bold border border-accent/30 bg-accent/10 text-accent hover:bg-accent/20 transition-all cursor-pointer">
               換期刊再投（回到「已投稿」）
             </button>
           </template>
@@ -420,12 +420,12 @@ const currentIndex = computed(() =>
         <div v-if="tab === 'overview'" class="max-w-3xl space-y-5">
           <div class="grid grid-cols-2 gap-4">
             <div class="col-span-2">
-              <label class="text-2xs font-bold text-muted mb-1 block">論文標題（英文）*</label>
+              <label class="text-xs font-bold text-muted mb-1 block">論文標題（英文）*</label>
               <input v-model="form.title"
                 class="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50" />
             </div>
             <div class="col-span-2">
-              <label class="text-2xs font-bold text-muted mb-1 block">中文暫稱</label>
+              <label class="text-xs font-bold text-muted mb-1 block">中文暫稱</label>
               <input v-model="form.title_zh"
                 class="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50" />
             </div>
@@ -435,7 +435,7 @@ const currentIndex = computed(() =>
             </p>
 
             <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">研究類型</label>
+              <label class="text-xs font-bold text-muted mb-1 block">研究類型</label>
               <select v-model="form.study_type"
                 class="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50 cursor-pointer">
                 <option :value="null">未設定</option>
@@ -443,24 +443,24 @@ const currentIndex = computed(() =>
               </select>
             </div>
             <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">科別</label>
+              <label class="text-xs font-bold text-muted mb-1 block">科別</label>
               <input v-model="form.specialty"
                 class="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50" />
             </div>
 
             <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">IRB 案號</label>
+              <label class="text-xs font-bold text-muted mb-1 block">IRB 案號</label>
               <input v-model="form.irb_number"
                 class="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50" />
             </div>
             <div>
-              <label class="text-2xs font-bold text-muted mb-1 block">IRB 核准日</label>
+              <label class="text-xs font-bold text-muted mb-1 block">IRB 核准日</label>
               <input v-model="form.irb_approved_date" type="date"
                 class="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50" />
             </div>
 
             <div class="col-span-2">
-              <label class="text-2xs font-bold text-muted mb-1 block">本機專案資料夾</label>
+              <label class="text-xs font-bold text-muted mb-1 block">本機專案資料夾</label>
               <div class="flex gap-2">
                 <input v-model="form.repo_path"
                   class="flex-1 px-3.5 py-2.5 rounded-xl bg-surface border border-hairline text-fg text-xs font-mono focus:outline-none focus:border-accent/50"
@@ -478,7 +478,7 @@ const currentIndex = computed(() =>
               class="px-5 py-2.5 rounded-xl bg-accent text-white text-xs font-bold hover:bg-accent-hover shadow-lg shadow-accent/10 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer">
               儲存變更
             </button>
-            <span v-if="dirty" class="text-2xs text-warning">有未儲存的變更</span>
+            <span v-if="dirty" class="text-xs text-warning">有未儲存的變更</span>
             <div class="flex-1"></div>
             <button @click="toggleArchive"
               class="px-4 py-2.5 rounded-xl bg-elevated border border-hairline text-fg-secondary text-xs font-bold hover:bg-raised transition-colors cursor-pointer">
@@ -490,7 +490,7 @@ const currentIndex = computed(() =>
             </button>
           </div>
 
-          <div class="pt-3 border-t border-hairline text-2xs text-muted space-y-1">
+          <div class="pt-3 border-t border-hairline text-xs text-muted space-y-1">
             <p>建立於 {{ project.created_at }}　最後變更 {{ project.updated_at }}</p>
             <p class="text-success">✓ 已確認本專案不輸入任何可識別病患資訊</p>
           </div>
@@ -531,7 +531,7 @@ const currentIndex = computed(() =>
             class="text-center py-16 rounded-2xl border border-dashed border-hairline bg-surface">
             <div class="text-3xl mb-2 opacity-20">👥</div>
             <p class="text-fg-secondary text-xs font-semibold">尚未加入作者</p>
-            <p class="text-muted text-2xs mt-1">作者資料建一次，之後每份 IRB 都是選取而非重打</p>
+            <p class="text-muted text-xs mt-1">作者資料建一次，之後每份 IRB 都是選取而非重打</p>
           </div>
 
           <div v-else class="space-y-2.5">
@@ -562,14 +562,14 @@ const currentIndex = computed(() =>
                 <div class="flex-1"></div>
 
                 <button @click="setCorresponding(a)"
-                  class="px-2.5 py-1 rounded-md text-2xs font-bold border transition-colors cursor-pointer"
+                  class="px-2.5 py-1 rounded-md text-xs font-bold border transition-colors cursor-pointer"
                   :class="a.is_corresponding
                     ? 'bg-accent/10 border-accent/30 text-accent'
                     : 'bg-sunken border-hairline text-muted hover:text-fg-secondary'">
                   通訊作者
                 </button>
                 <button @click="removeAuthor(a)"
-                  class="px-2.5 py-1 rounded-md text-2xs font-bold bg-danger/10 border border-danger/20 text-danger hover:bg-danger/20 transition-colors cursor-pointer">
+                  class="px-2.5 py-1 rounded-md text-xs font-bold bg-danger/10 border border-danger/20 text-danger hover:bg-danger/20 transition-colors cursor-pointer">
                   移除
                 </button>
               </div>
@@ -577,31 +577,31 @@ const currentIndex = computed(() =>
               <!-- IRB 欄位 -->
               <div class="px-4 py-3 grid grid-cols-4 gap-3">
                 <div>
-                  <label class="text-2xs font-bold text-muted mb-1 block">IRB 角色</label>
+                  <label class="text-xs font-bold text-muted mb-1 block">IRB 角色</label>
                   <input
                     :value="a.irb_category ?? ''"
                     @change="patchAuthor(a, 'irb_category', ($event.target as HTMLInputElement).value || null)"
                     list="irb-categories"
-                    class="w-full px-3 py-2 rounded-lg bg-sunken border border-hairline text-fg text-2xs focus:outline-none focus:border-accent/50" />
+                    class="w-full px-3 py-2 rounded-lg bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50" />
                 </div>
                 <div>
-                  <label class="text-2xs font-bold text-muted mb-1 block">工作月數</label>
+                  <label class="text-xs font-bold text-muted mb-1 block">工作月數</label>
                   <input
                     type="number" min="0"
                     :value="a.work_months ?? ''"
                     @change="patchAuthor(a, 'work_months', ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value))"
-                    class="w-full px-3 py-2 rounded-lg bg-sunken border border-hairline text-fg text-2xs font-mono focus:outline-none focus:border-accent/50" />
+                    class="w-full px-3 py-2 rounded-lg bg-sunken border border-hairline text-fg text-xs font-mono focus:outline-none focus:border-accent/50" />
                 </div>
                 <div class="col-span-2">
-                  <label class="text-2xs font-bold text-muted mb-1 block">期刊 author contribution</label>
+                  <label class="text-xs font-bold text-muted mb-1 block">期刊 author contribution</label>
                   <input
                     :value="a.contribution ?? ''"
                     @change="patchAuthor(a, 'contribution', ($event.target as HTMLInputElement).value || null)"
                     placeholder="Conceptualization, Writing – original draft…"
-                    class="w-full px-3 py-2 rounded-lg bg-sunken border border-hairline text-fg text-2xs focus:outline-none focus:border-accent/50" />
+                    class="w-full px-3 py-2 rounded-lg bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50" />
                 </div>
                 <div class="col-span-4">
-                  <label class="text-2xs font-bold text-muted mb-1 block">IRB 具體工作性質、項目及範圍</label>
+                  <label class="text-xs font-bold text-muted mb-1 block">IRB 具體工作性質、項目及範圍</label>
                   <textarea
                     rows="2"
                     :value="a.work_scope ?? ''"
@@ -631,7 +631,7 @@ const currentIndex = computed(() =>
           <p class="text-fg-secondary text-xs font-semibold">
             {{ tab === "submission" ? "投稿記錄" : tab === "checklist" ? "送件檢核" : "審稿回覆" }}
           </p>
-          <p class="text-muted text-2xs mt-1">
+          <p class="text-muted text-xs mt-1">
             資料表已建好，介面待
             {{ tab === "submission" ? "Phase 5" : tab === "checklist" ? "Phase 4" : "Phase 7" }}
             實作
@@ -655,7 +655,7 @@ const currentIndex = computed(() =>
         <div class="px-5 py-4 overflow-y-auto">
           <textarea v-model="irbPreview" rows="14"
             class="w-full px-3.5 py-3 rounded-xl bg-sunken border border-hairline text-fg text-xs leading-relaxed focus:outline-none focus:border-accent/50 resize-y"></textarea>
-          <p class="text-2xs text-muted mt-2">可直接貼進醫院表格；有需要也可在此微調後再複製。</p>
+          <p class="text-xs text-muted mt-2">可直接貼進醫院表格；有需要也可在此微調後再複製。</p>
         </div>
         <div class="flex justify-end gap-2.5 px-5 py-3.5 border-t border-hairline shrink-0">
           <button @click="showIrbModal = false"
@@ -677,7 +677,7 @@ const currentIndex = computed(() =>
           <h3 class="text-fg font-black text-xs">作者名冊（跨專案共用）</h3>
           <div class="flex items-center gap-2">
             <button @click="showRosterList = false; openRosterAdd()"
-              class="px-3 py-1.5 rounded-lg bg-accent text-white text-2xs font-bold hover:bg-accent-hover cursor-pointer">＋ 新增</button>
+              class="px-3 py-1.5 rounded-lg bg-accent text-white text-xs font-bold hover:bg-accent-hover cursor-pointer">＋ 新增</button>
             <button @click="showRosterList = false" class="text-muted hover:text-fg-secondary text-xl leading-none cursor-pointer">×</button>
           </div>
         </div>
@@ -686,9 +686,9 @@ const currentIndex = computed(() =>
           <table v-else class="w-full text-left border-collapse">
             <thead class="sticky top-0 bg-surface">
               <tr class="border-b border-hairline">
-                <th class="px-5 py-2 text-2xs font-bold text-muted uppercase tracking-widest">姓名</th>
-                <th class="px-3 py-2 text-2xs font-bold text-muted uppercase tracking-widest">職稱 / 科別</th>
-                <th class="px-3 py-2 text-2xs font-bold text-muted uppercase tracking-widest">預設角色</th>
+                <th class="px-5 py-2 text-xs font-bold text-muted uppercase tracking-widest">姓名</th>
+                <th class="px-3 py-2 text-xs font-bold text-muted uppercase tracking-widest">職稱 / 科別</th>
+                <th class="px-3 py-2 text-xs font-bold text-muted uppercase tracking-widest">預設角色</th>
                 <th class="px-5 py-2 text-2xs font-bold text-muted uppercase tracking-widest w-28"></th>
               </tr>
             </thead>
@@ -698,15 +698,15 @@ const currentIndex = computed(() =>
                   <div class="text-xs text-fg font-semibold">{{ a.name_zh }}</div>
                   <div v-if="a.name_en" class="text-2xs text-muted">{{ a.name_en }}</div>
                 </td>
-                <td class="px-3 py-2.5 text-2xs text-fg-secondary">
+                <td class="px-3 py-2.5 text-xs text-fg-secondary">
                   {{ [a.title, a.department].filter(Boolean).join(" · ") || "—" }}
                 </td>
-                <td class="px-3 py-2.5 text-2xs text-fg-secondary">{{ a.default_role || "—" }}</td>
+                <td class="px-3 py-2.5 text-xs text-fg-secondary">{{ a.default_role || "—" }}</td>
                 <td class="px-5 py-2.5 text-right">
                   <button @click="showRosterList = false; openRosterEdit(a)"
-                    class="text-2xs font-bold px-2 py-1 rounded bg-elevated border border-hairline text-fg-secondary hover:text-accent cursor-pointer">編輯</button>
+                    class="text-xs font-bold px-2 py-1 rounded bg-elevated border border-hairline text-fg-secondary hover:text-accent cursor-pointer">編輯</button>
                   <button @click="removeFromRoster(a)"
-                    class="ml-1.5 text-2xs font-bold px-2 py-1 rounded bg-danger/10 border border-danger/20 text-danger hover:bg-danger/20 cursor-pointer">刪除</button>
+                    class="ml-1.5 text-xs font-bold px-2 py-1 rounded bg-danger/10 border border-danger/20 text-danger hover:bg-danger/20 cursor-pointer">刪除</button>
                 </td>
               </tr>
             </tbody>
@@ -728,28 +728,28 @@ const currentIndex = computed(() =>
         </div>
         <div class="px-5 py-4 grid grid-cols-2 gap-3 overflow-y-auto">
           <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">中文姓名 *</label>
+            <label class="text-xs font-bold text-muted mb-1 block">中文姓名 *</label>
             <input v-model="rosterForm.name_zh" autofocus
               class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50" />
           </div>
           <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">英文名（投稿用）</label>
+            <label class="text-xs font-bold text-muted mb-1 block">英文名（投稿用）</label>
             <input v-model="rosterForm.name_en"
               class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50" />
           </div>
           <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">職稱</label>
+            <label class="text-xs font-bold text-muted mb-1 block">職稱</label>
             <input v-model="rosterForm.title"
               class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50"
               placeholder="主治醫師 / 專科護理師" />
           </div>
           <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">科別</label>
+            <label class="text-xs font-bold text-muted mb-1 block">科別</label>
             <input v-model="rosterForm.department"
               class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50" />
           </div>
           <div class="col-span-2">
-            <label class="text-2xs font-bold text-muted mb-1 block">服務機構全名（投稿用）</label>
+            <label class="text-xs font-bold text-muted mb-1 block">服務機構全名（投稿用）</label>
             <input v-model="rosterForm.affiliation"
               class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50" />
           </div>
@@ -764,7 +764,7 @@ const currentIndex = computed(() =>
               class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs font-mono focus:outline-none focus:border-accent/50" />
           </div>
           <div class="col-span-2">
-            <label class="text-2xs font-bold text-muted mb-1 block">預設 IRB 角色（加入專案時預帶）</label>
+            <label class="text-xs font-bold text-muted mb-1 block">預設 IRB 角色（加入專案時預帶）</label>
             <input v-model="rosterForm.default_role" list="irb-categories-roster"
               class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50" />
             <datalist id="irb-categories-roster">

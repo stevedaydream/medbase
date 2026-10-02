@@ -498,7 +498,7 @@ async function pullSettingsFromCloud() {
       class="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-hairline bg-surface text-fg-secondary text-xs select-none cursor-default w-fit shadow-md">
       <span>🔒</span>
       <span class="font-bold">系統管理員參數設定（已鎖定）</span>
-      <span class="text-2xs text-muted font-medium">(快速鍵 Ctrl+Shift+L 解鎖)</span>
+      <span class="text-xs text-muted font-medium">(快速鍵 Ctrl+Shift+L 解鎖)</span>
     </div>
 
     <section v-if="adminUnlocked" class="space-y-4">
@@ -507,28 +507,28 @@ async function pullSettingsFromCloud() {
           <span>⚙️</span> 班表資料串接與後端設定
           <span class="text-2xs font-bold px-2 py-0.5 rounded-full bg-warning/10 text-warning border border-warning/30 shadow-[0_0_10px_rgba(245,158,11,0.05)]">管理員模式</span>
         </h2>
-        <button @click="adminUnlocked = false" class="text-2xs text-muted hover:text-fg-secondary font-bold cursor-pointer">🔒 鎖定設定</button>
+        <button @click="adminUnlocked = false" class="text-xs text-muted hover:text-fg-secondary font-bold cursor-pointer">🔒 鎖定設定</button>
       </div>
 
       <div class="bg-surface rounded-2xl border border-hairline p-6 shadow-xl space-y-4">
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-2xs font-bold text-muted mb-1">主試算表 ID (Google Spreadsheet ID)</label>
+            <label class="block text-xs font-bold text-muted mb-1">主試算表 ID (Google Spreadsheet ID)</label>
             <input v-model="cloud.spreadsheetId" placeholder="請輸入試算表 ID..."
               class="w-full text-xs px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg font-mono outline-none focus:border-accent/50" />
           </div>
           <div>
-            <label class="block text-2xs font-bold text-muted mb-1">Google API Key (金鑰憑證)</label>
+            <label class="block text-xs font-bold text-muted mb-1">Google API Key (金鑰憑證)</label>
             <input v-model="cloud.apiKey" type="password" placeholder="請輸入 API Key..."
               class="w-full text-xs px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg font-mono outline-none focus:border-accent/50" />
           </div>
           <div>
-            <label class="block text-2xs font-bold text-muted mb-1">GAS Web App URL (回寫閘道連結)</label>
+            <label class="block text-xs font-bold text-muted mb-1">GAS Web App URL (回寫閘道連結)</label>
             <input v-model="cloud.gasUrl" placeholder="https://script.google.com/macros/s/.../exec"
               class="w-full text-xs px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg font-mono outline-none focus:border-accent/50" />
           </div>
           <div class="col-span-2">
-            <label class="block text-2xs font-bold text-muted mb-1">GAS 金鑰（每台電腦各自填入，不會存到雲端）</label>
+            <label class="block text-xs font-bold text-muted mb-1">GAS 金鑰（每台電腦各自填入，不會存到雲端）</label>
             <div class="flex items-center gap-2 flex-wrap">
               <input v-model="cloud.gasApiKey" type="password" placeholder="在 Apps Script 編輯器執行 setupApiKey() 取得"
                 class="flex-1 min-w-[16rem] text-xs px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg font-mono outline-none focus:border-accent/50" />
@@ -542,7 +542,7 @@ async function pullSettingsFromCloud() {
                 {{ keyStatus.required ? '關閉金鑰檢查' : '開啟金鑰檢查' }}
               </button>
             </div>
-            <p v-if="keyStatus" class="text-2xs mt-1 font-medium"
+            <p v-if="keyStatus" class="text-xs mt-1 font-medium"
               :class="!keyStatus.configured || !keyStatus.valid ? 'text-warning' : 'text-muted'">
               {{ !keyStatus.configured ? 'GAS 尚未設定金鑰：請先在 Apps Script 編輯器執行 setupApiKey()'
                 : !keyStatus.valid ? '本機填入的金鑰與 GAS 不符'
@@ -551,15 +551,15 @@ async function pullSettingsFromCloud() {
             </p>
           </div>
           <div>
-            <label class="block text-2xs font-bold text-muted mb-1">班表 Sheet 分頁前綴</label>
+            <label class="block text-xs font-bold text-muted mb-1">班表 Sheet 分頁前綴</label>
             <input v-model="sheetPrefix" placeholder="Schedule_"
               class="w-full text-xs px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg font-mono outline-none focus:border-accent/50" />
           </div>
           <div class="col-span-2">
-            <label class="block text-2xs font-bold text-muted mb-1">獨立班表試算表 ID（留空則寫入上方主試算表）</label>
+            <label class="block text-xs font-bold text-muted mb-1">獨立班表試算表 ID（留空則寫入上方主試算表）</label>
             <input v-model="cloud.scheduleSpreadsheetId" placeholder="選填：指定寫入專屬的月度班表 Excel 檔案"
               class="w-full text-xs px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg font-mono outline-none focus:border-accent/50" />
-            <p class="text-2xs text-muted mt-1 font-medium">指定後，排班系統將自動將 <span class="font-mono text-fg-secondary">Schedule_YYYYMM</span> 分頁寫入此處；請確保 GAS URL 的 Google 帳號擁有編輯權限。</p>
+            <p class="text-xs text-muted mt-1 font-medium">指定後，排班系統將自動將 <span class="font-mono text-fg-secondary">Schedule_YYYYMM</span> 分頁寫入此處；請確保 GAS URL 的 Google 帳號擁有編輯權限。</p>
           </div>
         </div>
 
@@ -741,7 +741,7 @@ async function pullSettingsFromCloud() {
             清除金鑰
           </button>
         </div>
-        <p class="text-2xs text-muted leading-relaxed font-medium">
+        <p class="text-xs text-muted leading-relaxed font-medium">
           此 API 金鑰僅會安全儲存於本機資料庫中，用於「病歷潤飾」功能時調用 Gemini 模型。您可以免費前往
           <a href="https://aistudio.google.com/" target="_blank" class="text-accent hover:text-accent-hover underline font-bold">Google AI Studio</a>
           申請個人專屬的免費額度 API Key。
@@ -756,7 +756,7 @@ async function pullSettingsFromCloud() {
       <!-- 目前版本 + 檢查按鈕 -->
       <div class="flex items-center gap-6 p-5 bg-sunken rounded-2xl border border-hairline shadow-md">
         <div class="flex-1">
-          <p class="text-2xs font-bold text-muted mb-1">目前安裝版本</p>
+          <p class="text-xs font-bold text-muted mb-1">目前安裝版本</p>
           <p class="text-2xl font-black text-fg font-mono tracking-wider">v{{ APP_VERSION }}</p>
         </div>
         <div class="flex flex-col items-end gap-1.5 shrink-0">
@@ -764,7 +764,7 @@ async function pullSettingsFromCloud() {
             class="text-xs px-4 py-2 bg-accent border border-accent/30 hover:bg-accent disabled:opacity-50 text-white rounded-xl font-bold cursor-pointer transition-all shadow-lg shadow-accent/10">
             {{ updateChecking ? '正在線上搜檢…' : '檢查線上更新' }}
           </button>
-          <p class="text-2xs text-muted font-medium">系統將比對 GitHub Releases 最新發佈</p>
+          <p class="text-xs text-muted font-medium">系統將比對 GitHub Releases 最新發佈</p>
         </div>
       </div>
 
@@ -787,9 +787,9 @@ async function pullSettingsFromCloud() {
       <div class="space-y-4">
         <div class="flex items-center gap-3 border-b border-hairline pb-2">
           <p class="text-xs font-bold text-fg-secondary">GitHub Releases 發佈歷史紀錄</p>
-          <span v-if="changelogFetchedAt" class="text-2xs text-muted">上次同步：{{ changelogFetchedAt }}</span>
+          <span v-if="changelogFetchedAt" class="text-xs text-muted">上次同步：{{ changelogFetchedAt }}</span>
           <button @click="fetchChangelog" :disabled="changelogLoading"
-            class="ml-auto text-2xs font-bold px-3 py-1.5 border border-hairline bg-elevated text-fg-secondary hover:text-fg rounded-lg cursor-pointer transition-all">
+            class="ml-auto text-xs font-bold px-3 py-1.5 border border-hairline bg-elevated text-fg-secondary hover:text-fg rounded-lg cursor-pointer transition-all">
             {{ changelogLoading ? '正在擷取…' : '↻ 從雲端同步日誌' }}
           </button>
         </div>
@@ -839,7 +839,7 @@ async function pullSettingsFromCloud() {
             + 新增時段
           </button>
         </div>
-        <p class="text-2xs text-muted font-medium">每天在設定的時間範圍內執行一次自動同步（當天已觸發者跳過）。</p>
+        <p class="text-xs text-muted font-medium">每天在設定的時間範圍內執行一次自動同步（當天已觸發者跳過）。</p>
         <div v-if="syncWindows.length" class="space-y-2">
           <div v-for="(w, i) in syncWindows" :key="i" class="flex items-center gap-2">
             <input v-model="w.from" type="time"
@@ -850,7 +850,7 @@ async function pullSettingsFromCloud() {
             <button @click="removeSyncWindow(i)" class="text-muted hover:text-danger text-sm leading-none cursor-pointer transition-colors">✕</button>
           </div>
         </div>
-        <p v-else class="text-2xs text-muted font-medium italic">尚未設定任何時段</p>
+        <p v-else class="text-xs text-muted font-medium italic">尚未設定任何時段</p>
       </div>
 
       <!-- 間隔同步 -->
@@ -864,7 +864,7 @@ async function pullSettingsFromCloud() {
           <option :value="4">每 4 小時</option>
           <option :value="8">每 8 小時</option>
         </select>
-        <p class="text-2xs text-muted font-medium">程式執行期間每隔指定小時自動同步一次。</p>
+        <p class="text-xs text-muted font-medium">程式執行期間每隔指定小時自動同步一次。</p>
       </div>
 
       <!-- 儲存 + 手動觸發 -->

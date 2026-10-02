@@ -50,12 +50,12 @@ function pick(c: EmCard) {
         class="w-full px-3 py-2 rounded-lg bg-sunken border border-hairline text-xs text-fg" />
       <div class="flex-1 overflow-y-auto space-y-3 pr-1">
         <div v-for="g in groups" :key="g.cat">
-          <p class="text-2xs font-bold text-muted mb-1">{{ g.cat }}</p>
+          <p class="text-xs font-bold text-muted mb-1">{{ g.cat }}</p>
           <button v-for="c in g.items" :key="c.uid" @click="pick(c)"
             class="w-full text-left px-3 py-2.5 mb-1 rounded-lg border text-xs"
             :class="selected?.uid === c.uid ? 'bg-danger/10 border-danger/30 text-danger font-bold' : 'bg-sunken border-hairline text-fg-secondary hover:text-fg'">
             {{ c.name }}
-            <span v-if="c.spec.status === 'literature'" class="ml-1 text-2xs text-warning">文獻版</span>
+            <span v-if="c.spec.status === 'literature'" class="ml-1 text-xs text-warning">文獻版</span>
           </button>
         </div>
         <p v-if="!list.length" class="text-xs text-muted text-center py-8">沒有符合的卡片</p>

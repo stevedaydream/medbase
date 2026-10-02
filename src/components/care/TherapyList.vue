@@ -24,6 +24,6 @@ defineProps<{ therapy: HbTherapy[]; refs: { title: string; url: string }[] }>();
         <button v-for="i in t.refs" :key="i" class="underline hover:text-accent text-left" @click="openUrl(refs[i].url)">[{{ i + 1 }}] {{ refs[i].title }}</button>
       </p>
     </div>
-    <p class="text-2xs text-muted">劑量為指引常用範圍，實際依醫囑；抗生素依院內抗藥性、腎功能與過敏史調整</p>
+    <p class="text-xs text-muted">劑量為指引常用範圍，實際依醫囑；抗生素依院內抗藥性、腎功能與過敏史調整</p>
   </div>
 </template>

@@ -397,7 +397,7 @@ function showSurgToast(msg: string) {
               :class="o.count === 0 && !activeSurgeries.has(o.key) ? 'opacity-40' : ''">
               <input type="checkbox" class="accent-accent" :checked="activeSurgeries.has(o.key)" @change="toggle('surgery', o.key)" />
               <span class="flex-1 min-w-0" :class="activeSurgeries.has(o.key) ? 'text-accent font-bold' : 'text-fg'">
-                {{ o.label }}<span v-if="o.sub" class="ml-1 text-2xs text-muted font-normal">{{ o.sub }}</span>
+                {{ o.label }}<span v-if="o.sub" class="ml-1 text-xs text-muted font-normal">{{ o.sub }}</span>
               </span>
               <span class="text-2xs tabular-nums text-muted">{{ o.count }}</span>
             </label>
@@ -618,7 +618,7 @@ function showSurgToast(msg: string) {
               <div class="px-5 py-3.5 border-b border-hairline flex items-center gap-3 shrink-0 flex-wrap bg-sunken">
                 <span class="text-xs text-fg font-black tracking-wider truncate">{{ mgmtSelected?.name }}</span>
                 <span v-if="mgmtSelected?.dept" class="text-2xs font-mono bg-accent/10 border border-accent/30 text-accent px-2 py-0.5 rounded-full font-bold">{{ mgmtSelected.dept }}</span>
-                <span class="text-2xs font-bold text-muted bg-sunken px-2 py-0.5 rounded border border-hairline">已關聯 {{ mgmtSelCodes.size }} 品項</span>
+                <span class="text-xs font-bold text-muted bg-sunken px-2 py-0.5 rounded border border-hairline">已關聯 {{ mgmtSelCodes.size }} 品項</span>
                 
                 <label class="ml-auto flex items-center gap-1.5 text-xs text-fg-secondary cursor-pointer select-none font-bold">
                   <input type="checkbox" v-model="mgmtOnlyLinked" class="accent-accent w-3.5 h-3.5 rounded" />

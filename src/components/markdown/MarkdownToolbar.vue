@@ -73,12 +73,12 @@ const tableTools: Tool[] = [
     <div class="flex-1" />
     <slot />
     <button @click="emit('update:source', !source)" title="切換排版／原始碼（Ctrl+/）"
-      class="px-3 py-1.5 rounded-lg text-2xs font-bold border transition-all cursor-pointer"
+      class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer"
       :class="source ? 'bg-accent/10 border-accent/30 text-accent' : 'border-hairline text-muted hover:text-fg'">
       {{ source ? '原始碼' : '排版' }}
     </button>
     <!-- 表格操作：游標在表格內才出現 -->
-    <div v-if="inTable" class="basis-full flex items-center gap-0.5 pt-1 text-2xs">
+    <div v-if="inTable" class="basis-full flex items-center gap-0.5 pt-1 text-xs">
       <span class="text-muted font-bold mr-1">表格</span>
       <button v-for="b in tableTools" :key="b.label" @click="b.run()" :title="b.title"
         class="px-2 py-1 rounded-md text-muted hover:text-fg hover:bg-overlay/5 cursor-pointer">{{ b.label }}</button>

@@ -124,7 +124,7 @@ function isDifferentSession(idx: number): boolean {
       </div>
 
       <div class="ml-auto flex items-center gap-1.5 flex-wrap">
-        <span v-if="exportMsg" class="text-accent text-2xs">{{ exportMsg }}</span>
+        <span v-if="exportMsg" class="text-accent text-xs">{{ exportMsg }}</span>
         <button @click="toggleHistory" :disabled="loadingHistory"
           class="px-2 py-0.5 rounded text-2xs transition-colors"
           :class="showHistory ? 'bg-accent text-accent' : 'bg-raised text-fg-secondary hover:bg-raised'">

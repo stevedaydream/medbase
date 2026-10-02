@@ -249,7 +249,7 @@ async function saveTitle() {
         <!-- Editor Toolbar -->
         <MarkdownToolbar class="px-6 py-2 border-b border-hairline shrink-0 bg-surface" :editor="editorRef" v-model:source="sourceMode" :in-table="inTable">
           <button @click="showOutline = !showOutline" title="大綱"
-            class="mr-1 px-3 py-1.5 rounded-lg text-2xs font-bold border transition-all cursor-pointer"
+            class="mr-1 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer"
             :class="showOutline ? 'bg-accent/10 border-accent/30 text-accent' : 'border-hairline text-muted hover:text-fg'">大綱</button>
         </MarkdownToolbar>
 
@@ -264,7 +264,7 @@ async function saveTitle() {
             <MarkdownOutline :items="outline" :cursor="cursor" @jump="editorRef?.jumpTo($event)" />
           </aside>
         </div>
-        <div class="px-6 py-1.5 border-t border-hairline bg-surface text-2xs text-muted flex justify-end shrink-0">{{ words }} 字</div>
+        <div class="px-6 py-1.5 border-t border-hairline bg-surface text-xs text-muted flex justify-end shrink-0">{{ words }} 字</div>
       </template>
     </div>
   </div>
@@ -276,12 +276,12 @@ async function saveTitle() {
         <h2 class="text-fg font-black text-sm border-b border-hairline pb-2">✏️ 新增備忘</h2>
         <div class="space-y-3">
           <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">分類目錄</label>
+            <label class="text-xs font-bold text-muted mb-1 block">分類目錄</label>
             <input v-model="addForm.category" placeholder="例如: 輪序規則、外圍分配、注意事項"
               class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50" />
           </div>
           <div>
-            <label class="text-2xs font-bold text-muted mb-1 block">備忘標題 *</label>
+            <label class="text-xs font-bold text-muted mb-1 block">備忘標題 *</label>
             <input v-model="addForm.title" placeholder="請輸入標題"
               class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-xs focus:outline-none focus:border-accent/50 font-bold"
               @keydown.enter="confirmAdd" autofocus />

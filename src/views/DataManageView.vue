@@ -828,7 +828,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
     <!-- ── 左側 Tab 列 ──────────────────────────────── -->
     <div class="flex flex-col w-48 shrink-0 border-r border-hairline bg-surface py-4 gap-1 px-3">
       <div class="px-3 pb-3 mb-2 border-b border-hairline">
-        <span class="text-2xs font-black text-muted">資料庫管理</span>
+        <span class="text-xs font-black text-muted">資料庫管理</span>
       </div>
       <button
         v-for="tab in tabs" :key="tab.key"
@@ -891,7 +891,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
       <Transition name="slide-down">
         <div v-if="importResults"
           class="flex items-center gap-4 px-6 py-2.5 bg-accent/5 border-b border-accent/10 shrink-0 text-xs">
-          <span class="text-accent font-bold text-2xs">匯入結果</span>
+          <span class="text-accent font-bold text-xs">匯入結果</span>
           <span v-for="r in importResults" :key="r.sheet"
             class="flex items-center gap-1 text-fg-secondary font-medium">
             <span class="text-success font-mono font-bold">+{{ r.upserted }}</span>
@@ -908,7 +908,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         <div class="bg-surface rounded-2xl border border-hairline shadow-2xl overflow-hidden w-max min-w-full">
           <table class="w-full text-left border-collapse">
             <thead>
-              <tr class="border-b border-hairline bg-surface text-fg-secondary text-2xs font-bold">
+              <tr class="border-b border-hairline bg-surface text-fg-secondary text-xs font-bold">
                 <th class="px-4 py-3">院內碼</th>
                 <th class="px-4 py-3">中文品名</th>
                 <th class="px-4 py-3">用途</th>
@@ -1017,7 +1017,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
                   </span>
                   <span v-else-if="Object.keys(tableMetaMap).length > 0" class="text-2xs font-mono text-muted px-1 py-0.5">空</span>
                 </div>
-                <div class="text-2xs text-muted mt-1 font-medium">{{ g.desc }}</div>
+                <div class="text-xs text-muted mt-1 font-medium">{{ g.desc }}</div>
               </div>
             </label>
           </div>
@@ -1112,7 +1112,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
             <h3 class="font-bold text-fg text-sm">通訊錄雙軌即時同步 (.xlsx)</h3>
           </div>
           <p class="text-xs text-fg-secondary leading-relaxed">
-            將此程式通訊錄資料庫與本地指定之 <code class="text-accent bg-sunken px-1.5 py-0.5 rounded text-2xs border border-hairline">通訊錄.xlsx</code> 連結。對程式做出的任何通訊錄修改會同步回寫該 Excel；若 Excel 檔遭外部程式修改，MedBase 亦會自動偵測並重載，並即時推送 GAS 雲端表單以維持同步。
+            將此程式通訊錄資料庫與本地指定之 <code class="text-accent bg-sunken px-1.5 py-0.5 rounded text-xs border border-hairline">通訊錄.xlsx</code> 連結。對程式做出的任何通訊錄修改會同步回寫該 Excel；若 Excel 檔遭外部程式修改，MedBase 亦會自動偵測並重載，並即時推送 GAS 雲端表單以維持同步。
           </p>
 
           <!-- 未綁定 -->
@@ -1209,7 +1209,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         </div>
 
         <!-- ③ 注意事項 -->
-        <div class="text-2xs text-muted space-y-1.5 px-2 py-4 border-t border-hairline font-medium leading-relaxed">
+        <div class="text-xs text-muted space-y-1.5 px-2 py-4 border-t border-hairline font-medium leading-relaxed">
           <p>• 模組備份 XLSX 的每個分頁 (Sheet) 名稱對應資料庫實體表名稱，方便手動用 Excel 大量編輯。</p>
           <p>• 還原匯入時系統會自動關閉外鍵檢查，並依賴資料相依拓撲順序寫入，確保不會觸發外鍵衝突。</p>
           <p>• <span class="text-warning/80">班表參數設定</span>及帳號密碼，均儲存在「排班系統」模組的 <code class="font-mono bg-sunken px-1 py-0.5 rounded border border-hairline text-2xs">app_settings</code> 表中，備份排班資料時請務必勾選該群組。</p>
@@ -1239,7 +1239,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         <div class="flex items-center justify-between px-6 py-4 border-b border-hairline shrink-0">
           <div>
             <h3 class="font-bold text-fg text-sm">自費耗材批次快速輸入</h3>
-            <p class="text-2xs text-muted mt-1 font-medium">填入多筆品項後一次性儲存。院內碼為必要識別欄，若院內碼已存在則會自動略過避免重疊。</p>
+            <p class="text-xs text-muted mt-1 font-medium">填入多筆品項後一次性儲存。院內碼為必要識別欄，若院內碼已存在則會自動略過避免重疊。</p>
           </div>
           <button @click="showBatchAdd = false" class="text-muted hover:text-fg-secondary text-lg leading-none cursor-pointer">✕</button>
         </div>
@@ -1248,7 +1248,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
         <div class="flex-1 overflow-auto px-4 py-2">
           <table class="w-full text-xs text-left border-collapse">
             <thead class="sticky top-0 bg-surface z-10 border-b border-hairline">
-              <tr class="text-muted text-2xs font-bold">
+              <tr class="text-muted text-xs font-bold">
                 <th class="px-3 py-3 w-32">院內碼 *</th>
                 <th class="px-3 py-3">中文品名</th>
                 <th class="px-3 py-3">英文品名</th>

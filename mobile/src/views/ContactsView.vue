@@ -94,20 +94,20 @@ usePullRefresh(() => pullRefresh(['physicians', 'contacts']))
           </div>
           <a v-if="telHref(e.ext)" :href="telHref(e.ext)" class="shrink-0 text-right">
             <span class="block font-mono text-lg font-black text-accent tabular-nums leading-tight">{{ e.ext }}</span>
-            <span class="block text-2xs text-muted">📞 點擊撥號</span>
+            <span class="block text-xs text-muted">📞 點擊撥號</span>
           </a>
           <button v-else-if="e.ext" @click="copy(e.ext, '分機')" class="shrink-0 text-right">
             <span class="block font-mono text-lg font-black text-accent tabular-nums leading-tight">{{ e.ext }}</span>
-            <span class="block text-2xs text-muted">點擊複製</span>
+            <span class="block text-xs text-muted">點擊複製</span>
           </button>
         </div>
         <div v-if="e.hisAccount || e.hisPassword" class="mt-2.5 grid grid-cols-2 gap-2 text-sm">
           <button @click="copy(e.hisAccount, 'HIS 帳號')" :disabled="!e.hisAccount" class="rounded-xl bg-sunken px-3 py-2 text-left">
-            <span class="block text-2xs text-muted">HIS 帳號</span>
+            <span class="block text-xs text-muted">HIS 帳號</span>
             <span class="font-mono text-fg">{{ e.hisAccount || '—' }}</span>
           </button>
           <div class="rounded-xl bg-sunken px-3 py-2">
-            <span class="block text-2xs text-muted">HIS 密碼</span>
+            <span class="block text-xs text-muted">HIS 密碼</span>
             <SecretText :value="e.hisPassword" label="HIS 密碼" />
           </div>
         </div>

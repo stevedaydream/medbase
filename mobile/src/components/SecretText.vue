@@ -22,6 +22,6 @@ onUnmounted(() => { if (timer) clearTimeout(timer) })
     :class="shown ? 'text-fg' : 'text-muted tracking-widest'"
     :title="shown ? '點一下複製' : '點一下顯示'">
     {{ value ? (shown ? value : '••••••') : '—' }}
-    <span v-if="value" class="ml-1 text-2xs font-sans tracking-normal text-muted">{{ shown ? '點擊複製' : '點擊顯示' }}</span>
+    <span v-if="value" class="ml-1 text-xs font-sans tracking-normal text-muted">{{ shown ? '點擊複製' : '點擊顯示' }}</span>
   </button>
 </template>
