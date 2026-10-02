@@ -93,6 +93,14 @@ describe("GAS mobileSetPrebook", () => {
     expect(ok.applied.length).toBe(1);
     expect(JSON.parse(d["prebook:202612"].json).cells["e1|6"]).toMatchObject({ v: "公假", src: "emp" });
   });
+  it("遠期月份只能登記休假類與限制註記", () => {
+    const d = docs(), me = g._schPerson(d, "111");
+    d["month:202612"] = doc({ ym: "202612", status: "open", prefilled: false, roster: [{ personId: "e1", flags: { active: true } }] });
+    d.shifts = doc([{ code: "D", reducesOff: false, takesOff: false }, { code: "OFF", reducesOff: false, takesOff: true }, { code: "公假", reducesOff: false, takesOff: true }]);
+    const r = g._schSetPrebook(d, me, "202612", [{ day: 1, v: "D" }, { day: 2, v: "OFF" }, { day: 3, v: "公假" }, { day: 4, v: "勿值" }], NOW) as { applied: unknown[]; rejected: { day: number; reason: string }[] };
+    expect(r.applied.length).toBe(3);
+    expect(r.rejected).toEqual([{ day: 1, reason: "遠期月份只能登記休假" }]);
+  });
   it("標記自己的通知已讀", () => {
     const d = docs(), me = g._schPerson(d, "111");
     expect(g._schMarkRead(d, me, null)).toBe(1);

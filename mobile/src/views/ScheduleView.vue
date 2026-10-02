@@ -144,7 +144,9 @@ const myOffBooked = computed(() => {
   return n
 })
 const myAutoOff = computed(() => Array.from({ length: pDays.value }, (_, i) => i + 1).filter(isAuto).length)
-const bookCodes = computed(() => [...shifts.value.filter(s => !s.reducesOff).map(s => s.code), ...CONSTRAINT_MARKS])
+/** 遠期月份（ADR-020）只能登記休假類與限制註記 */
+const far = computed(() => est.value?.prefilled === false)
+const bookCodes = computed(() => [...shifts.value.filter(s => far.value ? s.takesOff : !s.reducesOff).map(s => s.code), ...CONSTRAINT_MARKS])
 const inRoster = computed(() => !!sched.me && !!est.value && sched.me.id in (est.value.quotas ?? {}))
 
 const pickDay = ref(0)
@@ -312,7 +314,8 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
           <button @click="pYM = openYms[pIdx - 1]" :disabled="pIdx <= 0" class="w-10 h-10 rounded-xl bg-surface border border-hairline text-lg disabled:opacity-30">‹</button>
           <div class="text-center">
             <div class="font-bold">{{ pY }} 年 {{ pM }} 月預班</div>
-            <div class="text-xs font-bold text-success">● 開放中</div>
+            <div v-if="far" class="text-xs font-bold text-accent">● 遠期：只能登記休假</div>
+            <div v-else class="text-xs font-bold text-success">● 開放中</div>
           </div>
           <button @click="pYM = openYms[pIdx + 1]" :disabled="pIdx >= openYms.length - 1" class="w-10 h-10 rounded-xl bg-surface border border-hairline text-lg disabled:opacity-30">›</button>
         </div>
@@ -326,6 +329,7 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
           <div class="mt-1 text-xs text-muted">已登記休假 {{ myOffBooked }} 天<template v-if="myAutoOff">（含週日／國定假日自動補休 {{ myAutoOff }} 天）</template></div>
         </div>
 
+        <p v-if="far" class="px-4 mb-2 text-xs text-muted">這個月份還沒預填週末輪序與 8-4，進入近期（前 2 個月）時才會預填；預填若排到你登記的日子，會改掉並通知你。</p>
         <p class="px-4 mb-2 text-xs text-muted">點日期登記；灰底🔒＝系統預填（8-4、國定假日、週末輪序、春節），灰底 OFF＝週日／國定假日自動補休（可改公假）。每格下方為「已休／可休」。</p>
         <div class="grid grid-cols-7 gap-1 px-3">
           <div v-for="w in DOW" :key="w" class="text-center text-xs text-muted py-1">{{ w }}</div>

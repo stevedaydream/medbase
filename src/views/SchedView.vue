@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
-import { ensureSchedLoaded, useSchedStore } from "@/composables/useSchedStore";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ensureSchedLoaded, useSchedStore, ensureMonths } from "@/composables/useSchedStore";
 import { useSchedSession, schedLogin, schedLogout } from "@/composables/useSchedSession";
 import { useSchedSync, startAutoSync, syncSched } from "@/composables/useSchedSync";
 import { markNoticesRead } from "@/composables/useSchedFlow";
@@ -79,6 +79,17 @@ const syncLabel = computed(() => {
     return `☁ 已同步 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   }
   return "☁";
+});
+
+// 每次同步成功後（或單機模式）自動維持開放範圍（ADR-020）；只有排班者有月份文件的寫入權
+let ensuring = false;
+watch([() => sync.lastAt, () => sync.status, () => session.loggedIn], async () => {
+  if (ensuring || !session.loggedIn || session.role === "employee") return;
+  if (!(sync.status === "ok" && sync.lastAt) && sync.status !== "offline") return;
+  ensuring = true;
+  try { if (await ensureMonths()) void syncSched(); }
+  catch (e) { showToast(`自動維持月份失敗：${(e as Error).message}`); }
+  finally { ensuring = false; }
 });
 
 let stopSync: (() => void) | null = null;

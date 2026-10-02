@@ -15,7 +15,9 @@ const props = defineProps<{ ym: string }>();
 const emit = defineEmits<{ close: []; toast: [msg: string] }>();
 const store = useSchedStore();
 const month = computed(() => store.months[props.ym]);
-const readonly = computed(() => month.value?.status === "published");
+// 遠期月份的名單與人力由系統沿用最近的已預填月份（ADR-020），進入近期後才能調整
+const far = computed(() => month.value?.prefilled === false);
+const readonly = computed(() => month.value?.status === "published" || far.value);
 const tab = ref<"roster" | "staffing" | "start">("roster");
 const NEEDS = ["D", "N", "S1"] as const;
 
@@ -184,7 +186,8 @@ function clearAdjust(d: string) {
     <div v-if="month" class="bg-surface border border-hairline rounded-xl shadow-2xl w-[56rem] max-h-[85vh] flex flex-col text-xs">
       <div class="flex items-center gap-2 px-4 py-2.5 border-b border-hairline">
         <h3 class="text-sm font-semibold text-fg">{{ ym }} 本月設定</h3>
-        <span v-if="readonly" class="text-warning">已發布，唯讀</span>
+        <span v-if="far" class="text-warning">遠期月份，名單與人力自動沿用最近的已預填月份（唯讀）</span>
+        <span v-else-if="readonly" class="text-warning">已發布，唯讀</span>
         <div class="ml-4 flex gap-1">
           <button v-for="t in ([['roster', '人員與旗標'], ['staffing', '人力'], ['start', '輪序起點']] as const)" :key="t[0]"
             class="px-2.5 py-1 rounded" :class="tab === t[0] ? 'bg-accent text-white' : 'text-muted hover:bg-elevated'"
@@ -245,7 +248,7 @@ function clearAdjust(d: string) {
                   <tr v-for="it in items" :key="it.id" class="border-t border-hairline">
                     <td class="pr-3 py-1 text-fg-secondary w-24">{{ it.name }}</td>
                     <td class="py-1">
-                      <select class="sched-input" :disabled="!canSetStart" :value="month.vOverride?.[it.id] ?? ''" @change="setV(it.id, ($event.target as HTMLSelectElement).value)">
+                      <select class="sched-input" :disabled="!canSetStart || far" :value="month.vOverride?.[it.id] ?? ''" @change="setV(it.id, ($event.target as HTMLSelectElement).value)">
                         <option value="">自動（上月交接：{{ personById(autoV(it.id))?.name ?? "—" }}）</option>
                         <option v-for="id in eligibleFor(it.id)" :key="id" :value="id">{{ personById(id)?.name }}</option>
                       </select>
@@ -264,7 +267,7 @@ function clearAdjust(d: string) {
                   <tr v-for="w in WK" :key="w.key" class="border-t border-hairline">
                     <td class="pr-3 py-1 text-fg-secondary w-32">{{ w.label }}<span class="text-muted">（{{ wkFirstDate(w.key) || "—" }}）</span></td>
                     <td class="py-1">
-                      <select class="sched-input" :disabled="month.status !== 'open'" :value="month.weekendFirst?.[w.key] ?? ''" @change="setWk(w.key, ($event.target as HTMLSelectElement).value)">
+                      <select class="sched-input" :disabled="month.status !== 'open' || far" :value="month.weekendFirst?.[w.key] ?? ''" @change="setWk(w.key, ($event.target as HTMLSelectElement).value)">
                         <option value="">自動（接續上月：{{ personById(wkFirst(w.key, false))?.name ?? "—" }}）</option>
                         <option v-for="id in order.filter(wkOk(w.key))" :key="id" :value="id">{{ personById(id)?.name }}</option>
                       </select>

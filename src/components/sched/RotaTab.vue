@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import {
-  useSchedStore, saveGlobal, recompute, addNextMonth, sortedYms, personById, firstOpenYm, appendLog, actorName,
+  useSchedStore, saveGlobal, recompute, sortedYms, personById, firstOpenYm, appendLog, actorName,
 } from "@/composables/useSchedStore";
 import { ymOfDate, WEEKDAY_LABEL, dowOfDate } from "@/shared/sched/calendar";
 import type { Duty84Entry } from "@/shared/sched/types";
@@ -49,13 +49,6 @@ async function run(fromYm: string | null, reason: string) {
   } finally {
     busy.value = false;
   }
-}
-
-async function onAddMonth() {
-  busy.value = true;
-  try { emit("toast", `已新增 ${await addNextMonth()}`); }
-  catch (e) { emit("toast", (e as Error).message); }
-  finally { busy.value = false; }
 }
 
 // ── 國定假日 ─────────────────────────────────────────────────
@@ -163,17 +156,16 @@ async function setLastD(y: string, id: string) {
     <section class="space-y-2">
       <div class="flex items-center gap-2">
         <h2 class="text-sm font-semibold text-fg">月份</h2>
-        <span class="text-muted">開放預班的月份會自動預填 8-4、國定假日、週末輪序與春節</span>
+        <span class="text-muted">系統自動維持下個月起 6 個月：前 2 個月預填 8-4、國定假日、週末輪序與春節，其餘為遠期（只開放登記休假）</span>
         <button class="ml-auto px-2 py-1 text-muted hover:text-fg disabled:opacity-40" :disabled="busy || !firstOpenYm()"
           @click="run(null, '手動重新計算')">重新計算</button>
-        <button class="px-3 py-1 bg-accent hover:bg-accent-hover text-white rounded disabled:opacity-40" :disabled="busy" @click="onAddMonth">＋ 下個月</button>
       </div>
       <div class="flex flex-wrap gap-2">
         <button v-for="ym in sortedYms()" :key="ym" class="border rounded px-3 py-1.5 bg-elevated"
           :class="selYm === ym ? 'border-accent' : 'border-hairline'" @click="selYm = selYm === ym ? null : ym">
           <span class="font-semibold text-fg">{{ ym }}</span>
           <span class="ml-2" :class="store.months[ym].status === 'open' ? 'text-accent' : 'text-muted'">
-            {{ STATUS_LABEL[store.months[ym].status] }}
+            {{ STATUS_LABEL[store.months[ym].status] }}{{ store.months[ym].prefilled === false ? "・遠期" : "" }}
           </span>
         </button>
         <span v-if="!sortedYms().length" class="text-muted">尚無月份，請先從「Excel 匯入」匯入起點月份</span>

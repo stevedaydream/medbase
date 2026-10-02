@@ -5,7 +5,7 @@ import { prefillSwapCells, prefillSwapCandidates, prefillSwapCautions } from "@/
 import { useSchedSession, getMachineId } from "@/composables/useSchedSession";
 import {
   beginScheduling, acquireLock, publishMonth, revertMonth, revertDeadline, beginPostEdit, endPostEdit, createSwap,
-  exportMonth, republish, addPrefillSwap, LockedError, type ExportKind,
+  exportMonth, republish, addPrefillSwap, reopenMonth, reopenLoss, LockedError, type ExportKind,
 } from "@/composables/useSchedFlow";
 import type { Layer, CellRef, EditReason } from "@/composables/useGridEditor";
 import { RULE_LABELS, type Issue, type RuleCode } from "@/shared/sched/engine/validate";
@@ -102,6 +102,11 @@ const revertLeft = computed(() => {
   return `${h} 小時 ${m} 分`;
 });
 const doRevert = () => run(() => revertMonth(ym.value), "已退回排班中");
+// 排班中 → 開放預班（ADR-020）：先確認會捨棄幾格
+const reopenAsk = ref<number | null>(null);
+watch(ym, () => { reopenAsk.value = null; });
+const askReopen = () => { reopenAsk.value = reopenLoss(ym.value); };
+const doReopen = () => run(async () => { await reopenMonth(ym.value); reopenAsk.value = null; }, "已退回開放預班，已通知全體");
 const startPostEdit = (force = false) => run(async () => { await beginPostEdit(ym.value, force); lockConflict.value = ""; postEdit.value = true; }, "已進入修改模式：每次修改需填原因，存檔後自動推送手機");
 const stopPostEdit = () => run(async () => { await endPostEdit(ym.value); postEdit.value = false; }, "已結束修改");
 
@@ -214,8 +219,10 @@ const lockTime = computed(() => lock.value ? new Date(lock.value.at).toLocaleStr
           </div>
           <button class="px-2.5 py-1 border border-hairline rounded hover:bg-elevated" @click="showSettings = true">本月設定</button>
           <button v-if="month.status === 'open'" class="px-3 py-1 bg-accent hover:bg-accent-hover text-white rounded disabled:opacity-40"
-            :disabled="busy" @click="onStart()">開始排班</button>
+            :disabled="busy || month.prefilled === false" :title="month.prefilled === false ? '遠期月份尚未預填，進入近期後才能開始排班' : ''" @click="onStart()">開始排班</button>
           <template v-if="month.status === 'scheduling'">
+            <button class="px-2.5 py-1 border border-hairline rounded hover:bg-elevated disabled:opacity-40" :disabled="busy"
+              title="捨棄排班層，預班重新開放並通知全體" @click="askReopen">退回開放預班…</button>
             <button v-if="!hasLock" class="px-2.5 py-1 border border-warning/60 text-warning rounded disabled:opacity-40" :disabled="busy" @click="takeLock()">取得排班鎖</button>
             <button v-else class="px-3 py-1 bg-success hover:bg-success-hover text-white rounded disabled:opacity-40" :disabled="busy" @click="showPublish = true">發布…</button>
           </template>
@@ -241,8 +248,13 @@ const lockTime = computed(() => lock.value ? new Date(lock.value.at).toLocaleStr
       <button class="px-2 py-1 border border-warning/60 rounded text-warning" @click="onStart(true)">強制以目前 X 暫時交接</button>
       <button class="px-2 py-1 text-muted" @click="confirmForce = false">取消</button>
     </div>
+    <div v-if="reopenAsk !== null" class="flex items-center gap-2 px-3 py-2 bg-warning/10 border-b border-warning/40 text-xs">
+      <span class="text-warning">退回開放預班會捨棄排班層{{ reopenAsk ? ` ${reopenAsk} 格修改` : "" }}與換班紀錄，預班重新開放並通知全體。</span>
+      <button class="px-2 py-1 border border-warning/60 rounded text-warning disabled:opacity-40" :disabled="busy" @click="doReopen">確認退回</button>
+      <button class="px-2 py-1 text-muted" @click="reopenAsk = null">取消</button>
+    </div>
 
-    <div v-if="!month" class="flex-1 flex items-center justify-center text-sm text-muted">尚無月份，請到「月份與輪值」新增或從 Excel 匯入</div>
+    <div v-if="!month" class="flex-1 flex items-center justify-center text-sm text-muted">尚無月份，請從「Excel 匯入」匯入起點月份</div>
     <div v-else class="flex-1 flex overflow-hidden">
       <div class="flex-1 overflow-hidden">
         <SchedGrid ref="grid" :ym="ym" :layer="layer" :show-inactive="showInactive" :has-lock="hasLock" :post-edit="postEdit"

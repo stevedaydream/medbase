@@ -184,6 +184,7 @@ export interface EstDoc {
   quotas: Record<string, Record<string, number>>;
   items: { id: string; name: string }[];
   updatedAt: string;
+  prefilled?: boolean;   // false＝遠期月份，只能登記休假類與限制註記
 }
 
 /** 通知（預班被覆蓋、被代改、發布、發布後異動）；personId 為收件人，雲端 notices 文件 */
@@ -195,6 +196,11 @@ export interface NoticeItem {
   read: boolean;
   sent: boolean;
 }
+
+// ── 開放範圍（ADR-020）──────────────────────────────────────────────
+/** 自下個月起開放預班的月數；前 NEAR_MONTHS 個月為近期（系統預填），其餘為遠期（只登記休假） */
+export const OPEN_MONTHS = 6;
+export const NEAR_MONTHS = 2;
 
 // ── 每月文件 ──────────────────────────────────────────────────────────
 export type MonthStatus = "open" | "scheduling" | "published";
@@ -220,6 +226,7 @@ export interface MonthDoc {
   prefillSwaps?: PrefillSwap[];           // 預填換人（開放預班時把系統預填的班交給別人）
   weekendFirst?: Partial<Record<keyof WeekendPointers, string>>; // 手動指定週末輪序本月第一位
   changeLog?: ChangeRec[];                // 發布後異動紀錄
+  prefilled?: boolean;                    // false＝遠期月份（只開放登記休假、不預填）；未設定視為已預填
 }
 
 /** 換班：同一天兩人互換班別（跨日換班＝兩筆；跨月未抵銷者成為欠班） */
