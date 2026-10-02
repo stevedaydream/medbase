@@ -94,6 +94,8 @@ const SYNC_TABLES = {
   ahk:           { sheet: 'Sync_AhkScripts',    key: 'uid', fields: ['uid', 'name', 'description', 'filename', 'content'] },
   emergency:     { sheet: 'Sync_Emergency',     key: 'uid', fields: ['uid', 'name', 'spec'] },   // ADR-017 危急處置卡
   handbook:      { sheet: 'Sync_Handbook',      key: 'uid', fields: ['uid', 'name', 'spec'] },   // ADR-018 隨身工作手冊
+  // ADR-021 SDM 範本：新表沒有舊資料要保護，第一次同步自動建立同步基準
+  sdm:           { sheet: 'Sync_SDM',           key: 'uid', fields: ['uid', 'name', 'spec'], autoBaseline: true },
 };
 
 // 舊版整份上傳／下載的 action。該表建立同步基準後一律拒絕，
@@ -835,9 +837,10 @@ function doPost(e) {
         if (!cfg) return json({ ok: false, error: `Unknown sync table: ${p.table}` });
         const baselineKey = p.table + '_sync_baseline';
         const merged = _withLock(() => {
-          if (!p.force && !_getConfigValue(baselineKey)) return null;
+          const hasBaseline = !!_getConfigValue(baselineKey);
+          if (!p.force && !hasBaseline && !cfg.autoBaseline) return null;
           const m = _mergeSyncTable(ss, p.table, p);
-          if (p.force) _setConfigValue(baselineKey, String(p.now || ''));
+          if (p.force || !hasBaseline) _setConfigValue(baselineKey, String(p.now || ''));
           return m;
         });
         if (!merged) {

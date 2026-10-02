@@ -327,7 +327,7 @@ async function handleXlsx(e: Event) {
 interface BackupGroup { key: string; label: string; icon: string; tables: string[]; desc: string }
 
 const BACKUP_GROUPS: BackupGroup[] = [
-  { key: "clinical",   label: "臨床資料",   icon: "🩺", tables: ["prescriptions","surgery","disease","examination"], desc: "處方、術式、疾病、檢查" },
+  { key: "clinical",   label: "臨床資料",   icon: "🩺", tables: ["prescriptions","surgery","disease","examination","sdm_templates"], desc: "處方、術式、疾病、檢查、SDM 範本" },
   { key: "items",      label: "自費耗材",   icon: "📦", tables: ["items","item_depts","surgery_types","surgery_type_items"], desc: "品項主表、科別對應與手術術式" },
   { key: "sets",       label: "手術套組",   icon: "🗂",  tables: ["sets","set_items"],              desc: "套組與套組品項明細" },
   { key: "physicians", label: "通訊錄", icon: "👤", tables: ["physicians"],                     desc: "醫師帳號、分機、密碼" },
@@ -340,7 +340,7 @@ const BACKUP_GROUPS: BackupGroup[] = [
 
 // FK 相依順序（匯入時依此順序執行）
 const FK_ORDER = [
-  "physicians","prescriptions","surgery","disease","examination",
+  "physicians","prescriptions","surgery","disease","examination","sdm_templates",
   "items","item_depts","surgery_types","surgery_type_items","sets","set_items",
   "scheduler_users","sched_docs","emergency_protocols","contacts",
   "acp_sets","acp_items","acp_records",
@@ -349,7 +349,7 @@ const FK_ORDER = [
 ];
 
 const TABLE_LABELS: Record<string, string> = {
-  prescriptions:"處方", surgery:"術式", disease:"疾病", examination:"檢查",
+  prescriptions:"處方", surgery:"術式", disease:"疾病", examination:"檢查", sdm_templates:"SDM 範本",
   items:"自費品項", item_depts:"品項科別", surgery_types:"手術術式", surgery_type_items:"術式品項",
   sets:"套組", set_items:"套組品項",
   physicians:"通訊錄",
@@ -424,7 +424,7 @@ const FK_DELETE_ORDER = [
   "contacts","emergency_protocols",
   "surgery_type_items","surgery_types","set_items","sets","item_depts","items",
   "physicians","scheduler_users","sched_docs",
-  "prescriptions","surgery","disease","examination",
+  "prescriptions","surgery","disease","examination","sdm_templates",
   "app_settings",
 ];
 

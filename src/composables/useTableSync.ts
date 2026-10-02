@@ -288,6 +288,10 @@ const SYNC_CONFIGS: Record<string, SyncConfig> = {
     label: "工作手冊", localTable: "handbook", key: "uid",
     fields: ["uid", "name", "spec"], notNull: ["name"],
   },
+  sdm: {
+    label: "SDM 範本", localTable: "sdm_templates", key: "uid",
+    fields: ["uid", "name", "spec"], notNull: ["name"],
+  },
   contacts: {
     label: "常用分機", localTable: "contacts", key: "uid",
     fields: ["uid", "label", "ext", "category", "notes"], notNull: ["label", "ext"],
