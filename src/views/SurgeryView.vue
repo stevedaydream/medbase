@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
+import { useFocusFromRoute } from "@/composables/useFocusFromRoute";
 import { getDb } from "@/db";
 import { touchTable, markDeletedById, onTableSynced } from "@/composables/useTableSync";
 import CloudSyncButtons from "@/components/CloudSyncButtons.vue";
@@ -38,6 +39,9 @@ async function onSynced() {
   selected.value = items.value.find(m => m.id === prevId) ?? null;
 }
 onTableSynced("surgery", onSynced);
+
+// 全域搜尋點結果：?focus=surgery:<id> 直接選中
+useFocusFromRoute("surgery", () => items.value, m => m.id, m => { search.value = ""; selected.value = m; activeTab.value = 'pre'; });
 
 async function reload() {
   const db = await getDb();
@@ -145,7 +149,7 @@ const postCount = computed(() => form.value.post_op_orders.split("\n").filter((s
 
       <div class="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
         <div v-if="filtered.length === 0" class="text-muted text-xs italic text-center py-12">無資料</div>
-        <button v-for="m in filtered" :key="m.id"
+        <button v-for="m in filtered" :key="m.id" :data-focus-id="`surgery:${m.id}`"
           @click="selected = m; activeTab = 'pre'"
           class="w-full text-left px-4 py-3 rounded-xl border transition-all cursor-pointer group"
           :class="selected?.id === m.id 

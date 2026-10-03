@@ -1,26 +1,23 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRouter } from "vue-router";
-import { getDb } from "@/db";
+import { loadAllHits } from "@/search";
+import { searchHits, type SearchHit } from "@/search/types";
 
+/**
+ * 全域搜尋（Ctrl+K，ADR-024）：來源由 src/search/providers/ 自動讀取，
+ * 點結果前往該頁並直接選中那一筆（?focus=）。
+ */
 const emit = defineEmits<{ close: [] }>();
 const router = useRouter();
 const query  = ref("");
 const inputRef = ref<HTMLInputElement | null>(null);
 
-interface Result {
-  type: string;
-  label: string;
-  sub: string;
-  route: string;
-  copyCode?: string;   // 自費品項可直接複製院內碼
-}
-
-// 上次的索引：開啟時先顯示避免空白，同時重新查詢資料庫，
+// 上次的索引：開啟時先顯示避免空白，同時重新載入，
 // 否則本次開啟 app 期間新增或修改的資料要重開才搜得到
-let _searchCache: Result[] | null = null;
+let _searchCache: SearchHit[] | null = null;
 
-const allItems = ref<Result[]>([]);
+const allItems = ref<SearchHit[]>([]);
 const copiedCode = ref<string | null>(null);
 let copiedTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -32,81 +29,14 @@ onMounted(async () => {
   inputRef.value?.focus();
   if (_searchCache) allItems.value = _searchCache;
   try {
-    const db = await getDb();
-
-    const [rxs, diseases, exams, surgeries, protos, items, physicians, sets, contacts] =
-      await Promise.all([
-        db.select<{ name: string; category: string }[]>(
-          "SELECT name, category FROM prescriptions"),
-        db.select<{ name: string; icd10: string }[]>(
-          "SELECT name, icd10 FROM disease"),
-        db.select<{ name: string; category: string }[]>(
-          "SELECT name, category FROM examination"),
-        db.select<{ name: string; category: string }[]>(
-          "SELECT name, category FROM surgery"),
-        db.select<{ name: string }[]>(
-          "SELECT name FROM emergency_protocols"),
-        db.select<{ hospital_code: string; name_zh: string; name_en: string; purpose: string; price: number }[]>(
-          "SELECT hospital_code, name_zh, name_en, purpose, price FROM items"),
-        db.select<{ name: string; department: string; title: string; ext: string; his_account: string | null }[]>(
-          "SELECT name, department, title, ext, his_account FROM physicians"),
-        db.select<{ name: string; surgery_type: string; doctor: string }[]>(`
-          SELECT s.name, s.surgery_type,
-                 COALESCE(p.name, '') as doctor
-          FROM sets s LEFT JOIN physicians p ON s.physician_id = p.id`),
-        db.select<{ label: string; ext: string; category: string | null; notes: string | null }[]>(
-          "SELECT label, ext, category, notes FROM contacts"),
-      ]);
-
-    _searchCache = [
-      ...rxs.map((m) => ({ type: "處方", label: m.name, sub: m.category ?? "", route: "/sets?tab=prescriptions" })),
-      ...diseases.map((m) => ({ type: "疾病", label: m.name, sub: m.icd10 ?? "", route: "/sets?tab=disease" })),
-      ...exams.map((m) => ({ type: "檢查", label: m.name, sub: m.category ?? "", route: "/sets?tab=examination" })),
-      ...surgeries.map((m) => ({ type: "手術", label: m.name, sub: m.category ?? "", route: "/sets?tab=surgery" })),
-      ...protos.map((m) => ({ type: "處置", label: m.name, sub: "數值判讀", route: "/care?tab=value" })),
-      ...items.map((m) => ({
-        type: "自費",
-        label: m.name_zh || m.name_en || m.hospital_code,
-        sub: [m.hospital_code, m.purpose, m.price ? `$${m.price.toLocaleString()}` : ""].filter(Boolean).join(" · "),
-        route: "/items",
-        copyCode: m.hospital_code,
-      })),
-      ...physicians.map((m) => ({
-        type: "醫師",
-        label: m.name,
-        sub: [m.department, m.title, m.ext ? `分機 ${m.ext}` : "", m.his_account ? `HIS ${m.his_account}` : ""].filter(Boolean).join(" · "),
-        route: "/physicians",
-      })),
-      ...sets.map((m) => ({
-        type: "套組",
-        label: m.name,
-        sub: [m.surgery_type, m.doctor].filter(Boolean).join(" · "),
-        route: "/sets?tab=sets",
-      })),
-      ...contacts.map((m) => ({
-        type: "分機",
-        label: m.label,
-        sub: [m.category, m.ext ? `分機 ${m.ext}` : "", m.notes].filter(Boolean).join(" · "),
-        route: "/physicians",
-      })),
-    ];
+    _searchCache = await loadAllHits();
     allItems.value = _searchCache;
   } catch {
     // DB not ready
   }
 });
 
-const results = computed(() => {
-  const q = query.value.toLowerCase().trim();
-  if (!q) return allItems.value.slice(0, 8);
-  return allItems.value
-    .filter((r) =>
-      r.label.toLowerCase().includes(q) ||
-      r.sub.toLowerCase().includes(q) ||
-      r.type.includes(query.value)
-    )
-    .slice(0, 14);
-});
+const results = computed(() => (query.value.trim() ? searchHits(allItems.value, query.value) : []));
 
 const activeIdx = ref(0);
 // 輸入改變或索引重新載入後，選取回到第一筆，避免停在已不存在的位置而按 Enter 沒反應
@@ -118,12 +48,12 @@ function onKeydown(e: KeyboardEvent) {
   if (e.key === "Enter" && results.value[activeIdx.value]) select(results.value[activeIdx.value]);
 }
 
-function select(r: Result) {
+function select(r: SearchHit) {
   router.push(r.route);
   emit("close");
 }
 
-async function copyAndClose(code: string, e: MouseEvent) {
+async function copyCode(code: string, e: MouseEvent) {
   e.stopPropagation();
   await navigator.clipboard.writeText(code);
   copiedCode.value = code;
@@ -132,15 +62,8 @@ async function copyAndClose(code: string, e: MouseEvent) {
 }
 
 const typeColors: Record<string, string> = {
-  "處方": "bg-accent/10 text-accent",
   "疾病": "bg-warning/10 text-warning",
-  "檢查": "bg-accent/10 text-accent",
-  "手術": "bg-accent/10 text-accent",
-  "急救": "bg-danger/10 text-danger",
-  "自費": "bg-accent/10 text-accent",
-  "醫師": "bg-accent/10 text-accent",
-  "套組": "bg-accent/10 text-accent",
-  "分機": "bg-accent/10 text-accent",
+  "判讀": "bg-danger/10 text-danger",
 };
 </script>
 
@@ -155,7 +78,7 @@ const typeColors: Record<string, string> = {
           ref="inputRef"
           v-model="query"
           @keydown="onKeydown"
-          placeholder="搜尋藥物、自費品項、醫師、套組…"
+          placeholder="搜尋套組、SDM、自費品項、人員、手冊、備忘錄…"
           class="flex-1 bg-transparent text-fg text-sm placeholder-muted focus:outline-none"
         />
         <kbd class="text-muted text-xs font-mono border border-hairline rounded px-1.5 py-0.5">ESC</kbd>
@@ -163,12 +86,11 @@ const typeColors: Record<string, string> = {
 
       <!-- 結果列表 -->
       <ul class="max-h-96 overflow-y-auto py-1">
-        <li v-if="results.length === 0" class="text-muted text-sm text-center py-8">
-          無結果
-        </li>
+        <li v-if="!query.trim()" class="text-muted text-sm text-center py-8">輸入關鍵字開始搜尋（可用空白分隔多個字）</li>
+        <li v-else-if="results.length === 0" class="text-muted text-sm text-center py-8">無結果</li>
         <li
           v-for="(r, idx) in results"
-          :key="`${r.type}-${r.label}-${idx}`"
+          :key="`${r.type}-${r.route}-${idx}`"
           @click="select(r)"
           @mouseenter="activeIdx = idx"
           class="flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors"
@@ -176,26 +98,25 @@ const typeColors: Record<string, string> = {
         >
           <!-- 類型標籤 -->
           <span
-            class="px-1.5 py-0.5 rounded text-xs font-semibold shrink-0 w-8 text-center"
-            :class="typeColors[r.type] ?? 'bg-elevated text-fg-secondary'"
+            class="px-1.5 py-0.5 rounded text-xs font-semibold shrink-0 min-w-8 text-center"
+            :class="typeColors[r.type] ?? 'bg-accent/10 text-accent'"
           >{{ r.type }}</span>
 
-          <!-- 品名 + 副資訊 -->
+          <!-- 標題 + 副資訊 -->
           <div class="flex-1 min-w-0">
             <p class="text-fg text-sm truncate">{{ r.label }}</p>
             <p class="text-muted text-xs truncate">{{ r.sub }}</p>
           </div>
 
-          <!-- 自費品項：複製院內碼按鈕 -->
           <button
-            v-if="r.copyCode"
-            @click="copyAndClose(r.copyCode, $event)"
+            v-if="r.copy"
+            @click="copyCode(r.copy.text, $event)"
             class="shrink-0 text-xs px-2 py-0.5 rounded transition-colors"
-            :class="copiedCode === r.copyCode
+            :class="copiedCode === r.copy.text
               ? 'bg-accent/10 text-accent'
               : 'bg-elevated text-muted hover:bg-raised hover:text-accent'"
           >
-            {{ copiedCode === r.copyCode ? "✓ 已複製" : "複製碼" }}
+            {{ copiedCode === r.copy.text ? "✓ 已複製" : r.copy.label }}
           </button>
 
           <span v-else class="text-muted text-xs shrink-0">↵</span>
@@ -205,7 +126,7 @@ const typeColors: Record<string, string> = {
       <!-- Footer -->
       <div class="flex items-center gap-4 px-4 py-2 border-t border-hairline text-xs text-muted">
         <span>↑↓ 導航</span>
-        <span>↵ 前往</span>
+        <span>↵ 前往並開啟</span>
         <span>自費可直接複製院內碼</span>
         <span class="ml-auto">ESC 關閉</span>
       </div>
