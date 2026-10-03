@@ -24,6 +24,7 @@
 ## 專案禁忌
 - DB 寫入必須用 `dbWrite()`，不可直接 `db.execute()`（SQLITE_BUSY，BF-006）
 - 拖曳用 Pointer Events，不用 HTML5 Drag & Drop（BF-001）
+- 新增資料表要在 `src/utils/backupRegistry.ts` 歸到備份群組（測試會擋，ADR-023）
 - 細節慣例見 `project_conventions.md`，待辦見 `project_pending.md`
 
 ## Git 設定
