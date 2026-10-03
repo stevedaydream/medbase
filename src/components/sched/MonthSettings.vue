@@ -3,6 +3,7 @@ import { ref, computed } from "vue";
 import {
   useSchedStore, personById, saveMonth, appendLog, actorName, recompute,
 } from "@/composables/useSchedStore";
+import { useRowDrag, moveById } from "@/composables/useRowDrag";
 import { computeQuotas, handoverV, isEligible } from "@/shared/sched/engine/quota";
 import { cellFnOf, applyWeekendFirst } from "@/shared/sched/engine/prefill";
 import { nextInOrder } from "@/shared/sched/engine/rotation";
@@ -57,12 +58,18 @@ function persist(detail: string) {
 }
 
 const nm = (r: RosterEntry) => personById(r.personId)?.name ?? "?";
-function move(i: number, delta: number) {
-  const list = month.value!.roster, j = i + delta;
-  if (j < 0 || j >= list.length) return;
-  [list[i], list[j]] = [list[j], list[i]];
-  persist(`${nm(list[j])} 順序移到第 ${j + 1}`);
-}
+// 拖曳排序：按住 ⠿ 拖到目標位置放開
+const scroller = ref<HTMLElement | null>(null);
+const { dragId, dropBefore, dropAtEnd, onGripDown } = useRowDrag({
+  scroller,
+  enabled: () => !readonly.value,
+  onDrop: (id, before) => {
+    const list = month.value!.roster;
+    if (!moveById(list, r => r.personId, id, before)) return;
+    const j = list.findIndex(r => r.personId === id);
+    persist(`${nm(list[j])} 順序移到第 ${j + 1}`);
+  },
+});
 function toggleFlag(r: RosterEntry, k: FlagKey) {
   r.flags[k] = !r.flags[k];
   const label = FLAG_DEFS.find(f => f.key === k)!.label;
@@ -196,10 +203,10 @@ function clearAdjust(d: string) {
         <button class="ml-auto text-muted hover:text-fg text-base" @click="emit('close')">✕</button>
       </div>
 
-      <div class="flex-1 overflow-y-auto p-4">
+      <div ref="scroller" class="flex-1 overflow-y-auto p-4" :class="dragId ? 'select-none cursor-grabbing' : ''">
         <!-- 人員與旗標 -->
         <template v-if="tab === 'roster'">
-          <p class="text-muted mb-2">順序＝餘數輪序與週末輪序的順序。旗標各自獨立，修改後自動重算配額與預填。</p>
+          <p class="text-muted mb-2">順序＝餘數輪序與週末輪序的順序（按住 ⠿ 拖曳調整）。旗標各自獨立，修改後自動重算配額與預填。</p>
           <table>
             <thead class="text-muted text-left">
               <tr>
@@ -208,12 +215,13 @@ function clearAdjust(d: string) {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(r, i) in month.roster" :key="r.personId" class="border-t border-hairline">
+              <tr v-for="(r, i) in month.roster" :key="r.personId" :data-drag-row="r.personId" class="border-t"
+                :class="[dropBefore === r.personId && dragId !== r.personId ? 'border-t-2 border-t-accent' : 'border-hairline',
+                         dragId && dropAtEnd && i === month.roster.length - 1 ? 'border-b-2 border-b-accent' : '',
+                         dragId === r.personId ? 'bg-accent/10' : '']">
                 <td class="px-2 py-1 whitespace-nowrap text-muted">
-                  <template v-if="!readonly">
-                    <button class="px-0.5 hover:text-fg" @click="move(i, -1)">▲</button>
-                    <button class="px-0.5 hover:text-fg" @click="move(i, 1)">▼</button>
-                  </template>
+                  <span v-if="!readonly" class="inline-flex items-center justify-center w-6 h-6 rounded touch-none cursor-grab hover:bg-elevated hover:text-fg"
+                    title="按住拖曳調整順序" @pointerdown="onGripDown($event, r.personId)">⠿</span>
                   {{ i + 1 }}
                 </td>
                 <td class="px-2 whitespace-nowrap text-fg">{{ nm(r) }} <span class="text-muted">{{ personById(r.personId)?.unit }}</span></td>
