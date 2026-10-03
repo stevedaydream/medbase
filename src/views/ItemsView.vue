@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, type Ref } from "vue";
+import { useFocusFromRoute } from "@/composables/useFocusFromRoute";
 import { refDebounced } from "@vueuse/core";
 import { getDb } from "@/db";
 import { touchTable, markDeletedById, onTableSynced } from "@/composables/useTableSync";
@@ -182,6 +183,9 @@ function resetAllFilters() {
   activeSurgeries.value = new Set();
   activeSets.value      = new Set();
 }
+
+// 全域搜尋點結果：?focus=items:<院內碼>，清掉篩選並以院內碼搜尋
+useFocusFromRoute("items", () => items.value, m => m.hospital_code, m => { resetAllFilters(); searchRaw.value = m.hospital_code; });
 
 const activeChips = computed(() => chipsOf(ctx.value.filters, surgeryTypes.value, setGroups.value));
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
+import { useFocusFromRoute } from "@/composables/useFocusFromRoute";
 import { getDb } from "@/db";
 import { touchTable, markDeletedById, onTableSynced } from "@/composables/useTableSync";
 import CloudSyncButtons from "@/components/CloudSyncButtons.vue";
@@ -37,6 +38,9 @@ async function onSynced() {
   selected.value = items.value.find(m => m.id === prevId) ?? null;
 }
 onTableSynced("prescriptions", onSynced);
+
+// 全域搜尋點結果：?focus=prescriptions:<id> 直接選中
+useFocusFromRoute("prescriptions", () => items.value, m => m.id, m => { search.value = ""; selected.value = m; });
 
 async function reload() {
   const db = await getDb();
@@ -150,7 +154,7 @@ const stepCount = computed(() =>
       <!-- List Container -->
       <div class="flex-1 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
         <div v-if="filtered.length === 0" class="text-muted text-xs text-center py-10 italic">無資料</div>
-        <button v-for="m in filtered" :key="m.id" @click="selected = m"
+        <button v-for="m in filtered" :key="m.id" :data-focus-id="`prescriptions:${m.id}`" @click="selected = m"
           class="w-full text-left px-3.5 py-3 rounded-xl border transition-all cursor-pointer"
           :class="selected?.id === m.id
             ? 'bg-warning/10 border-warning/40 text-warning shadow-[0_0_12px_rgba(245,158,11,0.08)]'

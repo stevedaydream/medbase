@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { useFocusFromRoute } from "@/composables/useFocusFromRoute";
 import { onTableSynced } from "@/composables/useTableSync";
 import { loadSdm, saveSdm, deleteSdm, getEditorName, setEditorName, SDM_TABLE } from "@/composables/useSdm";
 import { searchSdm, groupByDept, decisionSections, type SdmEntry } from "@/shared/sdm/types";
@@ -40,6 +41,9 @@ onMounted(async () => {
   editor.value = await getEditorName().catch(() => "");
 });
 onTableSynced(SDM_TABLE, reload);
+
+// 全域搜尋點結果：?focus=sdm:<uid> 直接選中
+useFocusFromRoute("sdm", () => list.value, e => e.uid, e => { search.value = ""; selUid.value = e.uid; });
 
 const groups = computed(() => groupByDept(searchSdm(list.value, search.value)));
 const depts = computed(() => [...new Set(list.value.map(e => e.spec.dept.trim()).filter(Boolean))].sort());
@@ -110,7 +114,7 @@ async function onDelete() {
         <div v-for="g in groups" :key="g.dept">
           <p class="text-xs font-black text-accent px-1.5 mb-1.5">{{ g.dept }}（{{ g.items.length }}）</p>
           <div class="space-y-1.5">
-            <button v-for="e in g.items" :key="e.uid" @click="selUid = e.uid"
+            <button v-for="e in g.items" :key="e.uid" :data-focus-id="`sdm:${e.uid}`" @click="selUid = e.uid"
               class="w-full text-left px-4 py-3 rounded-xl border transition-all cursor-pointer"
               :class="selUid === e.uid ? 'bg-accent/15 border-accent/50 text-fg' : 'bg-sunken border-hairline text-fg-secondary hover:text-fg'">
               <div class="font-bold text-xs truncate">{{ e.name }}</div>

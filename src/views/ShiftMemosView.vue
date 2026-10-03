@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
+import { useFocusFromRoute } from "@/composables/useFocusFromRoute";
 import { getDb, dbWrite } from "@/db";
 import MarkdownEditor from "@/components/markdown/MarkdownEditor.vue";
 import MarkdownToolbar from "@/components/markdown/MarkdownToolbar.vue";
@@ -74,6 +75,9 @@ async function autoSave() {
 }
 
 // ── 載入 ─────────────────────────────────────────────────────
+// 全域搜尋點結果：?focus=shiftMemos:<id> 直接選中
+useFocusFromRoute("shiftMemos", () => memos.value, m => m.id, m => { activeCategory.value = "全部"; selectMemo(m); });
+
 onMounted(load);
 
 // 背景或其他頁面同步後重新載入；編輯中的內容若被雲端更新，編輯器一併換成新版
@@ -187,7 +191,7 @@ async function saveTitle() {
       <!-- Memo list -->
       <div class="flex-1 overflow-y-auto px-2 py-3 space-y-1">
         <div v-if="!filteredMemos.length" class="text-muted text-xs font-mono text-center py-10">NO MEMOS FOUND</div>
-        <div v-for="m in filteredMemos" :key="m.id"
+        <div v-for="m in filteredMemos" :key="m.id" :data-focus-id="`shiftMemos:${m.id}`"
           @click="selectMemo(m)"
           class="group flex items-start justify-between gap-2 px-3.5 py-3 rounded-xl cursor-pointer transition-all border relative overflow-hidden"
           :class="activeMemo?.id === m.id 

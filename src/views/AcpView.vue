@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
+import { useFocusFromRoute } from "@/composables/useFocusFromRoute";
 import { getDb } from "@/db";
 
 interface AcpSet { id: number; name: string; }
@@ -40,6 +41,9 @@ async function selectSet(id: number) {
     });
   } catch (e) { showToast(`載入失敗：${(e as Error).message}`); }
 }
+
+// 全域搜尋點結果：?focus=acp:<id> 直接選中
+useFocusFromRoute("acp", () => sets.value, s => s.id, s => selectSet(s.id));
 
 onMounted(loadInitialData);
 
@@ -116,7 +120,7 @@ const tabs = [
         </div>
         
         <div class="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-          <button v-for="s in sets" :key="s.id"
+          <button v-for="s in sets" :key="s.id" :data-focus-id="`acp:${s.id}`"
                   @click="selectSet(s.id)"
                   class="w-full text-left px-4 py-3 rounded-xl transition-all border font-bold text-xs relative group flex items-center justify-between cursor-pointer"
                   :class="selectedSetId === s.id 

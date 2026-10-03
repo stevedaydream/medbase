@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from "vue";
+import { useFocusFromRoute } from "@/composables/useFocusFromRoute";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, exists } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
@@ -29,6 +30,8 @@ const outline = ref<OutlineItem[]>([]);
 const cursor = ref(0);
 const inTable = ref(false);
 const panel = ref<"files" | "outline" | "recent">("files");
+// 全域搜尋點結果：?focus=docs:<路徑> 直接開啟最近的文件
+useFocusFromRoute("docs", () => docs.recent, p => p, p => { void openPath(p); });
 const showSide = ref(true);
 const treeVersion = ref(0);
 

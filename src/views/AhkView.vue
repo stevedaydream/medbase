@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
+import { useFocusFromRoute } from "@/composables/useFocusFromRoute";
 import { getDb } from "@/db";
 import { readTextFile, writeTextFile, remove as removeFile } from "@tauri-apps/plugin-fs";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
@@ -71,6 +72,9 @@ function showError(msg: string, err?: unknown) {
   showToast(msg);
   console.error(`[AhkView] ${msg}`, err ?? "");
 }
+
+// 全域搜尋點結果：?focus=ahk:<id> 直接選中
+useFocusFromRoute("ahk", () => scripts.value, s => s.id, s => { tab.value = "scripts"; search.value = ""; return selectScript(s); });
 
 onMounted(async () => { await loadAll(); });
 
@@ -727,6 +731,7 @@ function insertBuilderToScript() {
           <button
             v-for="s in filteredScripts"
             :key="s.id"
+            :data-focus-id="`ahk:${s.id}`"
             @click="selectScript(s)"
             class="w-full text-left px-4 py-3 border-b border-hairline transition-colors cursor-pointer"
             :class="selectedScript?.id === s.id

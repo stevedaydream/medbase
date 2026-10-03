@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
+import { useFocusFromRoute } from "@/composables/useFocusFromRoute";
 import { getDb } from "@/db";
 import { upsertPhysician, removePhysician } from "@/composables/usePhysicians";
 import { touchTable, markDeletedById, onTableSynced } from "@/composables/useTableSync";
@@ -76,6 +77,9 @@ const entries = computed<Entry[]>(() => [
   ...e,
   haystack: [e.name, e.group, e.title, e.ext, e.hisAccount, e.notes].join(" ").toLowerCase().replace(/\s+/g, " "),
 })));
+
+// 全域搜尋點結果：?focus=contacts:<名稱>，切到全部並以名稱搜尋
+useFocusFromRoute("contacts", () => entries.value, e => e.name, e => { tab.value = "all"; groupFilter.value = ""; titleFilter.value = ""; search.value = e.name; });
 
 // 空白分隔的多個關鍵字須全部符合，例如「GS 主治」
 const matched = computed(() => {

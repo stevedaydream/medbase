@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
+import { useFocusFromRoute } from "@/composables/useFocusFromRoute";
 import { getDb, dbWrite } from "@/db";
 import { touchTable, markDeletedById, onTableSynced } from "@/composables/useTableSync";
 import CloudSyncButtons from "@/components/CloudSyncButtons.vue";
@@ -92,6 +93,9 @@ const deleteTarget = ref<{ type: "set"|"item"; row: any } | null>(null);
 // Toast
 const toastMsg = ref("");
 function toast(msg: string, ms = 2000) { toastMsg.value = msg; setTimeout(() => toastMsg.value = "", ms); }
+
+// 全域搜尋點結果：?focus=sets:<id> 直接選中
+useFocusFromRoute("sets", () => sets.value, s => s.id, s => { searchSet.value = ""; return selectSet(s); });
 
 // ── 載入 ─────────────────────────────────────────────────────────
 onMounted(loadAll);
@@ -374,7 +378,7 @@ async function doDelete() {
           <!-- 套組項目 -->
           <div class="space-y-1 mt-1 pl-3.5 border-l border-hairline">
             <div
-              v-for="s in group.items" :key="s.id"
+              v-for="s in group.items" :key="s.id" :data-focus-id="`sets:${s.id}`"
               @click="selectSet(s)"
               class="group w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all cursor-pointer"
               :class="activeSet?.id === s.id
