@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, onUnmounted } from "vue";
 import { useSchedStore, saveGlobal, appendLog, actorName, recompute } from "@/composables/useSchedStore";
 import { newId, type Person, type Role } from "@/shared/sched/types";
 
@@ -49,14 +49,74 @@ function renumber(list: Person[]) {
   list.forEach((p, i) => { p.order = i; });
 }
 
-function move(p: Person, delta: number) {
+// ── 拖曳排序（Pointer Events，BF-001）：按住 ⠿ 拖到目標位置放開 ───────────
+const scroller = ref<HTMLElement | null>(null);
+const dragId = ref<string | null>(null);
+/** 放下的位置：插在這個人之前（null＝最後） */
+const dropBefore = ref<string | null>(null);
+const dropAtEnd = ref(false);
+let lastY = 0;
+let scrollTimer: ReturnType<typeof setInterval> | null = null;
+
+function onGripDown(e: PointerEvent, p: Person) {
+  if (e.button !== 0 || filter.value) return;
+  e.preventDefault();
+  dragId.value = p.id;
+  dropBefore.value = null;
+  dropAtEnd.value = false;
+  lastY = e.clientY;
+  document.addEventListener("pointermove", onDragMove);
+  document.addEventListener("pointerup", onDragEnd);
+  document.addEventListener("pointercancel", onDragEnd);
+  // 靠近上下邊緣時自動捲動
+  scrollTimer = setInterval(() => {
+    const el = scroller.value;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (lastY < r.top + 40) el.scrollTop -= 12;
+    else if (lastY > r.bottom - 40) el.scrollTop += 12;
+    else return;
+    updateDrop();
+  }, 30);
+}
+
+function updateDrop() {
+  const rows = [...document.querySelectorAll<HTMLElement>("[data-person-row]")];
+  dropBefore.value = null;
+  dropAtEnd.value = true;
+  for (const row of rows) {
+    const r = row.getBoundingClientRect();
+    if (lastY < r.top + r.height / 2) { dropBefore.value = row.dataset.personRow ?? null; dropAtEnd.value = false; break; }
+  }
+}
+
+function onDragMove(e: PointerEvent) {
+  lastY = e.clientY;
+  updateDrop();
+}
+
+function onDragEnd() {
+  document.removeEventListener("pointermove", onDragMove);
+  document.removeEventListener("pointerup", onDragEnd);
+  document.removeEventListener("pointercancel", onDragEnd);
+  if (scrollTimer) { clearInterval(scrollTimer); scrollTimer = null; }
+  const id = dragId.value, before = dropBefore.value;
+  dragId.value = null;
+  dropBefore.value = null;
+  const atEnd = dropAtEnd.value;
+  dropAtEnd.value = false;
+  if (!id || (!before && !atEnd) || before === id) return;
   const all = [...store.people].sort((a, b) => a.order - b.order);
-  const i = all.indexOf(p), j = i + delta;
-  if (j < 0 || j >= all.length) return;
-  [all[i], all[j]] = [all[j], all[i]];
+  const from = all.findIndex(x => x.id === id);
+  const [p] = all.splice(from, 1);
+  const to = before ? all.findIndex(x => x.id === before) : all.length;
+  all.splice(to, 0, p);
+  if (all.findIndex(x => x.id === id) === from) return;
   renumber(all);
   persist(`${p.name} 順序移到第 ${p.order + 1}`, true);
 }
+
+onUnmounted(onDragEnd);
 
 function addPerson() {
   store.people.push({
@@ -83,12 +143,12 @@ function removePerson(p: Person) {
   <div class="h-full flex flex-col overflow-hidden">
     <div class="flex items-center gap-2 px-4 py-2 border-b border-hairline">
       <span class="text-sm font-semibold text-fg">全外科 NP 名單</span>
-      <span class="text-xs text-muted">順序＝8-4 與春節輪序順序；每月排班人員從這裡挑選</span>
+      <span class="text-xs text-muted">順序＝8-4 與春節輪序順序（按住 ⠿ 拖曳調整）；每月排班人員從這裡挑選</span>
       <input v-model="filter" placeholder="篩選姓名／單位"
         class="ml-auto text-xs px-2 py-1 bg-elevated border border-hairline rounded text-fg outline-none focus:border-accent/40 w-40" />
       <button class="text-xs px-3 py-1 bg-accent hover:bg-accent-hover text-white rounded" @click="addPerson">＋ 新增</button>
     </div>
-    <div class="flex-1 overflow-auto">
+    <div ref="scroller" class="flex-1 overflow-auto" :class="dragId ? 'select-none cursor-grabbing' : ''">
       <table class="text-xs w-full">
         <thead class="sticky top-0 bg-surface text-muted">
           <tr class="text-left">
@@ -106,10 +166,14 @@ function removePerson(p: Person) {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="p in sorted" :key="p.id" class="border-t border-hairline" :class="p.active ? '' : 'opacity-50'">
+          <tr v-for="(p, i) in sorted" :key="p.id" :data-person-row="p.id" class="border-t"
+            :class="[p.active ? '' : 'opacity-50', dropBefore === p.id && dragId !== p.id ? 'border-t-2 border-t-accent' : 'border-hairline',
+                     dragId && dropAtEnd && i === sorted.length - 1 ? 'border-b-2 border-b-accent' : '',
+                     dragId === p.id ? 'bg-accent/10' : '']">
             <td class="px-2 py-1 whitespace-nowrap text-muted">
-              <button class="hover:text-fg px-0.5" title="上移" @click="move(p, -1)">▲</button>
-              <button class="hover:text-fg px-0.5" title="下移" @click="move(p, 1)">▼</button>
+              <span class="inline-flex items-center justify-center w-6 h-6 rounded touch-none"
+                :class="filter ? 'opacity-30 cursor-not-allowed' : 'cursor-grab hover:bg-elevated hover:text-fg'"
+                :title="filter ? '清除篩選後才能拖曳排序' : '按住拖曳調整順序'" @pointerdown="onGripDown($event, p)">⠿</span>
               {{ p.order + 1 }}
             </td>
             <td class="px-2"><input v-model="p.name" class="sched-input w-24" @change="persist(`姓名改為 ${p.name}`)" /></td>
