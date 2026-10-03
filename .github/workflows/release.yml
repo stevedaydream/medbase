@@ -32,6 +32,22 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
 
+      # 發布說明＝tag 的說明（release.bat 以 release-notes.md 建立帶說明的 tag）
+      - name: Release notes from tag
+        id: notes
+        shell: bash
+        run: |
+          git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+          body=""
+          if [ "$(git cat-file -t "${GITHUB_REF_NAME}")" = "tag" ]; then
+            body="$(git tag -l --format='%(contents)' "${GITHUB_REF_NAME}" | sed '/-----BEGIN PGP SIGNATURE-----/,$d')"
+          fi
+          {
+            echo "body<<RELEASE_NOTES_EOF"
+            echo "${body:-請參閱 commit 紀錄。}"
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -41,9 +57,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'MedBase ${{ github.ref_name }}'
-          releaseBody: |
-            ## 更新內容
-            請參閱 commit 紀錄。
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
