@@ -20,9 +20,12 @@
       "@shared/*": ["../src/shared/*"],
       "fflate": ["./node_modules/fflate"],
       "pizzip": ["./node_modules/pizzip"],
-      "docxtemplater": ["./node_modules/docxtemplater"]
+      "docxtemplater": ["./node_modules/docxtemplater"],
+      "katex": ["./node_modules/katex"],
+      "markdown-it": ["./node_modules/@types/markdown-it"],
+      "markdown-it-footnote": ["./node_modules/@types/markdown-it-footnote"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "../src/shared/**/*.ts"],
-  "exclude": ["../src/shared/**/*.test.ts"]
+  "exclude": ["../src/shared/**/*.test.ts", "../src/shared/markdown/fromHtml.ts"]
 }
