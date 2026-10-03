@@ -5,6 +5,9 @@ import {
 } from "@/composables/useSchedStore";
 import { ymOfDate, WEEKDAY_LABEL, dowOfDate } from "@/shared/sched/calendar";
 import type { Duty84Entry } from "@/shared/sched/types";
+import {
+  planHolidayImport, applyHolidayImport, earliestDate, TW_CALENDAR_URL, type HolidayImportPlan, type TwCalDay,
+} from "@/shared/sched/holidayImport";
 import QuotaPreview from "./QuotaPreview.vue";
 
 const emit = defineEmits<{ toast: [msg: string] }>();
@@ -68,6 +71,46 @@ async function removeHoliday(d: string) {
   delete store.holidays.days[d];
   await saveGlobal("holidays");
   await run(ymOfDate(d), `移除國定假日 ${d}`);
+}
+
+// ── 從政府辦公日曆匯入（選到的年度，含下一年度）────────────────
+const importPlan = ref<HolidayImportPlan | null>(null);
+const importCny = ref(true);
+const importCnyFrom = ref(""), importCnyTo = ref("");
+const importing = ref(false);
+async function fetchHolidayPlan() {
+  importing.value = true;
+  try {
+    const res = await fetch(TW_CALENDAR_URL(year.value));
+    if (res.status === 404) throw new Error(`政府尚未公布 ${year.value} 年辦公日曆`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const plan = planHolidayImport(store.holidays, year.value, await res.json() as TwCalDay[]);
+    if (!plan.days.length && !plan.workdays.length && !plan.cny) {
+      emit("toast", `${year.value} 年的國定假日都已在清單中（${plan.existing} 天）`);
+      return;
+    }
+    importPlan.value = plan;
+    // 已過的春節（例如今年稍早）預設不勾，避免回頭改已排好的月份
+    importCny.value = !!plan.cny && plan.cny.from >= new Date().toISOString().slice(0, 10);
+    importCnyFrom.value = plan.cny?.from ?? "";
+    importCnyTo.value = plan.cny?.to ?? "";
+  } catch (e) {
+    emit("toast", `取得國定假日失敗：${(e as Error).message}`);
+  } finally {
+    importing.value = false;
+  }
+}
+async function confirmHolidayImport() {
+  const plan = importPlan.value;
+  if (!plan) return;
+  const cny = plan.cny && importCny.value ? { from: importCnyFrom.value, to: importCnyTo.value } : null;
+  if (cny && (!cny.from || !cny.to || cny.to < cny.from)) { emit("toast", "春節區間日期不正確"); return; }
+  store.holidays = applyHolidayImport(store.holidays, plan, cny);
+  await saveGlobal("holidays");
+  importPlan.value = null;
+  const first = earliestDate(plan, cny);
+  const parts = [`國定假日 ${plan.days.length} 天`, plan.workdays.length ? `補班日 ${plan.workdays.length} 天` : "", cny ? `春節區間 ${cny.from}～${cny.to}` : ""];
+  await run(first ? ymOfDate(first) : null, `匯入 ${plan.year} 年政府辦公日曆：${parts.filter(Boolean).join("、")}`);
 }
 
 const newWorkday = ref("");
@@ -185,8 +228,33 @@ async function setLastD(y: string, id: string) {
 
     <!-- 國定假日與抽籤 -->
     <section class="space-y-2">
-      <h2 class="text-sm font-semibold text-fg">國定假日與抽籤結果</h2>
-      <p class="text-muted">抽籤在系統外進行，這裡填入每個國定假日 D、N 由誰上；春節區間內不抽籤。</p>
+      <div class="flex items-center gap-2">
+        <h2 class="text-sm font-semibold text-fg">國定假日與抽籤結果</h2>
+        <button class="ml-auto px-2 py-1 border border-hairline rounded hover:bg-elevated disabled:opacity-40" :disabled="busy || importing"
+          @click="fetchHolidayPlan">{{ importing ? "取得中…" : `↓ 從政府辦公日曆匯入 ${year} 年` }}</button>
+      </div>
+      <p class="text-muted">抽籤在系統外進行，這裡填入每個國定假日 D、N 由誰上；春節區間內不抽籤。切換上方「年度」可匯入下一年度。</p>
+      <div v-if="importPlan" class="border border-accent/40 rounded p-3 space-y-2 bg-accent/5">
+        <div class="font-semibold text-fg">{{ importPlan.year }} 年政府辦公日曆：確認後新增（已存在的 {{ importPlan.existing }} 天不變）</div>
+        <div v-if="importPlan.days.length">
+          <span class="text-fg-secondary">國定假日 {{ importPlan.days.length }} 天：</span>
+          <span v-for="d in importPlan.days" :key="d.date" class="inline-block mr-2">{{ d.date.slice(5) }}（{{ wd(d.date) }}）{{ d.name }}</span>
+        </div>
+        <div v-if="importPlan.workdays.length">
+          <span class="text-fg-secondary">補班日：</span>{{ importPlan.workdays.join("、") }}
+        </div>
+        <div v-if="importPlan.cny" class="flex items-center gap-2 flex-wrap">
+          <label class="flex items-center gap-1 cursor-pointer"><input v-model="importCny" type="checkbox" /> 同時設定春節輪值區間（全外科）</label>
+          <template v-if="importCny">
+            <input v-model="importCnyFrom" type="date" class="sched-input" /> ～ <input v-model="importCnyTo" type="date" class="sched-input" />
+            <span class="text-muted">預設為春節連假，可調整</span>
+          </template>
+        </div>
+        <div class="flex gap-2">
+          <button class="px-3 py-1 bg-accent hover:bg-accent-hover text-white rounded disabled:opacity-40" :disabled="busy" @click="confirmHolidayImport">確認匯入</button>
+          <button class="px-2 py-1 text-muted" @click="importPlan = null">取消</button>
+        </div>
+      </div>
       <table>
         <thead class="text-muted text-left">
           <tr><th class="px-2 py-1">日期</th><th class="px-2">名稱</th><th class="px-2">D</th><th class="px-2">N</th><th></th></tr>
