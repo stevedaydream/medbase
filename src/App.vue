@@ -28,6 +28,7 @@ import { syncNpDuty } from "@/composables/useNpDuty";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize, LogicalPosition } from "@tauri-apps/api/dpi";
 import { getDb } from "@/db";
+import { ensureDailySnapshot, runPendingForceSync } from "@/composables/useBackup";
 
 const searchOpen  = ref(false);
 const debugOpen   = ref(false);
@@ -145,6 +146,9 @@ onMounted(async () => {
   useLogger().initClickTracking(() => route.path);
   startXlsxWatchFromSettings().catch(() => {/* 找不到路徑，靜默跳過 */});
   startPolling(() => cloud.gasUrl);
+  // 每日自動快照；還原時選了「覆蓋雲端」就先覆蓋，再做一般同步（ADR-023）
+  await ensureDailySnapshot();
+  await runPendingForceSync().catch(() => {});
   if (cloud.gasUrl) checkCloudVersions(cloud.gasUrl).then(syncPendingTables).catch(() => {});
   await startScheduleTimer();
 });

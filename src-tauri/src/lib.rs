@@ -1,3 +1,5 @@
+mod backup;
+
 #[tauri::command]
 fn reload_ahk(exe_path: String, script_path: String) -> Result<(), String> {
     std::process::Command::new(&exe_path)
@@ -20,6 +22,9 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .invoke_handler(tauri::generate_handler![
             reload_ahk,
+            backup::backup_snapshot,
+            backup::backup_import,
+            backup::backup_drop_tables,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

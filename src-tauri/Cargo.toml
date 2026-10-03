@@ -28,4 +28,6 @@ tauri-plugin-dialog = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 tauri-plugin-http = "2"
+# 備份用獨立連線（與 plugin-sql 共用 libsqlite3-sys 0.30）
+rusqlite = { version = "0.32", features = ["bundled"] }
 

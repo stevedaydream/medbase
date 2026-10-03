@@ -200,21 +200,6 @@ async function seedIfEmpty(db: Database) {
     console.log("[seed] created default super account (Admin0000)");
   }
 
-  // ④ ACP Categories Seed
-  const acpRows = await db.select<{ c: number }[]>("SELECT COUNT(*) as c FROM acp_categories");
-  if (acpRows[0].c === 0) {
-    const defaultCats = [
-      { name: "一般囑言", reasons: ["臨床不適用", "已有替代醫囑", "家屬拒絕", "非本次住院範圍"] },
-      { name: "藥囑", reasons: ["已有同類藥物", "過敏風險", "腎功能不佳", "家屬拒絕自費"] },
-      { name: "處置", reasons: ["家屬拒絕", "解剖構造不適合", "已有侵入性替代方案", "病人已轉院/出院"] }
-    ];
-    for (const cat of defaultCats) {
-      await db.execute("INSERT INTO acp_categories (name, na_reasons) VALUES (?, ?)", 
-        [cat.name, JSON.stringify(cat.reasons)]);
-    }
-    console.log("[seed] imported default ACP categories");
-  }
-
   // ⑤ 雲端設定預設值（INSERT OR IGNORE：已存在的 key 不覆蓋）
   for (const s of seedAppSettings) {
     await db.execute(
@@ -477,14 +462,6 @@ async function initSchema(db: Database) {
 
   // ── ACP (Advance Care Planning) 評估系統 ──────────────────────
   await db.execute(`
-    CREATE TABLE IF NOT EXISTS acp_categories (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      name       TEXT    NOT NULL UNIQUE,
-      na_reasons TEXT    NOT NULL DEFAULT '[]'
-    );
-  `);
-
-  await db.execute(`
     CREATE TABLE IF NOT EXISTS acp_sets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
@@ -563,19 +540,6 @@ async function initSchema(db: Database) {
     SELECT substr(duty_date,1,7), MAX(imported_at) FROM np_duty_assignments GROUP BY substr(duty_date,1,7)
   `);
 
-  // ── 輪序快照（每月池狀態 + 預算投影）────────────────────────
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS rotation_snapshots (
-      yyyymm          TEXT PRIMARY KEY,
-      pools_json      TEXT NOT NULL,
-      end_pools_json  TEXT,
-      projected_json  TEXT,
-      staff_sig       TEXT,
-      committed       INTEGER DEFAULT 0,
-      created_at      TEXT DEFAULT (datetime('now','localtime')),
-      updated_at      TEXT DEFAULT (datetime('now','localtime'))
-    );
-  `);
 
   // ── 排班 v3 文件庫（ADR-014）：全域文件與每月文件，整份 JSON ─────
   // version：本機最後修改時間；cloud_version：最後一次與雲端一致時的雲端版本

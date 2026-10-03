@@ -321,6 +321,12 @@ const SYNC_CONFIGS: Record<string, SyncConfig> = {
 /** 逐筆同步的表（App.vue 背景同步逐一處理） */
 export const SYNCED_TABLES = Object.keys(SYNC_CONFIGS);
 
+/** 本地資料表對應的同步設定（備份匯入用；附屬表如 set_items 不在這裡） */
+export function syncOfLocalTable(localTable: string): { name: string; key: string } | null {
+  const e = Object.entries(SYNC_CONFIGS).find(([, c]) => c.localTable === localTable);
+  return e ? { name: e[0], key: e[1].key } : null;
+}
+
 export function syncLabel(table: string): string {
   return SYNC_CONFIGS[table]?.label ?? table;
 }
