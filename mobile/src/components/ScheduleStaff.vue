@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { sched, doc } from '../lib/sched'
+import { sched, doc, setActiveGroup } from '../lib/sched'
 import { toast } from '../lib/ui'
 import {
   snapshot, lockOf, hasLock, acquireLock, releaseLock, startMonth, publishMonth, revertMonth,
@@ -240,7 +240,15 @@ const mD = computed(() => Number(ym.value.slice(4)))
 
 <template>
   <section class="py-3 space-y-2">
-    <p v-if="!yms.length" class="py-12 text-center text-sm text-muted">尚無月份（請在桌機匯入起點月份）</p>
+    <!-- super 可切換要管理的群組（ADR-025） -->
+    <div v-if="sched.me?.role === 'super' && sched.groups.length > 1" class="px-3 flex items-center gap-2 text-sm">
+      <span class="text-muted">群組</span>
+      <select :value="sched.group" class="h-9 px-2 rounded-lg bg-surface border border-hairline font-bold" :disabled="sched.syncing"
+        @change="setActiveGroup(($event.target as HTMLSelectElement).value)">
+        <option v-for="g in sched.groups" :key="g.id" :value="g.id">{{ g.name }}</option>
+      </select>
+    </div>
+    <p v-if="!yms.length" class="py-12 text-center text-sm text-muted">尚無月份（請在桌機建立或匯入起點月份）</p>
     <template v-else>
       <!-- 頂端列 -->
       <div class="px-3 flex items-center gap-2 flex-wrap">

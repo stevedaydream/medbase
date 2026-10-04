@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import {
-  useSchedStore, personById, saveMonth, appendLog, actorName, recompute,
+  useSchedStore, personById, saveMonth, appendLog, actorName, recompute, groupPeople,
 } from "@/composables/useSchedStore";
 import { useRowDrag, moveById } from "@/composables/useRowDrag";
 import { computeQuotas, handoverV, isEligible } from "@/shared/sched/engine/quota";
@@ -26,7 +26,7 @@ const NEEDS = ["D", "N", "S1"] as const;
 const units = computed(() => new Set((month.value?.roster ?? []).map(r => personById(r.personId)?.unit ?? "")));
 const candidates = computed(() => {
   const inRoster = new Set(month.value?.roster.map(r => r.personId));
-  return [...store.people].filter(p => p.active && !inRoster.has(p.id)).sort((a, b) =>
+  return groupPeople().filter(p => p.active && !inRoster.has(p.id)).sort((a, b) =>
     (units.value.has(a.unit) ? 0 : 1) - (units.value.has(b.unit) ? 0 : 1) || a.order - b.order);
 });
 const addId = ref("");

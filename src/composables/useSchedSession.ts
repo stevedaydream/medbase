@@ -7,6 +7,7 @@ import { reactive, readonly } from "vue";
 import { getDb, dbWrite } from "@/db";
 import { sha256 } from "@/utils/sha256";
 import type { Role } from "@/shared/sched/types";
+import { DEFAULT_GROUP, personGroup } from "@/shared/sched/groups";
 
 const state = reactive({
   loggedIn: false,
@@ -14,13 +15,15 @@ const state = reactive({
   his: "",
   name: "",
   role: "employee" as Role,
+  /** 所屬排班群組（ADR-025）；super 可在排班頁切換目前群組 */
+  group: DEFAULT_GROUP,
 });
 
 export function useSchedSession() {
   return readonly(state);
 }
 
-export interface LoginPerson { id: string; his: string; name: string; role: Role; active: boolean }
+export interface LoginPerson { id: string; his: string; name: string; role: Role; active: boolean; group?: string; unit?: string }
 
 /** people：人員主檔（由呼叫端傳入，避免與 useSchedStore 互相引用） */
 export async function schedLogin(his: string, password: string, people: LoginPerson[]): Promise<void> {
@@ -31,7 +34,7 @@ export async function schedLogin(his: string, password: string, people: LoginPer
   if (acc === "super") {
     const rows = await db.select<{ pw_hash: string }[]>("SELECT pw_hash FROM scheduler_users WHERE code = 'super'");
     if (rows[0] && rows[0].pw_hash === await sha256(password)) {
-      Object.assign(state, { loggedIn: true, personId: null, his: "super", name: "系統管理員", role: "super" as Role });
+      Object.assign(state, { loggedIn: true, personId: null, his: "super", name: "系統管理員", role: "super" as Role, group: DEFAULT_GROUP });
       return;
     }
     throw new Error("帳號或密碼錯誤");
@@ -43,11 +46,13 @@ export async function schedLogin(his: string, password: string, people: LoginPer
   if (!docs.some(d => d.his_password && d.his_password === password)) throw new Error("帳號或密碼錯誤");
   const p = people.find(x => x.his === acc && x.active);
   if (!p) throw new Error("此帳號不在排班人員名單，請洽排班者");
-  Object.assign(state, { loggedIn: true, personId: p.id, his: acc, name: p.name, role: p.role });
+  const group = personGroup(p) || (p.role === "super" ? DEFAULT_GROUP : "");
+  if (!group) throw new Error("此帳號尚未分配排班群組，請洽 super");
+  Object.assign(state, { loggedIn: true, personId: p.id, his: acc, name: p.name, role: p.role, group });
 }
 
 export function schedLogout() {
-  Object.assign(state, { loggedIn: false, personId: null, his: "", name: "", role: "employee" as Role });
+  Object.assign(state, { loggedIn: false, personId: null, his: "", name: "", role: "employee" as Role, group: DEFAULT_GROUP });
 }
 
 let machineId = "";

@@ -10,6 +10,8 @@ export interface Person {
   id: string;
   name: string;
   unit: string;        // 所屬單位，例 "9A"
+  /** 排班群組 id（ADR-025）；""＝未分組；舊資料沒有此欄，見 groups.ts personGroup() */
+  group?: string;
   ext: string;
   his: string;         // HIS 帳號（登入、手機對應）
   role: Role;

@@ -9,6 +9,7 @@ import {
   DEFAULT_SHIFTS, DEFAULT_QUOTA_ITEMS, DEFAULT_RULES, clone,
   type MonthDoc, type PrebookDoc, type LockInfo, type NoticeItem, type LogDoc,
 } from '@shared/sched/types'
+import { stripSharedRota } from '@shared/sched/groups'
 
 /**
  * 排班者手機的流程操作（ADR-015）：以共用 ops 產生變更，寫進本機文件（dirty）後同步 SchDocs。
@@ -40,7 +41,9 @@ export function snapshot(): OpsState {
   }
 }
 
-export async function applyPatch(p: OpPatch): Promise<void> {
+export async function applyPatch(p0: OpPatch): Promise<void> {
+  // 8-4／春節全院共用，只有 super 的操作才存回（ADR-025）
+  const p = sched.me?.role === 'super' ? p0 : stripSharedRota(p0).patch
   for (const m of p.months) await writeLocalDoc(`month:${m.ym}`, m)
   for (const pb of p.prebooks) await writeLocalDoc(`prebook:${pb.ym}`, pb)
   if (p.duty84) await writeLocalDoc('duty84', p.duty84)
@@ -92,7 +95,7 @@ export async function startMonth(ym: string, force = false): Promise<void> {
 }
 
 async function publishSheet(ym: string): Promise<boolean> {
-  try { await gas('schPublish', { ym }); return true } catch { return false }
+  try { await gas('schPublish', { ym, group: sched.group }); return true } catch { return false }
 }
 
 export async function publishMonth(ym: string, unresolved: number): Promise<boolean> {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
-import { ensureSchedLoaded, useSchedStore, ensureMonths } from "@/composables/useSchedStore";
+import { ensureSchedLoaded, useSchedStore, ensureMonths, setSchedGroup, schedGroups, groupName } from "@/composables/useSchedStore";
 import { useSchedSession, schedLogin, schedLogout } from "@/composables/useSchedSession";
 import { useSchedSync, startAutoSync, syncSched } from "@/composables/useSchedSync";
 import { markNoticesRead } from "@/composables/useSchedFlow";
@@ -46,6 +46,7 @@ async function onLogin() {
   loggingIn.value = true;
   try {
     await schedLogin(his.value, pw.value, store.people);
+    await setSchedGroup(session.group);
     pw.value = "";
     tab.value = "schedule";
   } catch (e) {
@@ -57,6 +58,15 @@ async function onLogin() {
 function onLogout() {
   schedLogout();
   showBell.value = false;
+}
+
+// ── 群組（ADR-025）：super 可切換，其他角色固定在自己的群組 ─────────
+const switching = ref(false);
+async function onGroup(e: Event) {
+  switching.value = true;
+  try { await setSchedGroup((e.target as HTMLSelectElement).value); }
+  catch (err) { showToast(`切換群組失敗：${(err as Error).message}`); }
+  finally { switching.value = false; }
 }
 
 // ── 通知 ─────────────────────────────────────────────────────
@@ -131,6 +141,10 @@ onUnmounted(() => {
           :class="tab === t.key ? 'border-accent text-fg font-semibold' : 'border-transparent text-muted hover:text-fg-secondary'"
           @click="tab = t.key">{{ t.label }}</button>
         <div class="ml-auto flex items-center gap-3 relative">
+          <select v-if="isSuper" class="sched-input" :value="store.group" :disabled="switching" title="目前排班群組" @change="onGroup">
+            <option v-for="g in schedGroups()" :key="g.id" :value="g.id">{{ g.name }}</option>
+          </select>
+          <span v-else class="text-fg-secondary">{{ groupName(store.group) }}</span>
           <button class="hover:text-fg" :class="sync.status === 'error' ? 'text-danger' : 'text-muted'"
             :title="sync.message || '點一下立即同步'" @click="syncSched()">{{ syncLabel }}</button>
           <button v-if="session.personId" class="relative text-base leading-none" title="通知" @click="openBell">
@@ -149,9 +163,9 @@ onUnmounted(() => {
       <div v-if="sync.conflicts.length" class="px-3 py-1.5 text-xs bg-warning/10 text-warning border-b border-warning/40">{{ sync.message }}</div>
 
       <div class="flex-1 overflow-hidden">
-        <ScheduleTab v-if="tab === 'schedule'" @toast="showToast" />
-        <RotaTab v-else-if="tab === 'rota'" @toast="showToast" />
-        <PeopleTab v-else-if="tab === 'people'" @toast="showToast" />
+        <ScheduleTab v-if="tab === 'schedule'" :key="store.group" @toast="showToast" />
+        <RotaTab v-else-if="tab === 'rota'" :is-super="isSuper" @toast="showToast" />
+        <PeopleTab v-else-if="tab === 'people'" :can-edit="isSuper" @toast="showToast" />
         <SettingsTab v-else-if="tab === 'settings'" :can-edit="isSuper" @toast="showToast" />
         <ImportTab v-else-if="tab === 'import'" @toast="showToast" />
       </div>

@@ -5,7 +5,7 @@
 import type {
   MonthDoc, PrebookDoc, Duty84Doc, CnyDoc, DebtRec, NoticeItem, RuleParams, EstDoc, Person, LockInfo,
 } from "./types";
-import { newId, clone, cellKey, CONSTRAINT_MARKS, OPEN_MONTHS, NEAR_MONTHS } from "./types";
+import { newId, clone, cellKey, emptyFlags, emptyMonth, CONSTRAINT_MARKS, OPEN_MONTHS, NEAR_MONTHS } from "./types";
 import { nextYm, prevYm, toYm, ymParts, daysIn } from "./calendar";
 import { recomputeFrom, startScheduling, cellFnOf, newMonthFrom, type SchedSnapshot, type Notice } from "./engine/prefill";
 import { computeQuotas } from "./engine/quota";
@@ -275,6 +275,25 @@ export function opEnsureMonths(s: OpsState, today: Date, actor: string, now: str
   if (entered.length) p = mergePatch(p, opRecompute(cur, entered[0], "進入近期，開始預填", now));
   else for (const m of p.months) p.ests.push(buildEst(cur, cur.months[m.ym], now));
   return p;
+}
+
+/**
+ * 新群組的第一個月份（ADR-025）：下個月、以指定人員為名單、開放預班並預填，
+ * 之後的月份交給 opEnsureMonths 自動建立。已有月份時不做事。
+ */
+export function opFirstMonth(s: OpsState, personIds: string[], today: Date, actor: string, now: string): OpPatch {
+  if (Object.keys(s.months).length) return emptyPatch();
+  const ym = monthWindow(today).near[0];
+  const m = emptyMonth(ym);
+  m.roster = personIds.map(personId => ({ personId, flags: emptyFlags() }));
+  m.prefilled = true;
+  const q: OpPatch = { ...emptyPatch(), months: [m], prebooks: [s.prebooks[ym] ?? { ym, cells: {} }] };
+  q.logs.push({ scope: ym, action: "建立第一個月份", detail: `名單 ${personIds.length} 人`, actor });
+  // 先建好其餘月份，再自第一個月起整段重算（週末輪序逐月接續）
+  let cur = applyToState(s, q);
+  const rest = opEnsureMonths(cur, today, actor, now);
+  cur = applyToState(cur, rest);
+  return mergePatch(mergePatch(q, rest), opRecompute(cur, ym, "建立第一個月份", now));
 }
 
 export const isEmptyPatch = (p: OpPatch) =>

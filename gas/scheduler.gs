@@ -530,7 +530,7 @@ function _scheduleVersions(ss) {
   if (!props.getProperty('schver_init')) {
     const sid = _getConfigValue('schedule_spreadsheet_id');
     const tss = sid ? SpreadsheetApp.openById(sid) : ss;
-    tss.getSheets().map(s => s.getName()).filter(n => /^Schedule_\d{6}$/.test(n)).forEach(_scheduleVersion);
+    tss.getSheets().map(s => s.getName()).filter(n => /^Schedule_(?:[A-Za-z0-9]+_)?\d{6}$/.test(n)).forEach(_scheduleVersion);
     props.setProperty('schver_init', '1');
   }
   const all = props.getProperties(), out = {};
@@ -544,11 +544,99 @@ function _readScheduleValues(sh, tz) {
 }
 
 // ── 手機存取排班 v3（ADR-015）─────────────────────────────────────────
-// 角色一律由 GAS 依 HIS 帳號查 people 決定；scheduler／super 可讀寫全部文件，
-// 員工只能讀 prebook:*、est:*、shifts、holidays、精簡的 people 與自己的通知，寫入只能透過 mobileSetPrebook。
+// 角色一律由 GAS 依 HIS 帳號查 people 決定，並只看自己群組的文件（ADR-025；super 可指定群組）：
+// scheduler／super 可讀寫該群組全部文件與 notices（人員、群組、假日、8-4、春節只有 super 能寫），
+// 員工只能讀 prebook:*、est:*、shifts、holidays、同群組的精簡 people 與自己的通知，寫入只能透過 mobileSetPrebook。
+// 不在名單或未分組的人看不到任何排班文件。
 const SCH_MARKS = ['勿休', '勿值'];
 const SCH_DEFAULT_CODES = ['D', 'NrsD', 'N', 'S1', 'H3', 'OFF', '公假'];
 const SCH_DEFAULT_OFF_CODES = ['OFF', '公假'];
+
+// ── 排班群組（ADR-025）：規則與 src/shared/sched/groups.ts 相同，修改時兩邊一起改 ──
+// 預設群組沿用舊 key；其他群組的文件加前綴「群組/」；共用文件全院一份。
+const SCH_DEFAULT_GROUP = '9A9B';
+const SCH_SHARED = ['people', 'groups', 'holidays', 'duty84', 'cny', 'notices'];
+const SCH_SUPER_ONLY = ['people', 'groups', 'holidays', 'duty84', 'cny'];
+const SCH_CLIENT_SCHEMA = 2;
+const SCH_GROUP_ID = /^[A-Za-z0-9]{1,12}$/;
+
+function _schFullKey(group, base) {
+  return SCH_SHARED.indexOf(base) >= 0 || group === SCH_DEFAULT_GROUP ? base : group + '/' + base;
+}
+
+function _schSplitKey(key) {
+  const i = key.indexOf('/');
+  if (i > 0) return { group: key.slice(0, i), base: key.slice(i + 1) };
+  return { group: SCH_SHARED.indexOf(key) >= 0 ? null : SCH_DEFAULT_GROUP, base: key };
+}
+
+function _schSheetName(group, ym) {
+  return group === SCH_DEFAULT_GROUP ? 'Schedule_' + ym : 'Schedule_' + group + '_' + ym;
+}
+
+/** 人員所屬群組：尚未設定群組欄位的舊資料，9A／9B 視為預設群組，其他為未分組 */
+function _schPersonGroup(p) {
+  if (p.group !== undefined && p.group !== null) return String(p.group);
+  return /^9[AB]$/i.test(String(p.unit || '').trim()) ? SCH_DEFAULT_GROUP : '';
+}
+
+function _schGroups(docs) {
+  const list = _schParse(docs, 'groups', []).slice();
+  if (!list.some(g => g.id === SCH_DEFAULT_GROUP)) list.unshift({ id: SCH_DEFAULT_GROUP, name: '9A／9B', order: 0 });
+  return list.sort((a, b) => a.order - b.order);
+}
+
+/** 手機可看的群組：不在名單或未分組 → null；super 可指定其他群組，其他人固定自己的群組 */
+function _schViewGroup(docs, person, want) {
+  if (!person) return null;
+  if (person.role === 'super') {
+    if (want && _schGroups(docs).some(g => g.id === want)) return String(want);
+    return person.group || SCH_DEFAULT_GROUP;
+  }
+  return person.group || null;
+}
+
+/** 群組視角：只含該群組與共用文件，key 去掉群組前綴 */
+function _schView(docs, group) {
+  const v = {};
+  Object.keys(docs).forEach(k => {
+    const s = _schSplitKey(k);
+    if (s.group === null || s.group === group) v[s.base] = docs[k];
+  });
+  return v;
+}
+
+/** 視角內的文件寫回 */
+function _schUnview(docs, view, group) {
+  Object.keys(view).forEach(b => { docs[_schFullKey(group, b)] = view[b]; });
+}
+
+/** 已發布班表分頁版本 → 該群組的（名稱去掉群組，手機一律看 Schedule_YYYYMM） */
+function _schGroupSheets(versions, group) {
+  const out = {};
+  Object.keys(versions).forEach(n => {
+    const m = /^Schedule_(?:([A-Za-z0-9]+)_)?(\d{6})$/.exec(n);
+    if (m && (m[1] || SCH_DEFAULT_GROUP) === group) out['Schedule_' + m[2]] = versions[n];
+  });
+  return out;
+}
+
+/**
+ * 解析請求的群組視角：手機依身分（白名單：不在名單／未分組 → denied）；
+ * 伺服器端（Vercel 換班）帶 group 時用該群組；桌機不帶 group 為原始全部文件（group＝null）。
+ */
+function _schRequestView(docs, p) {
+  if (p._mobile) {
+    const person = _schPerson(docs, p._mobile.his);
+    const group = _schViewGroup(docs, person, p.group ? String(p.group) : '');
+    return { mobile: true, person: person, group: group, denied: !group };
+  }
+  if (p.group) {
+    const g = String(p.group);
+    return { mobile: false, person: null, group: g, denied: !SCH_GROUP_ID.test(g) };
+  }
+  return { mobile: false, person: null, group: null, denied: false };
+}
 
 function _schParse(docs, key, fallback) {
   try { return docs[key] ? JSON.parse(docs[key].json) : fallback; } catch (e) { return fallback; }
@@ -559,7 +647,7 @@ function _schPerson(docs, his) {
   const key = String(his || '').trim();
   if (!key) return null;
   const p = _schParse(docs, 'people', []).find(x => String(x.his || '').trim() === key && x.active);
-  return p ? { id: p.id, name: p.name, role: p.role || 'employee', unit: p.unit || '' } : null;
+  return p ? { id: p.id, name: p.name, role: p.role || 'employee', unit: p.unit || '', group: _schPersonGroup(p) } : null;
 }
 
 function _schIsStaff(person) {
@@ -572,11 +660,12 @@ function _schEmployeeKey(key) {
     || key === 'people' || key === 'shifts' || key === 'holidays' || key === 'notices';
 }
 
-/** 依角色過濾讀取：員工的 people 只留姓名單位、notices 只留自己的 */
+/** 依角色過濾讀取：員工的 people 只留同群組的姓名單位、notices 只留自己的 */
 function _schMobileView(person, key, doc) {
   if (_schIsStaff(person)) return doc;
   if (key === 'people') {
-    const list = JSON.parse(doc.json).map(p => ({ id: p.id, name: p.name, unit: p.unit, active: p.active, order: p.order }));
+    const list = JSON.parse(doc.json).filter(p => person && _schPersonGroup(p) === person.group)
+      .map(p => ({ id: p.id, name: p.name, unit: p.unit, active: p.active, order: p.order }));
     return { version: doc.version, json: JSON.stringify(list) };
   }
   if (key === 'notices') {
@@ -767,9 +856,17 @@ function doPost(e) {
           }
           tss = sid ? SpreadsheetApp.openById(sid) : ss;
         }
-        const sh = tss.getSheetByName(p.sheetName);
+        // 手機只看自己群組的班表（ADR-025）：Schedule_YYYYMM 對應到該群組的分頁
+        let name = String(p.sheetName || '');
+        if (p._mobile || p.group) {
+          const v = _schRequestView(_schReadAll(_schSheet(ss)), p);
+          const m = /^Schedule_(\d{6})$/.exec(name);
+          if (v.denied || !m) return json({ ok: false, code: 'FORBIDDEN', error: '你不在排班名單中，無法查看班表' });
+          name = _schSheetName(v.group, m[1]);
+        }
+        const sh = tss.getSheetByName(name);
         if (!sh) return json({ ok: false, error: '班表分頁不存在' });
-        return json({ ok: true, data: _readScheduleValues(sh, tss.getSpreadsheetTimeZone()), version: _scheduleVersion(p.sheetName) });
+        return json({ ok: true, data: _readScheduleValues(sh, tss.getSpreadsheetTimeZone()), version: _scheduleVersion(name) });
       }
 
       // ── 取得 Config 值 ─────────────────────────────────────────
@@ -1410,20 +1507,27 @@ function doPost(e) {
       // ── 排班 v3 文件庫（ADR-014，桌機專用）────────────────────────
       case 'schMe': {
         const docs = _schReadAll(_schSheet(ss));
-        return json({ ok: true, person: p._mobile ? _schPerson(docs, p._mobile.his) : null });
+        const person = p._mobile ? _schPerson(docs, p._mobile.his) : null;
+        // super 可切換群組：一併回傳群組清單
+        return json({ ok: true, person: person, groups: person && person.role === 'super' ? _schGroups(docs) : [] });
       }
       case 'schList': {
         const docs = _schReadAll(_schSheet(ss));
-        const person = p._mobile ? _schPerson(docs, p._mobile.his) : null;
-        const keys = Object.keys(docs).filter(k => !p._mobile || _schIsStaff(person) || _schEmployeeKey(k));
-        return json({ ok: true, docs: keys.map(k => ({ key: k, version: docs[k].version })), sheets: _scheduleVersions(ss) });
+        const v = _schRequestView(docs, p);
+        if (v.denied) return json({ ok: true, docs: [], sheets: {} });
+        const src = v.group ? _schView(docs, v.group) : docs;
+        const keys = Object.keys(src).filter(k => !v.mobile || _schIsStaff(v.person) || _schEmployeeKey(k));
+        const sheets = _scheduleVersions(ss);
+        return json({ ok: true, docs: keys.map(k => ({ key: k, version: src[k].version })), sheets: v.group ? _schGroupSheets(sheets, v.group) : sheets });
       }
       case 'schGet': {
         const docs = _schReadAll(_schSheet(ss));
-        const person = p._mobile ? _schPerson(docs, p._mobile.his) : null;
-        const keys = (p.keys || []).filter(k => docs[k] && (!p._mobile || _schIsStaff(person) || _schEmployeeKey(k)));
+        const v = _schRequestView(docs, p);
+        if (v.denied) return json({ ok: true, docs: [] });
+        const src = v.group ? _schView(docs, v.group) : docs;
+        const keys = (p.keys || []).filter(k => src[k] && (!v.mobile || _schIsStaff(v.person) || _schEmployeeKey(k)));
         return json({ ok: true, docs: keys.map(k => {
-          const d = p._mobile ? _schMobileView(person, k, docs[k]) : docs[k];
+          const d = v.mobile ? _schMobileView(v.person, k, src[k]) : src[k];
           return { key: k, version: d.version, json: d.json };
         }) });
       }
@@ -1432,8 +1536,14 @@ function doPost(e) {
           const sh = _schSheet(ss);
           const docs = _schReadAll(sh);
           const person = _schPerson(docs, p._mobile && p._mobile.his);
-          const r = _schSetPrebook(docs, person, String(p.ym || ''), p.cells, new Date().toISOString());
-          if (r.ok && r.applied.length) _schWriteAll(sh, docs);
+          const group = _schViewGroup(docs, person, '');
+          if (!group) return json({ ok: false, error: '你不在排班名單中，無法登記預班' });
+          const view = _schView(docs, group);
+          const r = _schSetPrebook(view, person, String(p.ym || ''), p.cells, new Date().toISOString());
+          if (r.ok && r.applied.length) {
+            _schUnview(docs, view, group);
+            _schWriteAll(sh, docs);
+          }
           return json(r);
         });
       }
@@ -1448,13 +1558,16 @@ function doPost(e) {
       }
       case 'schPublish': {
         const docs = _schReadAll(_schSheet(ss));
-        if (p._mobile && !_schIsStaff(_schPerson(docs, p._mobile.his))) return json({ ok: false, code: 'FORBIDDEN', error: '只有排班者可以發布班表' });
+        const v = _schRequestView(docs, p);
+        if (v.mobile && !_schIsStaff(v.person)) return json({ ok: false, code: 'FORBIDDEN', error: '只有排班者可以發布班表' });
+        if (v.denied) return json({ ok: false, code: 'FORBIDDEN', error: '沒有這個群組的權限' });
+        const group = v.group || SCH_DEFAULT_GROUP;
         const ym = String(p.ym || '');
-        const rows = _schPublishRows(docs, ym);
+        const rows = _schPublishRows(_schView(docs, group), ym);
         if (!rows) return json({ ok: false, error: '此月份尚未發布' });
         const sid = _getConfigValue('schedule_spreadsheet_id');
         const tss = sid ? SpreadsheetApp.openById(sid) : ss;
-        const name = 'Schedule_' + ym;
+        const name = _schSheetName(group, ym);
         const sh = tss.getSheetByName(name) || tss.insertSheet(name);
         _writeScheduleSheet(sh, rows);
         return json({ ok: true, rows: rows.length });
@@ -1463,20 +1576,33 @@ function doPost(e) {
       case 'getRequests':
         return json({ ok: false, code: 'OUTDATED', error: '預約功能已更新，請重新整理頁面' });
       case 'schPut': {
-        if (p._mobile) {
-          const person = _schPerson(_schReadAll(_schSheet(ss)), p._mobile.his);
-          if (!_schIsStaff(person)) return json({ ok: false, code: 'FORBIDDEN', error: '只有排班者可以修改班表' });
+        // 舊版桌機不認得群組（ADR-025）：拒絕寫入，避免寫壞共用的 8-4／春節與人員
+        if (!p._mobile && !p.group && Number(p.clientSchema || 0) < SCH_CLIENT_SCHEMA) {
+          return json({ ok: false, code: 'OUTDATED', error: '排班已改為分群組，請更新 MedBase 至 v1.3.0 以上才能上傳' });
         }
         return _withLock(() => {
           const sh = _schSheet(ss);
           const docs = _schReadAll(sh);
+          const v = _schRequestView(docs, p);
+          if (v.mobile && !_schIsStaff(v.person)) return json({ ok: false, code: 'FORBIDDEN', error: '只有排班者可以修改班表' });
+          if (v.denied) return json({ ok: false, code: 'FORBIDDEN', error: '沒有這個群組的權限' });
+          const work = v.group ? _schView(docs, v.group) : (p.atomic ? Object.assign({}, docs) : docs);
+          // 共用的人員／群組／假日／8-4／春節只有 super 能寫：拒絕的文件回傳雲端內容讓手機改回
+          const isSuper = !!v.person && v.person.role === 'super';
+          const allowed = [], denied = [];
+          (p.items || []).forEach(it => (v.mobile && !isSuper && SCH_SUPER_ONLY.indexOf(it.key) >= 0 ? denied : allowed).push(it));
+          const results = _schPut(work, allowed).concat(denied.map(it => {
+            const cur = work[it.key];
+            return cur ? { key: it.key, ok: false, conflict: true, version: cur.version, json: cur.json } : { key: it.key, ok: false, version: '' };
+          }));
           // atomic：任一份衝突就全部不寫（伺服器端換班用）
-          const work = p.atomic ? Object.assign({}, docs) : docs;
-          const results = _schPut(work, p.items || []);
           if (p.atomic && results.some(r => !r.ok)) {
             return json({ ok: true, aborted: true, results: results.map(r => r.ok ? { key: r.key, ok: false, aborted: true } : r) });
           }
-          if (results.some(r => r.ok)) _schWriteAll(sh, work);
+          if (results.some(r => r.ok)) {
+            if (v.group) _schUnview(docs, work, v.group);
+            _schWriteAll(sh, v.group ? docs : work);
+          }
           return json({ ok: true, results: results });
         });
       }
