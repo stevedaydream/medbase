@@ -3,17 +3,23 @@ import { gas, ApiError } from './api'
 import { kvGet, kvSet } from './kv'
 import { session } from './session'
 import { syncOnce, type LocalMeta, type PutResult } from '@shared/sched/sync'
+import { DEFAULT_GROUP, type SchedGroup } from '@shared/sched/groups'
 
 /**
  * 排班 v3 文件快取（ADR-015）：IndexedDB 存每份文件，與 SchDocs 以共用的 syncOnce 同步。
  * 員工只讀（伺服器只給看得到的文件），寫入走 mobileSetPrebook；排班者本機修改標 dirty 後上傳。
+ * 群組（ADR-025）：伺服器只給自己群組的文件（key 為群組內名稱）；super 的排班分頁可切換群組，每個群組各一份快取。
  */
-export interface SchedMe { id: string; name: string; role: 'super' | 'scheduler' | 'employee'; unit: string }
+export interface SchedMe { id: string; name: string; role: 'super' | 'scheduler' | 'employee'; unit: string; group: string }
 
 type Doc = LocalMeta
 
 export const sched = reactive({
   me: null as SchedMe | null,
+  /** 目前同步的群組；''＝不在名單或未分組（看不到任何排班文件） */
+  group: '',
+  /** super 可切換的群組清單 */
+  groups: [] as SchedGroup[],
   docs: {} as Record<string, unknown>,       // 解析後的內容
   loaded: false,
   syncing: false,
@@ -30,9 +36,22 @@ let local: Record<string, Doc> = {}
 
 export const isStaff = () => sched.me?.role === 'scheduler' || sched.me?.role === 'super'
 
+/** 自己所屬的群組（super 未分組時用預設群組） */
+export const myGroup = () => sched.me?.group || (sched.me?.role === 'super' ? DEFAULT_GROUP : '')
+
+const docsKey = (group: string) => `sched:docs:${group}`
+
 async function persist() {
-  await kvSet('sched:docs', local)
-  await kvSet(META_KEY, { me: sched.me, meHis, lastSyncAt: sched.lastSyncAt, sheetVersions: sched.sheetVersions })
+  if (sched.group) await kvSet(docsKey(sched.group), local)
+  await kvSet(META_KEY, { me: sched.me, meHis, group: sched.group, groups: sched.groups, lastSyncAt: sched.lastSyncAt, sheetVersions: sched.sheetVersions })
+}
+
+/** 換成另一個群組的本機快取 */
+async function useGroupCache(group: string) {
+  sched.group = group
+  local = group ? (await kvGet<Record<string, Doc>>(docsKey(group))) ?? {} : {}
+  sched.docs = {}
+  for (const k of Object.keys(local)) parse(k)
 }
 
 function parse(key: string) {
@@ -42,13 +61,14 @@ function parse(key: string) {
 let loadPromise: Promise<void> | null = null
 export function loadSchedCache(): Promise<void> {
   loadPromise ??= (async () => {
-    local = (await kvGet<Record<string, Doc>>('sched:docs')) ?? {}
-    const meta = await kvGet<{ me: SchedMe | null; meHis?: string; lastSyncAt: string; sheetVersions?: Record<string, string> | null }>(META_KEY)
+    const meta = await kvGet<{ me: SchedMe | null; meHis?: string; group?: string; groups?: SchedGroup[]; lastSyncAt: string; sheetVersions?: Record<string, string> | null }>(META_KEY)
     sched.me = meta?.me ?? null
     meHis = meta?.meHis ?? ''
+    sched.groups = meta?.groups ?? []
     sched.lastSyncAt = meta?.lastSyncAt ?? ''
     sched.sheetVersions = meta?.sheetVersions ?? null
-    for (const k of Object.keys(local)) parse(k)
+    // 舊版快取沒有群組資訊：等 schMe 確認身分後再重新下載
+    await useGroupCache(meta?.group ?? '')
     sched.loaded = true
   })()
   return loadPromise
@@ -63,25 +83,26 @@ type ListResult = { docs: { key: string; version: string }[]; sheets?: Record<st
 /** 每次同步一個 remote：版本清單只查一次，同步與清除看不到的文件共用 */
 const makeRemote = () => {
   let listed: Promise<ListResult> | null = null
-  const listAll = () => (listed ??= gas<ListResult>('schList'))
+  const group = sched.group
+  const listAll = () => (listed ??= gas<ListResult>('schList', { group }))
   return {
     listAll,
     list: async () => (await listAll()).docs,
-    get: remoteGet,
-    put: remotePut,
+    get: (keys: string[]) => remoteGet(keys, group),
+    put: (items: { key: string; json: string; base: string | null }[]) => remotePut(items, group),
   }
 }
 
-async function remoteGet(keys: string[]) {
+async function remoteGet(keys: string[], group: string) {
   const out: { key: string; version: string; json: string }[] = []
   for (let i = 0; i < keys.length; i += 100) {
-    out.push(...(await gas<{ docs: { key: string; version: string; json: string }[] }>('schGet', { keys: keys.slice(i, i + 100) })).docs)
+    out.push(...(await gas<{ docs: { key: string; version: string; json: string }[] }>('schGet', { keys: keys.slice(i, i + 100), group })).docs)
   }
   return out
 }
 
-async function remotePut(items: { key: string; json: string; base: string | null }[]) {
-  return (await gas<{ results: PutResult[] }>('schPut', { items })).results
+async function remotePut(items: { key: string; json: string; base: string | null }[], group: string) {
+  return (await gas<{ results: PutResult[] }>('schPut', { items, group })).results
 }
 
 const localApi = {
@@ -114,8 +135,22 @@ export function syncSchedDocs(): Promise<void> {
       // 身分每次啟動或換帳號才查一次（角色很少變，省一次往返）
       const his = session.user?.his ?? ''
       if (!sched.me || meChecked !== his || meHis !== his) {
-        sched.me = (await gas<{ person: SchedMe | null }>('schMe')).person
+        const r = await gas<{ person: SchedMe | null; groups?: SchedGroup[] }>('schMe')
+        sched.me = r.person
+        sched.groups = r.groups ?? []
         meChecked = meHis = his
+      }
+      // 非 super 固定在自己的群組；super 沒選過時用自己的群組
+      const own = myGroup()
+      if (sched.me?.role !== 'super' || !sched.group || !sched.groups.some(g => g.id === sched.group)) {
+        if (sched.group !== own) { await persist(); await useGroupCache(own) }
+      }
+      if (!sched.group) {
+        sched.sheetVersions = {}
+        sched.offline = false
+        sched.lastSyncAt = new Date().toISOString()
+        await persist()
+        return
       }
       const remote = makeRemote()
       const rep = await syncOnce(localApi, remote)
@@ -147,6 +182,16 @@ export async function writeLocalDoc(key: string, value: unknown): Promise<void> 
   local[key] = { key, json: JSON.stringify(value), version: `L${Date.now()}`, cloud_version: prev?.cloud_version ?? null, dirty: 1 }
   parse(key)
   await persist()
+}
+
+/** super 切換排班分頁的群組（個人分頁一律切回自己的群組） */
+export async function setActiveGroup(group: string): Promise<void> {
+  if (!group || group === sched.group) return
+  if (running) await running
+  await persist()
+  await useGroupCache(group)
+  sched.lastSyncAt = ''
+  await syncSchedDocs()
 }
 
 export function doc<T>(key: string): T | undefined {

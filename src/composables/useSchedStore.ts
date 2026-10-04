@@ -11,13 +11,19 @@ import {
   type Duty84Doc, type CnyDoc, type MonthDoc, type PrebookDoc, type NoticeItem, type LogDoc, type DebtRec, type LockInfo, type EstDoc,
 } from "@/shared/sched/types";
 import { emptyHolidays } from "@/shared/sched/calendar";
-import { opRecompute, opStartMonth, opEnsureMonths, isEmptyPatch, type OpsState, type OpPatch } from "@/shared/sched/ops";
+import { opRecompute, opStartMonth, opEnsureMonths, opFirstMonth, isEmptyPatch, type OpsState, type OpPatch } from "@/shared/sched/ops";
 import { parseMonthSheet, parse84 } from "@/utils/sched/excelImport";
 import { useSchedSession } from "@/composables/useSchedSession";
+import {
+  DEFAULT_GROUP, GROUP_ID, groupKey, splitKey, groupList, personGroup, stripSharedRota, type SchedGroup,
+} from "@/shared/sched/groups";
 import { buildImport, type ImportReport, type LegacyUser, type PhysicianHis } from "@/utils/sched/importApply";
 
 export interface SchedState {
   loaded: boolean;
+  /** 目前載入的排班群組（ADR-025）；群組文件只載入這個群組的 */
+  group: string;
+  groups: SchedGroup[];
   people: Person[];
   shifts: ShiftDef[];
   quotaItems: QuotaItem[];
@@ -35,9 +41,10 @@ export interface SchedState {
   debts: DebtRec[];
 }
 
-export type GlobalKey = "people" | "shifts" | "quotaItems" | "rules" | "holidays" | "holidayDuty" | "duty84" | "cny" | "notices" | "debts";
+export type GlobalKey = "people" | "groups" | "shifts" | "quotaItems" | "rules" | "holidays" | "holidayDuty" | "duty84" | "cny" | "notices" | "debts";
 
-const defaults = (): Omit<SchedState, "loaded" | "months" | "prebooks" | "logs" | "locks" | "ests"> => ({
+const defaults = (): Omit<SchedState, "loaded" | "group" | "months" | "prebooks" | "logs" | "locks" | "ests"> => ({
+  groups: [],
   people: [],
   shifts: structuredClone(DEFAULT_SHIFTS),
   quotaItems: structuredClone(DEFAULT_QUOTA_ITEMS),
@@ -50,31 +57,43 @@ const defaults = (): Omit<SchedState, "loaded" | "months" | "prebooks" | "logs" 
   debts: [],
 });
 
-const state = reactive<SchedState>({ loaded: false, months: {}, prebooks: {}, logs: {}, locks: {}, ests: {}, ...defaults() });
+const state = reactive<SchedState>({ loaded: false, group: DEFAULT_GROUP, months: {}, prebooks: {}, logs: {}, locks: {}, ests: {}, ...defaults() });
 let loading: Promise<void> | null = null;
 
-async function load(): Promise<void> {
+type DocState = Omit<SchedState, "loaded">;
+
+/** 由本機文件組出某群組的狀態（共用文件＋該群組的文件） */
+function stateFromRows(rows: { key: string; json: string }[], group: string): DocState {
+  const s: DocState = { group, months: {}, prebooks: {}, logs: {}, locks: {}, ests: {}, ...defaults() };
+  for (const r of rows) putDoc(s, r.key, JSON.parse(r.json));
+  return s;
+}
+
+/** 文件內容放進狀態；不屬於該群組的群組文件略過 */
+function putDoc(s: DocState, key: string, val: unknown) {
+  const { group, base } = splitKey(key);
+  if (group !== null && group !== s.group) return;
+  if (base.startsWith("month:")) s.months[base.slice(6)] = val as MonthDoc;
+  else if (base.startsWith("prebook:")) s.prebooks[base.slice(8)] = val as PrebookDoc;
+  else if (base.startsWith("log:")) s.logs[base.slice(4)] = val as LogDoc;
+  else if (base.startsWith("lock:")) s.locks[base.slice(5)] = val as LockInfo | null;
+  else if (base.startsWith("est:")) s.ests[base.slice(4)] = val as EstDoc;
+  else if (base in defaults()) (s as unknown as Record<string, unknown>)[base] = val;
+}
+
+async function allRows(): Promise<{ key: string; json: string }[]> {
   const db = await getDb();
-  const rows = await db.select<{ key: string; json: string }[]>("SELECT key, json FROM sched_docs");
-  const d = defaults();
-  Object.assign(state, d);
-  state.months = {};
-  state.prebooks = {};
-  state.logs = {};
-  state.locks = {};
-  state.ests = {};
-  for (const r of rows) applyToState(r.key, JSON.parse(r.json));
+  return db.select<{ key: string; json: string }[]>("SELECT key, json FROM sched_docs");
+}
+
+async function load(): Promise<void> {
+  Object.assign(state, stateFromRows(await allRows(), state.group));
   state.loaded = true;
 }
 
-/** 文件內容放進記憶體狀態（載入與雲端下載共用） */
+/** 文件內容放進記憶體狀態（雲端下載用） */
 function applyToState(key: string, val: unknown) {
-  if (key.startsWith("month:")) state.months[key.slice(6)] = val as MonthDoc;
-  else if (key.startsWith("prebook:")) state.prebooks[key.slice(8)] = val as PrebookDoc;
-  else if (key.startsWith("log:")) state.logs[key.slice(4)] = val as LogDoc;
-  else if (key.startsWith("lock:")) state.locks[key.slice(5)] = val as LockInfo | null;
-  else if (key.startsWith("est:")) state.ests[key.slice(4)] = val as EstDoc;
-  else if (key in defaults()) (state as unknown as Record<string, unknown>)[key] = val;
+  putDoc(state, key, val);
 }
 
 export function ensureSchedLoaded(): Promise<void> {
@@ -95,7 +114,12 @@ export function onSchedDirty(fn: () => void): () => void {
   return () => dirtyListeners.delete(fn);
 }
 
-async function writeDoc(key: string, value: unknown): Promise<void> {
+/** 寫入群組文件（預設為目前群組；共用文件不加前綴） */
+function writeDoc(base: string, value: unknown, group = state.group): Promise<void> {
+  return writeRaw(groupKey(group, base), value);
+}
+
+async function writeRaw(key: string, value: unknown): Promise<void> {
   await dbWrite(
     `INSERT INTO sched_docs (key, json, version, dirty) VALUES (?, ?, ?, 1)
      ON CONFLICT(key) DO UPDATE SET json = excluded.json, version = excluded.version, dirty = 1`,
@@ -160,12 +184,16 @@ export function actorName(): string {
 }
 
 /** 操作紀錄：scope 為月份（YYYYMM）或 "global"；actor 預設為 system */
-export async function appendLog(scope: string, action: string, detail: string, actor = "system"): Promise<void> {
-  const doc = state.logs[scope] ?? { key: scope, entries: [] };
+export function appendLog(scope: string, action: string, detail: string, actor = "system"): Promise<void> {
+  return appendLogTo(state, scope, action, detail, actor);
+}
+
+async function appendLogTo(s: DocState, scope: string, action: string, detail: string, actor: string): Promise<void> {
+  const doc = s.logs[scope] ?? { key: scope, entries: [] };
   doc.entries.push({ at: new Date().toISOString(), actor, action, detail });
   if (doc.entries.length > LOG_LIMIT) doc.entries.splice(0, doc.entries.length - LOG_LIMIT);
-  state.logs[scope] = doc;
-  await writeDoc(`log:${scope}`, doc);
+  s.logs[scope] = doc;
+  await writeDoc(`log:${scope}`, doc, s.group);
 }
 
 export function personById(id: string | null | undefined): Person | undefined {
@@ -201,6 +229,13 @@ export async function importFromWorkbook(
     now: new Date().toISOString(),
   });
 
+  // 匯入的名單歸到目前群組（ADR-025）：尚未分組的人設為目前群組，已屬其他群組的提示
+  const inRoster = new Set(out.months.flatMap(m => m.roster.map(r => r.personId)));
+  for (const p of out.people) {
+    if (!inRoster.has(p.id)) continue;
+    if (!p.group) p.group = state.group;
+    else if (p.group !== state.group) out.report.warnings.push(`${p.name} 屬於「${groupName(p.group)}」，但出現在匯入的名單中`);
+  }
   state.people = out.people;
   state.holidays = out.holidays;
   state.holidayDuty = out.holidayDuty;
@@ -216,7 +251,7 @@ export async function importFromWorkbook(
   await appendLog("global", "Excel 匯入",
     `起點 ${baseSheet}${extraSheets.length ? `，預班 ${extraSheets.join("、")}` : ""}；新增人員 ${out.report.created.length}、更新 ${out.report.updated.length}`,
     actorName());
-  const rc = await recompute(null, "Excel 匯入後重新輪序");
+  const rc = await recompute(null, "Excel 匯入後重新輪序", { allGroups: true });
   out.report.warnings.push(...rc.warnings);
   if (rc.notices) out.report.warnings.push(`系統預填覆蓋了 ${rc.notices} 筆預班（已寫入通知）`);
   return out.report;
@@ -244,30 +279,47 @@ async function migrateLegacyHolidays(h: HolidayDoc): Promise<void> {
 }
 
 // ── 重算與月份 ────────────────────────────────────────────────────────
-export function snapshot(): OpsState {
+function snapshotOf(s: DocState): OpsState {
   return clone({
-    people: state.people, shifts: state.shifts, quotaItems: state.quotaItems, holidays: state.holidays,
-    holidayDuty: state.holidayDuty, duty84: state.duty84, cny: state.cny, months: state.months, prebooks: state.prebooks,
-    rules: state.rules, debts: state.debts,
+    people: s.people, shifts: s.shifts, quotaItems: s.quotaItems, holidays: s.holidays,
+    holidayDuty: s.holidayDuty, duty84: s.duty84, cny: s.cny, months: s.months, prebooks: s.prebooks,
+    rules: s.rules, debts: s.debts,
   });
 }
 
-/** 存回 ops 產生的變更：文件、通知、操作紀錄、員工用的 est 文件 */
-export async function applyPatch(p: OpPatch): Promise<void> {
+export function snapshot(): OpsState {
+  return snapshotOf(state);
+}
+
+const isSuper = () => useSchedSession().role === "super";
+const ROTA_PENDING = "8-4／春節輪值有變動，需由 super 重新計算後才會存回";
+
+/**
+ * 存回 ops 產生的變更：文件、通知、操作紀錄、員工用的 est 文件。
+ * 非 super 不寫共用的 8-4／春節（ADR-025），有變動時回傳提示。
+ */
+export function applyPatch(p: OpPatch): Promise<string[]> {
+  return writePatch(state, p);
+}
+
+async function writePatch(s: DocState, p0: OpPatch): Promise<string[]> {
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-  for (const m of p.months) await saveMonth(m);
-  for (const pb of p.prebooks) await savePrebook(pb);
+  const { patch: p, changed } = isSuper() ? { patch: p0, changed: false } : stripSharedRota(p0);
+  for (const m of p.months) { s.months[m.ym] = m; await writeDoc(`month:${m.ym}`, m, s.group); }
+  for (const pb of p.prebooks) { s.prebooks[pb.ym] = pb; await writeDoc(`prebook:${pb.ym}`, pb, s.group); }
+  // 共用文件一律寫到目前的記憶體狀態（重算其他群組時也是）
   if (p.duty84) { state.duty84 = p.duty84; await saveGlobal("duty84"); }
   if (p.cny) { state.cny = p.cny; await saveGlobal("cny"); }
-  if (p.debts) { state.debts = p.debts; await saveGlobal("debts"); }
+  if (p.debts) { s.debts = p.debts; await writeDoc("debts", s.debts, s.group); }
   if (p.notices.length) { state.notices.push(...p.notices); await saveGlobal("notices"); }
   for (const e of p.ests) {
-    const prev = state.ests[e.ym];
+    const prev = s.ests[e.ym];
     if (prev && same({ ...prev, updatedAt: "" }, { ...e, updatedAt: "" })) continue;
-    state.ests[e.ym] = e;
-    await writeDoc(`est:${e.ym}`, e);
+    s.ests[e.ym] = e;
+    await writeDoc(`est:${e.ym}`, e, s.group);
   }
-  for (const l of p.logs) await appendLog(l.scope, l.action, l.detail, l.actor);
+  for (const l of p.logs) await appendLogTo(s, l.scope, l.action, l.detail, l.actor);
+  return changed ? [ROTA_PENDING] : [];
 }
 
 export function sortedYms(): string[] {
@@ -285,15 +337,39 @@ export function firstOpenYm(): string | null {
 /**
  * 人力結構改變後，自 fromYm（預設最早的開放月份）起往後重算預填、8-4、春節、V 交接。
  * 只寫回有變動的文件；覆蓋員工預約產生的通知存入 notices。
+ * allGroups：共用資料（人員、假日、8-4、春節）變更時，super 一併重算其他群組（ADR-025）。
  */
-export async function recompute(fromYm: string | null, reason: string): Promise<{ notices: number; warnings: string[] }> {
+export async function recompute(fromYm: string | null, reason: string, opts: { allGroups?: boolean } = {}): Promise<{ notices: number; warnings: string[] }> {
   await ensureSchedLoaded();
-  const open = firstOpenYm();
-  const from = [fromYm, open].filter((x): x is string => !!x).sort().pop() ?? null;
-  if (!from) return { notices: 0, warnings: [] };
-  const p = opRecompute(snapshot(), from, reason, new Date().toISOString());
-  await applyPatch(p);
-  return { notices: p.notices.length, warnings: p.warnings };
+  const now = new Date().toISOString();
+  let notices = 0;
+  const warnings: string[] = [];
+  const from = laterYm(fromYm, firstOpenYm());
+  if (from) {
+    const p = opRecompute(snapshot(), from, reason, now);
+    warnings.push(...p.warnings, ...await applyPatch(p));
+    notices += p.notices.length;
+  }
+  if (opts.allGroups && isSuper()) {
+    const rows = await allRows();
+    for (const g of schedGroups()) {
+      if (g.id === state.group) continue;
+      const s = stateFromRows(rows, g.id);
+      Object.assign(s, { people: state.people, holidays: state.holidays, duty84: state.duty84, cny: state.cny });
+      const gFrom = laterYm(fromYm, Object.keys(s.months).sort().find(ym => s.months[ym].status === "open") ?? null);
+      if (!gFrom) continue;
+      const p = opRecompute(snapshotOf(s), gFrom, `${reason}（${groupName(state.group)} 帶動）`, now);
+      await writePatch(s, p);
+      notices += p.notices.length;
+      warnings.push(...p.warnings.map(w => `${g.name}：${w}`));
+    }
+  }
+  return { notices, warnings };
+}
+
+/** 兩者取較晚的月份；開放月份不存在時為 null */
+function laterYm(fromYm: string | null, open: string | null): string | null {
+  return [fromYm, open].filter((x): x is string => !!x).sort().pop() ?? null;
 }
 
 /** 自動維持開放範圍（ADR-020）：建立缺少的月份、同步遠期名單、進入近期的月份預填；回傳是否有變動 */
@@ -303,6 +379,14 @@ export async function ensureMonths(): Promise<boolean> {
   if (isEmptyPatch(p)) return false;
   await applyPatch(p);
   return true;
+}
+
+/** 新群組建立第一個月份（ADR-025）：名單＝本群組在職人員 */
+export async function createFirstMonth(): Promise<void> {
+  await ensureSchedLoaded();
+  const ids = [...groupPeople()].filter(p => p.active).sort((a, b) => a.order - b.order).map(p => p.id);
+  if (!ids.length) throw new Error("這個群組還沒有在職人員，請先在人員名單設定群組");
+  await applyPatch(opFirstMonth(snapshot(), ids, new Date(), actorName(), new Date().toISOString()));
 }
 
 /** 開始排班：預班凍結、帶入排班層、交接 V 並算出配額（上月未發布需 force） */
@@ -315,6 +399,63 @@ export async function startMonth(ym: string, force = false): Promise<void> {
 export async function clearSchedLocal(): Promise<void> {
   await dbWrite("DELETE FROM sched_docs");
   await reloadSched();
+}
+
+// ── 群組（ADR-025）────────────────────────────────────────────────────
+export function schedGroups(): SchedGroup[] {
+  return groupList(state.groups);
+}
+
+export function groupName(id: string): string {
+  return schedGroups().find(g => g.id === id)?.name ?? id;
+}
+
+/** 目前群組的人員（月份名單、抽籤候選） */
+export function groupPeople(): Person[] {
+  return state.people.filter(p => personGroup(p) === state.group);
+}
+
+/** 切換目前群組：重新載入該群組的文件 */
+export async function setSchedGroup(group: string): Promise<void> {
+  if (group === state.group && state.loaded) return;
+  state.group = group;
+  await reloadSched();
+}
+
+/** 新增群組（super）：班別、配額項目、規則從預設群組複製一份當起點 */
+export async function addGroup(id: string, name: string): Promise<void> {
+  const gid = id.trim();
+  if (!GROUP_ID.test(gid)) throw new Error("群組代號只能用英文字母與數字（最多 12 字）");
+  const list = schedGroups();
+  if (list.some(g => g.id.toLowerCase() === gid.toLowerCase())) throw new Error("群組代號已存在");
+  const base = stateFromRows(await allRows(), DEFAULT_GROUP);
+  for (const k of ["shifts", "quotaItems", "rules"] as const) await writeDoc(k, base[k], gid);
+  state.groups = [...list, { id: gid, name: name.trim() || gid, order: Math.max(...list.map(g => g.order)) + 1 }];
+  await saveGlobal("groups");
+}
+
+export async function renameGroup(id: string, name: string): Promise<void> {
+  const list = schedGroups();
+  const g = list.find(x => x.id === id);
+  if (!g || !name.trim()) return;
+  g.name = name.trim();
+  state.groups = list;
+  await saveGlobal("groups");
+}
+
+/** 刪除群組（super）：預設群組、還有人員或已有月份的群組不能刪 */
+export async function removeGroup(id: string): Promise<void> {
+  if (id === DEFAULT_GROUP) throw new Error("預設群組不能刪除");
+  if (state.people.some(p => personGroup(p) === id)) throw new Error("還有人員屬於這個群組");
+  if ((await allRows()).some(r => r.key.startsWith(`${id}/month:`))) throw new Error("這個群組已有月份班表，不能刪除");
+  state.groups = schedGroups().filter(g => g.id !== id);
+  await saveGlobal("groups");
+}
+
+/** 人員是否出現在任一群組的月份名單（刪除人員前檢查） */
+export async function personInAnyRoster(id: string): Promise<boolean> {
+  return (await allRows()).some(r => splitKey(r.key).base.startsWith("month:")
+    && (JSON.parse(r.json) as MonthDoc).roster?.some(x => x.personId === id));
 }
 
 export function useSchedStore() {

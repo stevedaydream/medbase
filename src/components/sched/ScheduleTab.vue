@@ -10,6 +10,7 @@ import {
 import type { Layer, CellRef, EditReason } from "@/composables/useGridEditor";
 import { RULE_LABELS, type Issue, type RuleCode } from "@/shared/sched/engine/validate";
 import { prevYm } from "@/shared/sched/calendar";
+import { DEFAULT_GROUP } from "@/shared/sched/groups";
 import SchedGrid from "./SchedGrid.vue";
 import SidePanel from "./SidePanel.vue";
 import MonthSettings from "./MonthSettings.vue";
@@ -214,7 +215,7 @@ const lockTime = computed(() => lock.value ? new Date(lock.value.at).toLocaleStr
             <button class="px-2.5 py-1 border border-hairline rounded hover:bg-elevated" @click="showExport = !showExport">匯出 ▾</button>
             <div v-if="showExport" class="absolute right-0 top-8 z-40 w-56 bg-surface border border-hairline rounded-lg shadow-2xl py-1">
               <button class="w-full text-left px-3 py-1.5 hover:bg-elevated" @click="doExport('app')">班表 XLSX（含 8-4／春節明細）</button>
-              <button class="w-full text-left px-3 py-1.5 hover:bg-elevated" @click="doExport('positional')">Excel 完整格式（過渡期貼回用）</button>
+              <button v-if="store.group === DEFAULT_GROUP" class="w-full text-left px-3 py-1.5 hover:bg-elevated" @click="doExport('positional')">Excel 完整格式（過渡期貼回用）</button>
             </div>
           </div>
           <button class="px-2.5 py-1 border border-hairline rounded hover:bg-elevated" @click="showSettings = true">本月設定</button>

@@ -6,6 +6,7 @@ import { reactive, readonly } from "vue";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { localDocs, applyCloudDoc, markSynced, onSchedDirty } from "@/composables/useSchedStore";
 import { syncOnce, type SyncRemote, type SyncReport, type PutResult } from "@/shared/sched/sync";
+import { scheduleSheetName, SCHED_CLIENT_SCHEMA } from "@/shared/sched/groups";
 
 export type SyncStatus = "offline" | "idle" | "syncing" | "ok" | "error";
 
@@ -34,7 +35,8 @@ function remote(url: string): SyncRemote {
   return {
     list: async () => (await gasPost<{ docs: { key: string; version: string }[] }>(url, { action: "schList" })).docs,
     get: async keys => (await gasPost<{ docs: { key: string; version: string; json: string }[] }>(url, { action: "schGet", keys })).docs,
-    put: async items => (await gasPost<{ results: PutResult[] }>(url, { action: "schPut", items })).results,
+    // clientSchema：GAS 拒絕不認得群組的舊版桌機寫入（ADR-025）
+    put: async items => (await gasPost<{ results: PutResult[] }>(url, { action: "schPut", items, clientSchema: SCHED_CLIENT_SCHEMA })).results,
   };
 }
 
@@ -93,14 +95,14 @@ export function startAutoSync(): () => void {
   };
 }
 
-/** 發布到手機：寫成 Schedule_YYYYMM（沿用 saveSchedule 格式：姓名＋1–31 日） */
-export async function pushScheduleSheet(ym: string, rows: { name: string; days: string[] }[]): Promise<boolean> {
+/** 發布到手機：寫成 Schedule_YYYYMM（其他群組 Schedule_群組_YYYYMM；沿用 saveSchedule 格式：姓名＋1–31 日） */
+export async function pushScheduleSheet(group: string, ym: string, rows: { name: string; days: string[] }[]): Promise<boolean> {
   const url = await gasUrl();
   if (!url) return false;
   const cloud = useCloudSettings();
   await gasPost(url, {
     action: "saveSchedule",
-    sheetName: `Schedule_${ym}`,
+    sheetName: scheduleSheetName(group, ym),
     data: rows.map(r => ({ name: r.name, days: Array.from({ length: 31 }, (_, i) => r.days[i] ?? "") })),
     ...(cloud.scheduleSpreadsheetId ? { spreadsheetId: cloud.scheduleSpreadsheetId } : {}),
   });

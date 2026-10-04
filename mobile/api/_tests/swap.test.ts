@@ -39,7 +39,7 @@ function fakeGas() {
 }
 
 const NOW = new Date("2026-11-01T02:00:00Z");
-const A = { id: "a", name: "A", role: "employee" }, B = { id: "b", name: "B", role: "employee" };
+const A = { id: "a", name: "A", role: "employee", group: "9A9B" }, B = { id: "b", name: "B", role: "employee", group: "9A9B" };
 
 describe("/api/swap", () => {
   it("台北日期", () => {
@@ -78,5 +78,14 @@ describe("/api/swap", () => {
     f.conflict();
     expect((await handle({ action: "create", ym: "202611", kind: "same", b: "b", give: [10] }, A, f.gas, NOW)).ok).toBe(true);
     expect(f.calls.filter(c => c === "schPut").length).toBe(2);
+  });
+
+  it("只讀寫換班者所屬群組；未分組不能換班（ADR-025）", async () => {
+    const f = fakeGas();
+    const groups: unknown[] = [];
+    const gas = (b: Record<string, unknown>) => { groups.push(b.group); return f.gas(b); };
+    await handle({ action: "list" }, { ...A, group: "8A" }, gas, NOW);
+    expect(new Set(groups)).toEqual(new Set(["8A"]));
+    await expect(handle({ action: "list" }, { ...A, group: "" }, gas, NOW)).rejects.toThrow("不在排班名單");
   });
 });

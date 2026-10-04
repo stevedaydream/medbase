@@ -17,9 +17,10 @@ import {
 
 type Args = Record<string, unknown>;
 type Gas = (body: Args) => Promise<GasResponse>;
-interface Me { id: string; name: string; role: string }
+interface Me { id: string; name: string; role: string; group?: string }
 
 const KINDS: EmpSwapKind[] = ["same", "cross", "cover"];
+const DEFAULT_GROUP = "9A9B";
 const YM = /^\d{6}$/;
 const str = (v: unknown, max = 200) => String(v ?? "").slice(0, max);
 const days = (v: unknown) => Array.isArray(v) ? v.slice(0, 31).map(Number).filter(n => Number.isInteger(n)) : [];
@@ -60,7 +61,11 @@ async function save(gas: Gas, out: DocMap, versions: Record<string, string>): Pr
   return !r.aborted && (r.results as { ok: boolean }[]).every(x => x.ok);
 }
 
-export async function handle(body: Args, me: Me, gas: Gas, now: Date): Promise<Args> {
+export async function handle(body: Args, me: Me, gas0: Gas, now: Date): Promise<Args> {
+  // 只讀寫換班者所屬群組的文件（ADR-025）：GAS 依 group 回傳群組內的文件名稱
+  const group = me.group || (me.role === "super" ? DEFAULT_GROUP : "");
+  if (!group) throw new HttpError(403, "你不在排班名單中");
+  const gas: Gas = b => gas0({ ...b, group });
   const action = str(body.action, 20);
   const nowIso = now.toISOString();
   const today = taipeiToday(now);

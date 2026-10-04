@@ -20,6 +20,7 @@ import * as XLSX from "xlsx";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import { daysIn } from "@/shared/sched/calendar";
+import { DEFAULT_GROUP } from "@/shared/sched/groups";
 
 export class LockedError extends Error {
   constructor(public holder: LockInfo) {
@@ -67,7 +68,8 @@ export function monthTargets(m: MonthDoc): Record<string, Record<string, number>
 
 async function publishSheet(m: MonthDoc): Promise<boolean> {
   try {
-    return await pushScheduleSheet(m.ym, publishRows(m, useSchedStore().people));
+    const store = useSchedStore();
+    return await pushScheduleSheet(store.group, m.ym, publishRows(m, store.people));
   } catch (e) {
     await appendLog(m.ym, "發布到手機失敗", (e as Error).message);
     return false;
@@ -178,7 +180,7 @@ export async function exportMonth(ym: string, kind: ExportKind): Promise<string 
   const wb = kind === "app" ? buildAppWorkbook(ctx) : buildPositionalWorkbook(ctx);
   const path = await saveDialog({
     title: kind === "app" ? "匯出班表" : "匯出 Excel 完整格式（過渡期）",
-    defaultPath: kind === "app" ? `班表_${ym}.xlsx` : `9A值班表_${ym}_貼回用.xlsx`,
+    defaultPath: kind === "app" ? `班表_${store.group === DEFAULT_GROUP ? "" : `${store.group}_`}${ym}.xlsx` : `9A值班表_${ym}_貼回用.xlsx`,
     filters: [{ name: "Excel 活頁簿", extensions: ["xlsx"] }],
   });
   if (!path) return null;

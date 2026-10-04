@@ -12,7 +12,8 @@ function loadGas(): Api {
   const ctx: Record<string, unknown> = {};
   vm.createContext(ctx);
   vm.runInContext(readFileSync("gas/scheduler.gs", "utf8")
-    + "\n;this.api = { _schPerson, _schIsStaff, _schEmployeeKey, _schMobileView, _schSetPrebook, _schMarkRead, _schPublishRows };", ctx);
+    + "\n;this.api = { _schPerson, _schIsStaff, _schEmployeeKey, _schMobileView, _schSetPrebook, _schMarkRead, _schPublishRows,"
+    + " _schFullKey, _schSplitKey, _schSheetName, _schPersonGroup, _schViewGroup, _schView, _schUnview, _schGroupSheets, _schRequestView };", ctx);
   return ctx.api as Api;
 }
 
@@ -171,5 +172,84 @@ describe("GAS 班表分頁版本（ADR-022）", () => {
     expect(v2.Schedule_202611 > v1.Schedule_202611).toBe(true);
     expect(v2.Schedule_202610).toBe(v1.Schedule_202610);
     expect(api._scheduleVersion("Schedule_202612")).toBeTruthy();
+  });
+});
+
+describe("GAS 排班群組（ADR-025）", () => {
+  function gdocs(): Docs {
+    const d = docs();
+    d.people = doc([
+      { id: "e1", name: "員工甲", his: "111", role: "employee", active: true, unit: "9A", order: 0 },
+      { id: "s1", name: "排班乙", his: "222", role: "scheduler", active: true, unit: "9A", order: 1 },
+      { id: "a1", name: "八A丁", his: "444", role: "employee", active: true, unit: "8A", group: "8A", order: 2 },
+      { id: "a2", name: "八A排班", his: "555", role: "scheduler", active: true, unit: "8A", group: "8A", order: 3 },
+      { id: "u1", name: "未分組戊", his: "666", role: "employee", active: true, unit: "8A", order: 4 },
+      { id: "su", name: "超級", his: "777", role: "super", active: true, unit: "9B", order: 5 },
+    ]);
+    d.groups = doc([{ id: "9A9B", name: "9A／9B", order: 0 }, { id: "8A", name: "8A", order: 1 }]);
+    d["8A/month:202612"] = doc({ ym: "202612", status: "open", roster: [{ personId: "a1", flags: { active: true } }] });
+    d["8A/prebook:202612"] = doc({ ym: "202612", cells: {} });
+    d["8A/shifts"] = doc([{ code: "OFF", reducesOff: false }]);
+    return d;
+  }
+
+  it("key 對應：預設群組沿用舊 key，共用文件不加前綴", () => {
+    expect(g._schFullKey("9A9B", "month:202612")).toBe("month:202612");
+    expect(g._schFullKey("8A", "month:202612")).toBe("8A/month:202612");
+    expect(g._schFullKey("8A", "people")).toBe("people");
+    expect(g._schSplitKey("8A/prebook:202612")).toEqual({ group: "8A", base: "prebook:202612" });
+    expect(g._schSplitKey("duty84")).toEqual({ group: null, base: "duty84" });
+    expect(g._schSplitKey("shifts")).toEqual({ group: "9A9B", base: "shifts" });
+    expect(g._schSheetName("8A", "202612")).toBe("Schedule_8A_202612");
+    expect(g._schSheetName("9A9B", "202612")).toBe("Schedule_202612");
+  });
+
+  it("人員群組：舊資料 9A／9B 視為預設群組，其他未分組", () => {
+    expect(g._schPersonGroup({ unit: "9B" })).toBe("9A9B");
+    expect(g._schPersonGroup({ unit: "8A" })).toBe("");
+    expect(g._schPersonGroup({ unit: "9A", group: "8A" })).toBe("8A");
+    expect(g._schPersonGroup({ unit: "9A", group: "" })).toBe("");
+  });
+
+  it("白名單：不在名單、未分組看不到；非 super 不能指定其他群組", () => {
+    const d = gdocs();
+    const view = (his: string, group?: string) => g._schRequestView(d, { _mobile: { his }, group }) as unknown as { group: string | null; denied: boolean };
+    expect(view("999").denied).toBe(true);
+    expect(view("666").denied).toBe(true);
+    expect(view("444").group).toBe("8A");
+    expect(view("444", "9A9B").group).toBe("8A");
+    expect(view("111").group).toBe("9A9B");
+    expect(view("777").group).toBe("9A9B");
+    expect(view("777", "8A").group).toBe("8A");
+    expect(view("777", "XX").group).toBe("9A9B");
+  });
+
+  it("8A 的視角看不到 9A9B 的月份與預班，key 去掉前綴", () => {
+    const v = g._schView(gdocs(), "8A") as unknown as Docs;
+    expect(Object.keys(v).sort()).toEqual(["groups", "month:202612", "notices", "people", "prebook:202612", "shifts"]);
+    expect(JSON.parse(v["month:202612"].json).roster[0].personId).toBe("a1");
+    expect(JSON.parse(v.shifts.json)).toEqual([{ code: "OFF", reducesOff: false }]);
+  });
+
+  it("8A 員工讀 people 只有同群組的人", () => {
+    const d = gdocs(), me = g._schPerson(d, "444");
+    const people = JSON.parse((g._schMobileView(me, "people", d.people) as { json: string }).json);
+    expect(people.map((p: { id: string }) => p.id)).toEqual(["a1", "a2"]);
+  });
+
+  it("在群組視角登記預班，寫回帶前綴的 key", () => {
+    const d = gdocs(), me = g._schPerson(d, "444");
+    const v = g._schView(d, "8A") as unknown as Docs;
+    const r = g._schSetPrebook(v, me, "202612", [{ day: 3, v: "OFF" }], "2026-10-10T00:00:00.000Z") as { applied: unknown[] };
+    expect(r.applied.length).toBe(1);
+    g._schUnview(d, v, "8A");
+    expect(JSON.parse(d["8A/prebook:202612"].json).cells["a1|3"].v).toBe("OFF");
+    expect(JSON.parse(d["prebook:202612"].json).cells["a1|3"]).toBeUndefined();
+  });
+
+  it("班表分頁版本只回傳該群組的，名稱去掉群組", () => {
+    const vs = { Schedule_202611: "t1", Schedule_8A_202611: "t2", Schedule_8A_202612: "t3" };
+    expect(g._schGroupSheets(vs, "8A")).toEqual({ Schedule_202611: "t2", Schedule_202612: "t3" });
+    expect(g._schGroupSheets(vs, "9A9B")).toEqual({ Schedule_202611: "t1" });
   });
 });

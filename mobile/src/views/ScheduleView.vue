@@ -6,7 +6,7 @@ import { kvGet, kvSet } from '../lib/kv'
 import { session } from '../lib/session'
 import { toast } from '../lib/ui'
 import { usePullRefresh } from '../lib/pull'
-import { sched, syncSchedDocs, loadSchedCache, doc, setMyPrebook, markNoticesRead, isStaff } from '../lib/sched'
+import { sched, syncSchedDocs, loadSchedCache, doc, setMyPrebook, markNoticesRead, isStaff, myGroup, setActiveGroup } from '../lib/sched'
 import ScheduleStaff from '../components/ScheduleStaff.vue'
 import SwapCreate from '../components/SwapCreate.vue'
 import SwapInbox from '../components/SwapInbox.vue'
@@ -26,6 +26,12 @@ const ym = (y: number, m: number) => `${y}${String(m).padStart(2, '0')}`
 function shiftMonth(y: number, m: number, d: number) { const t = new Date(y, m - 1 + d, 1); return { y: t.getFullYear(), m: t.getMonth() + 1 } }
 
 onMounted(async () => { await loadSchedCache(); void syncSchedDocs() })
+
+// 群組（ADR-025）：不在名單或未分組看不到任何班表；super 在排班分頁切換的群組，回到個人分頁時切回自己的群組
+const denied = computed(() => sched.loaded && !!sched.lastSyncAt && !sched.syncing && !myGroup())
+watch([tab, () => sched.group], () => {
+  if (tab.value !== 'staff' && sched.group && myGroup() && sched.group !== myGroup()) void setActiveGroup(myGroup())
+}, { immediate: true })
 
 // ── 共用文件 ─────────────────────────────────────────────────────
 const shifts = computed(() => doc<ShiftDef[]>('shifts') ?? [])
@@ -249,8 +255,14 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
       </div>
     </PageHeader>
 
+    <section v-if="denied" class="py-3">
+      <p class="mx-4 p-4 rounded-2xl bg-surface border border-hairline text-sm text-fg-secondary">
+        你（HIS {{ session.user?.his }}）不在排班名單中或尚未分配排班群組，無法查看班表，請洽排班者。
+      </p>
+    </section>
+
     <!-- ── 我的班 ── -->
-    <section v-if="tab === 'mine'" class="py-3">
+    <section v-else-if="tab === 'mine'" class="py-3">
       <div class="flex items-center justify-between px-4 mb-3">
         <button @click="moveS(-1)" class="w-10 h-10 rounded-xl bg-surface border border-hairline text-lg">‹</button>
         <span class="font-bold">{{ sy }} 年 {{ sm }} 月</span>

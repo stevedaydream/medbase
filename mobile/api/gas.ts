@@ -28,6 +28,9 @@ const CONFIG_KEYS = ["np_duty_url"];
 /** 排班文件 key：people／shifts…／month:YYYYMM／prebook:YYYYMM／log:global… */
 const SCH_KEY = /^(people|shifts|quotaItems|rules|holidays|holidayDuty|duty84|cny|notices|debts|(month|prebook|log|lock|est|swapreq):(\d{6}|global))$/;
 const MAX_DOC = 2_000_000;
+/** 排班群組（ADR-025）：super 可指定要看的群組，其他人一律由 GAS 依身分決定；key 一律是群組內的名稱 */
+const GROUP_ID = /^[A-Za-z0-9]{1,12}$/;
+const groupArg = (a: Args): Args => GROUP_ID.test(str(a.group, 12)) ? { group: str(a.group, 12) } : {};
 
 const str = (v: unknown, max = 200) => String(v ?? "").slice(0, max);
 const forbidden = (msg: string) => json({ ok: false, error: msg }, { status: 403 });
@@ -42,15 +45,15 @@ export const RULES: Record<string, Rule> = {
     },
   },
   getSchedule: {
-    build: (a) => /^Schedule_\d{6}$/.test(str(a.sheetName)) ? { sheetName: str(a.sheetName) } : forbidden("班表名稱格式錯誤"),
+    build: (a) => /^Schedule_\d{6}$/.test(str(a.sheetName)) ? { sheetName: str(a.sheetName), ...groupArg(a) } : forbidden("班表名稱格式錯誤"),
   },
-  // 排班 v3（ADR-015）：角色與可讀寫範圍由 GAS 依 HIS 帳號判斷，這裡只檢查格式
+  // 排班 v3（ADR-015）：角色、群組與可讀寫範圍由 GAS 依 HIS 帳號判斷，這裡只檢查格式
   schMe:   { build: () => ({}) },
-  schList: { build: () => ({}) },
+  schList: { build: (a) => groupArg(a) },
   schGet: {
     build: (a) => {
       const keys = Array.isArray(a.keys) ? (a.keys as unknown[]).map(k => str(k, 40)) : [];
-      return keys.length && keys.length <= 300 && keys.every(k => SCH_KEY.test(k)) ? { keys } : forbidden("文件名稱錯誤");
+      return keys.length && keys.length <= 300 && keys.every(k => SCH_KEY.test(k)) ? { keys, ...groupArg(a) } : forbidden("文件名稱錯誤");
     },
   },
   schPut: {
@@ -63,7 +66,7 @@ export const RULES: Record<string, Rule> = {
         if (!SCH_KEY.test(key) || typeof it?.json !== "string" || it.json.length > MAX_DOC) return forbidden("文件格式錯誤");
         out.push({ key, json: it.json, base: it.base == null ? null : str(it.base, 40) });
       }
-      return { items: out };
+      return { items: out, ...groupArg(a) };
     },
   },
   mobileSetPrebook: {
@@ -74,7 +77,7 @@ export const RULES: Record<string, Rule> = {
     },
   },
   schPublish: {
-    build: (a) => /^\d{6}$/.test(str(a.ym)) ? { ym: str(a.ym) } : forbidden("月份格式錯誤"),
+    build: (a) => /^\d{6}$/.test(str(a.ym)) ? { ym: str(a.ym), ...groupArg(a) } : forbidden("月份格式錯誤"),
   },
   mobileMarkRead: {
     build: (a) => ({ ids: Array.isArray(a.ids) ? (a.ids as unknown[]).slice(0, 500).map(x => str(x, 40)) : null }),

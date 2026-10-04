@@ -1,9 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRowDrag, moveById } from "@/composables/useRowDrag";
-import { useSchedStore, saveGlobal, appendLog, actorName, recompute } from "@/composables/useSchedStore";
+import {
+  useSchedStore, saveGlobal, appendLog, actorName, recompute, schedGroups, groupName,
+  addGroup, renameGroup, removeGroup, personInAnyRoster,
+} from "@/composables/useSchedStore";
 import { newId, type Person, type Role } from "@/shared/sched/types";
+import { DEFAULT_GROUP, personGroup } from "@/shared/sched/groups";
 
+/** canEdit：人員主檔與群組全院共用，只有 super 可以修改（ADR-025）；排班者只看自己群組的人 */
+const props = defineProps<{ canEdit: boolean }>();
 const emit = defineEmits<{ toast: [msg: string] }>();
 const store = useSchedStore();
 const filter = ref("");
@@ -17,8 +23,11 @@ const ROLES: { key: Role; label: string }[] = [
 const sorted = computed(() =>
   [...store.people]
     .sort((a, b) => a.order - b.order)
-    .filter(p => !filter.value || p.name.includes(filter.value) || p.unit.includes(filter.value)),
+    .filter(p => props.canEdit || personGroup(p) === store.group)
+    .filter(p => !filter.value || p.name.includes(filter.value) || p.unit.includes(filter.value) || groupName(personGroup(p)).includes(filter.value)),
 );
+/** 尚未分組的在職人員（手機看不到班表，也不會出現在月份名單候選） */
+const ungrouped = computed(() => store.people.filter(p => p.active && !personGroup(p)));
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 const pendingLog: string[] = [];
@@ -36,7 +45,7 @@ function persist(detail = "", rota = false) {
       await saveGlobal("people");
       if (details) await appendLog("global", "人員名單", details, actorName());
       if (doRota) {
-        const r = await recompute(null, `人員名單異動（${details}）`);
+        const r = await recompute(null, `人員名單異動（${details}）`, { allGroups: true });
         if (r.notices) emit("toast", `已重算輪序，覆蓋 ${r.notices} 筆預班並通知`);
       }
     } catch (e) {
@@ -54,7 +63,7 @@ function renumber(list: Person[]) {
 const scroller = ref<HTMLElement | null>(null);
 const { dragId, dropBefore, dropAtEnd, onGripDown } = useRowDrag({
   scroller,
-  enabled: () => !filter.value,
+  enabled: () => !filter.value && props.canEdit,
   onDrop: (id, before) => {
     const all = [...store.people].sort((a, b) => a.order - b.order);
     if (!moveById(all, x => x.id, id, before)) return;
@@ -66,14 +75,19 @@ const { dragId, dropBefore, dropAtEnd, onGripDown } = useRowDrag({
 
 function addPerson() {
   store.people.push({
-    id: newId(), name: "新人員", unit: "9A", ext: "", his: "", role: "employee", code84: "",
+    id: newId(), name: "新人員", unit: "", group: store.group, ext: "", his: "", role: "employee", code84: "",
     order: store.people.length, exempt84: false, exemptCny: false, active: true,
   });
   persist("新增人員", true);
 }
 
-function removePerson(p: Person) {
-  const used = Object.values(store.months).some(m => m.roster.some(r => r.personId === p.id));
+function setGroup(p: Person, g: string) {
+  p.group = g;
+  persist(`${p.name} 群組：${g ? groupName(g) : "未分組"}`);
+}
+
+async function removePerson(p: Person) {
+  const used = await personInAnyRoster(p.id);
   if (used) {
     p.active = false;
     emit("toast", `${p.name} 已出現在月份班表，改為停用（不刪除）`);
@@ -83,24 +97,66 @@ function removePerson(p: Person) {
   }
   persist(`${used ? "停用" : "刪除"} ${p.name}`, true);
 }
+
+// ── 群組管理（super）──────────────────────────────────────────
+const showGroups = ref(false);
+const newGid = ref(""), newGname = ref("");
+async function groupOp(fn: () => Promise<void>, msg: string) {
+  try {
+    await fn();
+    await appendLog("global", "群組", msg, actorName());
+    emit("toast", msg);
+  } catch (e) {
+    emit("toast", (e as Error).message);
+  }
+}
+const onAddGroup = () => groupOp(async () => {
+  await addGroup(newGid.value, newGname.value);
+  newGid.value = ""; newGname.value = "";
+}, `新增群組 ${newGname.value || newGid.value}（班別、配額、規則從 ${groupName(DEFAULT_GROUP)} 複製）`);
+const onRename = (id: string, name: string) => groupOp(() => renameGroup(id, name), `群組 ${id} 改名為 ${name}`);
+const onRemoveGroup = (id: string) => groupOp(() => removeGroup(id), `刪除群組 ${groupName(id)}`);
 </script>
 
 <template>
   <div class="h-full flex flex-col overflow-hidden">
     <div class="flex items-center gap-2 px-4 py-2 border-b border-hairline">
-      <span class="text-sm font-semibold text-fg">全外科 NP 名單</span>
-      <span class="text-xs text-muted">順序＝8-4 與春節輪序順序（按住 ⠿ 拖曳調整）；每月排班人員從這裡挑選</span>
+      <span class="text-sm font-semibold text-fg">{{ canEdit ? "全外科 NP 名單" : `${groupName(store.group)} 人員` }}</span>
+      <span class="text-xs text-muted">{{ canEdit ? "順序＝8-4 與春節輪序順序（按住 ⠿ 拖曳調整）；每月排班人員從同群組挑選" : "人員名單由 super 維護" }}</span>
       <input v-model="filter" placeholder="篩選姓名／單位"
         class="ml-auto text-xs px-2 py-1 bg-elevated border border-hairline rounded text-fg outline-none focus:border-accent/40 w-40" />
-      <button class="text-xs px-3 py-1 bg-accent hover:bg-accent-hover text-white rounded" @click="addPerson">＋ 新增</button>
+      <template v-if="canEdit">
+        <button class="text-xs px-3 py-1 border border-hairline rounded hover:bg-elevated" @click="showGroups = !showGroups">群組管理</button>
+        <button class="text-xs px-3 py-1 bg-accent hover:bg-accent-hover text-white rounded" @click="addPerson">＋ 新增</button>
+      </template>
+    </div>
+    <div v-if="canEdit && ungrouped.length" class="px-4 py-1.5 text-xs bg-warning/10 text-warning border-b border-warning/40">
+      {{ ungrouped.length }} 位在職人員尚未分組（{{ ungrouped.map(p => p.name).join("、") }}）：手機看不到任何班表，也不能加入月份名單。請確認後設定群組；只參加 8-4／春節輪值的人可維持未分組。
+    </div>
+    <div v-if="canEdit && showGroups" class="px-4 py-2 border-b border-hairline text-xs space-y-1.5">
+      <div class="text-muted">各群組獨立排班、班表互相隔離；人員、國定假日、8-4、春節全院共用。</div>
+      <div v-for="g in schedGroups()" :key="g.id" class="flex items-center gap-2">
+        <span class="w-16 font-mono text-fg-secondary">{{ g.id }}</span>
+        <input :value="g.name" class="sched-input w-32" @change="onRename(g.id, ($event.target as HTMLInputElement).value)" />
+        <span class="text-muted">{{ store.people.filter(p => personGroup(p) === g.id).length }} 人</span>
+        <span v-if="g.id === DEFAULT_GROUP" class="text-muted">預設群組</span>
+        <button v-else class="text-muted hover:text-danger" @click="onRemoveGroup(g.id)">刪除</button>
+      </div>
+      <div class="flex items-center gap-2">
+        <input v-model="newGid" placeholder="代號（英數字，例 8A）" class="sched-input w-36" />
+        <input v-model="newGname" placeholder="名稱" class="sched-input w-32" />
+        <button class="px-2 py-1 border border-hairline rounded hover:bg-elevated" :disabled="!newGid" @click="onAddGroup">＋ 新增群組</button>
+      </div>
     </div>
     <div ref="scroller" class="flex-1 overflow-auto" :class="dragId ? 'select-none cursor-grabbing' : ''">
+      <fieldset :disabled="!canEdit">
       <table class="text-xs w-full">
         <thead class="sticky top-0 bg-surface text-muted">
           <tr class="text-left">
             <th class="px-2 py-1.5 w-16">順序</th>
             <th class="px-2">姓名</th>
             <th class="px-2">單位</th>
+            <th class="px-2">群組</th>
             <th class="px-2">分機</th>
             <th class="px-2">HIS 帳號</th>
             <th class="px-2">角色</th>
@@ -124,6 +180,12 @@ function removePerson(p: Person) {
             </td>
             <td class="px-2"><input v-model="p.name" class="sched-input w-24" @change="persist(`姓名改為 ${p.name}`)" /></td>
             <td class="px-2"><input v-model="p.unit" class="sched-input w-14" @change="persist(`${p.name} 單位：${p.unit}`)" /></td>
+            <td class="px-2">
+              <select class="sched-input" :class="{ warn: !personGroup(p) && p.active }" :value="personGroup(p)" @change="setGroup(p, ($event.target as HTMLSelectElement).value)">
+                <option value="">未分組</option>
+                <option v-for="g in schedGroups()" :key="g.id" :value="g.id">{{ g.name }}</option>
+              </select>
+            </td>
             <td class="px-2"><input v-model="p.ext" class="sched-input w-16" @change="persist(`${p.name} 分機：${p.ext}`)" /></td>
             <td class="px-2">
               <input v-model="p.his" class="sched-input w-24" :class="{ warn: !p.his }" @change="persist(`${p.name} HIS 帳號已修改`)" />
@@ -138,11 +200,12 @@ function removePerson(p: Person) {
             <td class="px-2 text-center"><input v-model="p.exemptCny" type="checkbox" @change="persist(`${p.name} 春節免輪：${yn(p.exemptCny)}`, true)" /></td>
             <td class="px-2 text-center"><input v-model="p.active" type="checkbox" @change="persist(`${p.name} 啟用：${yn(p.active)}`, true)" /></td>
             <td class="px-2 text-right">
-              <button class="text-muted hover:text-danger" @click="removePerson(p)">刪除</button>
+              <button v-if="canEdit" class="text-muted hover:text-danger" @click="removePerson(p)">刪除</button>
             </td>
           </tr>
         </tbody>
       </table>
+      </fieldset>
       <div v-if="!store.people.length" class="p-6 text-center text-sm text-muted">尚無人員，可從「匯入」頁匯入醫院 Excel</div>
     </div>
   </div>
