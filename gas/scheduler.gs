@@ -769,7 +769,8 @@ function _schMobileView(person, key, doc) {
   if (_schIsStaff(person)) return doc;
   if (key === 'people') {
     const list = JSON.parse(doc.json).filter(p => person && _schPersonGroup(p) === person.group)
-      .map(p => ({ id: p.id, name: p.name, unit: p.unit, active: p.active, order: p.order }));
+      // 本人另附到職日（計算特休，ADR-027）
+      .map(p => Object.assign({ id: p.id, name: p.name, unit: p.unit, active: p.active, order: p.order }, p.id === person.id ? { hireDate: p.hireDate || '' } : {}));
     return { version: doc.version, json: JSON.stringify(list) };
   }
   if (key === 'notices') {

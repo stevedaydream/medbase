@@ -135,6 +135,8 @@ export interface LeaveInput {
   months: LeaveMonthInput[];
   overtime: { ym: string; day: number; hours: number }[];
   pay: PaySetting | undefined;
+  /** 今天（YYYY-MM-DD）：之後的展延還沒到期，不作廢；省略＝全部依日期作廢 */
+  today?: string;
 }
 
 export interface LeaveMonthStat {
@@ -185,7 +187,8 @@ export function leaveLedger(inp: LeaveInput): LeaveLedger {
   };
   const lastYm = months[months.length - 1]?.ym ?? startYm;
   const end = lastYm ? dateStr(lastYm, daysIn(lastYm)) : "";
-  const grants = grantPoints(inp.hireDate, "9999-12-31");
+  // 算到最後一個月之後一年多，才找得到下次週年
+  const grants = grantPoints(inp.hireDate, addMonths(end || "2000-01-01", 13));
   const startDate = startYm ? dateStr(startYm, 1) : "";
   // 期初時所在的特休期間
   const cur = grants.filter(g => g.date < startDate).pop();
@@ -238,7 +241,7 @@ export function leaveLedger(inp: LeaveInput): LeaveLedger {
     for (let d = 1; d <= daysIn(m.ym); d++) {
       const date = dateStr(m.ym, d);
       while (pending.length && pending[0].date <= date) grant(pending.shift()!);
-      expireCarry(date);
+      if (!inp.today || date <= inp.today) expireCarry(date);
       const code = m.code(d);
       if (!code) continue;
       if (code === "OFF") st.offDays++;
@@ -266,7 +269,7 @@ export function leaveLedger(inp: LeaveInput): LeaveLedger {
     bal.swap += st.swapFromOvertime;
     stats[m.ym] = st;
   }
-  if (end) expireCarry(end);
+  if (end && !inp.today) expireCarry(end);
   bal.nextGrant = pending[0]?.date ?? "";
   return { balance: bal, months: stats };
 }

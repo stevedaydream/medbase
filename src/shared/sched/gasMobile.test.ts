@@ -50,7 +50,8 @@ describe("GAS 手機身分與讀取權限", () => {
   it("員工讀 people 不含 HIS 與分機；notices 只有自己的", () => {
     const d = docs(), me = g._schPerson(d, "111");
     const people = JSON.parse((g._schMobileView(me, "people", d.people) as { json: string }).json);
-    expect(Object.keys(people[0]).sort()).toEqual(["active", "id", "name", "order", "unit"]);
+    expect(Object.keys(people[0]).sort()).toEqual(["active", "hireDate", "id", "name", "order", "unit"]);
+    expect(Object.keys(people[1]).sort()).toEqual(["active", "id", "name", "order", "unit"]);
     const ns = JSON.parse((g._schMobileView(me, "notices", d.notices) as { json: string }).json);
     expect(ns.map((n: { id: string }) => n.id)).toEqual(["n1"]);
     const staff = g._schPerson(d, "222");

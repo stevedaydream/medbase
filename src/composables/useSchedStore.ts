@@ -424,7 +424,7 @@ export function personLedger(personId: string, uptoYm: string): LeaveLedger {
     hireDate: personById(personId)?.hireDate ?? "", rules: leaveRulesOf(), open: state.leaveOpen[personId],
     shifts: state.shifts, holidays: state.holidays,
     months: monthInputs(state.months, state.prebooks, personId).filter(m => m.ym <= uptoYm),
-    overtime, pay: undefined,
+    overtime, pay: undefined, today: new Date().toLocaleString("sv-SE").slice(0, 10),
   });
 }
 

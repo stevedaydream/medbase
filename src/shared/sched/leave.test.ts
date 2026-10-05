@@ -59,6 +59,17 @@ describe("假勤帳", () => {
     expect(l.balance.carry).toBe(0);
     expect(l.balance.expired).toEqual([{ date: "2026-02-15", hours: 8 }]);
   });
+  it("今天以後才到期的展延不作廢；週年日只找到需要的範圍", () => {
+    const l = leaveLedger(base({
+      hireDate: "2024-11-20", today: "2026-10-05",
+      open: { from: "202610", annual: 40, carry: 16, carryUntil: "2026-10-31", comp: 0, swap: 0 },
+      months: [month("202610", allOff("202610"))],
+    }));
+    expect(l.balance.carry).toBe(16);
+    expect(l.balance.expired).toEqual([]);
+    expect(l.balance.annualQuota).toBe(56);
+    expect(l.balance.nextGrant).toBe("2026-11-20");
+  });
   it("期初的展延到期日晚於週年時兩筆並存，先扣先到期的", () => {
     const l = leaveLedger(base({
       open: { from: "202602", annual: 8, carry: 16, carryUntil: "2026-06-01", comp: 0, swap: 0 },
