@@ -7,11 +7,12 @@ import { loadCache, refresh, data } from './lib/data'
 import { refreshAccess, routeAllowed } from './lib/access'
 import { sched, syncSchedDocs } from './lib/sched'
 import { computed, onMounted, onUnmounted } from 'vue'
-import { toastMsg, toast } from './lib/ui'
+import { toastMsg, toast, installLongPressFullText } from './lib/ui'
 import { autoEnsureMonths } from './lib/schedOps'
 import { installPullRefresh, pullDistance, pulling, PULL_THRESHOLD } from './lib/pull'
 
 installPullRefresh()
+installLongPressFullText()
 
 const route = useRoute()
 const router = useRouter()

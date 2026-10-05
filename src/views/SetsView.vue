@@ -372,7 +372,7 @@ async function doDelete() {
           <!-- 醫師群組標題 -->
           <div class="px-2 pt-2.5 pb-1.5 flex items-center gap-2 sticky top-0 bg-sunken/20 backdrop-blur-sm z-[2]">
             <span class="w-1.5 h-1.5 rounded-full bg-accent animate-pulse shrink-0"></span>
-            <span class="text-xs font-black text-fg tracking-wide truncate flex-1">{{ group.name }}</span>
+            <span class="text-xs font-black text-fg tracking-wide truncate flex-1" :title="group.name">{{ group.name }}</span>
             <span class="text-2xs font-mono font-bold text-muted bg-surface px-1.5 py-0.5 rounded border border-hairline">{{ group.items.length }}</span>
           </div>
           <!-- 套組項目 -->
@@ -385,7 +385,7 @@ async function doDelete() {
                 ? 'bg-accent/10 border-accent/40 text-accent shadow-[0_0_12px_rgba(139,92,246,0.08)]'
                 : 'bg-sunken border-hairline text-fg-secondary hover:text-fg hover:bg-surface/40 hover:border-hairline'"
             >
-              <span class="text-xs font-bold truncate flex-1 min-w-0">{{ s.surgery_type || s.name }}</span>
+              <span class="text-xs font-bold truncate flex-1 min-w-0" :title="s.surgery_type || s.name">{{ s.surgery_type || s.name }}</span>
               <button
                 @click.stop="deleteTarget = { type: 'set', row: s }"
                 class="opacity-0 group-hover:opacity-100 hover:text-danger px-1 transition-opacity shrink-0 cursor-pointer text-sm leading-none"
@@ -434,7 +434,7 @@ async function doDelete() {
             <div class="flex items-center gap-2.5 mt-2 flex-wrap">
               <span v-if="activeSet.phys_name" class="text-2xs font-bold bg-surface border border-hairline text-fg-secondary px-2 py-0.5 rounded-full">👨‍⚕️ {{ activeSet.phys_name }}</span>
               <span v-if="activeSet.surgery_type" class="text-2xs font-bold bg-accent/10 border border-accent/20 text-accent px-2 py-0.5 rounded-full">🔪 {{ activeSet.surgery_type }}</span>
-              <span v-if="activeSet.notes" class="text-xs text-muted italic max-w-sm truncate">{{ activeSet.notes }}</span>
+              <span v-if="activeSet.notes" class="text-xs text-muted italic max-w-sm truncate" :title="activeSet.notes">{{ activeSet.notes }}</span>
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
@@ -632,11 +632,11 @@ async function doDelete() {
                     :checked="pickedCodes.has(s.hospital_code) || inSet.has(s.hospital_code)" @change="togglePick(s)" />
                   <span class="font-mono text-xs text-fg-secondary w-24 shrink-0 font-bold">{{ s.hospital_code }}</span>
                   <span class="flex-1 min-w-0">
-                    <span class="block text-xs text-fg font-bold truncate">{{ s.name_zh || s.name_en }}</span>
-                    <span v-if="s.name_zh && s.name_en" class="block text-2xs text-muted truncate">{{ s.name_en }}</span>
+                    <span class="block text-xs text-fg font-bold truncate" :title="s.name_zh || s.name_en || undefined">{{ s.name_zh || s.name_en }}</span>
+                    <span v-if="s.name_zh && s.name_en" class="block text-2xs text-muted truncate" :title="s.name_en">{{ s.name_en }}</span>
                   </span>
                   <span v-if="inSet.has(s.hospital_code)" class="text-xs text-muted shrink-0">已在套組</span>
-                  <span v-else-if="s.purpose" class="text-2xs bg-accent/10 text-accent px-2 py-0.5 rounded-full shrink-0 max-w-24 truncate">{{ s.purpose }}</span>
+                  <span v-else-if="s.purpose" class="text-2xs bg-accent/10 text-accent px-2 py-0.5 rounded-full shrink-0 max-w-24 truncate" :title="s.purpose">{{ s.purpose }}</span>
                   <span class="text-success font-mono text-xs shrink-0 font-bold w-16 text-right">{{ s.price ? `$${s.price.toLocaleString()}` : "" }}</span>
                 </label>
                 <div class="py-3 text-center">
@@ -656,7 +656,7 @@ async function doDelete() {
               <div v-for="p in picked" :key="p.hospital_code" class="px-4 py-2.5 border-b border-hairline space-y-1.5">
                 <div class="flex items-start gap-2">
                   <span class="flex-1 min-w-0">
-                    <span class="block text-xs font-bold text-fg truncate">{{ p.name }}</span>
+                    <span class="block text-xs font-bold text-fg truncate" :title="p.name">{{ p.name }}</span>
                     <span class="block font-mono text-2xs text-muted">{{ p.hospital_code }}</span>
                   </span>
                   <button @click="picked = picked.filter(x => x.hospital_code !== p.hospital_code)" class="text-muted hover:text-danger cursor-pointer">×</button>

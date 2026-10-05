@@ -106,3 +106,32 @@ export function useNow() {
   onUnmounted(() => { if (t) clearInterval(t) })
   return now
 }
+
+// ── 長按看全文 ───────────────────────────────────────────────────
+/**
+ * 長按被截斷（truncate）的文字約 0.5 秒，以提示框顯示全文；
+ * 手指移動（捲動）就取消，長按後放開不觸發點擊。
+ */
+export function installLongPressFullText() {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  let x = 0, y = 0
+  let fired = false
+  const cancel = () => { if (timer) clearTimeout(timer); timer = null }
+  document.addEventListener('pointerdown', e => {
+    cancel()
+    fired = false
+    const el = (e.target as HTMLElement | null)?.closest<HTMLElement>('.truncate')
+    if (!el || el.scrollWidth <= el.clientWidth) return
+    x = e.clientX; y = e.clientY
+    timer = setTimeout(() => {
+      fired = true
+      toast(el.textContent?.trim() ?? '', 4000)
+    }, 500)
+  }, { passive: true })
+  document.addEventListener('pointermove', e => { if (timer && Math.hypot(e.clientX - x, e.clientY - y) > 10) cancel() }, { passive: true })
+  document.addEventListener('pointerup', cancel, { passive: true })
+  document.addEventListener('pointercancel', cancel, { passive: true })
+  document.addEventListener('click', e => { if (fired) { fired = false; e.preventDefault(); e.stopPropagation() } }, true)
+  // 長按時不跳出系統選單（複製、分享）
+  document.addEventListener('contextmenu', e => { if (fired || timer) e.preventDefault() })
+}
