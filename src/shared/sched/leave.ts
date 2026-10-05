@@ -23,6 +23,8 @@ export interface LeaveRules {
   holidayPayRate: number;
   /** 排班時任一假別餘額低於此天數即提醒 */
   lowBalanceDays: number;
+  /** 時薪＝計入時薪的月薪項目合計 ÷ 此數（勞基法常用 30 天 × 8 小時） */
+  hourlyDivisor: number;
 }
 
 /** 勞基法第 38 條 */
@@ -36,6 +38,7 @@ export const DEFAULT_LEAVE_RULES: LeaveRules = {
   maxDays: 30,
   holidayPayRate: 1,
   lowBalanceDays: 5,
+  hourlyDivisor: 240,
 };
 
 /** 期初餘額（共用文件 leaveOpen，personId → 本人在手機填寫）：自 from 月份 1 日起算 */
@@ -49,8 +52,29 @@ export interface LeaveOpen {
 }
 export type LeaveOpenDoc = Record<string, LeaveOpen>;
 
-/** 個人薪資設定（只有本人與 super）：時薪、各班別值班費（覆蓋班別預設值） */
-export interface PaySetting { hourly: number; dutyPay: Record<string, number> }
+/** 薪資條結構：本薪、專業加給一律計入時薪，自訂項目可選 */
+export interface SalaryItem { name: string; amount: number; counted: boolean }
+export interface Salary { base: number; professional: number; custom: SalaryItem[] }
+
+/**
+ * 個人薪資設定（只有本人與 super）：時薪、各班別值班費（覆蓋班別預設值）。
+ * 有填薪資結構時，時薪一律由薪資結構換算（見 hourlyOf）。
+ */
+export interface PaySetting { hourly: number; dutyPay: Record<string, number>; salary?: Salary }
+
+/** 計入時薪的月薪合計 */
+export function monthlyCounted(s: Salary | undefined): number {
+  if (!s) return 0;
+  return (s.base || 0) + (s.professional || 0) + s.custom.filter(c => c.counted).reduce((a, c) => a + (c.amount || 0), 0);
+}
+
+/** 有薪資結構就用月薪 ÷ 除數（四捨五入到小數 2 位），否則用手動填的時薪 */
+export function hourlyOf(pay: PaySetting | null | undefined, rules: LeaveRules): number {
+  if (!pay) return 0;
+  const m = monthlyCounted(pay.salary);
+  if (m > 0 && rules.hourlyDivisor > 0) return Math.round((m / rules.hourlyDivisor) * 100) / 100;
+  return pay.hourly || 0;
+}
 
 /** 加班登記（依群組每月 overtime:YYYYMM，員工自己登記） */
 export interface OvertimeItem { id: string; personId: string; day: number; hours: number; note: string; at: string }

@@ -311,6 +311,8 @@ describe("GAS 假勤（ADR-027）", () => {
     expect(a._schSetPay(x, me, { hourly: 320, dutyPay: { D: 1200, N: "" } })).toEqual({ ok: true });
     expect(JSON.parse(x.pay.json).e1).toEqual({ hourly: 320, dutyPay: { D: 1200 } });
     expect((a._schSetPay(x, null, {}) as { ok: boolean }).ok).toBe(false);
+    a._schSetPay(x, me, { hourly: 0, dutyPay: {}, salary: { base: "48000", professional: 12000, custom: [{ name: "交通", amount: 2000, counted: 1 }, null] } });
+    expect(JSON.parse(x.pay.json).e1.salary).toEqual({ base: 48000, professional: 12000, custom: [{ name: "交通", amount: 2000, counted: true }, { name: "", amount: 0, counted: false }] });
   });
   it("只有 super 能改別人的期初餘額與薪資設定", () => {
     const x = d(), emp = a._schPerson(x, "111"), sup = { id: "su", name: "超級", role: "super" };

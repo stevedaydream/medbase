@@ -859,6 +859,16 @@ function _schSetPay(docs, person, pay, targetId) {
   Object.keys(src).slice(0, 40).forEach(k => { if (src[k] !== '' && src[k] != null) dutyPay[String(k).slice(0, 10)] = _num(src[k], 0, 1000000); });
   const all = _schParse(docs, 'pay', {});
   all[t.id] = { hourly: _num(pay && pay.hourly, 0, 100000), dutyPay: dutyPay };
+  // 薪資條結構（本薪、專業加給、自訂項目），時薪由此換算
+  const sal = pay && pay.salary && typeof pay.salary === 'object' ? pay.salary : null;
+  if (sal) {
+    all[t.id].salary = {
+      base: _num(sal.base, 0, 10000000), professional: _num(sal.professional, 0, 10000000),
+      custom: (Array.isArray(sal.custom) ? sal.custom : []).slice(0, 20).map(c => ({
+        name: String((c && c.name) || '').slice(0, 30), amount: _num(c && c.amount, -10000000, 10000000), counted: !!(c && c.counted),
+      })),
+    };
+  }
   docs.pay = { version: _schVersion(docs.pay && docs.pay.version), json: JSON.stringify(all) };
   return { ok: true };
 }

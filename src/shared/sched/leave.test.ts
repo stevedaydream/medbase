@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  annualDaysAt, grantPoints, requiredOffDays, leaveLedger, lowBalances, fmtLeave, leaveOf, compAccrueOf,
+  annualDaysAt, grantPoints, requiredOffDays, leaveLedger, lowBalances, fmtLeave, leaveOf, compAccrueOf, hourlyOf, monthlyCounted,
   DEFAULT_LEAVE_RULES as R, type LeaveInput, type LeaveMonthInput,
 } from "./leave";
 import { DEFAULT_SHIFTS } from "./types";
@@ -130,6 +130,15 @@ describe("提醒與顯示", () => {
     expect(compAccrueOf(DEFAULT_SHIFTS.find(s => s.code === "D"))).toBe(4);
     expect(compAccrueOf(DEFAULT_SHIFTS.find(s => s.code === "S1"))).toBe(0);
     expect(compAccrueOf({ ...DEFAULT_SHIFTS[0], compAccrue: 2 })).toBe(2);
+  });
+  it("時薪：有薪資結構用月薪 ÷ 240（只算計入的項目），否則用手動填的", () => {
+    const salary = { base: 48000, professional: 12000, custom: [{ name: "職務加給", amount: 3000, counted: true }, { name: "交通津貼", amount: 2000, counted: false }] };
+    expect(monthlyCounted(salary)).toBe(63000);
+    expect(hourlyOf({ hourly: 999, dutyPay: {}, salary }, R)).toBe(262.5);
+    expect(hourlyOf({ hourly: 300, dutyPay: {} }, R)).toBe(300);
+    expect(hourlyOf({ hourly: 300, dutyPay: {}, salary: { base: 0, professional: 0, custom: [] } }, R)).toBe(300);
+    expect(hourlyOf({ hourly: 0, dutyPay: {}, salary: { base: 50000, professional: 0, custom: [] } }, { ...R, hourlyDivisor: 300 })).toBe(166.67);
+    expect(hourlyOf(null, R)).toBe(0);
   });
   it("時數換算", () => {
     expect(fmtLeave(20)).toBe("2 天 4 小時");

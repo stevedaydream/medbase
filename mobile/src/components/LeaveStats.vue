@@ -6,7 +6,7 @@ import { gas } from '../lib/api'
 import { kvGet, kvSet } from '../lib/kv'
 import { toast } from '../lib/ui'
 import {
-  leaveLedger, normalizeLeaveRules, fmtLeave, LEAVE_LABELS,
+  leaveLedger, normalizeLeaveRules, fmtLeave, hourlyOf, LEAVE_LABELS,
   type LeaveRules, type LeaveOpen, type LeaveOpenDoc, type OvertimeDoc, type PaySetting, type LeaveMonthInput,
 } from '@shared/sched/leave'
 import { DEFAULT_SHIFTS, type MonthDoc, type ShiftDef, type HolidayDoc, type LeaveKind } from '@shared/sched/types'
@@ -54,7 +54,7 @@ const bal = computed(() => ledger.value.balance)
 const lastExpired = computed(() => bal.value.expired[bal.value.expired.length - 1])
 const daysLeft = (date: string) => Math.ceil((new Date(date).getTime() - Date.now()) / 86400000)
 const carrySoon = computed(() => bal.value.carry > 0 && !!bal.value.carryUntil && daysLeft(bal.value.carryUntil) <= 30)
-const hourly = computed(() => pay.value?.hourly ?? 0)
+const hourly = computed(() => hourlyOf(pay.value, rules.value))
 const monthOvertime = computed(() => overtimes.value.filter(o => o.ym === props.ym).sort((a, b) => a.day - b.day))
 const USED: LeaveKind[] = ['annual', 'comp', 'swap']
 

@@ -103,7 +103,12 @@ export const RULES: Record<string, Rule> = {
       const p = (a.pay && typeof a.pay === "object" ? a.pay : {}) as Args;
       const src = (p.dutyPay && typeof p.dutyPay === "object" ? p.dutyPay : {}) as Args;
       const dutyPay = Object.fromEntries(Object.entries(src).slice(0, 40).filter(([, v]) => v !== "" && v != null).map(([k, v]) => [str(k, 10), num(v)]));
-      return { pay: { hourly: num(p.hourly), dutyPay }, ...target(a) };
+      const sal = (p.salary && typeof p.salary === "object" ? p.salary : null) as Args | null;
+      const salary = sal ? {
+        base: num(sal.base), professional: num(sal.professional),
+        custom: (Array.isArray(sal.custom) ? sal.custom : []).slice(0, 20).map((c: Args) => ({ name: str(c?.name, 30), amount: num(c?.amount), counted: !!c?.counted })),
+      } : undefined;
+      return { pay: { hourly: num(p.hourly), dutyPay, ...(salary ? { salary } : {}) }, ...target(a) };
     },
   },
   mobileMarkRead: {

@@ -262,6 +262,8 @@ function resetRules() {
         <input v-model.number="leaveRules.holidayPayRate" type="number" min="0" step="0.1" :disabled="!canEdit" class="sched-input w-16" @change="saveLeaveRules" />
         <span class="text-fg-secondary">排班時假別餘額低於（天）提醒</span>
         <input v-model.number="leaveRules.lowBalanceDays" type="number" min="0" step="0.5" :disabled="!canEdit" class="sched-input w-16" @change="saveLeaveRules" />
+        <span class="text-fg-secondary" title="個人在手機填薪資結構時，時薪＝計入的月薪合計 ÷ 此數">時薪＝月薪 ÷</span>
+        <input v-model.number="leaveRules.hourlyDivisor" type="number" min="1" :disabled="!canEdit" class="sched-input w-16" @change="saveLeaveRules" />
       </div>
       <div class="pt-1 text-fg-secondary">特休年資表</div>
       <div class="flex flex-wrap items-center gap-2">
