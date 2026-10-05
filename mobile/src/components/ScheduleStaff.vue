@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { sched, doc, setActiveGroup } from '../lib/sched'
+import LeaveAdmin from './LeaveAdmin.vue'
 import { toast } from '../lib/ui'
 import {
   snapshot, lockOf, hasLock, acquireLock, releaseLock, startMonth, publishMonth, revertMonth,
@@ -390,6 +391,8 @@ const mD = computed(() => Number(ym.value.slice(4)))
           @click="drawer = t[0]" class="h-9 px-3 rounded-lg bg-surface border border-hairline font-bold" :class="t[0] === 'issues' && issues.length ? 'text-danger' : ''">{{ t[1] }}</button>
       </div>
     </template>
+    <!-- super 修改他人假勤資料（ADR-027） -->
+    <LeaveAdmin v-if="sched.me?.role === 'super'" :ym="ym || ''" />
 
     <Teleport to="body">
       <!-- 格子選單 -->

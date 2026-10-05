@@ -37,8 +37,10 @@ describe("/api/gas 白名單（排班 v3）", () => {
     expect(ok("mobileSetOvertime", { ym: "202612", day: 3, hours: "2", note: "手術", personId: "x" }))
       .toEqual({ ym: "202612", op: "add", day: 3, hours: 2, note: "手術" });
     expect(ok("mobileSetOvertime", { ym: "2026-12" })).toBeNull();
-    expect(ok("mobileSetPay", { pay: { hourly: "300", dutyPay: { D: 1000, N: "" } }, personId: "x" }))
+    expect(ok("mobileSetPay", { pay: { hourly: "300", dutyPay: { D: 1000, N: "" } } }))
       .toEqual({ pay: { hourly: 300, dutyPay: { D: 1000 } } });
+    // 指定對象只轉給 GAS，是否為 super 由 GAS 判斷
+    expect(ok("mobileGetPay", { personId: "p2" })).toEqual({ personId: "p2" });
   });
   it("setMobileAccess 只轉權限表三欄（是否為管理者由 GAS 判斷）", () => {
     expect(ok("setMobileAccess", { matrix: { doctor: ["sets"], nurse: "x", evil: ["a"] }, admin: true }))

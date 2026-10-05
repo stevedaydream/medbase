@@ -28,6 +28,8 @@ const CONFIG_KEYS = ["np_duty_url"];
 /** 排班文件 key：people／shifts…／month:YYYYMM／prebook:YYYYMM／log:global… */
 const SCH_KEY = /^(people|shifts|quotaItems|rules|holidays|holidayDuty|duty84|cny|notices|debts|leaveRules|leaveOpen|(month|prebook|log|lock|est|swapreq|overtime):(\d{6}|global))$/;
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+/** super 修改別人的假勤資料（是否為 super 由 GAS 判斷） */
+const target = (a: Args): Args => a.personId ? { personId: str(a.personId, 64) } : {};
 const MAX_DOC = 2_000_000;
 /** 排班群組（ADR-025）：super 可指定要看的群組，其他人一律由 GAS 依身分決定；key 一律是群組內的名稱 */
 const GROUP_ID = /^[A-Za-z0-9]{1,12}$/;
@@ -92,16 +94,16 @@ export const RULES: Record<string, Rule> = {
   mobileSetLeaveOpen: {
     build: (a) => {
       const o = (a.open && typeof a.open === "object" ? a.open : {}) as Args;
-      return { open: { from: str(o.from, 6), annual: num(o.annual), carry: num(o.carry), carryUntil: str(o.carryUntil, 10), comp: num(o.comp), swap: num(o.swap) } };
+      return { open: { from: str(o.from, 6), annual: num(o.annual), carry: num(o.carry), carryUntil: str(o.carryUntil, 10), comp: num(o.comp), swap: num(o.swap) }, ...target(a) };
     },
   },
-  mobileGetPay: { build: () => ({}) },
+  mobileGetPay: { build: (a) => target(a) },
   mobileSetPay: {
     build: (a) => {
       const p = (a.pay && typeof a.pay === "object" ? a.pay : {}) as Args;
       const src = (p.dutyPay && typeof p.dutyPay === "object" ? p.dutyPay : {}) as Args;
       const dutyPay = Object.fromEntries(Object.entries(src).slice(0, 40).filter(([, v]) => v !== "" && v != null).map(([k, v]) => [str(k, 10), num(v)]));
-      return { pay: { hourly: num(p.hourly), dutyPay } };
+      return { pay: { hourly: num(p.hourly), dutyPay }, ...target(a) };
     },
   },
   mobileMarkRead: {

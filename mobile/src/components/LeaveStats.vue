@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import LeaveForms from './LeaveForms.vue'
 import { sched, doc, syncSchedDocs } from '../lib/sched'
 import { gas } from '../lib/api'
 import { kvGet, kvSet } from '../lib/kv'
 import { toast } from '../lib/ui'
 import {
-  leaveLedger, normalizeLeaveRules, compAccrueOf, fmtLeave, LEAVE_LABELS,
+  leaveLedger, normalizeLeaveRules, fmtLeave, LEAVE_LABELS,
   type LeaveRules, type LeaveOpen, type LeaveOpenDoc, type OvertimeDoc, type PaySetting, type LeaveMonthInput,
 } from '@shared/sched/leave'
 import { DEFAULT_SHIFTS, type MonthDoc, type ShiftDef, type HolidayDoc, type LeaveKind } from '@shared/sched/types'
@@ -82,34 +83,14 @@ async function addOvertime() {
 }
 const delOvertime = (id: string, ym: string) => run(() => gas('mobileSetOvertime', { ym, op: 'delete', id }), '已刪除')
 
-// ── 期初餘額 ─────────────────────────────────────────────────────
-const openForm = ref<LeaveOpen | null>(null)
-function editOpen() {
-  const o = open.value
-  openForm.value = o ? { ...o } : { from: props.ym, annual: 0, carry: 0, carryUntil: '', comp: 0, swap: 0 }
-}
-async function saveOpen() {
-  if (!openForm.value) return
-  if (await run(() => gas('mobileSetLeaveOpen', { open: openForm.value }), '已儲存期初餘額')) openForm.value = null
-}
-
-// ── 時薪與值班費 ─────────────────────────────────────────────────
-/** 會領值班費的班別：有預設值或會累積補假的班 */
-const dutyShifts = computed(() => shifts.value.filter(s => s.dutyPay !== undefined || compAccrueOf(s) > 0))
-const payForm = ref<{ hourly: number; dutyPay: Record<string, number | ''> } | null>(null)
-function editPay() {
-  const p = pay.value
-  payForm.value = { hourly: p?.hourly ?? 0, dutyPay: Object.fromEntries(dutyShifts.value.map(s => [s.code, p?.dutyPay?.[s.code] ?? ''])) }
-}
-async function savePay() {
-  const f = payForm.value
-  if (!f) return
-  const next = { hourly: Number(f.hourly) || 0, dutyPay: Object.fromEntries(Object.entries(f.dutyPay).filter(([, v]) => v !== '').map(([k, v]) => [k, Number(v)])) }
-  if (await run(() => gas('mobileSetPay', { pay: next }), '已儲存')) {
-    pay.value = next
-    await kvSet('leave:pay', next)
-    payForm.value = null
+// ── 期初餘額、時薪與值班費（共用表單）──────────────────────────
+const editing = ref<'open' | 'pay' | null>(null)
+async function onSaved(v: LeaveOpen | PaySetting) {
+  if (editing.value === 'pay') {
+    pay.value = v as PaySetting
+    await kvSet('leave:pay', JSON.parse(JSON.stringify(v)))
   }
+  editing.value = null
 }
 const ymLabel = computed(() => `${Number(props.ym.slice(4))} 月`)
 </script>
@@ -185,13 +166,14 @@ const ymLabel = computed(() => `${Number(props.ym.slice(4))} 月`)
         <span class="font-bold tabular-nums" :class="bal.swap < 0 ? 'text-danger' : ''">{{ fmt(bal.swap) }}</span>
       </div>
       <div class="flex gap-2 pt-1">
-        <button class="flex-1 h-9 rounded-lg bg-sunken border border-hairline text-xs font-bold" @click="editOpen">期初餘額</button>
-        <button class="flex-1 h-9 rounded-lg bg-sunken border border-hairline text-xs font-bold" @click="editPay">時薪與值班費</button>
+        <button class="flex-1 h-9 rounded-lg bg-sunken border border-hairline text-xs font-bold" @click="editing = 'open'">期初餘額</button>
+        <button class="flex-1 h-9 rounded-lg bg-sunken border border-hairline text-xs font-bold" @click="editing = 'pay'">時薪與值班費</button>
       </div>
     </section>
 
     <!-- 表單（底部抽屜） -->
-    <div v-if="otForm || openForm || payForm" class="fixed inset-0 z-50 bg-black/40 flex items-end" @click.self="otForm = openForm = payForm = null">
+    <LeaveForms v-if="editing" :mode="editing" :ym="ym" :open="open" :pay="pay" @close="editing = null" @saved="onSaved" />
+    <div v-if="otForm" class="fixed inset-0 z-50 bg-black/40 flex items-end" @click.self="otForm = null">
       <div class="w-full max-h-[85vh] overflow-y-auto bg-surface rounded-t-2xl p-4 pb-8 space-y-3 text-sm">
         <template v-if="otForm">
           <p class="font-bold text-fg">登記加班（{{ ymLabel }}）</p>
@@ -208,31 +190,6 @@ const ymLabel = computed(() => `${Number(props.ym.slice(4))} 月`)
           <button class="w-full h-11 rounded-xl bg-accent text-white font-bold disabled:opacity-40" :disabled="busy || !(otForm.hours > 0)" @click="addOvertime">登記</button>
         </template>
 
-        <template v-else-if="openForm">
-          <p class="font-bold text-fg">期初餘額（小時）</p>
-          <p class="text-xs text-muted">填寫起算月份 1 日當時的剩餘時數，之後由系統依班表與加班登記自動增減。1 天＝{{ hpd }} 小時。</p>
-          <label class="flex items-center gap-2">起算月份
-            <input :value="`${openForm.from.slice(0, 4)}-${openForm.from.slice(4)}`" type="month" class="flex-1 h-10 px-2 rounded-lg bg-sunken border border-hairline"
-              @change="openForm.from = ($event.target as HTMLInputElement).value.replace('-', '')" />
-          </label>
-          <label class="flex items-center gap-2">特休（本期剩餘）<input v-model.number="openForm.annual" type="number" step="0.5" class="flex-1 h-10 px-2 rounded-lg bg-sunken border border-hairline" /></label>
-          <label class="flex items-center gap-2">特休展延<input v-model.number="openForm.carry" type="number" min="0" step="0.5" class="flex-1 h-10 px-2 rounded-lg bg-sunken border border-hairline" /></label>
-          <label v-if="openForm.carry > 0" class="flex items-center gap-2">展延到期日<input v-model="openForm.carryUntil" type="date" class="flex-1 h-10 px-2 rounded-lg bg-sunken border border-hairline" /></label>
-          <label class="flex items-center gap-2">補假<input v-model.number="openForm.comp" type="number" step="0.5" class="flex-1 h-10 px-2 rounded-lg bg-sunken border border-hairline" /></label>
-          <label class="flex items-center gap-2">補換假<input v-model.number="openForm.swap" type="number" step="0.5" class="flex-1 h-10 px-2 rounded-lg bg-sunken border border-hairline" /></label>
-          <button class="w-full h-11 rounded-xl bg-accent text-white font-bold disabled:opacity-40" :disabled="busy || !/^\d{6}$/.test(openForm.from)" @click="saveOpen">儲存</button>
-        </template>
-
-        <template v-else-if="payForm">
-          <p class="font-bold text-fg">時薪與值班費</p>
-          <p class="text-xs text-muted">只有你自己看得到。時薪用來估算特休作廢可換的金額；值班費空白＝用單位預設金額。</p>
-          <label class="flex items-center gap-2">時薪<input v-model.number="payForm.hourly" type="number" min="0" class="flex-1 h-10 px-2 rounded-lg bg-sunken border border-hairline" /></label>
-          <label v-for="s in dutyShifts" :key="s.code" class="flex items-center gap-2">{{ s.code }} 值班費
-            <input v-model="payForm.dutyPay[s.code]" type="number" min="0" step="50" :placeholder="s.dutyPay !== undefined ? `預設 ${s.dutyPay}` : '未設定'"
-              class="flex-1 h-10 px-2 rounded-lg bg-sunken border border-hairline" />
-          </label>
-          <button class="w-full h-11 rounded-xl bg-accent text-white font-bold disabled:opacity-40" :disabled="busy" @click="savePay">儲存</button>
-        </template>
       </div>
     </div>
   </div>

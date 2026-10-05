@@ -312,4 +312,14 @@ describe("GAS 假勤（ADR-027）", () => {
     expect(JSON.parse(x.pay.json).e1).toEqual({ hourly: 320, dutyPay: { D: 1200 } });
     expect((a._schSetPay(x, null, {}) as { ok: boolean }).ok).toBe(false);
   });
+  it("只有 super 能改別人的期初餘額與薪資設定", () => {
+    const x = d(), emp = a._schPerson(x, "111"), sup = { id: "su", name: "超級", role: "super" };
+    expect((a._schSetPay(x, emp, { hourly: 1 }, "s1") as { error: string }).error).toContain("super");
+    expect((a._schSetLeaveOpen(x, emp, { from: "202611" }, "s1") as { error: string }).error).toContain("super");
+    expect(a._schSetPay(x, sup, { hourly: 400, dutyPay: {} }, "s1")).toEqual({ ok: true });
+    expect(JSON.parse(x.pay.json).s1.hourly).toBe(400);
+    expect(a._schSetLeaveOpen(x, sup, { from: "202611", annual: 8 }, "e1")).toEqual({ ok: true });
+    expect(JSON.parse(x.leaveOpen.json).e1.annual).toBe(8);
+    expect((a._schSetPay(x, sup, {}, "nobody") as { error: string }).error).toContain("找不到");
+  });
 });

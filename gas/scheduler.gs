@@ -821,14 +821,28 @@ function _schSetOvertime(view, person, p, nowIso) {
   return { ok: true };
 }
 
-/** 員工設定自己的期初餘額 */
-function _schSetLeaveOpen(docs, person, o) {
-  if (!person) return { ok: false, error: '你不在排班名單中' };
+/**
+ * 假勤資料的對象：省略 targetId＝本人；指定別人時呼叫者須為 super，且對方在人員名單中。
+ * 回傳 { id } 或 { error }
+ */
+function _schLeaveTarget(docs, person, targetId) {
+  if (!person) return { error: '你不在排班名單中' };
+  const id = targetId ? String(targetId) : person.id;
+  if (id === person.id) return { id: id };
+  if (person.role !== 'super') return { error: '只有 super 可以修改別人的假勤資料' };
+  if (!_schParse(docs, 'people', []).some(x => x.id === id)) return { error: '找不到這位人員' };
+  return { id: id };
+}
+
+/** 設定期初餘額（本人，或 super 指定 targetId） */
+function _schSetLeaveOpen(docs, person, o, targetId) {
+  const t = _schLeaveTarget(docs, person, targetId);
+  if (t.error) return { ok: false, error: t.error };
   if (!o || !/^\d{6}$/.test(String(o.from || ''))) return { ok: false, error: '起算月份格式錯誤' };
   const until = String(o.carryUntil || '');
   if (until && !/^\d{4}-\d{2}-\d{2}$/.test(until)) return { ok: false, error: '展延到期日格式錯誤' };
   const all = _schParse(docs, 'leaveOpen', {});
-  all[person.id] = {
+  all[t.id] = {
     from: String(o.from), annual: _num(o.annual, -9999, 9999), carry: _num(o.carry, 0, 9999), carryUntil: until,
     comp: _num(o.comp, -9999, 9999), swap: _num(o.swap, -9999, 9999),
   };
@@ -836,14 +850,15 @@ function _schSetLeaveOpen(docs, person, o) {
   return { ok: true };
 }
 
-/** 員工設定自己的時薪與各班別值班費 */
-function _schSetPay(docs, person, pay) {
-  if (!person) return { ok: false, error: '你不在排班名單中' };
+/** 設定時薪與各班別值班費（本人，或 super 指定 targetId） */
+function _schSetPay(docs, person, pay, targetId) {
+  const t = _schLeaveTarget(docs, person, targetId);
+  if (t.error) return { ok: false, error: t.error };
   const dutyPay = {};
   const src = pay && pay.dutyPay && typeof pay.dutyPay === 'object' ? pay.dutyPay : {};
   Object.keys(src).slice(0, 40).forEach(k => { if (src[k] !== '' && src[k] != null) dutyPay[String(k).slice(0, 10)] = _num(src[k], 0, 1000000); });
   const all = _schParse(docs, 'pay', {});
-  all[person.id] = { hourly: _num(pay && pay.hourly, 0, 100000), dutyPay: dutyPay };
+  all[t.id] = { hourly: _num(pay && pay.hourly, 0, 100000), dutyPay: dutyPay };
   docs.pay = { version: _schVersion(docs.pay && docs.pay.version), json: JSON.stringify(all) };
   return { ok: true };
 }
@@ -1762,22 +1777,23 @@ function doPost(e) {
         return _withLock(() => {
           const sh = _schSheet(ss);
           const docs = _schReadAll(sh);
-          const r = _schSetLeaveOpen(docs, _schPerson(docs, p._mobile && p._mobile.his), p.open);
+          const r = _schSetLeaveOpen(docs, _schPerson(docs, p._mobile && p._mobile.his), p.open, p.personId);
           if (r.ok) _schWriteAll(sh, docs);
           return json(r);
         });
       }
       case 'mobileGetPay': {
         const docs = _schReadAll(_schSheet(ss));
-        const person = _schPerson(docs, p._mobile && p._mobile.his);
+        const t = _schLeaveTarget(docs, _schPerson(docs, p._mobile && p._mobile.his), p.personId);
+        if (t.error) return json({ ok: false, code: 'FORBIDDEN', error: t.error });
         const all = _schParse(docs, 'pay', {});
-        return json({ ok: true, pay: person && all[person.id] ? all[person.id] : null });
+        return json({ ok: true, pay: all[t.id] || null });
       }
       case 'mobileSetPay': {
         return _withLock(() => {
           const sh = _schSheet(ss);
           const docs = _schReadAll(sh);
-          const r = _schSetPay(docs, _schPerson(docs, p._mobile && p._mobile.his), p.pay);
+          const r = _schSetPay(docs, _schPerson(docs, p._mobile && p._mobile.his), p.pay, p.personId);
           if (r.ok) _schWriteAll(sh, docs);
           return json(r);
         });
