@@ -251,7 +251,7 @@ refreshList();
             :class="copiedKey === `item-${item.hospital_code}` ? 'bg-success text-accent' : 'bg-elevated text-accent'">
             {{ copiedKey === `item-${item.hospital_code}` ? '✓' : item.hospital_code }}
           </span>
-          <span class="text-sm text-fg truncate">{{ item.name_zh || item.name_en }}</span>
+          <span class="text-sm text-fg truncate" :title="item.name_zh || item.name_en">{{ item.name_zh || item.name_en }}</span>
         </div>
       </template>
 
@@ -263,8 +263,8 @@ refreshList();
           <div v-for="s in setList" :key="s.id"
             @click="selectSet(s)"
             class="px-3 py-2 border-b border-hairline cursor-pointer hover:bg-elevated/40 transition-colors">
-            <p class="text-sm text-fg truncate">{{ s.name }}</p>
-            <p v-if="s.phys_name" class="text-xs text-muted truncate">{{ s.phys_name }}</p>
+            <p class="text-sm text-fg truncate" :title="s.name">{{ s.name }}</p>
+            <p v-if="s.phys_name" class="text-xs text-muted truncate" :title="s.phys_name">{{ s.phys_name }}</p>
           </div>
         </template>
         <!-- Set items -->
@@ -272,7 +272,7 @@ refreshList();
           <div class="sticky top-0 bg-surface px-3 py-2 border-b border-hairline flex items-center gap-2">
             <button @click="activeSet = null; activeSetItems = []"
               class="text-muted hover:text-fg text-sm">←</button>
-            <span class="text-sm text-fg font-medium flex-1 truncate">{{ activeSet.name }}</span>
+            <span class="text-sm text-fg font-medium flex-1 truncate" :title="activeSet.name">{{ activeSet.name }}</span>
             <button @click="copyAllCodes"
               class="text-xs px-2 py-0.5 rounded bg-accent/10 text-accent hover:bg-accent/20 shrink-0">
               {{ copiedKey === 'all-codes' ? '✓ 已複製' : '全選複製' }}
@@ -287,7 +287,7 @@ refreshList();
               {{ copiedKey === `si-${si.id}` ? '✓' : si.hospital_code }}
             </span>
             <div class="flex-1 min-w-0">
-              <span class="text-sm text-fg truncate">{{ si.name_zh || si.hospital_code }}</span>
+              <span class="text-sm text-fg truncate" :title="si.name_zh || si.hospital_code">{{ si.name_zh || si.hospital_code }}</span>
               <span v-if="si.quantity > 1" class="ml-1.5 text-xs text-muted">×{{ si.quantity }}</span>
             </div>
           </div>
