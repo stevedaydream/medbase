@@ -647,8 +647,10 @@ const SCH_DEFAULT_OFF_CODES = ['OFF', '公假'];
 // ── 排班群組（ADR-025）：規則與 src/shared/sched/groups.ts 相同，修改時兩邊一起改 ──
 // 預設群組沿用舊 key；其他群組的文件加前綴「群組/」；共用文件全院一份。
 const SCH_DEFAULT_GROUP = '9A9B';
-const SCH_SHARED = ['people', 'groups', 'holidays', 'duty84', 'cny', 'notices'];
-const SCH_SUPER_ONLY = ['people', 'groups', 'holidays', 'duty84', 'cny'];
+const SCH_SHARED = ['people', 'groups', 'holidays', 'duty84', 'cny', 'notices', 'leaveRules', 'leaveOpen'];
+const SCH_SUPER_ONLY = ['people', 'groups', 'holidays', 'duty84', 'cny', 'leaveRules', 'leaveOpen'];
+/** 個人薪資設定（時薪、值班費，ADR-027）：不進任何同步清單，只能經 mobileGetPay／mobileSetPay 讀寫本人的 */
+const SCH_HIDDEN = ['pay'];
 const SCH_CLIENT_SCHEMA = 2;
 const SCH_GROUP_ID = /^[A-Za-z0-9]{1,12}$/;
 
@@ -692,10 +694,18 @@ function _schViewGroup(docs, person, want) {
 function _schView(docs, group) {
   const v = {};
   Object.keys(docs).forEach(k => {
+    if (SCH_HIDDEN.indexOf(k) >= 0) return;
     const s = _schSplitKey(k);
     if (s.group === null || s.group === group) v[s.base] = docs[k];
   });
   return v;
+}
+
+/** 桌機的原始清單也不含個人薪資設定 */
+function _schNoHidden(docs) {
+  const out = {};
+  Object.keys(docs).forEach(k => { if (SCH_HIDDEN.indexOf(k) < 0) out[k] = docs[k]; });
+  return out;
 }
 
 /** 視角內的文件寫回 */
@@ -749,7 +759,9 @@ function _schIsStaff(person) {
 /** 員工可讀的文件 */
 function _schEmployeeKey(key) {
   return key.indexOf('prebook:') === 0 || key.indexOf('est:') === 0
-    || key === 'people' || key === 'shifts' || key === 'holidays' || key === 'notices';
+    || key === 'people' || key === 'shifts' || key === 'holidays' || key === 'notices'
+    // 假勤（ADR-027）：已發布月份只有自己那列、自己的加班與期初餘額
+    || key.indexOf('month:') === 0 || key.indexOf('overtime:') === 0 || key === 'leaveRules' || key === 'leaveOpen';
 }
 
 /** 依角色過濾讀取：員工的 people 只留同群組的姓名單位、notices 只留自己的 */
@@ -764,7 +776,75 @@ function _schMobileView(person, key, doc) {
     const list = JSON.parse(doc.json).filter(n => person && n.personId === person.id);
     return { version: doc.version, json: JSON.stringify(list) };
   }
+  const me = person ? person.id : '';
+  if (key.indexOf('month:') === 0) {
+    const m = JSON.parse(doc.json);
+    const out = { ym: m.ym, status: m.status };
+    if (m.status === 'published') {
+      out.roster = (m.roster || []).filter(r => r.personId === me);
+      out.schedule = m.schedule && m.schedule[me] ? { [me]: m.schedule[me] } : {};
+    }
+    return { version: doc.version, json: JSON.stringify(out) };
+  }
+  if (key.indexOf('overtime:') === 0) {
+    const o = JSON.parse(doc.json);
+    return { version: doc.version, json: JSON.stringify({ ym: o.ym, items: (o.items || []).filter(i => i.personId === me) }) };
+  }
+  if (key === 'leaveOpen') {
+    const all = JSON.parse(doc.json);
+    return { version: doc.version, json: JSON.stringify(all[me] ? { [me]: all[me] } : {}) };
+  }
   return doc;
+}
+
+const _num = (v, min, max) => { const n = Number(v); return isFinite(n) ? Math.min(max, Math.max(min, n)) : 0; };
+
+/** 員工登記／刪除自己的加班（op: add | delete）；直接改 view，回傳 { ok, error? } */
+function _schSetOvertime(view, person, p, nowIso) {
+  if (!person) return { ok: false, error: '你不在排班名單中' };
+  const ym = String(p.ym || '');
+  if (!/^\d{6}$/.test(ym)) return { ok: false, error: '月份格式錯誤' };
+  const key = 'overtime:' + ym;
+  const doc = _schParse(view, key, { ym: ym, items: [] });
+  if (p.op === 'delete') {
+    const before = doc.items.length;
+    doc.items = doc.items.filter(i => !(i.id === p.id && i.personId === person.id));
+    if (doc.items.length === before) return { ok: false, error: '找不到這筆加班' };
+  } else {
+    const day = Number(p.day), hours = Number(p.hours);
+    if (!(day >= 1 && day <= _schDaysIn(ym))) return { ok: false, error: '日期錯誤' };
+    if (!(hours > 0 && hours <= 24)) return { ok: false, error: '時數須在 0～24 小時之間' };
+    doc.items.push({ id: Utilities.getUuid(), personId: person.id, day: day, hours: hours, note: String(p.note || '').slice(0, 100), at: nowIso });
+  }
+  view[key] = { version: _schVersion(view[key] && view[key].version), json: JSON.stringify(doc) };
+  return { ok: true };
+}
+
+/** 員工設定自己的期初餘額 */
+function _schSetLeaveOpen(docs, person, o) {
+  if (!person) return { ok: false, error: '你不在排班名單中' };
+  if (!o || !/^\d{6}$/.test(String(o.from || ''))) return { ok: false, error: '起算月份格式錯誤' };
+  const until = String(o.carryUntil || '');
+  if (until && !/^\d{4}-\d{2}-\d{2}$/.test(until)) return { ok: false, error: '展延到期日格式錯誤' };
+  const all = _schParse(docs, 'leaveOpen', {});
+  all[person.id] = {
+    from: String(o.from), annual: _num(o.annual, -9999, 9999), carry: _num(o.carry, 0, 9999), carryUntil: until,
+    comp: _num(o.comp, -9999, 9999), swap: _num(o.swap, -9999, 9999),
+  };
+  docs.leaveOpen = { version: _schVersion(docs.leaveOpen && docs.leaveOpen.version), json: JSON.stringify(all) };
+  return { ok: true };
+}
+
+/** 員工設定自己的時薪與各班別值班費 */
+function _schSetPay(docs, person, pay) {
+  if (!person) return { ok: false, error: '你不在排班名單中' };
+  const dutyPay = {};
+  const src = pay && pay.dutyPay && typeof pay.dutyPay === 'object' ? pay.dutyPay : {};
+  Object.keys(src).slice(0, 40).forEach(k => { if (src[k] !== '' && src[k] != null) dutyPay[String(k).slice(0, 10)] = _num(src[k], 0, 1000000); });
+  const all = _schParse(docs, 'pay', {});
+  all[person.id] = { hourly: _num(pay && pay.hourly, 0, 100000), dutyPay: dutyPay };
+  docs.pay = { version: _schVersion(docs.pay && docs.pay.version), json: JSON.stringify(all) };
+  return { ok: true };
 }
 
 function _schDaysIn(ym) {
@@ -1631,7 +1711,7 @@ function doPost(e) {
         const docs = _schReadAll(_schSheet(ss));
         const v = _schRequestView(docs, p);
         if (v.denied) return json({ ok: true, docs: [], sheets: {} });
-        const src = v.group ? _schView(docs, v.group) : docs;
+        const src = v.group ? _schView(docs, v.group) : _schNoHidden(docs);
         const keys = Object.keys(src).filter(k => !v.mobile || _schIsStaff(v.person) || _schEmployeeKey(k));
         const sheets = _scheduleVersions(ss);
         return json({ ok: true, docs: keys.map(k => ({ key: k, version: src[k].version })), sheets: v.group ? _schGroupSheets(sheets, v.group) : sheets });
@@ -1640,7 +1720,7 @@ function doPost(e) {
         const docs = _schReadAll(_schSheet(ss));
         const v = _schRequestView(docs, p);
         if (v.denied) return json({ ok: true, docs: [] });
-        const src = v.group ? _schView(docs, v.group) : docs;
+        const src = v.group ? _schView(docs, v.group) : _schNoHidden(docs);
         const keys = (p.keys || []).filter(k => src[k] && (!v.mobile || _schIsStaff(v.person) || _schEmployeeKey(k)));
         return json({ ok: true, docs: keys.map(k => {
           const d = v.mobile ? _schMobileView(v.person, k, src[k]) : src[k];
@@ -1660,6 +1740,44 @@ function doPost(e) {
             _schUnview(docs, view, group);
             _schWriteAll(sh, docs);
           }
+          return json(r);
+        });
+      }
+      // ── 假勤（ADR-027）：員工只能寫自己的 ───────────────────────────
+      case 'mobileSetOvertime': {
+        return _withLock(() => {
+          const sh = _schSheet(ss);
+          const docs = _schReadAll(sh);
+          const person = _schPerson(docs, p._mobile && p._mobile.his);
+          const group = _schViewGroup(docs, person, '');
+          if (!group) return json({ ok: false, error: '你不在排班名單中' });
+          const view = _schView(docs, group);
+          const r = _schSetOvertime(view, person, p, new Date().toISOString());
+          if (r.ok) { _schUnview(docs, view, group); _schWriteAll(sh, docs); }
+          return json(r);
+        });
+      }
+      case 'mobileSetLeaveOpen': {
+        return _withLock(() => {
+          const sh = _schSheet(ss);
+          const docs = _schReadAll(sh);
+          const r = _schSetLeaveOpen(docs, _schPerson(docs, p._mobile && p._mobile.his), p.open);
+          if (r.ok) _schWriteAll(sh, docs);
+          return json(r);
+        });
+      }
+      case 'mobileGetPay': {
+        const docs = _schReadAll(_schSheet(ss));
+        const person = _schPerson(docs, p._mobile && p._mobile.his);
+        const all = _schParse(docs, 'pay', {});
+        return json({ ok: true, pay: person && all[person.id] ? all[person.id] : null });
+      }
+      case 'mobileSetPay': {
+        return _withLock(() => {
+          const sh = _schSheet(ss);
+          const docs = _schReadAll(sh);
+          const r = _schSetPay(docs, _schPerson(docs, p._mobile && p._mobile.his), p.pay);
+          if (r.ok) _schWriteAll(sh, docs);
           return json(r);
         });
       }
@@ -1706,9 +1824,9 @@ function doPost(e) {
           // 共用的人員／群組／假日／8-4／春節只有 super 能寫：拒絕的文件回傳雲端內容讓手機改回
           const isSuper = !!v.person && v.person.role === 'super';
           const allowed = [], denied = [];
-          (p.items || []).forEach(it => (v.mobile && !isSuper && SCH_SUPER_ONLY.indexOf(it.key) >= 0 ? denied : allowed).push(it));
+          (p.items || []).forEach(it => (SCH_HIDDEN.indexOf(it.key) >= 0 || (v.mobile && !isSuper && SCH_SUPER_ONLY.indexOf(it.key) >= 0) ? denied : allowed).push(it));
           const results = _schPut(work, allowed).concat(denied.map(it => {
-            const cur = work[it.key];
+            const cur = SCH_HIDDEN.indexOf(it.key) >= 0 ? null : work[it.key];
             return cur ? { key: it.key, ok: false, conflict: true, version: cur.version, json: cur.json } : { key: it.key, ok: false, version: '' };
           }));
           // atomic：任一份衝突就全部不寫（伺服器端換班用）

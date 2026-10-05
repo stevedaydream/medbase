@@ -12,13 +12,22 @@ const DEFAULT_SHIFTS = [
   { code: "H3", name: "週六半天", color: "yellow", hotkey: "h", hours: 4, staffing: true, takesOff: false, reducesOff: false, isRest: false, category: "H3" },
   { code: "OFF", name: "休假", color: "gray", hotkey: "o", hours: 0, staffing: false, takesOff: true, reducesOff: false, isRest: true, category: "OFF" },
   { code: "公假", name: "公假", color: "pink", hotkey: "g", hours: 8, staffing: false, takesOff: true, reducesOff: false, isRest: false, category: "OFF" },
-  { code: "8-4", name: "8-4 輪值", color: "orange", hotkey: "8", hours: 8, staffing: false, takesOff: false, reducesOff: true, isRest: false, category: "OTHER" }
+  { code: "8-4", name: "8-4 輪值", color: "orange", hotkey: "8", hours: 8, staffing: false, takesOff: false, reducesOff: true, isRest: false, category: "OTHER" },
+  ...LEAVE_SHIFTS()
 ];
+function LEAVE_SHIFTS() {
+  const base = { hotkey: "", hours: 8, staffing: false, takesOff: true, reducesOff: false, isRest: true, category: "OTHER" };
+  return [
+    { ...base, code: "特休", name: "特休", color: "rose", leave: { kind: "annual", hours: 8 } },
+    { ...base, code: "補假", name: "補假", color: "amber", leave: { kind: "comp", hours: 8 } },
+    { ...base, code: "補換假", name: "補換假", color: "lime", leave: { kind: "swap", hours: 8 } }
+  ];
+}
 const CONSTRAINT_MARKS = ["勿休", "勿值"];
 const DEFAULT_QUOTA_ITEMS = [
   { id: "D", name: "D", enabled: true, total: "D", dow: null, countShifts: ["D", "NrsD"], exclude: ["noD"] },
   { id: "N", name: "N", enabled: true, total: "N", dow: null, countShifts: ["N"], exclude: ["noN"] },
-  { id: "OFF", name: "OFF", enabled: true, total: "OFF", dow: null, countShifts: ["OFF", "公假"], exclude: ["support"] },
+  { id: "OFF", name: "OFF", enabled: true, total: "OFF", dow: null, countShifts: ["OFF", "公假", "特休", "補假", "補換假"], exclude: ["support"] },
   { id: "W6OFF", name: "週六 OFF", enabled: true, total: "OFF", dow: [6], countShifts: ["OFF"], exclude: ["support"] }
 ];
 const DEFAULT_RULES = {
@@ -735,7 +744,8 @@ const RULE_LABELS = {
   R9: "配額不符",
   R10: "週日／國定假日空白",
   R11: "N 隔天只能 N 或 OFF",
-  R12: "覆蓋預班或預填"
+  R12: "覆蓋預班或預填",
+  R13: "假別餘額不足"
 };
 function shiftMap(shifts) {
   return new Map(shifts.map((s) => [s.code, s]));
