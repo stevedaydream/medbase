@@ -9,6 +9,9 @@ export const COLOR_PALETTE = [
   { key: "yellow",  bg: "#422006", text: "#fcd34d" },
   { key: "pink",    bg: "#500724", text: "#f9a8d4" },
   { key: "cyan",    bg: "#0c4a6e", text: "#7dd3fc" },
+  { key: "rose",    bg: "#4c0519", text: "#fda4af" },
+  { key: "amber",   bg: "#451a03", text: "#fbbf24" },
+  { key: "lime",    bg: "#1a2e05", text: "#bef264" },
 ];
 
 export function colorOf(key: string) {
