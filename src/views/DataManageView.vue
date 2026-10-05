@@ -23,6 +23,7 @@ import ComboInput from "@/components/ComboInput.vue";
 import EmergencyEditor from "@/components/emergency/EmergencyEditor.vue";
 import HandbookEditor from "@/components/handbook/HandbookEditor.vue";
 import BackupPanel from "@/components/BackupPanel.vue";
+import TrashPanel from "@/components/TrashPanel.vue";
 
 // ── 型別定義 ────────────────────────────────────────────────────
 interface Item {
@@ -30,7 +31,7 @@ interface Item {
   purpose: string | null; depts: string[]; unit: string | null;
   price: number | null; supplier: string | null; notes: string | null;
 }
-type Tab = "items" | "emergency" | "handbook" | "npDuty" | "backup";
+type Tab = "items" | "emergency" | "handbook" | "npDuty" | "backup" | "trash";
 
 // ── 狀態 ────────────────────────────────────────────────────────
 const activeTab   = ref<Tab>("items");
@@ -398,6 +399,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
   { key: "handbook",   icon: "📘", label: "工作手冊",   count: () => hbCount.value },
   { key: "npDuty",     icon: "🧑‍⚕️", label: "NP／VS 值班", count: () => 0 },
   { key: "backup",     icon: "💾", label: "備份 / 還原", count: () => 0 },
+  { key: "trash",      icon: "🗑️", label: "垃圾桶",     count: () => 0 },
 ];
 </script>
 
@@ -542,7 +544,8 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
       </div>
 
       <!-- ── 備份 / 還原 ──────────────────────────── -->
-      <div v-if="activeTab === 'backup'" class="flex-1 overflow-y-auto px-8 py-6 space-y-6">
+      <TrashPanel v-if="activeTab === 'trash'" @toast="showToast" @changed="loadAll" />
+      <div v-else-if="activeTab === 'backup'" class="flex-1 overflow-y-auto px-8 py-6 space-y-6">
 
         <BackupPanel @toast="showToast" @changed="loadAll" />
 

@@ -6,6 +6,7 @@ import { useLogger } from "@/composables/useLogger";
 import { markLocalModified, saveSyncTimestamp } from "@/composables/useSyncMonitor";
 import { autoUpdatePassAhk, getPassAhkPath } from "@/composables/usePassAhk";
 import { useCloudSettings } from "@/stores/cloudSettings";
+import { trashCapture } from "@/composables/useTrash";
 
 /**
  * 通用逐筆同步（ADR-009、ADR-011）。
@@ -351,8 +352,13 @@ export interface SyncResult {
 }
 
 /** 記錄刪除（在 DELETE 本地列之前或之後皆可） */
-export async function markDeleted(table: string, key: string): Promise<void> {
+/**
+ * 記錄刪除（須在 DELETE 之前呼叫）。預設同時把整筆資料放進垃圾桶（ADR-028）；
+ * 改名等「不是真的刪除」的情況傳 trash: false。
+ */
+export async function markDeleted(table: string, key: string, opts: { trash?: boolean } = {}): Promise<void> {
   if (!key) return;
+  if (opts.trash !== false) await trashCapture(table, key);
   await dbWrite(
     "INSERT OR REPLACE INTO sync_tombstones (tbl, key, deleted_at) VALUES (?, ?, ?)",
     [table, key, nowLocal()],
@@ -433,6 +439,44 @@ export function syncTable(table: string, gasUrl: string, opts: { force?: boolean
   const next = prev.catch(() => {}).then(() => runSync(table, gasUrl, !!opts.force));
   queues.set(table, next);
   return next;
+}
+
+// ── 垃圾桶用（ADR-028）────────────────────────────────────────────
+
+/** 讀出一筆（含附屬資料，與同步送出的格式相同）；找不到回傳 null */
+export async function readSyncRow(table: string, key: string): Promise<Row | null> {
+  const cfg = SYNC_CONFIGS[table];
+  if (!cfg) return null;
+  if (cfg.readRows) return (await cfg.readRows()).find(r => str(r[cfg.key]) === key) ?? null;
+  const db = await getDb();
+  const rows = await db.select<Row[]>(
+    `SELECT ${[...cfg.fields, "updated_at"].join(", ")} FROM ${cfg.localTable} WHERE ${cfg.key} = ?`, [key]);
+  return rows[0] ?? null;
+}
+
+/** 本機是否已有同 key 的資料（還原前檢查） */
+export async function syncRowExists(table: string, key: string): Promise<boolean> {
+  const cfg = SYNC_CONFIGS[table];
+  if (!cfg) return false;
+  const db = await getDb();
+  return (await db.select<{ c: number }[]>(`SELECT COUNT(*) AS c FROM ${cfg.localTable} WHERE ${cfg.key} = ?`, [key]))[0]?.c > 0;
+}
+
+/**
+ * 還原一筆：以現在時間寫回（同步時「時間較晚者勝」，會蓋過刪除紀錄，所有電腦跟著回來），
+ * 移除本機刪除紀錄後同步。
+ */
+export async function restoreSyncRow(table: string, row: Row): Promise<void> {
+  const cfg = SYNC_CONFIGS[table];
+  if (!cfg) throw new Error(`不支援的資料表：${table}`);
+  const key = str(row[cfg.key]);
+  const r = { ...row, updated_at: nowLocal() };
+  const exists = await syncRowExists(table, key);
+  if (cfg.applyRow) await cfg.applyRow(r, exists);
+  else await defaultApply(cfg, r, exists);
+  await dbWrite("DELETE FROM sync_tombstones WHERE tbl = ? AND key = ?", [table, key]);
+  await cfg.afterApply?.();
+  await touchTable(table);
 }
 
 async function defaultRead(cfg: SyncConfig): Promise<Row[]> {

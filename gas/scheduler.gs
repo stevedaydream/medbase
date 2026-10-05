@@ -254,6 +254,71 @@ function _mergeSyncTable(ss, table, p) {
   return { rows, tombs };
 }
 
+// ── 資料垃圾桶（ADR-028）：逐筆同步表刪除前的整筆資料，所有電腦共用，保留 30 天 ──
+// Trash 工作表：id / table / key / label / deleted_at / machine / chunk / data（data 為整筆 JSON，過長分段）
+const TRASH_KEEP_DAYS = 30;
+const TRASH_CHUNK = 45000;
+
+function _trashSheet(ss) {
+  let sh = ss.getSheetByName('Trash');
+  if (!sh) {
+    sh = ss.insertSheet('Trash');
+    sh.getRange(1, 1, 1, 8).setValues([['id', 'table', 'key', 'label', 'deleted_at', 'machine', 'chunk', 'data']]);
+  }
+  return sh;
+}
+
+/** 讀出 { id: item }（data 為字串） */
+function _trashRead(sh) {
+  const out = {};
+  const last = sh.getLastRow();
+  if (last < 2) return out;
+  const rows = sh.getRange(2, 1, last - 1, 8).getValues().map(r => r.map(v => String(v))).filter(r => r[0]);
+  rows.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : Number(a[6]) - Number(b[6]));
+  rows.forEach(r => {
+    if (!out[r[0]]) out[r[0]] = { id: r[0], table: r[1], key: r[2], label: r[3], deleted_at: r[4], machine: r[5], data: '' };
+    out[r[0]].data += r[7];
+  });
+  return out;
+}
+
+function _trashWrite(sh, items) {
+  const rows = [];
+  Object.keys(items).sort().forEach(id => {
+    const it = items[id], d = it.data || '';
+    for (let i = 0, c = 0; i < d.length || c === 0; i += TRASH_CHUNK, c++) {
+      rows.push([id, it.table, it.key, it.label, it.deleted_at, it.machine, String(c), d.slice(i, i + TRASH_CHUNK)]);
+    }
+  });
+  const last = sh.getLastRow();
+  if (last >= 2) sh.getRange(2, 1, last - 1, 8).clearContent();
+  if (rows.length) {
+    const range = sh.getRange(2, 1, rows.length, 8);
+    range.setNumberFormat('@');
+    range.setValues(rows);
+  }
+}
+
+/** 移除超過保留天數的項目；回傳是否有變動 */
+function _trashPurge(items, nowIso) {
+  const limit = new Date(new Date(nowIso).getTime() - TRASH_KEEP_DAYS * 86400000).toISOString();
+  let changed = false;
+  Object.keys(items).forEach(id => { if (String(items[id].deleted_at) < limit) { delete items[id]; changed = true; } });
+  return changed;
+}
+
+/** 放入垃圾桶（同 id 只留一份）；只收逐筆同步表 */
+function _trashAdd(items, incoming) {
+  (incoming || []).forEach(it => {
+    if (!it || !it.id || !SYNC_TABLES[it.table] || typeof it.data !== 'string') return;
+    items[String(it.id)] = {
+      id: String(it.id).slice(0, 64), table: String(it.table), key: String(it.key || '').slice(0, 200),
+      label: String(it.label || '').slice(0, 200), deleted_at: String(it.deleted_at || ''),
+      machine: String(it.machine || '').slice(0, 100), data: it.data,
+    };
+  });
+}
+
 // ── 同步基準：某台電腦「覆蓋」後才允許一般同步 ──
 // 升級前的雲端資料沒有 updated_at，無法判斷新舊；在基準建立前放行一般同步，
 // 不是本地修改被舊資料改回去，就是舊資料蓋掉雲端。
@@ -1649,6 +1714,26 @@ function doPost(e) {
       }
 
       // 讀取逐筆同步表的目前內容（手機唯讀快取用；不含刪除紀錄）
+      // ── 資料垃圾桶（ADR-028，桌機專用）───────────────────────────
+      case 'trashPut':
+      case 'trashList':
+      case 'trashRemove': {
+        if (p._mobile) return json({ ok: false, code: 'FORBIDDEN', error: '只限桌機' });
+        return _withLock(() => {
+          const sh = _trashSheet(ss);
+          const items = _trashRead(sh);
+          let changed = _trashPurge(items, new Date().toISOString());
+          if (p.action === 'trashPut') { _trashAdd(items, p.items); changed = true; }
+          if (p.action === 'trashRemove') {
+            if (p.all) Object.keys(items).forEach(id => delete items[id]);
+            else (p.ids || []).forEach(id => delete items[String(id)]);
+            changed = true;
+          }
+          if (changed) _trashWrite(sh, items);
+          return json({ ok: true, items: p.action === 'trashList' ? Object.keys(items).map(id => items[id]) : undefined });
+        });
+      }
+
       case 'readTable': {
         if (!SYNC_TABLES[p.table]) return json({ ok: false, error: `Unknown sync table: ${p.table}` });
         const rows = _readSyncTable(ss, p.table, true).rows;

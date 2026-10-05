@@ -97,7 +97,8 @@ export async function upsertPhysician(f: PhysicianForm): Promise<WriteResult> {
     // 改名在其他電腦看來是「舊名刪除、新名新增」，舊名要留刪除紀錄
     const db = await getDb();
     const old = await db.select<{ name: string }[]>("SELECT name FROM physicians WHERE id = ?", [f.id]);
-    if (old[0] && old[0].name !== name) await markDeleted("physicians", old[0].name);
+    // 改名不是刪除，不放進垃圾桶
+    if (old[0] && old[0].name !== name) await markDeleted("physicians", old[0].name, { trash: false });
     await dbWrite(
       `UPDATE physicians
           SET name=?, department=?, title=?, ext=?,

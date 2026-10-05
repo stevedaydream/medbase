@@ -1,5 +1,11 @@
 mod backup;
 
+/// 電腦名稱（垃圾桶記錄在哪一台刪除，ADR-028）
+#[tauri::command]
+fn machine_name() -> String {
+    std::env::var("COMPUTERNAME").or_else(|_| std::env::var("HOSTNAME")).unwrap_or_default()
+}
+
 #[tauri::command]
 fn reload_ahk(exe_path: String, script_path: String) -> Result<(), String> {
     std::process::Command::new(&exe_path)
@@ -22,6 +28,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .invoke_handler(tauri::generate_handler![
             reload_ahk,
+            machine_name,
             backup::backup_snapshot,
             backup::backup_import,
             backup::backup_drop_tables,
