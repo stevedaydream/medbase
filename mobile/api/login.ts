@@ -27,7 +27,8 @@ export async function POST(request: Request): Promise<Response> {
     }
     const user = r.user as { his: string; name: string; personId: string; role: string };
     const token = await signToken({ his: user.his, name: user.name, fp: String(r.fp) });
-    return json({ ok: true, token, user });
+    // 手機功能權限（ADR-026）一併回傳，第一次登入不必再查
+    return json({ ok: true, token, user: { ...user, access: r.access } });
   } catch (e) {
     console.error("[login]", e);
     return json({ ok: false, error: "伺服器暫時無法連線，請稍後再試" }, { status: 502 });

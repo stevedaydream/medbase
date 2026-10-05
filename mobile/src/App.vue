@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import TabBar from './components/TabBar.vue'
 import { session, unlock, logout } from './lib/session'
 import { loadCache, refresh, data } from './lib/data'
+import { refreshAccess, routeAllowed } from './lib/access'
 import { sched, syncSchedDocs } from './lib/sched'
 import { computed, onMounted, onUnmounted } from 'vue'
 import { toastMsg, toast } from './lib/ui'
@@ -15,11 +16,14 @@ installPullRefresh()
 const route = useRoute()
 const router = useRouter()
 
-// 登入後：先顯示手機快取，再背景更新（ADR-013）
-watch(() => session.user, (u) => {
-  if (u) { loadCache().then(() => refresh()); void syncSchedDocs() }
+// 登入後：先顯示手機快取，再取得最新權限（ADR-026）後背景更新（ADR-013）
+watch(() => session.user?.his, (his) => {
+  if (his) { loadCache().then(() => refreshAccess().catch(() => null)).then(() => refresh()); void syncSchedDocs() }
   else if (route.path !== '/login') router.replace('/login')
 }, { immediate: true })
+
+// 權限被收回時離開目前頁面
+watch(() => session.user?.access, () => { if (session.user && !routeAllowed(route.path)) router.replace('/') })
 
 // 排班者每次同步成功後自動維持開放範圍（ADR-020）
 watch(() => sched.lastSyncAt, () => { void autoEnsureMonths().catch(e => toast(`自動維持月份失敗：${(e as Error).message}`)) })

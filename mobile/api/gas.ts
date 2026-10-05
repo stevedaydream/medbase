@@ -85,6 +85,15 @@ export const RULES: Record<string, Rule> = {
   readTable: {
     build: (a) => READ_TABLES.has(str(a.table)) ? { table: str(a.table) } : forbidden("不允許讀取此資料表"),
   },
+  // 手機依身分區分功能（ADR-026）：身分與權限由 GAS 依通訊錄判斷，設定權限只限管理者（GAS 檢查）
+  mobileMe: { build: () => ({}) },
+  setMobileAccess: {
+    build: (a) => {
+      const m = (a.matrix && typeof a.matrix === "object" ? a.matrix : {}) as Args;
+      const list = (v: unknown) => Array.isArray(v) ? v.slice(0, 30).map(x => str(x, 30)) : [];
+      return { matrix: { doctor: list(m.doctor), np: list(m.np), nurse: list(m.nurse) } };
+    },
+  },
   getNpDutyVersions: { build: () => ({}) },
   getNpDutyMonths: {
     build: (a) => {

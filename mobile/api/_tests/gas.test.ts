@@ -31,4 +31,9 @@ describe("/api/gas 白名單（排班 v3）", () => {
     const filtered = RULES.getConfig.filter!({ ok: true, data: { booking_open: "true", np_duty_url: "u", api_key: "k" } });
     expect(filtered.data).toEqual({ np_duty_url: "u" });
   });
+  it("setMobileAccess 只轉權限表三欄（是否為管理者由 GAS 判斷）", () => {
+    expect(ok("setMobileAccess", { matrix: { doctor: ["sets"], nurse: "x", evil: ["a"] }, admin: true }))
+      .toEqual({ matrix: { doctor: ["sets"], np: [], nurse: [] } });
+    expect(ok("mobileMe", { his: "999" })).toEqual({});
+  });
 });

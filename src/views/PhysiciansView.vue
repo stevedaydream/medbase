@@ -16,6 +16,7 @@ import CloudSyncButtons from "@/components/CloudSyncButtons.vue";
 interface Physician {
   id: number; name: string; department: string | null; title: string | null; ext: string | null;
   his_account: string | null; his_password: string | null; notes: string | null;
+  mobile_admin?: string | null;
 }
 interface Contact { id: number; label: string; ext: string; category: string | null; notes: string | null }
 
@@ -134,7 +135,7 @@ const personForm = ref<Partial<Physician>>({});
 
 function openAddPerson() {
   personEditId.value = null;
-  personForm.value = { name: "", department: "", title: "主治醫師", ext: "", his_account: "", his_password: "", notes: "" };
+  personForm.value = { name: "", department: "", title: "主治醫師", ext: "", his_account: "", his_password: "", notes: "", mobile_admin: "" };
   personModal.value = true;
 }
 
@@ -142,7 +143,7 @@ function openEditPerson(id: number) {
   const p = physicians.value.find(x => x.id === id);
   if (!p) return;
   personEditId.value = id;
-  personForm.value = { ...p };
+  personForm.value = { ...p, mobile_admin: p.mobile_admin === "1" ? "1" : "" };
   personModal.value = true;
 }
 
@@ -447,6 +448,11 @@ async function restorePhysicianExts() {
             <label class="text-xs font-bold text-muted mb-1 block">備註</label>
             <input v-model="personForm.notes" class="w-full px-3.5 py-2.5 rounded-xl bg-sunken border border-hairline text-fg text-sm focus:outline-none focus:border-accent/50" />
           </div>
+          <label class="col-span-2 flex items-center gap-2 text-sm text-fg cursor-pointer">
+            <input type="checkbox" :checked="personForm.mobile_admin === '1'" @change="personForm.mobile_admin = ($event.target as HTMLInputElement).checked ? '1' : ''" />
+            手機管理者
+            <span class="text-xs text-muted">看得到手機所有功能，並可在手機設定頁調整各身分的功能權限</span>
+          </label>
         </div>
         <div class="flex gap-3 justify-end pt-2 border-t border-hairline">
           <button @click="personModal = false" class="px-4 py-2 text-xs font-bold bg-elevated border border-hairline text-fg-secondary rounded-xl hover:bg-raised hover:text-fg transition-colors cursor-pointer">取消</button>

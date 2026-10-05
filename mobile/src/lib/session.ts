@@ -1,5 +1,6 @@
 import { reactive } from 'vue'
 import { kvClear } from './kv'
+import type { MobileAccess } from '@shared/mobileAccess'
 
 /**
  * 手機登入狀態（ADR-013）。
@@ -8,8 +9,8 @@ import { kvClear } from './kv'
  * - 閒置 15 分鐘上鎖；App 在背景超過 15 分鐘回來也上鎖
  * - 登出清除所有快取；Gemini 金鑰與主題設定保留
  */
-/** personId／role 為登入當下的排班身分；實際權限每次由 GAS 依 people 判斷（ADR-015） */
-export interface MobileUser { his: string; name: string; personId?: string; role?: string }
+/** personId／role 為登入當下的排班身分；實際權限每次由 GAS 依 people 判斷（ADR-015）。access：手機功能權限（ADR-026） */
+export interface MobileUser { his: string; name: string; personId?: string; role?: string; access?: MobileAccess }
 
 const K = { token: 'mb_token', user: 'mb_user', pin: 'mb_unlock', active: 'mb_last_active' }
 const KEEP_ON_LOGOUT = ['mb_gemini_key', 'mb_theme']
@@ -42,6 +43,13 @@ export async function setLoggedIn(token: string, user: MobileUser, password: str
   session.locked = false
   session.notice = ''
   touch()
+}
+
+/** 更新登入者資料（例如重新取得的權限） */
+export function updateUser(patch: Partial<MobileUser>) {
+  if (!session.user) return
+  session.user = { ...session.user, ...patch }
+  localStorage.setItem(K.user, JSON.stringify(session.user))
 }
 
 export function setToken(token: string) {

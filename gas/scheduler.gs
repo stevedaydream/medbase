@@ -78,8 +78,8 @@ const SYNC_TABLES = {
   physicians: {
     sheet: 'Physicians',
     key: 'name',
-    fields:  ['name', 'department', 'title', 'ext', 'his_account', 'his_password', 'phs_account', 'phs_password', 'notes'],
-    headers: ['姓名', '科別', '職稱', '分機', 'HIS帳號', 'HIS密碼', 'PHS帳號', 'PHS密碼', '備註'],
+    fields:  ['name', 'department', 'title', 'ext', 'his_account', 'his_password', 'phs_account', 'phs_password', 'notes', 'mobile_admin'],
+    headers: ['姓名', '科別', '職稱', '分機', 'HIS帳號', 'HIS密碼', 'PHS帳號', 'PHS密碼', '備註', '手機管理者'],
   },
   // ADR-011：以下各表改為逐筆同步，寫入新的 Sync_* 工作表，舊工作表保留不動
   prescriptions: { sheet: 'Sync_Prescriptions', key: 'uid', fields: ['uid', 'name', 'category', 'indication', 'orders', 'notes'] },
@@ -118,11 +118,29 @@ function _cellStr(v, tz) {
   return v == null ? '' : String(v);
 }
 
-function _syncRow(cfg, r, updatedAt) {
+/** prev：雲端原本的列；上傳的資料完全沒有某欄（舊版不認得新欄位）時保留原值 */
+function _syncRow(cfg, r, updatedAt, prev) {
   const row = {};
-  cfg.fields.forEach(f => { row[f] = r[f] == null ? '' : String(r[f]); });
+  cfg.fields.forEach(f => { row[f] = r[f] === undefined && prev ? prev[f] : r[f] == null ? '' : String(r[f]); });
   row.updated_at = updatedAt == null ? '' : String(updatedAt);
   return row;
+}
+
+/**
+ * 欄位位置：工作表與目前欄位一致時照位置讀；新增欄位後（updated_at 不在最後）改依標題列對應，
+ * 新欄位在舊工作表找不到時為空白（ADR-026）。
+ */
+function _syncColumns(cfg, head) {
+  const n = cfg.fields.length;
+  const h = head.map(x => String(x).trim());
+  if (h[n] === 'updated_at' || h.indexOf('updated_at') < 0) {
+    return { fields: cfg.fields.map((f, i) => i), updated: n };
+  }
+  const names = cfg.headers || cfg.fields;
+  return {
+    fields: cfg.fields.map((f, i) => { const j = h.indexOf(names[i]); return j >= 0 ? j : h.indexOf(f); }),
+    updated: h.indexOf('updated_at'),
+  };
 }
 
 /** 讀出 { rows: {key: row}, tombs: {key: deleted_at} } */
@@ -134,10 +152,12 @@ function _readSyncTable(ss, table, skipTombs) {
 
   const sh = ss.getSheetByName(cfg.sheet);
   if (sh && sh.getLastRow() >= 2) {
-    sh.getRange(2, 1, sh.getLastRow() - 1, width).getValues().forEach(r => {
+    const vals = sh.getRange(1, 1, sh.getLastRow(), Math.max(sh.getLastColumn(), width)).getValues();
+    const pos = _syncColumns(cfg, vals[0]);
+    vals.slice(1).forEach(r => {
       const row = {};
-      cfg.fields.forEach((f, i) => { row[f] = _cellStr(r[i], tz); });
-      row.updated_at = _cellStr(r[cfg.fields.length], tz);
+      cfg.fields.forEach((f, i) => { row[f] = pos.fields[i] < 0 ? '' : _cellStr(r[pos.fields[i]], tz); });
+      row.updated_at = _cellStr(r[pos.updated], tz);
       if (row[cfg.key]) rows[row[cfg.key]] = row;
     });
   }
@@ -202,7 +222,7 @@ function _mergeSyncTable(ss, table, p) {
     Object.keys(rows).forEach(k => { if (!keep[k]) tombs[k] = now; });
     incoming.forEach(r => {
       const k = String(r[cfg.key]);
-      rows[k] = _syncRow(cfg, r, now);
+      rows[k] = _syncRow(cfg, r, now, rows[k]);
       delete tombs[k];
     });
   } else {
@@ -215,7 +235,7 @@ function _mergeSyncTable(ss, table, p) {
       const k = String(r[cfg.key]);
       const c = rows[k];
       const ts = r.updated_at == null ? '' : String(r.updated_at);
-      if (!c || ts > c.updated_at) rows[k] = _syncRow(cfg, r, ts);
+      if (!c || ts > c.updated_at) rows[k] = _syncRow(cfg, r, ts, c);
     });
   }
 
@@ -285,6 +305,78 @@ function _requireApiKey() { return PropertiesService.getScriptProperties().getPr
 /** 手機憑證指紋：HIS 密碼一改就不同，舊憑證隨之失效 */
 function _mobileFp(his, password) {
   return _researchHash(_apiKey(), 'mobile:' + his + ':' + password).slice(0, 32);
+}
+
+// ── 手機依身分區分功能（ADR-026）：規則與 src/shared/mobileAccess.ts 相同，修改時兩邊一起改 ──
+const MOBILE_FEATURES = {
+  sets: ['prescriptions', 'surgery', 'examination', 'disease', 'sets', 'surgeryTypes'],
+  contacts: ['physicians', 'contacts'],
+  contactSecrets: [],
+  items: ['items'],
+  memos: ['shiftMemos'],
+  care: ['emergency', 'handbook'],
+  npDuty: [],
+  aiDocs: [],
+  research: [],
+};
+const MOBILE_FEATURE_KEYS = Object.keys(MOBILE_FEATURES);
+const MOBILE_DEFAULT_ACCESS = {
+  doctor: MOBILE_FEATURE_KEYS.slice(),
+  np: MOBILE_FEATURE_KEYS.slice(),
+  nurse: ['contacts', 'memos', 'care', 'npDuty'],
+};
+/** 需要權限的手機 action（readTable 另依資料表判斷） */
+const MOBILE_ACTION_FEATURE = {
+  getNpDutyVersions: 'npDuty', getNpDutyMonths: 'npDuty',
+  researchLogin: 'research', researchListBackups: 'research', researchGetBackup: 'research',
+};
+
+function _mobileIdentity(title) {
+  const t = String(title || '');
+  if (t.indexOf('專科護理') >= 0) return 'np';
+  if (t.indexOf('醫師') >= 0) return 'doctor';
+  if (t.indexOf('護理') >= 0) return 'nurse';
+  return 'other';
+}
+
+function _mobileNormalize(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const out = {};
+  ['doctor', 'np', 'nurse'].forEach(id => {
+    const v = src[id];
+    out[id] = Array.isArray(v) ? MOBILE_FEATURE_KEYS.filter(k => v.indexOf(k) >= 0) : MOBILE_DEFAULT_ACCESS[id].slice();
+  });
+  return out;
+}
+
+function _mobileMatrix() {
+  try { return _mobileNormalize(JSON.parse(_getConfigValue('mobile_access') || 'null')); }
+  catch (e) { return _mobileNormalize(null); }
+}
+
+const _isTrue = v => v === true || v === 1 || v === '1' || String(v).toLowerCase() === 'true';
+
+/** 登入者的手機權限：{ identity, admin, features } */
+function _mobileAccess(person, matrix) {
+  const identity = _mobileIdentity(person && person.title);
+  const admin = !!person && _isTrue(person.mobile_admin);
+  const m = matrix || _mobileMatrix();
+  const features = admin ? MOBILE_FEATURE_KEYS.slice() : m[identity === 'other' ? 'nurse' : identity].slice();
+  return { identity: identity, admin: admin, features: features };
+}
+
+/** 手機讀資料表：沒有權限回傳 null；通訊錄去掉管理者欄，沒有「通訊錄密碼」時去掉密碼 */
+function _mobileTableRows(access, table, rows) {
+  const feature = MOBILE_FEATURE_KEYS.find(k => MOBILE_FEATURES[k].indexOf(table) >= 0);
+  if (!feature || access.features.indexOf(feature) < 0) return null;
+  if (table !== 'physicians') return rows;
+  const secrets = access.features.indexOf('contactSecrets') >= 0;
+  return rows.map(r => {
+    const o = Object.assign({}, r);
+    delete o.mobile_admin;
+    if (!secrets) { delete o.his_password; delete o.phs_password; }
+    return o;
+  });
 }
 
 function _findPhysicianByHis(ss, his) {
@@ -830,6 +922,13 @@ function doPost(e) {
       const person = _findPhysicianByHis(ss, p._mobile.his);
       if (!person || !person.his_password || _mobileFp(String(p._mobile.his), person.his_password) !== p._mobile.fp) {
         return json({ ok: false, code: 'MOBILE_AUTH', error: '登入已失效，請重新登入' });
+      }
+      // 依身分區分功能（ADR-026）
+      p._me = person;
+      p._access = _mobileAccess(person);
+      const need = MOBILE_ACTION_FEATURE[p.action];
+      if (need && p._access.features.indexOf(need) < 0) {
+        return json({ ok: false, code: 'FORBIDDEN', error: '你的身分沒有使用這個功能的權限' });
       }
     }
 
@@ -1413,15 +1512,32 @@ function doPost(e) {
         return json({
           ok: true,
           user: { his: his, name: person.name, personId: sp ? sp.id : '', role: sp ? sp.role : '' },
+          access: _mobileAccess(person),
           fp: _mobileFp(his, password),
         });
+      }
+
+      // ── 手機權限（ADR-026）────────────────────────────────────────
+      case 'mobileMe': {
+        if (!p._mobile) return json({ ok: false, error: '只限手機' });
+        return json(Object.assign({ ok: true }, p._access, p._access.admin ? { matrix: _mobileMatrix() } : {}));
+      }
+      case 'setMobileAccess': {
+        if (!p._mobile || !p._access.admin) return json({ ok: false, code: 'FORBIDDEN', error: '只有管理者可以調整功能權限' });
+        const matrix = _mobileNormalize(p.matrix);
+        _withLock(() => _setConfigValue('mobile_access', JSON.stringify(matrix)));
+        return json({ ok: true, matrix: matrix });
       }
 
       // 讀取逐筆同步表的目前內容（手機唯讀快取用；不含刪除紀錄）
       case 'readTable': {
         if (!SYNC_TABLES[p.table]) return json({ ok: false, error: `Unknown sync table: ${p.table}` });
         const rows = _readSyncTable(ss, p.table, true).rows;
-        return json({ ok: true, rows: Object.keys(rows).map(k => rows[k]) });
+        const list = Object.keys(rows).map(k => rows[k]);
+        if (!p._mobile) return json({ ok: true, rows: list });
+        const out = _mobileTableRows(p._access, p.table, list);
+        if (!out) return json({ ok: false, code: 'FORBIDDEN', error: '你的身分沒有讀取這項資料的權限' });
+        return json({ ok: true, rows: out });
       }
 
       // ── 論文專案：個人雲端備份（ADR-012）────────────────────────────

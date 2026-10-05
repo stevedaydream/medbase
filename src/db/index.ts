@@ -590,6 +590,8 @@ async function initSchema(db: Database) {
   // ── 雙軌同步：補 updated_at 欄位（舊資料庫兼容）────────────
   try { await db.execute(`ALTER TABLE physicians ADD COLUMN updated_at TEXT`); } catch { /* 已存在 */ }
   try { await db.execute(`ALTER TABLE contacts   ADD COLUMN updated_at TEXT`); } catch { /* 已存在 */ }
+  // 手機管理者（ADR-026）："1"＝是
+  try { await db.execute(`ALTER TABLE physicians ADD COLUMN mobile_admin TEXT`); } catch { /* 已存在 */ }
   // 不可補「現在」：新裝機 seed 進來的資料會比雲端所有人都新，一同步就蓋掉雲端。
   // 來源不明的資料一律視為最舊，讓雲端版本優先。
   await db.execute(`UPDATE physicians SET updated_at = '1970-01-01 00:00:00' WHERE updated_at IS NULL`);

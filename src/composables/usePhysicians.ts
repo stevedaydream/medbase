@@ -26,6 +26,8 @@ export interface Physician {
   phs_account?: string | null;
   phs_password?: string | null;
   notes: string | null;
+  /** 手機管理者（ADR-026）："1"＝是 */
+  mobile_admin?: string | null;
 }
 
 export type PhysicianForm = Partial<Omit<Physician, "id">> & { id?: number };
@@ -83,6 +85,9 @@ export async function refreshPassAhk(): Promise<string | null> {
   return await autoUpdatePassAhk({ reload: false });
 }
 
+/** 表單沒帶手機管理者欄位時不改（null），有帶時寫 "1"／"" */
+const adminVal = (f: PhysicianForm) => f.mobile_admin === undefined ? null : f.mobile_admin === "1" ? "1" : "";
+
 /** 新增（無 id）或更新（有 id）一筆醫師資料 */
 export async function upsertPhysician(f: PhysicianForm): Promise<WriteResult> {
   const name = f.name?.trim();
@@ -97,18 +102,19 @@ export async function upsertPhysician(f: PhysicianForm): Promise<WriteResult> {
       `UPDATE physicians
           SET name=?, department=?, title=?, ext=?,
               his_account=?, his_password=?, notes=?,
+              mobile_admin=COALESCE(?, mobile_admin),
               updated_at=datetime('now','localtime')
         WHERE id=?`,
       [name, f.department || null, f.title || null, f.ext || null,
-       f.his_account || null, f.his_password || null, f.notes || null, f.id],
+       f.his_account || null, f.his_password || null, f.notes || null, adminVal(f), f.id],
     );
   } else {
     await dbWrite(
       `INSERT INTO physicians
-         (name, department, title, ext, his_account, his_password, notes, updated_at)
-       VALUES (?,?,?,?,?,?,?, datetime('now','localtime'))`,
+         (name, department, title, ext, his_account, his_password, notes, mobile_admin, updated_at)
+       VALUES (?,?,?,?,?,?,?,?, datetime('now','localtime'))`,
       [name, f.department || null, f.title || null, f.ext || null,
-       f.his_account || null, f.his_password || null, f.notes || null],
+       f.his_account || null, f.his_password || null, f.notes || null, adminVal(f) ?? ""],
     );
   }
 
