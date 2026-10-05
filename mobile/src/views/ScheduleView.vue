@@ -182,22 +182,20 @@ const bookCodes = computed(() => [...shifts.value.filter(s => far.value ? s.take
 const inRoster = computed(() => !!sched.me && !!est.value && sched.me.id in (est.value.quotas ?? {}))
 
 const pickDay = ref(0)
-const saving = ref(false)
 async function book(v: string | null) {
   const d = pickDay.value
   if (!d || !pYM.value) return
   if (sched.offline) { toast('目前離線，無法登記'); return }
-  saving.value = true
+  // 畫面立即反映並關閉選單，伺服器在背景儲存；被拒絕時格子回到原值並提示
+  const m = pM.value
+  pickDay.value = 0
   try {
     const r = await setMyPrebook(pYM.value, [{ day: d, v }])
     if (!r.ok) toast(r.error ?? '登記失敗')
     else if (r.rejected.length) toast(`未登記：${r.rejected.map(x => x.reason).join('、')}`)
-    else toast(v ? `✓ ${pM.value}/${d} 已登記 ${v}` : `✓ ${pM.value}/${d} 已清除`)
-    pickDay.value = 0
+    else toast(v ? `✓ ${m}/${d} 已登記 ${v}` : `✓ ${m}/${d} 已清除`)
   } catch (e) {
     toast(e instanceof ApiError && e.code === 'OFFLINE' ? '目前離線，無法登記' : `登記失敗：${(e as Error).message}`)
-  } finally {
-    saving.value = false
   }
 }
 
@@ -409,7 +407,7 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
           <template v-if="inRoster">
             <template v-if="isAuto(pickDay)">
               <p class="text-sm text-fg-secondary">週日／國定假日自動補休：OFF。要公出的話可以改成公假。</p>
-              <button :disabled="saving || sched.offline" @click="book('公假')"
+              <button :disabled="sched.offline" @click="book('公假')"
                 class="w-full h-11 rounded-xl border border-hairline font-bold disabled:opacity-40" :style="codeStyle('公假')">改成公假</button>
             </template>
             <template v-else-if="isLocked(pickDay)">
@@ -420,10 +418,10 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
             <template v-else>
               <p v-if="sched.offline" class="text-sm text-warning font-bold">目前離線，無法登記</p>
               <div class="flex flex-wrap gap-2">
-                <button v-for="c in bookCodes" :key="c" @click="book(c)" :disabled="saving || sched.offline"
+                <button v-for="c in bookCodes" :key="c" @click="book(c)" :disabled="sched.offline"
                   class="h-11 px-4 rounded-xl border text-sm font-bold disabled:opacity-30"
                   :class="myCell(pickDay)?.v === c ? 'ring-2 ring-accent' : 'border-hairline'" :style="codeStyle(c)">{{ c }}</button>
-                <button @click="book(null)" :disabled="saving || sched.offline || !myCell(pickDay)?.v" class="h-11 px-4 rounded-xl border border-hairline text-sm text-muted disabled:opacity-30">清除</button>
+                <button @click="book(null)" :disabled="sched.offline || !myCell(pickDay)?.v" class="h-11 px-4 rounded-xl border border-hairline text-sm text-muted disabled:opacity-30">清除</button>
               </div>
             </template>
           </template>

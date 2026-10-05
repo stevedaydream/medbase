@@ -1774,11 +1774,15 @@ function doPost(e) {
           const group = _schViewGroup(docs, person, '');
           if (!group) return json({ ok: false, error: '你不在排班名單中，無法登記預班' });
           const view = _schView(docs, group);
-          const r = _schSetPrebook(view, person, String(p.ym || ''), p.cells, new Date().toISOString());
+          const ym = String(p.ym || '');
+          const r = _schSetPrebook(view, person, ym, p.cells, new Date().toISOString());
           if (r.ok && r.applied.length) {
             _schUnview(docs, view, group);
             _schWriteAll(sh, docs);
           }
+          // 回傳最新的預班文件，手機直接更新快取，不必再整份同步（省兩次往返）
+          const key = 'prebook:' + ym;
+          if (r.ok && view[key]) r.doc = { key: key, version: view[key].version, json: view[key].json };
           return json(r);
         });
       }

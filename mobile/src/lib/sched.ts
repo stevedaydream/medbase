@@ -198,13 +198,52 @@ export function doc<T>(key: string): T | undefined {
   return sched.docs[key] as T | undefined
 }
 
-export interface SetPrebookResult { ok: boolean; applied: { day: number; from: string; to: string }[]; rejected: { day: number; reason: string }[]; error?: string }
+export interface SetPrebookResult {
+  ok: boolean; applied: { day: number; from: string; to: string }[]; rejected: { day: number; reason: string }[]; error?: string
+  /** 伺服器上最新的預班文件 */
+  doc?: { key: string; version: string; json: string }
+}
 
-/** 員工登記自己的預班（須連線）；成功後重新同步該月預班 */
-export async function setMyPrebook(ym: string, cells: { day: number; v: string | null }[]): Promise<SetPrebookResult> {
-  const r = await gas<SetPrebookResult>('mobileSetPrebook', { ym, cells })
-  await syncSchedDocs()
-  return r
+/** 畫面先套用（不標 dirty，員工不能上傳）；伺服器回來後以伺服器版本為準 */
+function applyOptimistic(ym: string, cells: { day: number; v: string | null }[]) {
+  const me = sched.me
+  if (!me) return
+  const key = `prebook:${ym}`
+  const pb = JSON.parse(JSON.stringify(sched.docs[key] ?? { ym, cells: {} })) as { ym: string; cells: Record<string, unknown> }
+  const at = new Date().toISOString()
+  for (const c of cells) pb.cells[`${me.id}|${c.day}`] = { v: c.v, src: 'emp', by: me.id, at }
+  sched.docs[key] = pb
+}
+
+let prebookQueue: Promise<unknown> = Promise.resolve()
+let prebookPending = 0
+
+/**
+ * 員工登記自己的預班（須連線）。畫面立即反映，請求依序送出；
+ * 伺服器回傳最新預班文件直接更新快取，最後一筆完成時才以伺服器版本覆蓋畫面（避免蓋掉之後按的格子）。
+ * 失敗時重新同步，畫面回到伺服器的狀態。
+ */
+export function setMyPrebook(ym: string, cells: { day: number; v: string | null }[]): Promise<SetPrebookResult> {
+  applyOptimistic(ym, cells)
+  prebookPending++
+  const run = prebookQueue.catch(() => {}).then(async () => {
+    try {
+      const r = await gas<SetPrebookResult>('mobileSetPrebook', { ym, cells })
+      if (r.doc) {
+        local[r.doc.key] = { key: r.doc.key, json: r.doc.json, version: r.doc.version, cloud_version: r.doc.version, dirty: 0 }
+        if (prebookPending === 1) parse(r.doc.key)
+        await persist()
+      }
+      return r
+    } catch (e) {
+      void syncSchedDocs()
+      throw e
+    } finally {
+      prebookPending--
+    }
+  })
+  prebookQueue = run
+  return run
 }
 
 export async function markNoticesRead(ids: string[]): Promise<void> {
