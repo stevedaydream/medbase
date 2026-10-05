@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import PageHeader from '../components/PageHeader.vue'
+import { routeAllowed } from '../lib/access'
 
-const LINKS = [
+const ALL = [
   { to: '/items',    icon: '📦', label: '自費品項',   desc: '院內碼、價格、醫師套組' },
   { to: '/memos',    icon: '📝', label: '規則備忘錄', desc: '上班規則與注意事項' },
   { to: '/care',     icon: '🩺', label: '處置及臨床工具', desc: '依症狀、數值判讀、藥物、計算工具、手冊' },
@@ -9,6 +11,8 @@ const LINKS = [
   { to: '/research', icon: '🎓', label: '論文專案',   desc: '需輸入論文 PIN' },
   { to: '/settings', icon: '⚙️', label: '設定',       desc: '登出、Gemini 金鑰、資料更新' },
 ]
+// 依身分只顯示有權限的功能（ADR-026）
+const LINKS = computed(() => ALL.filter(l => routeAllowed(l.to)))
 </script>
 
 <template>

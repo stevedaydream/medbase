@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { session } from './lib/session'
+import { routeAllowed } from './lib/access'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -32,6 +33,8 @@ const router = createRouter({
 router.beforeEach(to => {
   if (!to.meta.public && !session.user) return { path: '/login', query: to.fullPath !== '/' ? { next: to.fullPath } : {} }
   if (to.path === '/login' && session.user) return '/'
+  // 沒有權限的功能（ADR-026）：導回首頁
+  if (session.user && !routeAllowed(to.path)) return '/'
 })
 
 export default router

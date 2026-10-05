@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import PageHeader from '../components/PageHeader.vue'
 import { session, logout } from '../lib/session'
-import { data, refresh, pullRefresh, lastFetched, TABLES, TABLE_LABELS } from '../lib/data'
+import { data, refresh, pullRefresh, lastFetched, allowed, TABLES, TABLE_LABELS } from '../lib/data'
+import { isAdmin, refreshAccess, saveMatrix } from '../lib/access'
+import { FEATURES, MATRIX_IDENTITIES, IDENTITY_LABELS, type AccessMatrix, type FeatureKey, type MatrixIdentity } from '@shared/mobileAccess'
 import { usePullRefresh } from '../lib/pull'
 import { themeMode, applyTheme, fmtTime, toast, type ThemeMode } from '../lib/ui'
 import { geminiKey, saveGeminiKey } from '../lib/gemini'
@@ -21,8 +23,35 @@ async function doRefresh() {
   toast(data.error ? `更新失敗：${data.error}` : data.offline ? '目前離線，無法更新' : '資料已更新')
 }
 
-// 設定頁下拉＝全部重新下載
-usePullRefresh(() => pullRefresh())
+// 設定頁下拉＝重新取得權限並全部重新下載
+usePullRefresh(async () => { await refreshAccess().catch(() => null); return pullRefresh() })
+
+// ── 功能權限（ADR-026，管理者）─────────────────────────────────────
+const matrix = ref<AccessMatrix | null>(null)
+const matrixError = ref('')
+const savingMatrix = ref(false)
+onMounted(async () => {
+  if (!isAdmin()) return
+  try { matrix.value = await refreshAccess() }
+  catch (e) { matrixError.value = (e as Error).message }
+})
+function toggleFeature(id: MatrixIdentity, f: FeatureKey) {
+  const m = matrix.value
+  if (!m) return
+  m[id] = m[id].includes(f) ? m[id].filter(x => x !== f) : [...m[id], f]
+}
+async function onSaveMatrix() {
+  if (!matrix.value) return
+  savingMatrix.value = true
+  try {
+    matrix.value = await saveMatrix(matrix.value)
+    toast('已儲存：其他人下次開啟 App 或下拉更新時生效')
+  } catch (e) {
+    toast(`儲存失敗：${(e as Error).message}`)
+  } finally {
+    savingMatrix.value = false
+  }
+}
 
 const confirmLogout = ref(false)
 const THEMES: { key: ThemeMode; label: string }[] = [
@@ -40,6 +69,7 @@ const THEMES: { key: ThemeMode; label: string }[] = [
         <p class="text-xs font-bold text-muted mb-1">目前登入</p>
         <p class="text-lg font-bold text-fg">{{ session.user?.name }}</p>
         <p class="text-sm text-muted font-mono">HIS {{ session.user?.his }}</p>
+        <p v-if="session.user?.access" class="text-xs text-muted mt-1">身分：{{ IDENTITY_LABELS[session.user.access.identity] }}{{ session.user.access.admin ? '・管理者' : '' }}</p>
         <p class="text-xs text-muted mt-1">{{ session.user?.personId ? `排班身分：${({ super: "super", scheduler: "排班者", employee: "員工" } as Record<string, string>)[session.user.role ?? ""] ?? "員工"}` : "不在排班名單中" }}</p>
         <button v-if="!confirmLogout" @click="confirmLogout = true" class="mt-3 w-full h-11 rounded-xl border border-danger/40 text-danger font-bold">登出</button>
         <div v-else class="mt-3 space-y-2">
@@ -61,11 +91,42 @@ const THEMES: { key: ThemeMode; label: string }[] = [
         </div>
         <p v-if="data.offline" class="text-xs text-warning mb-2">目前離線，顯示的是手機上的資料</p>
         <ul class="text-sm divide-y divide-hairline">
-          <li v-for="t in [...TABLES, 'npDuty' as const]" :key="t" class="flex justify-between py-1.5">
+          <li v-for="t in [...TABLES, 'npDuty' as const].filter(allowed)" :key="t" class="flex justify-between py-1.5">
             <span class="text-fg-secondary">{{ TABLE_LABELS[t] }}</span>
             <span class="text-muted tabular-nums">{{ fmtTime(lastFetched(t)) }}</span>
           </li>
         </ul>
+      </section>
+
+      <!-- 功能權限（管理者） -->
+      <section v-if="isAdmin()" class="p-4 rounded-2xl bg-surface border border-hairline space-y-3">
+        <div>
+          <p class="font-bold text-fg">功能權限</p>
+          <p class="text-xs text-muted">身分依通訊錄職稱判斷；職稱不屬於這三種的人比照護理師。管理者一律看得到全部。班表依排班名單，不在這裡設定。</p>
+        </div>
+        <p v-if="matrixError" class="text-sm text-danger">{{ matrixError }}</p>
+        <p v-else-if="!matrix" class="text-sm text-muted">載入中…</p>
+        <template v-else>
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-xs text-muted">
+                <th class="text-left font-bold py-1">功能</th>
+                <th v-for="id in MATRIX_IDENTITIES" :key="id" class="font-bold w-16">{{ IDENTITY_LABELS[id] }}</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-hairline">
+              <tr v-for="f in FEATURES" :key="f.key">
+                <td class="py-2 text-fg-secondary">{{ f.label }}</td>
+                <td v-for="id in MATRIX_IDENTITIES" :key="id" class="text-center">
+                  <input type="checkbox" class="w-5 h-5 accent-[var(--color-accent)]" :checked="matrix[id].includes(f.key)" @change="toggleFeature(id, f.key)" />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <button @click="onSaveMatrix" :disabled="savingMatrix" class="w-full h-11 rounded-xl bg-accent text-white font-bold disabled:opacity-40">
+            {{ savingMatrix ? '儲存中…' : '儲存功能權限' }}
+          </button>
+        </template>
       </section>
 
       <!-- Gemini 金鑰 -->

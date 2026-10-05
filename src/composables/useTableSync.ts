@@ -252,7 +252,7 @@ const SYNC_CONFIGS: Record<string, SyncConfig> = {
     label: "通訊錄",
     localTable: "physicians",
     key: "name",
-    fields: ["name", "department", "title", "ext", "his_account", "his_password", "phs_account", "phs_password", "notes"],
+    fields: ["name", "department", "title", "ext", "his_account", "his_password", "phs_account", "phs_password", "notes", "mobile_admin"],
     beforeDelete: async (name) => {
       // sets.physician_id 參照 physicians(id)，不先解除會撞 FK
       await dbWrite("UPDATE sets SET physician_id = NULL WHERE physician_id IN (SELECT id FROM physicians WHERE name = ?)", [name]);

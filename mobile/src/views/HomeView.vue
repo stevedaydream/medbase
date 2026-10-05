@@ -14,11 +14,13 @@ import type { NoticeItem } from '@shared/sched/types'
 import { parseSpec } from '@shared/emergency/types'
 import { parseHbSpec, SECTION_LABELS } from '@shared/handbook/types'
 import { FORMULAS } from '@shared/handbook/formulas'
+import { can, routeAllowed } from '../lib/access'
 
 /** 首頁：全域搜尋＋今日值班＋最近查看（ADR-013） */
 const router = useRouter()
 const q = ref('')
-const recent = recentList()
+// 最近查看只留目前有權限的（ADR-026）
+const recent = recentList().filter(r => routeAllowed(r.to.split('?')[0]))
 
 interface Hit { type: string; title: string; sub: string; to?: string; copyText?: string; copyLabel?: string }
 
@@ -42,7 +44,7 @@ const index = computed<Hit[]>(() => {
       const s = parseHbSpec(r.spec)
       return s && s.status !== 'draft' ? [{ type: '手冊', title: r.name, sub: [SECTION_LABELS[s.section], s.category, ...s.keywords].join(' · '), to: s.section === 'oncall' ? `/care/s/${r.uid}` : `/handbook?tab=${s.section}&e=${r.uid}` }] : []
     }),
-    ...FORMULAS.map(f => ({ type: '公式', title: f.name, sub: f.formula, to: `/tool/${f.id}` })),
+    ...(can('care') ? FORMULAS.map(f => ({ type: '公式', title: f.name, sub: f.formula, to: `/tool/${f.id}` })) : []),
   ]
 })
 
@@ -55,6 +57,15 @@ const empty = computed(() => data.loaded && Object.values(data.tables).every(t =
 const unreadSched = computed(() => (doc<NoticeItem[]>('notices') ?? []).filter(n => n.personId === sched.me?.id && !n.read).length)
 
 usePullRefresh(() => pullRefresh(['npDuty', 'physicians']))
+
+// 搜尋提示只列有權限的內容（ADR-026）
+const placeholder = computed(() => {
+  const parts = [
+    can('sets') && '處方、套組', can('items') && '自費品項', can('contacts') && '人員、分機',
+    can('memos') && '備忘錄', can('care') && '處置、公式',
+  ].filter(Boolean)
+  return parts.length ? `搜尋${parts.join('、')}…` : '搜尋…'
+})
 </script>
 
 <template>
@@ -67,10 +78,10 @@ usePullRefresh(() => pullRefresh(['npDuty', 'physicians']))
       <RouterLink v-if="unreadSched" to="/schedule" class="flex items-center gap-2 px-4 py-3 rounded-2xl bg-accent/10 border border-accent/30 text-sm font-bold text-accent">
         🔔 你有 {{ unreadSched }} 則排班通知<span class="ml-auto">›</span>
       </RouterLink>
-      <RouterLink to="/care" class="flex items-center gap-3 px-4 h-14 rounded-2xl bg-danger text-white font-black text-lg shadow">
+      <RouterLink v-if="can('care')" to="/care" class="flex items-center gap-3 px-4 h-14 rounded-2xl bg-danger text-white font-black text-lg shadow">
         🩺 處置及臨床工具<span class="ml-auto text-sm font-bold opacity-80">症狀・數值・藥物・工具 ›</span>
       </RouterLink>
-      <DutyCard />
+      <DutyCard v-if="can('npDuty')" />
       <section v-if="recent.length">
         <p class="text-xs font-bold text-muted mb-2">最近查看</p>
         <div class="rounded-2xl bg-surface border border-hairline divide-y divide-hairline">
@@ -100,6 +111,6 @@ usePullRefresh(() => pullRefresh(['npDuty', 'physicians']))
       </div>
     </div>
 
-    <BottomSearch v-model="q" placeholder="搜尋處方、套組、自費品項、人員、分機…" />
+    <BottomSearch v-model="q" :placeholder="placeholder" />
   </div>
 </template>

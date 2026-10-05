@@ -1,6 +1,8 @@
 import { reactive } from 'vue'
 import { gas, ApiError } from './api'
 import { kvGet, kvSet } from './kv'
+import { session } from './session'
+import { featureOfTable, type FeatureKey } from '@shared/mobileAccess'
 
 /**
  * 唯讀資料的離線快取（ADR-013）。
@@ -34,6 +36,37 @@ export const data = reactive({
 })
 
 export type RefreshKey = TableName | 'npDuty'
+
+/** 依權限（ADR-026）：沒有權限的表不下載；尚未取得權限時照舊全部下載 */
+export function allowed(t: TableName | 'npDuty'): boolean {
+  const f = session.user?.access?.features
+  if (!f) return true
+  const need = t === 'npDuty' ? 'npDuty' : featureOfTable(t)
+  return !need || f.includes(need)
+}
+
+/** 權限收回時清掉對應的本機快取；通訊錄密碼收回時去掉快取裡的密碼並重新下載 */
+export async function purgeForbidden(now: FeatureKey[], before: FeatureKey[] | null): Promise<void> {
+  await loadCache()
+  for (const t of TABLES) {
+    if (allowed(t) || !data.tables[t].length) continue
+    data.tables[t] = []
+    await kvSet(`table:${t}`, [])
+    delete data.meta[t]
+  }
+  if (!allowed('npDuty') && Object.keys(data.duty).length) {
+    data.duty = {}
+    await kvSet('duty', {})
+    for (const k of Object.keys(data.meta)) if (k === 'npDuty' || k.startsWith('duty:')) delete data.meta[k]
+  }
+  const secretsGone = !now.includes('contactSecrets') && (before === null || before.includes('contactSecrets'))
+  if (secretsGone && data.tables.physicians.some(r => 'his_password' in r || 'phs_password' in r)) {
+    data.tables.physicians = data.tables.physicians.map(({ his_password: _h, phs_password: _p, ...r }) => r)
+    await kvSet('table:physicians', JSON.parse(JSON.stringify(data.tables.physicians)))
+    delete data.meta.physicians
+  }
+  await saveMeta()
+}
 
 let loadPromise: Promise<void> | null = null
 
@@ -83,8 +116,8 @@ async function runRefresh(force: boolean, only?: RefreshKey[]): Promise<void> {
   await loadCache()
   data.refreshing = true
   data.error = ''
-  const tables = only ? TABLES.filter(t => only.includes(t)) : [...TABLES]
-  const withDuty = !only || only.includes('npDuty')
+  const tables = (only ? TABLES.filter(t => only.includes(t)) : [...TABLES]).filter(allowed)
+  const withDuty = (!only || only.includes('npDuty')) && allowed('npDuty')
   try {
     const v = tables.length ? await gas<{ data: Record<string, string> }>('getVersions') : { data: {} as Record<string, string> }
     const versions = v.data ?? {}
