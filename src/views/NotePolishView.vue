@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from "vue";
-import { getDb } from "@/db";
+import { getDb, dbWrite } from "@/db";
+import {
+  AUTO_MODEL, MODEL_CACHE_MS, fetchModels, modelOptions, validModel, type GeminiModel, type ModelCache,
+} from "@/shared/geminiModels";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import DocxComposer from "@/components/DocxComposer.vue";
 
@@ -28,12 +31,6 @@ interface NoteRecord {
   created_at: string;
 }
 
-const MODELS = [
-  { id: "gemini-2.5-flash",               label: "2.5 Flash" },
-  { id: "gemini-2.5-pro",                 label: "2.5 Pro" },
-  { id: "gemini-2.5-flash-preview-04-17", label: "2.5 Flash (preview)" },
-  { id: "gemini-2.0-flash",               label: "2.0 Flash" },
-] as const;
 
 const cloud = useCloudSettings();
 
@@ -44,7 +41,43 @@ const inputText     = ref("");
 const outputText    = ref("");
 const isGenerating  = ref(false);
 const apiKey        = ref("");
-const selectedModel = ref("gemini-2.5-flash");
+const selectedModel = ref(AUTO_MODEL);
+
+// ── 模型清單：不寫死，用金鑰向 Gemini 查詢（24 小時快取）────────────────
+const modelList    = ref<GeminiModel[]>([]);
+const modelLoading = ref(false);
+const MODELS = computed(() => modelOptions(modelList.value, selectedModel.value));
+
+async function loadModels(force = false) {
+  const db = await getDb();
+  const rows = await db.select<{ value: string }[]>("SELECT value FROM app_settings WHERE key = 'gemini_models_cache'");
+  let cache: ModelCache | null = null;
+  try { cache = rows[0] ? JSON.parse(rows[0].value) : null; } catch { cache = null; }
+  if (cache) modelList.value = cache.list;
+  if (!force && cache && Date.now() - cache.at < MODEL_CACHE_MS) return checkModel();
+  if (!apiKey.value) return;
+  modelLoading.value = true;
+  try {
+    modelList.value = await fetchModels(apiKey.value);
+    await dbWrite("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('gemini_models_cache', ?)",
+      [JSON.stringify({ at: Date.now(), list: modelList.value })]);
+    if (force) showToast(`已更新模型清單（${modelList.value.length} 個）`);
+  } catch (e) {
+    if (force) showToast(`取得模型清單失敗：${(e as Error).message}`);
+  } finally {
+    modelLoading.value = false;
+  }
+  await checkModel();
+}
+
+/** 原本選的模型已下架：改回自動 */
+async function checkModel() {
+  const v = validModel(modelList.value, selectedModel.value);
+  if (v === selectedModel.value) return;
+  showToast(`模型 ${selectedModel.value} 已無法使用，改用自動（最新 Flash）`);
+  selectedModel.value = v;
+  await onModelChange();
+}
 const copied        = ref(false);
 let copiedTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -198,6 +231,7 @@ onMounted(async () => {
   }
 
   await loadTemplatesForProfile(activeProfile.value);
+  void loadModels();
 });
 
 watch(activeTemplate, (tpl) => {
@@ -728,6 +762,8 @@ async function pullTemplatesFromCloud() {
         </select>
         <span class="absolute right-3 top-2.5 text-2xs text-muted pointer-events-none">▼</span>
       </div>
+      <button class="text-xs text-muted hover:text-fg disabled:opacity-40 cursor-pointer" :disabled="modelLoading"
+        title="向 Gemini 重新查詢可用模型" @click="loadModels(true)">{{ modelLoading ? "…" : "↻" }}</button>
 
       <button
         @click="deidentify = !deidentify"
@@ -855,6 +891,8 @@ async function pullTemplatesFromCloud() {
             </select>
             <span class="absolute right-2 top-1.5 text-2xs text-muted pointer-events-none">▼</span>
           </div>
+          <button class="text-xs text-muted hover:text-fg disabled:opacity-40 cursor-pointer" :disabled="modelLoading"
+            title="向 Gemini 重新查詢可用模型" @click="loadModels(true)">{{ modelLoading ? "…" : "↻" }}</button>
         </div>
       </div>
     </div>

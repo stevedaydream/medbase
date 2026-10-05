@@ -7,14 +7,32 @@ import { isAdmin, refreshAccess, saveMatrix } from '../lib/access'
 import { FEATURES, MATRIX_IDENTITIES, IDENTITY_LABELS, type AccessMatrix, type FeatureKey, type MatrixIdentity } from '@shared/mobileAccess'
 import { usePullRefresh } from '../lib/pull'
 import { themeMode, applyTheme, fmtTime, toast, type ThemeMode } from '../lib/ui'
-import { geminiKey, saveGeminiKey } from '../lib/gemini'
+import { geminiKey, saveGeminiKey, geminiModel, geminiModels, saveGeminiModel, loadGeminiModels } from '../lib/gemini'
+import { modelOptions } from '@shared/geminiModels'
 
 const version = __APP_VERSION__
 
 const keyDraft = ref(geminiKey.value)
 const showKey = ref(false)
+// 模型清單（不寫死，向 Gemini 查詢）
+const modelLoading = ref(false)
+async function refreshModels(force: boolean) {
+  if (!geminiKey.value) return
+  modelLoading.value = true
+  try {
+    if (await loadGeminiModels(force)) toast('原本的模型已無法使用，改用自動（最新 Flash）')
+    else if (force) toast(`已更新模型清單（${geminiModels.value.length} 個）`)
+  } catch (e) {
+    toast(`取得模型清單失敗：${(e as Error).message}`)
+  } finally {
+    modelLoading.value = false
+  }
+}
+onMounted(() => { void refreshModels(false) })
+
 function saveKey() {
   saveGeminiKey(keyDraft.value.trim())
+  if (keyDraft.value.trim()) void refreshModels(true)
   toast(keyDraft.value.trim() ? '已儲存 Gemini 金鑰' : '已清除 Gemini 金鑰')
 }
 
@@ -139,6 +157,15 @@ const THEMES: { key: ThemeMode; label: string }[] = [
           <button @click="showKey = !showKey" class="h-11 px-3 rounded-xl bg-sunken border border-hairline text-sm">{{ showKey ? '隱藏' : '顯示' }}</button>
         </div>
         <button @click="saveKey" class="w-full h-11 rounded-xl bg-accent text-white font-bold">儲存金鑰</button>
+        <div v-if="geminiKey" class="flex items-center gap-2">
+          <span class="text-sm text-fg-secondary shrink-0">模型</span>
+          <select :value="geminiModel" class="flex-1 min-w-0 h-11 px-2 rounded-xl bg-sunken border border-hairline text-sm"
+            @change="saveGeminiModel(($event.target as HTMLSelectElement).value)">
+            <option v-for="m in modelOptions(geminiModels, geminiModel)" :key="m.id" :value="m.id">{{ m.label }}</option>
+          </select>
+          <button @click="refreshModels(true)" :disabled="modelLoading" class="h-11 px-3 rounded-xl bg-sunken border border-hairline text-sm disabled:opacity-40"
+            aria-label="重新查詢模型">{{ modelLoading ? '…' : '↻' }}</button>
+        </div>
         <details class="rounded-xl bg-sunken border border-hairline">
           <summary class="px-3 py-2.5 text-sm font-bold text-accent">如何申請 Gemini 金鑰（免費）</summary>
           <ol class="px-4 pb-3 space-y-2 text-sm text-fg-secondary list-decimal list-inside leading-relaxed">

@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { AUTO_MODEL, MODEL_CACHE_MS, fetchModels, validModel, type GeminiModel, type ModelCache } from '@shared/geminiModels'
 
 /**
  * Gemini 金鑰：每人在自己手機填入，只存本機，登出時保留（ADR-013）。
@@ -13,7 +14,40 @@ export function saveGeminiKey(v: string) {
   else localStorage.removeItem(KEY)
 }
 
-export const GEMINI_MODEL = 'gemini-2.5-flash'
+// ── 模型：不寫死，用金鑰向 Gemini 查詢可用模型（24 小時快取），預設自動（最新 Flash）──
+const MODEL_KEY = 'mb_gemini_model'
+const MODELS_KEY = 'mb_gemini_models'
+export const geminiModel = ref(localStorage.getItem(MODEL_KEY) || AUTO_MODEL)
+export const geminiModels = ref<GeminiModel[]>(readCache()?.list ?? [])
+
+function readCache(): ModelCache | null {
+  try { return JSON.parse(localStorage.getItem(MODELS_KEY) ?? 'null') } catch { return null }
+}
+
+export function saveGeminiModel(v: string) {
+  geminiModel.value = v || AUTO_MODEL
+  localStorage.setItem(MODEL_KEY, geminiModel.value)
+}
+
+/**
+ * 更新模型清單；force＝不管快取。回傳是否把已下架的模型改回自動。
+ * 查詢失敗時 force 才丟出錯誤，否則沿用快取。
+ */
+export async function loadGeminiModels(force = false): Promise<boolean> {
+  const cache = readCache()
+  if (force || !cache || Date.now() - cache.at >= MODEL_CACHE_MS) {
+    try {
+      geminiModels.value = await fetchModels(geminiKey.value)
+      localStorage.setItem(MODELS_KEY, JSON.stringify({ at: Date.now(), list: geminiModels.value }))
+    } catch (e) {
+      if (force) throw e
+    }
+  }
+  const v = validModel(geminiModels.value, geminiModel.value)
+  if (v === geminiModel.value) return false
+  saveGeminiModel(v)
+  return true
+}
 
 export interface GeminiPart { text?: string; inlineData?: { mimeType: string; data: string } }
 
@@ -21,7 +55,7 @@ export interface GeminiPart { text?: string; inlineData?: { mimeType: string; da
 export async function geminiJson<T>(prompt: string, parts: GeminiPart[] = []): Promise<T> {
   if (!geminiKey.value) throw new Error('請先到「設定」填入 Gemini 金鑰')
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(geminiKey.value)}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel.value}:generateContent?key=${encodeURIComponent(geminiKey.value)}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

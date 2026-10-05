@@ -13,7 +13,7 @@ import type { MobileAccess } from '@shared/mobileAccess'
 export interface MobileUser { his: string; name: string; personId?: string; role?: string; access?: MobileAccess }
 
 const K = { token: 'mb_token', user: 'mb_user', pin: 'mb_unlock', active: 'mb_last_active' }
-const KEEP_ON_LOGOUT = ['mb_gemini_key', 'mb_theme']
+const KEEP_ON_LOGOUT = ['mb_gemini_key', 'mb_gemini_model', 'mb_gemini_models', 'mb_theme']
 const LOCK_AFTER_MS = 15 * 60 * 1000
 
 function readJson<T>(key: string): T | null {

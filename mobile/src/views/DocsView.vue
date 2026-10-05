@@ -2,7 +2,7 @@
 import { ref, reactive, computed, watch } from 'vue'
 import PageHeader from '../components/PageHeader.vue'
 import { session } from '../lib/session'
-import { geminiKey, GEMINI_MODEL } from '../lib/gemini'
+import { geminiKey, geminiModel } from '../lib/gemini'
 import { toast } from '../lib/ui'
 import { DOCX_TEMPLATES, dayCount, type MetaValues, type BlockValues } from '@shared/docxTemplates'
 import { readSourceFile, buildGeminiParts, generateBlocks, renderDocx, DOCX_MIME, type SourceFile, type TemplateKey } from '@shared/docxCompose'
@@ -57,7 +57,7 @@ async function generate() {
   busy.value = 'generate'
   try {
     const parts = buildGeminiParts(template.value, files.value, manualText.value, deidentify.value)
-    Object.assign(blocks, await generateBlocks(template.value, geminiKey.value, GEMINI_MODEL, parts))
+    Object.assign(blocks, await generateBlocks(template.value, geminiKey.value, geminiModel.value, parts))
     toast('AI 整理完成，可再修改後匯出')
   } catch (e) {
     toast(`整理失敗：${(e as Error).message}`, 4000)
