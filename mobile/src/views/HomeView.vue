@@ -57,6 +57,15 @@ const empty = computed(() => data.loaded && Object.values(data.tables).every(t =
 const unreadSched = computed(() => (doc<NoticeItem[]>('notices') ?? []).filter(n => n.personId === sched.me?.id && !n.read).length)
 
 usePullRefresh(() => pullRefresh(['npDuty', 'physicians']))
+
+// 搜尋提示只列有權限的內容（ADR-026）
+const placeholder = computed(() => {
+  const parts = [
+    can('sets') && '處方、套組', can('items') && '自費品項', can('contacts') && '人員、分機',
+    can('memos') && '備忘錄', can('care') && '處置、公式',
+  ].filter(Boolean)
+  return parts.length ? `搜尋${parts.join('、')}…` : '搜尋…'
+})
 </script>
 
 <template>
@@ -102,6 +111,6 @@ usePullRefresh(() => pullRefresh(['npDuty', 'physicians']))
       </div>
     </div>
 
-    <BottomSearch v-model="q" placeholder="搜尋處方、套組、自費品項、人員、分機…" />
+    <BottomSearch v-model="q" :placeholder="placeholder" />
   </div>
 </template>
