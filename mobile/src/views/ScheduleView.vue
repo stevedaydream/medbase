@@ -12,6 +12,7 @@ import SwapCreate from '../components/SwapCreate.vue'
 import SwapInbox from '../components/SwapInbox.vue'
 import { colorOf } from '@shared/sched/palette'
 import { dayTypeOf, daysIn, dateStr } from '@shared/sched/calendar'
+import { dayMark } from '@shared/sched/holidayLabel'
 import {
   BLANK_BY_DAYTYPE, CONSTRAINT_MARKS, cellKey,
   type ShiftDef, type PrebookDoc, type EstDoc, type HolidayDoc, type NoticeItem,
@@ -102,7 +103,11 @@ const isMine = (name: string) => !!myName.value && name.replace(/^[A-Z]/, '').tr
 const myRow = computed(() => rows.value.find(r => isMine(r.name)) ?? null)
 const sortedRows = computed(() => [...rows.value].sort((a, b) => Number(isMine(b.name)) - Number(isMine(a.name))))
 const isToday = (y: number, m: number, d: number) => y === today.getFullYear() && m === today.getMonth() + 1 && d === today.getDate()
+/** 國定假日、春節輪值區間、補班日的標記（簡寫） */
+const markOf = (y: number, m: number, d: number) => dayMark(holidays.value, dateStr(ym(y, m), d))
 function dowClass(y: number, m: number, d: number) {
+  const mk = markOf(y, m, d)
+  if (mk) return mk.red ? 'text-danger' : 'text-muted'
   const w = new Date(y, m - 1, d).getDay()
   return w === 0 ? 'text-danger' : w === 6 ? 'text-accent' : 'text-muted'
 }
@@ -280,7 +285,7 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
           <button v-for="d in sDays" :key="d" :disabled="!canSwapDay(d)" @click="swapSheet = { ym: sYM, mode: 'published', day: d }"
             class="aspect-square rounded-xl border flex flex-col items-center justify-center disabled:opacity-100"
             :class="isToday(sy, sm, d) ? 'border-accent border-2' : 'border-hairline bg-surface'">
-            <span class="text-xs" :class="dowClass(sy, sm, d)">{{ d }}</span>
+            <span class="text-xs whitespace-nowrap" :class="dowClass(sy, sm, d)">{{ d }}<span v-if="markOf(sy, sm, d)" class="ml-0.5 text-[10px] font-bold">{{ markOf(sy, sm, d)!.label }}</span></span>
             <span class="mt-0.5 min-w-8 px-1 rounded-md text-xs font-bold text-center" :style="codeStyle(effective(sy, sm, d, myRow.days[d - 1]))">
               {{ effective(sy, sm, d, myRow.days[d - 1]) || '·' }}
             </span>
@@ -366,7 +371,7 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
           <button v-for="d in pDays" :key="d" @click="pickDay = d"
             class="relative aspect-square rounded-xl border flex flex-col items-center justify-center"
             :class="isLocked(d) || isAuto(d) ? 'bg-raised border-hairline' : myCell(d)?.v ? 'bg-accent/15 border-accent/40' : 'bg-surface border-hairline'">
-            <span class="text-xs" :class="dowClass(pY, pM, d)">{{ d }}</span>
+            <span class="text-xs whitespace-nowrap" :class="dowClass(pY, pM, d)">{{ d }}<span v-if="markOf(pY, pM, d)" class="ml-0.5 text-[10px] font-bold">{{ markOf(pY, pM, d)!.label }}</span></span>
             <span class="text-xs font-bold leading-tight" :class="(CONSTRAINT_MARKS as readonly string[]).includes(myCell(d)?.v ?? '') ? 'text-danger' : isAuto(d) ? 'text-muted' : 'text-accent'">
               {{ myCell(d)?.v ?? '' }}<span v-if="isLocked(d)">🔒</span>
             </span>
