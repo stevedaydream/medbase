@@ -261,7 +261,7 @@ describe("GAS 假勤（ADR-027）", () => {
     const ctx: Record<string, unknown> = { Utilities: { getUuid: () => "uuid-1" } };
     vm.createContext(ctx);
     vm.runInContext(readFileSync("gas/scheduler.gs", "utf8")
-      + "\n;this.api = { _schPerson, _schMobileView, _schView, _schNoHidden, _schSetOvertime, _schSetLeaveOpen, _schSetPay, _schEmployeeKey };", ctx);
+      + "\n;this.api = { _schPerson, _schMobileView, _schView, _schNoHidden, _schSetOvertime, _schSetLeaveOpen, _schSetPay, _schSetPrefs, _schEmployeeKey };", ctx);
     return ctx.api as Api;
   }
   const a = load();
@@ -287,9 +287,18 @@ describe("GAS 假勤（ADR-027）", () => {
     expect(Object.keys(JSON.parse((a._schMobileView(me, "leaveOpen", x.leaveOpen) as { json: string }).json))).toEqual(["e1"]);
     expect(a._schEmployeeKey("overtime:202612")).toBe(true);
   });
-  it("個人薪資設定不在任何同步清單", () => {
-    expect(Object.keys(a._schView(d(), "9A9B"))).not.toContain("pay");
-    expect(Object.keys(a._schNoHidden(d()))).not.toContain("pay");
+  it("個人薪資設定與偏好不在任何同步清單", () => {
+    const x = d();
+    x.prefs = doc({ e1: { colors: {} } });
+    expect(Object.keys(a._schView(x, "9A9B"))).not.toContain("pay");
+    expect(Object.keys(a._schNoHidden(x))).not.toContain("prefs");
+    expect(Object.keys(a._schView(x, "9A9B"))).not.toContain("prefs");
+  });
+  it("個人班表顏色只寫本人、只收 #rrggbb", () => {
+    const x = d(), me = a._schPerson(x, "111");
+    expect(a._schSetPrefs(x, me, { colors: { D: { bg: "#ff0000", text: "#ffffff" }, N: { bg: "blue", text: "#fff" } } })).toEqual({ ok: true });
+    expect(JSON.parse(x.prefs.json)).toEqual({ e1: { colors: { D: { bg: "#ff0000", text: "#ffffff" } } } });
+    expect((a._schSetPrefs(x, null, {}) as { ok: boolean }).ok).toBe(false);
   });
   it("登記與刪除自己的加班；不能刪別人的", () => {
     const x = d(), me = a._schPerson(x, "111");

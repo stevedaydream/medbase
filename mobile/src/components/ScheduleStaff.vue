@@ -7,7 +7,7 @@ import {
   snapshot, lockOf, hasLock, acquireLock, releaseLock, startMonth, publishMonth, revertMonth,
   editCells, createSwap, deleteSwap, settleDebt, addPrefillSwap, removePrefillSwap, reopenMonth, reopenLoss, LockedError,
 } from '../lib/schedOps'
-import { colorOf } from '@shared/sched/palette'
+import { shiftColor } from '../lib/shiftColors'
 import { daysIn, dowOf, dayTypeOf, dateStr, prevYm } from '@shared/sched/calendar'
 import { computeQuotas } from '@shared/sched/engine/quota'
 import { cellFnOf } from '@shared/sched/engine/prefill'
@@ -85,10 +85,10 @@ const stats = (id: string) => ctx.value ? personStats(ctx.value, id) : null
 const dstat = (d: number) => ctx.value ? dayStats(ctx.value, d) : { D: 0, N: 0, S1: 0, off: 0 }
 const need = (d: number) => month.value ? needOf(month.value, d, holidays.value) : { D: 0, N: 0, S1: 0 }
 
+/** 班別顏色：個人自選優先，否則用單位設定 */
 function codeStyle(code: string) {
-  const s = shifts.value.find(x => x.code === code)
-  if (!s) return isMark(code) ? { color: 'var(--color-danger)' } : {}
-  const c = colorOf(s.color)
+  const c = shiftColor(code, shifts.value)
+  if (!c) return isMark(code) ? { color: 'var(--color-danger)' } : {}
   return { backgroundColor: c.bg, color: c.text }
 }
 const isRest = (d: number) => dayTypeOf(ym.value, d, holidays.value) !== 'weekday'

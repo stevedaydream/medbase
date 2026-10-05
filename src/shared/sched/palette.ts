@@ -17,3 +17,16 @@ export const COLOR_PALETTE = [
 export function colorOf(key: string) {
   return COLOR_PALETTE.find(c => c.key === key) ?? COLOR_PALETTE[3];
 }
+
+/** 個人自選班別顏色（手機，跟著帳號存雲端）：班別代號 → 底色與字色 */
+export type ShiftColorPrefs = Record<string, { bg: string; text: string }>;
+
+export const isHexColor = (v: unknown): v is string => typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v);
+
+/** 依底色亮度自動配黑或白字 */
+export function textOn(bg: string): string {
+  if (!isHexColor(bg)) return "#ffffff";
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(bg.slice(i, i + 2), 16) / 255)
+    .map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? "#111827" : "#ffffff";
+}

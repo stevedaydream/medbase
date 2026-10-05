@@ -98,6 +98,18 @@ export const RULES: Record<string, Rule> = {
     },
   },
   mobileGetPay: { build: (a) => target(a) },
+  // 個人班表顏色（只寫本人的，GAS 依 HIS 帳號判斷）
+  mobileGetPrefs: { build: () => ({}) },
+  mobileSetPrefs: {
+    build: (a) => {
+      const p = (a.prefs && typeof a.prefs === "object" ? a.prefs : {}) as Args;
+      const src = (p.colors && typeof p.colors === "object" ? p.colors : {}) as Record<string, Args>;
+      const hex = (v: unknown) => typeof v === "string" && /^#[0-9a-fA-F]{6}$/.test(v);
+      const colors = Object.fromEntries(Object.entries(src).slice(0, 40)
+        .filter(([, c]) => c && hex(c.bg) && hex(c.text)).map(([k, c]) => [str(k, 10), { bg: c.bg, text: c.text }]));
+      return { prefs: { colors } };
+    },
+  },
   mobileSetPay: {
     build: (a) => {
       const p = (a.pay && typeof a.pay === "object" ? a.pay : {}) as Args;

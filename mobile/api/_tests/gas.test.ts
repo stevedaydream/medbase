@@ -42,6 +42,10 @@ describe("/api/gas 白名單（排班 v3）", () => {
     // 指定對象只轉給 GAS，是否為 super 由 GAS 判斷
     expect(ok("mobileGetPay", { personId: "p2" })).toEqual({ personId: "p2" });
   });
+  it("個人班表顏色只接受 #rrggbb", () => {
+    expect(ok("mobileSetPrefs", { prefs: { colors: { D: { bg: "#112233", text: "#ffffff" }, N: { bg: "red", text: "#fff" } } }, personId: "x" }))
+      .toEqual({ prefs: { colors: { D: { bg: "#112233", text: "#ffffff" } } } });
+  });
   it("setMobileAccess 只轉權限表三欄（是否為管理者由 GAS 判斷）", () => {
     expect(ok("setMobileAccess", { matrix: { doctor: ["sets"], nurse: "x", evil: ["a"] }, admin: true }))
       .toEqual({ matrix: { doctor: ["sets"], np: [], nurse: [] } });

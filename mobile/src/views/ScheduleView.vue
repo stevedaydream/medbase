@@ -11,7 +11,7 @@ import ScheduleStaff from '../components/ScheduleStaff.vue'
 import LeaveStats from '../components/LeaveStats.vue'
 import SwapCreate from '../components/SwapCreate.vue'
 import SwapInbox from '../components/SwapInbox.vue'
-import { colorOf } from '@shared/sched/palette'
+import { shiftColor, loadMyColors } from '../lib/shiftColors'
 import { dayTypeOf, daysIn, dateStr } from '@shared/sched/calendar'
 import { dayMark } from '@shared/sched/holidayLabel'
 import {
@@ -27,7 +27,7 @@ const today = new Date()
 const ym = (y: number, m: number) => `${y}${String(m).padStart(2, '0')}`
 function shiftMonth(y: number, m: number, d: number) { const t = new Date(y, m - 1 + d, 1); return { y: t.getFullYear(), m: t.getMonth() + 1 } }
 
-onMounted(async () => { await loadSchedCache(); void syncSchedDocs() })
+onMounted(async () => { await loadSchedCache(); void syncSchedDocs(); void loadMyColors() })
 
 // 群組（ADR-025）：不在名單或未分組看不到任何班表；super 在排班分頁切換的群組，回到個人分頁時切回自己的群組
 const denied = computed(() => sched.loaded && !!sched.lastSyncAt && !sched.syncing && !myGroup())
@@ -40,15 +40,15 @@ const shifts = computed(() => doc<ShiftDef[]>('shifts') ?? [])
 const holidays = computed<HolidayDoc>(() => doc<HolidayDoc>('holidays') ?? { days: {}, workdays: [], cny: [] })
 const people = computed(() => doc<{ id: string; name: string }[]>('people') ?? [])
 const nameOf = (id: string) => people.value.find(p => p.id === id)?.name ?? '?'
+/** 班別顏色：個人自選優先，否則用單位設定 */
 function codeStyle(code: string | null) {
   if (!code) return {}
-  const s = shifts.value.find(x => x.code === code)
-  if (!s) return (CONSTRAINT_MARKS as readonly string[]).includes(code) ? { color: 'var(--color-danger)' } : {}
-  const c = colorOf(s.color)
+  const c = shiftColor(code, shifts.value)
+  if (!c) return (CONSTRAINT_MARKS as readonly string[]).includes(code) ? { color: 'var(--color-danger)' } : {}
   return { backgroundColor: c.bg, color: c.text }
 }
 /** 有班別顏色的格子整格上色 */
-const hasColor = (code: string | null) => !!code && shifts.value.some(x => x.code === code)
+const hasColor = (code: string | null) => !!shiftColor(code, shifts.value)
 
 // ── 已發布班表（我的班、全部班表）──────────────────────────────────
 const sy = ref(today.getFullYear()), sm = ref(today.getMonth() + 1)

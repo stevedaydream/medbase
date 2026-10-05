@@ -650,7 +650,7 @@ const SCH_DEFAULT_GROUP = '9A9B';
 const SCH_SHARED = ['people', 'groups', 'holidays', 'duty84', 'cny', 'notices', 'leaveRules', 'leaveOpen'];
 const SCH_SUPER_ONLY = ['people', 'groups', 'holidays', 'duty84', 'cny', 'leaveRules', 'leaveOpen'];
 /** 個人薪資設定（時薪、值班費，ADR-027）：不進任何同步清單，只能經 mobileGetPay／mobileSetPay 讀寫本人的 */
-const SCH_HIDDEN = ['pay'];
+const SCH_HIDDEN = ['pay', 'prefs'];
 const SCH_CLIENT_SCHEMA = 2;
 const SCH_GROUP_ID = /^[A-Za-z0-9]{1,12}$/;
 
@@ -847,6 +847,19 @@ function _schSetLeaveOpen(docs, person, o, targetId) {
     comp: _num(o.comp, -9999, 9999), swap: _num(o.swap, -9999, 9999),
   };
   docs.leaveOpen = { version: _schVersion(docs.leaveOpen && docs.leaveOpen.version), json: JSON.stringify(all) };
+  return { ok: true };
+}
+
+/** 個人偏好（手機班表自選顏色）：只寫本人的；colors 為 代號 → { bg, text }（#rrggbb） */
+function _schSetPrefs(docs, person, prefs) {
+  if (!person) return { ok: false, error: '你不在排班名單中' };
+  const hex = v => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
+  const src = prefs && prefs.colors && typeof prefs.colors === 'object' ? prefs.colors : {};
+  const colors = {};
+  Object.keys(src).slice(0, 40).forEach(k => { const c = src[k]; if (c && hex(c.bg) && hex(c.text)) colors[String(k).slice(0, 10)] = { bg: c.bg, text: c.text }; });
+  const all = _schParse(docs, 'prefs', {});
+  all[person.id] = { colors: colors };
+  docs.prefs = { version: _schVersion(docs.prefs && docs.prefs.version), json: JSON.stringify(all) };
   return { ok: true };
 }
 
@@ -1804,6 +1817,21 @@ function doPost(e) {
           const sh = _schSheet(ss);
           const docs = _schReadAll(sh);
           const r = _schSetPay(docs, _schPerson(docs, p._mobile && p._mobile.his), p.pay, p.personId);
+          if (r.ok) _schWriteAll(sh, docs);
+          return json(r);
+        });
+      }
+      case 'mobileGetPrefs': {
+        const docs = _schReadAll(_schSheet(ss));
+        const person = _schPerson(docs, p._mobile && p._mobile.his);
+        const all = _schParse(docs, 'prefs', {});
+        return json({ ok: true, prefs: person && all[person.id] ? all[person.id] : null });
+      }
+      case 'mobileSetPrefs': {
+        return _withLock(() => {
+          const sh = _schSheet(ss);
+          const docs = _schReadAll(sh);
+          const r = _schSetPrefs(docs, _schPerson(docs, p._mobile && p._mobile.his), p.prefs);
           if (r.ok) _schWriteAll(sh, docs);
           return json(r);
         });

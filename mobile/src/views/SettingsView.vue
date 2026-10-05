@@ -3,7 +3,8 @@ import { ref, onMounted } from 'vue'
 import PageHeader from '../components/PageHeader.vue'
 import { session, logout } from '../lib/session'
 import { data, refresh, pullRefresh, lastFetched, allowed, TABLES, TABLE_LABELS } from '../lib/data'
-import { isAdmin, refreshAccess, saveMatrix } from '../lib/access'
+import { isAdmin, refreshAccess, saveMatrix, canSchedule } from '../lib/access'
+import ShiftColorPicker from '../components/ShiftColorPicker.vue'
 import { FEATURES, MATRIX_IDENTITIES, IDENTITY_LABELS, type AccessMatrix, type FeatureKey, type MatrixIdentity } from '@shared/mobileAccess'
 import { usePullRefresh } from '../lib/pull'
 import { themeMode, applyTheme, fmtTime, toast, type ThemeMode } from '../lib/ui'
@@ -180,6 +181,9 @@ const THEMES: { key: ThemeMode; label: string }[] = [
           <p class="px-4 pb-3 text-xs text-muted leading-relaxed">免費方案有每日用量上限，一般個人使用足夠。金鑰等同密碼，請勿分享；若外流，可回到同一頁面刪除並重新建立。</p>
         </details>
       </section>
+
+      <!-- 班表顏色（排班名單內的人） -->
+      <ShiftColorPicker v-if="canSchedule()" />
 
       <!-- 外觀 -->
       <section class="p-4 rounded-2xl bg-surface border border-hairline">
