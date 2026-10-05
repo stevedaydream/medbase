@@ -40,12 +40,15 @@ const shifts = computed(() => doc<ShiftDef[]>('shifts') ?? [])
 const holidays = computed<HolidayDoc>(() => doc<HolidayDoc>('holidays') ?? { days: {}, workdays: [], cny: [] })
 const people = computed(() => doc<{ id: string; name: string }[]>('people') ?? [])
 const nameOf = (id: string) => people.value.find(p => p.id === id)?.name ?? '?'
-function codeStyle(code: string) {
+function codeStyle(code: string | null) {
+  if (!code) return {}
   const s = shifts.value.find(x => x.code === code)
   if (!s) return (CONSTRAINT_MARKS as readonly string[]).includes(code) ? { color: 'var(--color-danger)' } : {}
   const c = colorOf(s.color)
   return { backgroundColor: c.bg, color: c.text }
 }
+/** 有班別顏色的格子整格上色 */
+const hasColor = (code: string | null) => !!code && shifts.value.some(x => x.code === code)
 
 // ── 已發布班表（我的班、全部班表）──────────────────────────────────
 const sy = ref(today.getFullYear()), sm = ref(today.getMonth() + 1)
@@ -285,9 +288,11 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
           <div v-for="n in new Date(sy, sm - 1, 1).getDay()" :key="`b${n}`" />
           <button v-for="d in sDays" :key="d" :disabled="!canSwapDay(d)" @click="swapSheet = { ym: sYM, mode: 'published', day: d }"
             class="aspect-square rounded-xl border flex flex-col items-center justify-center disabled:opacity-100"
-            :class="isToday(sy, sm, d) ? 'border-accent border-2' : 'border-hairline bg-surface'">
-            <span class="text-xs whitespace-nowrap" :class="dowClass(sy, sm, d)">{{ d }}<span v-if="markOf(sy, sm, d)" class="ml-0.5 text-[10px] font-bold">{{ markOf(sy, sm, d)!.label }}</span></span>
-            <span class="mt-0.5 min-w-8 px-1 rounded-md text-xs font-bold text-center" :style="codeStyle(effective(sy, sm, d, myRow.days[d - 1]))">
+            :class="[isToday(sy, sm, d) ? 'border-accent border-2' : 'border-hairline', hasColor(effective(sy, sm, d, myRow.days[d - 1])) ? '' : 'bg-surface']"
+            :style="codeStyle(effective(sy, sm, d, myRow.days[d - 1]))">
+            <span class="text-xs whitespace-nowrap" :class="hasColor(effective(sy, sm, d, myRow.days[d - 1])) ? 'opacity-80' : dowClass(sy, sm, d)">{{ d }}<span v-if="markOf(sy, sm, d)"
+              class="ml-0.5 text-[10px] font-bold" :class="hasColor(effective(sy, sm, d, myRow.days[d - 1])) && markOf(sy, sm, d)!.red ? 'px-0.5 rounded bg-danger text-white' : ''">{{ markOf(sy, sm, d)!.label }}</span></span>
+            <span class="mt-0.5 text-base font-bold leading-tight text-center">
               {{ effective(sy, sm, d, myRow.days[d - 1]) || '·' }}
             </span>
           </button>
@@ -326,9 +331,10 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
           </thead>
           <tbody>
             <tr v-for="r in sortedRows" :key="r.name" class="border-t border-hairline" :class="isMine(r.name) ? 'bg-accent/10' : ''">
-              <td class="sticky left-0 z-10 px-3 py-2 font-bold whitespace-nowrap" :class="isMine(r.name) ? 'bg-accent/10 text-accent' : 'bg-sunken text-fg'">{{ r.name }}</td>
-              <td v-for="(c, i) in r.days.slice(0, sDays)" :key="i" class="text-center py-1.5" :class="isToday(sy, sm, i + 1) ? 'bg-accent/10' : ''">
-                <span v-if="c" class="inline-block min-w-7 px-1 py-0.5 rounded-md text-xs font-bold" :style="codeStyle(c)">{{ c }}</span>
+              <td class="sticky left-0 z-10 px-3 py-2 font-bold whitespace-nowrap" :class="isMine(r.name) ? 'bg-sunken text-accent shadow-[inset_3px_0_0_var(--color-accent)]' : 'bg-sunken text-fg'">{{ r.name }}</td>
+              <td v-for="(c, i) in r.days.slice(0, sDays)" :key="i" class="text-center py-1.5 text-sm font-bold border border-sunken"
+                :class="isToday(sy, sm, i + 1) ? (hasColor(c) ? 'shadow-[inset_0_0_0_2px_var(--color-accent)]' : 'bg-accent/10') : ''" :style="codeStyle(c)">
+                <template v-if="c">{{ c }}</template>
                 <span v-else class="text-muted">·</span>
               </td>
             </tr>
