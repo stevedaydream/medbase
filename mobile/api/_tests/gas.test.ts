@@ -31,6 +31,15 @@ describe("/api/gas 白名單（排班 v3）", () => {
     const filtered = RULES.getConfig.filter!({ ok: true, data: { booking_open: "true", np_duty_url: "u", api_key: "k" } });
     expect(filtered.data).toEqual({ np_duty_url: "u" });
   });
+  it("假勤：只接受自己的加班、期初餘額、薪資設定欄位（ADR-027）", () => {
+    expect(ok("schGet", { keys: ["leaveOpen", "overtime:202612"] })).toEqual({ keys: ["leaveOpen", "overtime:202612"] });
+    expect(ok("schGet", { keys: ["pay"] })).toBeNull();
+    expect(ok("mobileSetOvertime", { ym: "202612", day: 3, hours: "2", note: "手術", personId: "x" }))
+      .toEqual({ ym: "202612", op: "add", day: 3, hours: 2, note: "手術" });
+    expect(ok("mobileSetOvertime", { ym: "2026-12" })).toBeNull();
+    expect(ok("mobileSetPay", { pay: { hourly: "300", dutyPay: { D: 1000, N: "" } }, personId: "x" }))
+      .toEqual({ pay: { hourly: 300, dutyPay: { D: 1000 } } });
+  });
   it("setMobileAccess 只轉權限表三欄（是否為管理者由 GAS 判斷）", () => {
     expect(ok("setMobileAccess", { matrix: { doctor: ["sets"], nurse: "x", evil: ["a"] }, admin: true }))
       .toEqual({ matrix: { doctor: ["sets"], np: [], nurse: [] } });

@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { useSchedStore, saveGlobal, appendLog, actorName, recompute, type GlobalKey } from "@/composables/useSchedStore";
+import { ref, onMounted } from "vue";
+import { useSchedStore, saveGlobal, appendLog, actorName, recompute, leaveRulesOf, type GlobalKey } from "@/composables/useSchedStore";
+import { leaveOf, compAccrueOf, LEAVE_LABELS, DEFAULT_LEAVE_RULES, type LeaveRules } from "@/shared/sched/leave";
 import { COLOR_PALETTE, colorOf } from "@/shared/sched/palette";
 import {
-  DEFAULT_SHIFTS, DEFAULT_QUOTA_ITEMS, DEFAULT_RULES, FLAG_DEFS, newId,
-  type ShiftDef, type QuotaItem, type ShiftCategory, type FlagKey,
+  DEFAULT_SHIFTS, DEFAULT_QUOTA_ITEMS, DEFAULT_RULES, FLAG_DEFS, LEAVE_SHIFTS, newId, clone,
+  type ShiftDef, type QuotaItem, type ShiftCategory, type FlagKey, type LeaveKind,
 } from "@/shared/sched/types";
 import { WEEKDAY_LABEL } from "@/shared/sched/calendar";
 
@@ -34,7 +36,45 @@ function persist(key: GlobalKey) {
     }
   }, 500);
 }
-const KEY_LABEL: Partial<Record<GlobalKey, string>> = { shifts: "班別", quotaItems: "配額項目", rules: "檢核規則" };
+const KEY_LABEL: Partial<Record<GlobalKey, string>> = { shifts: "班別", quotaItems: "配額項目", rules: "檢核規則", leaveRules: "假勤參數" };
+
+// ── 假勤（ADR-027）────────────────────────────────────────────
+const LEAVE_KINDS: LeaveKind[] = ["annual", "comp", "swap"];
+function setLeaveKind(s: ShiftDef, kind: string) {
+  s.leave = kind ? { kind: kind as LeaveKind, hours: leaveOf(s)?.hours ?? leaveRules.value.hoursPerDay } : null;
+  persist("shifts");
+}
+function setLeaveHours(s: ShiftDef, h: number) {
+  const lv = leaveOf(s);
+  if (lv) { s.leave = { ...lv, hours: h }; persist("shifts"); }
+}
+function setNum(s: ShiftDef, key: "compAccrue" | "dutyPay", v: string) {
+  if (v === "") delete s[key]; else s[key] = Number(v);
+  persist("shifts");
+}
+
+const leaveRules = ref<LeaveRules>(leaveRulesOf());
+function saveLeaveRules() {
+  store.leaveRules = clone(leaveRules.value);
+  persist("leaveRules");
+}
+function resetLeaveRules() {
+  leaveRules.value = clone(DEFAULT_LEAVE_RULES);
+  saveLeaveRules();
+}
+
+// 這個群組還沒有特休／補假／補換假班別時自動補上，並計入 OFF 配額
+onMounted(() => {
+  if (!props.canEdit) return;
+  const missing = LEAVE_SHIFTS().filter(l => !store.shifts.some(s => s.code === l.code));
+  if (!missing.length) return;
+  store.shifts.push(...missing);
+  const off = store.quotaItems.find(q => q.id === "OFF");
+  if (off) for (const m of missing) if (!off.countShifts.includes(m.code)) off.countShifts.push(m.code);
+  persist("shifts");
+  persist("quotaItems");
+  emit("toast", `已加入假別班別：${missing.map(m => m.code).join("、")}`);
+});
 
 function colorStyle(key: string) {
   const c = colorOf(key);
@@ -107,7 +147,11 @@ function resetRules() {
             <th class="px-2 py-1">代碼</th><th class="px-2">名稱</th><th class="px-2">顏色</th><th class="px-2">快速鍵</th>
             <th class="px-2">工時</th>
             <th v-for="b in SHIFT_BOOLS" :key="b.key" class="px-2 text-center" :title="b.title">{{ b.label }}</th>
-            <th class="px-2">統計歸類</th><th></th>
+            <th class="px-2">統計歸類</th>
+            <th class="px-2" title="排這個班扣哪一種假、扣幾小時">扣假</th>
+            <th class="px-2" title="排這個班累積的補假時數（空白＝12 小時以上的上班班別累積超出 8 小時的部分）">累積補假</th>
+            <th class="px-2" title="值班費預設值；個人可在手機設定自己的金額">值班費</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -130,6 +174,22 @@ function resetRules() {
               <select v-model="s.category" :disabled="!canEdit" class="sched-input" @change="persist('shifts')">
                 <option v-for="c in CATEGORIES" :key="c" :value="c">{{ c }}</option>
               </select>
+            </td>
+            <td class="px-2 whitespace-nowrap">
+              <select :value="leaveOf(s)?.kind ?? ''" :disabled="!canEdit" class="sched-input" @change="setLeaveKind(s, ($event.target as HTMLSelectElement).value)">
+                <option value="">—</option>
+                <option v-for="k in LEAVE_KINDS" :key="k" :value="k">{{ LEAVE_LABELS[k] }}</option>
+              </select>
+              <input v-if="leaveOf(s)" :value="leaveOf(s)!.hours" type="number" min="0" step="0.5" :disabled="!canEdit" class="sched-input w-12 ml-1"
+                @change="setLeaveHours(s, Number(($event.target as HTMLInputElement).value))" /><span v-if="leaveOf(s)" class="text-muted ml-0.5">時</span>
+            </td>
+            <td class="px-2">
+              <input :value="s.compAccrue ?? ''" :placeholder="String(compAccrueOf(s))" type="number" min="0" step="0.5" :disabled="!canEdit" class="sched-input w-14"
+                @change="setNum(s, 'compAccrue', ($event.target as HTMLInputElement).value)" />
+            </td>
+            <td class="px-2">
+              <input :value="s.dutyPay ?? ''" type="number" min="0" step="50" :disabled="!canEdit" class="sched-input w-20"
+                @change="setNum(s, 'dutyPay', ($event.target as HTMLInputElement).value)" />
             </td>
             <td class="px-2">
               <button v-if="canEdit" class="text-muted hover:text-danger" @click="removeShift(s)">刪除</button>
@@ -185,6 +245,39 @@ function resetRules() {
               @click="toggleExclude(q, f.key)">{{ f.label }}</button>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- 假勤參數（全院共用） -->
+    <section class="space-y-2 text-xs">
+      <div class="flex items-center gap-2">
+        <h2 class="text-sm font-semibold text-fg">假勤參數</h2>
+        <span class="text-muted">全院共用；特休依到職週年給額度，期滿未休轉展延保留一年</span>
+        <button v-if="canEdit" class="ml-auto px-2 py-1 text-muted hover:text-fg" @click="resetLeaveRules">還原預設</button>
+      </div>
+      <div class="grid grid-cols-[14rem_auto] gap-y-2 items-center">
+        <span class="text-fg-secondary">1 天＝幾小時</span>
+        <input v-model.number="leaveRules.hoursPerDay" type="number" min="1" :disabled="!canEdit" class="sched-input w-16" @change="saveLeaveRules" />
+        <span class="text-fg-secondary">國定假日、春節值班費倍率</span>
+        <input v-model.number="leaveRules.holidayPayRate" type="number" min="0" step="0.1" :disabled="!canEdit" class="sched-input w-16" @change="saveLeaveRules" />
+        <span class="text-fg-secondary">排班時假別餘額低於（天）提醒</span>
+        <input v-model.number="leaveRules.lowBalanceDays" type="number" min="0" step="0.5" :disabled="!canEdit" class="sched-input w-16" @change="saveLeaveRules" />
+      </div>
+      <div class="pt-1 text-fg-secondary">特休年資表</div>
+      <div class="flex flex-wrap items-center gap-2">
+        <span v-for="(st, i) in leaveRules.annual" :key="i" class="flex items-center gap-1 px-2 py-1 rounded border border-hairline bg-surface">
+          滿<input v-model.number="st.months" type="number" min="1" :disabled="!canEdit" class="sched-input w-12" @change="saveLeaveRules" />個月
+          <input v-model.number="st.days" type="number" min="0" :disabled="!canEdit" class="sched-input w-12" @change="saveLeaveRules" />天
+          <button v-if="canEdit" class="text-muted hover:text-danger" @click="leaveRules.annual.splice(i, 1); saveLeaveRules()">×</button>
+        </span>
+        <button v-if="canEdit" class="px-2 py-1 text-muted hover:text-fg" @click="leaveRules.annual.push({ months: 12, days: 0 }); saveLeaveRules()">＋ 級距</button>
+      </div>
+      <div class="flex items-center gap-1">
+        <span class="text-fg-secondary">超過最後一級後每滿一年加</span>
+        <input v-model.number="leaveRules.incPerYear" type="number" min="0" :disabled="!canEdit" class="sched-input w-12" @change="saveLeaveRules" />
+        <span class="text-fg-secondary">天，最多</span>
+        <input v-model.number="leaveRules.maxDays" type="number" min="0" :disabled="!canEdit" class="sched-input w-12" @change="saveLeaveRules" />
+        <span class="text-fg-secondary">天</span>
       </div>
     </section>
 

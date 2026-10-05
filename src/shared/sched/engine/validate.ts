@@ -6,7 +6,7 @@ import { BLANK_BY_DAYTYPE, cellKey } from "../types";
 import { daysIn, dayTypeOf, dowOf, dateStr, inCny } from "../calendar";
 import { needOf } from "./staffing";
 
-export type RuleCode = "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7" | "R8" | "R9" | "R10" | "R11" | "R12";
+export type RuleCode = "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7" | "R8" | "R9" | "R10" | "R11" | "R12" | "R13";
 export const RULE_LABELS: Record<RuleCode, string> = {
   R1: "連續上班超過上限",
   R2: "連續值班超過上限",
@@ -20,6 +20,7 @@ export const RULE_LABELS: Record<RuleCode, string> = {
   R10: "週日／國定假日空白",
   R11: "N 隔天只能 N 或 OFF",
   R12: "覆蓋預班或預填",
+  R13: "假別餘額不足",
 };
 
 export interface Issue {

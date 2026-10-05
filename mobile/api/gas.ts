@@ -26,7 +26,8 @@ const READ_TABLES = new Set([
 const CONFIG_KEYS = ["np_duty_url"];
 
 /** 排班文件 key：people／shifts…／month:YYYYMM／prebook:YYYYMM／log:global… */
-const SCH_KEY = /^(people|shifts|quotaItems|rules|holidays|holidayDuty|duty84|cny|notices|debts|(month|prebook|log|lock|est|swapreq):(\d{6}|global))$/;
+const SCH_KEY = /^(people|shifts|quotaItems|rules|holidays|holidayDuty|duty84|cny|notices|debts|leaveRules|leaveOpen|(month|prebook|log|lock|est|swapreq|overtime):(\d{6}|global))$/;
+const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const MAX_DOC = 2_000_000;
 /** 排班群組（ADR-025）：super 可指定要看的群組，其他人一律由 GAS 依身分決定；key 一律是群組內的名稱 */
 const GROUP_ID = /^[A-Za-z0-9]{1,12}$/;
@@ -78,6 +79,30 @@ export const RULES: Record<string, Rule> = {
   },
   schPublish: {
     build: (a) => /^\d{6}$/.test(str(a.ym)) ? { ym: str(a.ym), ...groupArg(a) } : forbidden("月份格式錯誤"),
+  },
+  // 假勤（ADR-027）：員工只能寫自己的（身分由 GAS 依 HIS 帳號判斷）
+  mobileSetOvertime: {
+    build: (a) => {
+      if (!/^\d{6}$/.test(str(a.ym))) return forbidden("月份格式錯誤");
+      return a.op === "delete"
+        ? { ym: str(a.ym), op: "delete", id: str(a.id, 64) }
+        : { ym: str(a.ym), op: "add", day: num(a.day), hours: num(a.hours), note: str(a.note, 100) };
+    },
+  },
+  mobileSetLeaveOpen: {
+    build: (a) => {
+      const o = (a.open && typeof a.open === "object" ? a.open : {}) as Args;
+      return { open: { from: str(o.from, 6), annual: num(o.annual), carry: num(o.carry), carryUntil: str(o.carryUntil, 10), comp: num(o.comp), swap: num(o.swap) } };
+    },
+  },
+  mobileGetPay: { build: () => ({}) },
+  mobileSetPay: {
+    build: (a) => {
+      const p = (a.pay && typeof a.pay === "object" ? a.pay : {}) as Args;
+      const src = (p.dutyPay && typeof p.dutyPay === "object" ? p.dutyPay : {}) as Args;
+      const dutyPay = Object.fromEntries(Object.entries(src).slice(0, 40).filter(([, v]) => v !== "" && v != null).map(([k, v]) => [str(k, 10), num(v)]));
+      return { pay: { hourly: num(p.hourly), dutyPay } };
+    },
   },
   mobileMarkRead: {
     build: (a) => ({ ids: Array.isArray(a.ids) ? (a.ids as unknown[]).slice(0, 500).map(x => str(x, 40)) : null }),

@@ -12,9 +12,9 @@ export const DEFAULT_GROUP = "9A9B";
 export const DEFAULT_GROUPS: SchedGroup[] = [{ id: DEFAULT_GROUP, name: "9A／9B", order: 0 }];
 
 /** 全院共用的文件 */
-export const SHARED_KEYS = ["people", "groups", "holidays", "duty84", "cny", "notices"] as const;
-/** 只有 super 可以寫的共用文件（notices 由各群組的流程寫入，伺服器逐筆合併） */
-export const SUPER_ONLY_KEYS = ["people", "groups", "holidays", "duty84", "cny"] as const;
+export const SHARED_KEYS = ["people", "groups", "holidays", "duty84", "cny", "notices", "leaveRules", "leaveOpen"] as const;
+/** 只有 super 可以寫的共用文件（notices 由各群組的流程寫入，伺服器逐筆合併；期初餘額員工另由 GAS 寫自己的，ADR-027） */
+export const SUPER_ONLY_KEYS = ["people", "groups", "holidays", "duty84", "cny", "leaveRules", "leaveOpen"] as const;
 
 /** 桌機寫入雲端時帶的版本；GAS 拒絕沒帶（不認得群組）的舊版桌機寫入 */
 export const SCHED_CLIENT_SCHEMA = 2;

@@ -44,12 +44,14 @@ describe("GAS 手機身分與讀取權限", () => {
   });
   it("員工只能讀 prebook／est／people／shifts／holidays／notices", () => {
     expect(["prebook:202612", "est:202612", "people", "notices", "shifts", "holidays"].every(k => g._schEmployeeKey(k))).toBe(true);
-    expect(["month:202612", "log:202612", "lock:202612", "rules", "debts"].some(k => g._schEmployeeKey(k))).toBe(false);
+    // month:* 員工可讀但只有已發布月份自己那列（見「GAS 假勤」）
+    expect(["log:202612", "lock:202612", "rules", "debts", "pay"].some(k => g._schEmployeeKey(k))).toBe(false);
   });
   it("員工讀 people 不含 HIS 與分機；notices 只有自己的", () => {
     const d = docs(), me = g._schPerson(d, "111");
     const people = JSON.parse((g._schMobileView(me, "people", d.people) as { json: string }).json);
-    expect(Object.keys(people[0]).sort()).toEqual(["active", "id", "name", "order", "unit"]);
+    expect(Object.keys(people[0]).sort()).toEqual(["active", "hireDate", "id", "name", "order", "unit"]);
+    expect(Object.keys(people[1]).sort()).toEqual(["active", "id", "name", "order", "unit"]);
     const ns = JSON.parse((g._schMobileView(me, "notices", d.notices) as { json: string }).json);
     expect(ns.map((n: { id: string }) => n.id)).toEqual(["n1"]);
     const staff = g._schPerson(d, "222");
@@ -251,5 +253,63 @@ describe("GAS 排班群組（ADR-025）", () => {
     const vs = { Schedule_202611: "t1", Schedule_8A_202611: "t2", Schedule_8A_202612: "t3" };
     expect(g._schGroupSheets(vs, "8A")).toEqual({ Schedule_202611: "t2", Schedule_202612: "t3" });
     expect(g._schGroupSheets(vs, "9A9B")).toEqual({ Schedule_202611: "t1" });
+  });
+});
+
+describe("GAS 假勤（ADR-027）", () => {
+  function load() {
+    const ctx: Record<string, unknown> = { Utilities: { getUuid: () => "uuid-1" } };
+    vm.createContext(ctx);
+    vm.runInContext(readFileSync("gas/scheduler.gs", "utf8")
+      + "\n;this.api = { _schPerson, _schMobileView, _schView, _schNoHidden, _schSetOvertime, _schSetLeaveOpen, _schSetPay, _schEmployeeKey };", ctx);
+    return ctx.api as Api;
+  }
+  const a = load();
+  const NOW = "2026-10-10T00:00:00.000Z";
+  function d(): Docs {
+    const x = docs();
+    x["month:202611"] = doc({ ym: "202611", status: "published", roster: [{ personId: "e1" }, { personId: "s1" }], schedule: { e1: ["D"], s1: ["N"] } });
+    x.leaveOpen = doc({ e1: { from: "202610", annual: 8 }, s1: { from: "202610", annual: 16 } });
+    x["overtime:202612"] = doc({ ym: "202612", items: [{ id: "o1", personId: "e1", day: 1, hours: 2 }, { id: "o2", personId: "s1", day: 2, hours: 3 }] });
+    x.pay = doc({ e1: { hourly: 300, dutyPay: {} } });
+    return x;
+  }
+
+  it("員工只看到已發布月份自己那列、自己的加班與期初餘額；排班中月份只有狀態", () => {
+    const x = d(), me = a._schPerson(x, "111");
+    const m = JSON.parse((a._schMobileView(me, "month:202611", x["month:202611"]) as { json: string }).json);
+    expect(m.schedule).toEqual({ e1: ["D"] });
+    expect(m.roster).toEqual([{ personId: "e1" }]);
+    const draft = JSON.parse((a._schMobileView(me, "month:202612", x["month:202612"]) as { json: string }).json);
+    expect(draft).toEqual({ ym: "202612", status: "open" });
+    const ot = JSON.parse((a._schMobileView(me, "overtime:202612", x["overtime:202612"]) as { json: string }).json);
+    expect(ot.items.map((i: { id: string }) => i.id)).toEqual(["o1"]);
+    expect(Object.keys(JSON.parse((a._schMobileView(me, "leaveOpen", x.leaveOpen) as { json: string }).json))).toEqual(["e1"]);
+    expect(a._schEmployeeKey("overtime:202612")).toBe(true);
+  });
+  it("個人薪資設定不在任何同步清單", () => {
+    expect(Object.keys(a._schView(d(), "9A9B"))).not.toContain("pay");
+    expect(Object.keys(a._schNoHidden(d()))).not.toContain("pay");
+  });
+  it("登記與刪除自己的加班；不能刪別人的", () => {
+    const x = d(), me = a._schPerson(x, "111");
+    const v = a._schView(x, "9A9B") as unknown as Docs;
+    expect(a._schSetOvertime(v, me, { ym: "202612", day: 5, hours: 2.5, note: "急診刀" }, NOW)).toEqual({ ok: true });
+    expect(JSON.parse(v["overtime:202612"].json).items.at(-1)).toMatchObject({ id: "uuid-1", personId: "e1", day: 5, hours: 2.5 });
+    expect((a._schSetOvertime(v, me, { ym: "202612", op: "delete", id: "o2" }, NOW) as { ok: boolean }).ok).toBe(false);
+    expect(a._schSetOvertime(v, me, { ym: "202612", op: "delete", id: "o1" }, NOW)).toEqual({ ok: true });
+    expect((a._schSetOvertime(v, me, { ym: "202612", day: 40, hours: 1 }, NOW) as { error: string }).error).toContain("日期");
+    expect((a._schSetOvertime(v, me, { ym: "202612", day: 1, hours: 30 }, NOW) as { error: string }).error).toContain("時數");
+  });
+  it("期初餘額與薪資設定只寫自己的", () => {
+    const x = d(), me = a._schPerson(x, "111");
+    expect(a._schSetLeaveOpen(x, me, { from: "202611", annual: 40, carry: 8, carryUntil: "2027-01-01", comp: 4, swap: 0 })).toEqual({ ok: true });
+    const lo = JSON.parse(x.leaveOpen.json);
+    expect(lo.e1).toEqual({ from: "202611", annual: 40, carry: 8, carryUntil: "2027-01-01", comp: 4, swap: 0 });
+    expect(lo.s1.annual).toBe(16);
+    expect((a._schSetLeaveOpen(x, me, { from: "2026-11" }) as { ok: boolean }).ok).toBe(false);
+    expect(a._schSetPay(x, me, { hourly: 320, dutyPay: { D: 1200, N: "" } })).toEqual({ ok: true });
+    expect(JSON.parse(x.pay.json).e1).toEqual({ hourly: 320, dutyPay: { D: 1200 } });
+    expect((a._schSetPay(x, null, {}) as { ok: boolean }).ok).toBe(false);
   });
 });

@@ -12,6 +12,8 @@ export interface Person {
   unit: string;        // 所屬單位，例 "9A"
   /** 排班群組 id（ADR-025）；""＝未分組；舊資料沒有此欄，見 groups.ts personGroup() */
   group?: string;
+  /** 到職日 YYYY-MM-DD（特休依到職週年計算，ADR-027） */
+  hireDate?: string;
   ext: string;
   his: string;         // HIS 帳號（登入、手機對應）
   role: Role;
@@ -43,7 +45,16 @@ export interface ShiftDef {
   reducesOff: boolean; // 使當日可休 −1（離開單位，例 8-4）
   isRest: boolean;     // 算休息日（中斷連續上班）
   category: ShiftCategory;
+  /** 假勤（ADR-027）：扣哪一種假、扣幾小時；沒有此欄時依代號（見 leave.ts leaveOf） */
+  leave?: { kind: LeaveKind; hours: number } | null;
+  /** 排此班累積的補假時數；沒有此欄時 12 小時以上的上班班別累積（時數 − 8） */
+  compAccrue?: number;
+  /** 值班費預設值（個人可覆蓋） */
+  dutyPay?: number;
 }
+
+/** 特休、補假、補換假 */
+export type LeaveKind = "annual" | "comp" | "swap";
 
 /** 空白格：平日＝S1、週六＝H3；週日／國定假日不允許空白 */
 export const BLANK_BY_DAYTYPE: Record<DayType, string | null> = {
@@ -59,7 +70,18 @@ export const DEFAULT_SHIFTS: ShiftDef[] = [
   { code: "OFF",  name: "休假",   color: "gray",    hotkey: "o", hours: 0,  staffing: false, takesOff: true,  reducesOff: false, isRest: true,  category: "OFF" },
   { code: "公假", name: "公假",   color: "pink",    hotkey: "g", hours: 8,  staffing: false, takesOff: true,  reducesOff: false, isRest: false, category: "OFF" },
   { code: "8-4",  name: "8-4 輪值", color: "orange", hotkey: "8", hours: 8,  staffing: false, takesOff: false, reducesOff: true,  isRest: false, category: "OTHER" },
+  ...LEAVE_SHIFTS(),
 ];
+
+/** 假別班別（ADR-027）：佔休假名額、中斷連續上班，不算應休 */
+export function LEAVE_SHIFTS(): ShiftDef[] {
+  const base = { hotkey: "", hours: 8, staffing: false, takesOff: true, reducesOff: false, isRest: true, category: "OTHER" as const };
+  return [
+    { ...base, code: "特休", name: "特休", color: "rose", leave: { kind: "annual", hours: 8 } },
+    { ...base, code: "補假", name: "補假", color: "amber", leave: { kind: "comp", hours: 8 } },
+    { ...base, code: "補換假", name: "補換假", color: "lime", leave: { kind: "swap", hours: 8 } },
+  ];
+}
 
 /** 預班限制註記（不是班別） */
 export const CONSTRAINT_MARKS = ["勿休", "勿值"] as const;
@@ -105,7 +127,7 @@ export interface QuotaItem {
 export const DEFAULT_QUOTA_ITEMS: QuotaItem[] = [
   { id: "D",     name: "D",       enabled: true, total: "D",   dow: null, countShifts: ["D", "NrsD"],  exclude: ["noD"] },
   { id: "N",     name: "N",       enabled: true, total: "N",   dow: null, countShifts: ["N"],          exclude: ["noN"] },
-  { id: "OFF",   name: "OFF",     enabled: true, total: "OFF", dow: null, countShifts: ["OFF", "公假"], exclude: ["support"] },
+  { id: "OFF",   name: "OFF",     enabled: true, total: "OFF", dow: null, countShifts: ["OFF", "公假", "特休", "補假", "補換假"], exclude: ["support"] },
   { id: "W6OFF", name: "週六 OFF", enabled: true, total: "OFF", dow: [6],  countShifts: ["OFF"],        exclude: ["support"] },
 ];
 

@@ -18,6 +18,9 @@ import {
   DEFAULT_GROUP, GROUP_ID, groupKey, splitKey, groupList, personGroup, stripSharedRota, type SchedGroup,
 } from "@/shared/sched/groups";
 import { buildImport, type ImportReport, type LegacyUser, type PhysicianHis } from "@/utils/sched/importApply";
+import {
+  leaveLedger, monthInputs, normalizeLeaveRules, type LeaveRules, type LeaveOpenDoc, type OvertimeDoc, type LeaveLedger,
+} from "@/shared/sched/leave";
 
 export interface SchedState {
   loaded: boolean;
@@ -39,12 +42,18 @@ export interface SchedState {
   locks: Record<string, LockInfo | null>;
   ests: Record<string, EstDoc>;
   debts: DebtRec[];
+  /** 假勤（ADR-027）：參數與期初餘額（共用）、每月加班登記（依群組） */
+  leaveRules: Partial<LeaveRules> | null;
+  leaveOpen: LeaveOpenDoc;
+  overtimes: Record<string, OvertimeDoc>;
 }
 
-export type GlobalKey = "people" | "groups" | "shifts" | "quotaItems" | "rules" | "holidays" | "holidayDuty" | "duty84" | "cny" | "notices" | "debts";
+export type GlobalKey = "people" | "groups" | "leaveRules" | "leaveOpen" | "shifts" | "quotaItems" | "rules" | "holidays" | "holidayDuty" | "duty84" | "cny" | "notices" | "debts";
 
-const defaults = (): Omit<SchedState, "loaded" | "group" | "months" | "prebooks" | "logs" | "locks" | "ests"> => ({
+const defaults = (): Omit<SchedState, "loaded" | "group" | "months" | "prebooks" | "logs" | "locks" | "ests" | "overtimes"> => ({
   groups: [],
+  leaveRules: null,
+  leaveOpen: {},
   people: [],
   shifts: structuredClone(DEFAULT_SHIFTS),
   quotaItems: structuredClone(DEFAULT_QUOTA_ITEMS),
@@ -57,14 +66,14 @@ const defaults = (): Omit<SchedState, "loaded" | "group" | "months" | "prebooks"
   debts: [],
 });
 
-const state = reactive<SchedState>({ loaded: false, group: DEFAULT_GROUP, months: {}, prebooks: {}, logs: {}, locks: {}, ests: {}, ...defaults() });
+const state = reactive<SchedState>({ loaded: false, group: DEFAULT_GROUP, months: {}, prebooks: {}, logs: {}, locks: {}, ests: {}, overtimes: {}, ...defaults() });
 let loading: Promise<void> | null = null;
 
 type DocState = Omit<SchedState, "loaded">;
 
 /** 由本機文件組出某群組的狀態（共用文件＋該群組的文件） */
 function stateFromRows(rows: { key: string; json: string }[], group: string): DocState {
-  const s: DocState = { group, months: {}, prebooks: {}, logs: {}, locks: {}, ests: {}, ...defaults() };
+  const s: DocState = { group, months: {}, prebooks: {}, logs: {}, locks: {}, ests: {}, overtimes: {}, ...defaults() };
   for (const r of rows) putDoc(s, r.key, JSON.parse(r.json));
   return s;
 }
@@ -78,6 +87,7 @@ function putDoc(s: DocState, key: string, val: unknown) {
   else if (base.startsWith("log:")) s.logs[base.slice(4)] = val as LogDoc;
   else if (base.startsWith("lock:")) s.locks[base.slice(5)] = val as LockInfo | null;
   else if (base.startsWith("est:")) s.ests[base.slice(4)] = val as EstDoc;
+  else if (base.startsWith("overtime:")) s.overtimes[base.slice(9)] = val as OvertimeDoc;
   else if (base in defaults()) (s as unknown as Record<string, unknown>)[base] = val;
 }
 
@@ -399,6 +409,23 @@ export async function startMonth(ym: string, force = false): Promise<void> {
 export async function clearSchedLocal(): Promise<void> {
   await dbWrite("DELETE FROM sched_docs");
   await reloadSched();
+}
+
+// ── 假勤（ADR-027）────────────────────────────────────────────────────
+export function leaveRulesOf(): LeaveRules {
+  return normalizeLeaveRules(state.leaveRules);
+}
+
+/** 個人假勤帳：目前群組到 uptoYm 為止的月份（含排班中、開放預班已排的假） */
+export function personLedger(personId: string, uptoYm: string): LeaveLedger {
+  const overtime = Object.values(state.overtimes).flatMap(d =>
+    d.items.filter(i => i.personId === personId).map(i => ({ ym: d.ym, day: i.day, hours: i.hours })));
+  return leaveLedger({
+    hireDate: personById(personId)?.hireDate ?? "", rules: leaveRulesOf(), open: state.leaveOpen[personId],
+    shifts: state.shifts, holidays: state.holidays,
+    months: monthInputs(state.months, state.prebooks, personId).filter(m => m.ym <= uptoYm),
+    overtime, pay: undefined, today: new Date().toLocaleString("sv-SE").slice(0, 10),
+  });
 }
 
 // ── 群組（ADR-025）────────────────────────────────────────────────────

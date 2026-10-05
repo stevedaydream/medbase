@@ -8,6 +8,7 @@ import { toast } from '../lib/ui'
 import { usePullRefresh } from '../lib/pull'
 import { sched, syncSchedDocs, loadSchedCache, doc, setMyPrebook, markNoticesRead, isStaff, myGroup, setActiveGroup } from '../lib/sched'
 import ScheduleStaff from '../components/ScheduleStaff.vue'
+import LeaveStats from '../components/LeaveStats.vue'
 import SwapCreate from '../components/SwapCreate.vue'
 import SwapInbox from '../components/SwapInbox.vue'
 import { colorOf } from '@shared/sched/palette'
@@ -299,6 +300,8 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
           <div class="mt-1 text-muted">總時數 {{ myStats.hours }} 小時</div>
         </div>
       </template>
+      <!-- 假勤統計（ADR-027） -->
+      <LeaveStats v-if="sched.me" :ym="sYM" />
     </section>
 
     <!-- ── 全部班表 ── -->
