@@ -157,6 +157,7 @@ const onRemoveGroup = (id: string) => groupOp(() => removeGroup(id), `刪除群�
             <th class="px-2">姓名</th>
             <th class="px-2">單位</th>
             <th class="px-2">群組</th>
+            <th class="px-2" title="特休依到職週年計算">到職日</th>
             <th class="px-2">分機</th>
             <th class="px-2">HIS 帳號</th>
             <th class="px-2">角色</th>
@@ -185,6 +186,10 @@ const onRemoveGroup = (id: string) => groupOp(() => removeGroup(id), `刪除群�
                 <option value="">未分組</option>
                 <option v-for="g in schedGroups()" :key="g.id" :value="g.id">{{ g.name }}</option>
               </select>
+            </td>
+            <td class="px-2">
+              <input :value="p.hireDate ?? ''" type="date" class="sched-input" :class="{ warn: !p.hireDate && p.active && !!personGroup(p) }"
+                @change="p.hireDate = ($event.target as HTMLInputElement).value; persist(`${p.name} 到職日：${p.hireDate || '未填'}`)" />
             </td>
             <td class="px-2"><input v-model="p.ext" class="sched-input w-16" @change="persist(`${p.name} 分機：${p.ext}`)" /></td>
             <td class="px-2">

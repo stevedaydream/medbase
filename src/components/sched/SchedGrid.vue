@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
-import { useSchedStore, personById, saveMonth, appendLog, actorName, recompute } from "@/composables/useSchedStore";
+import { useSchedStore, personById, saveMonth, appendLog, actorName, recompute, personLedger, leaveRulesOf } from "@/composables/useSchedStore";
+import { lowBalances, fmtLeave, LEAVE_LABELS } from "@/shared/sched/leave";
 import { useGridEditor, type Layer, type CellRef, type EditReason } from "@/composables/useGridEditor";
 import { useSchedSession } from "@/composables/useSchedSession";
 import { targetsWithSwaps } from "@/shared/sched/engine/swaps";
@@ -70,7 +71,24 @@ const ctx = computed<GridCtx | null>(() => {
     offSlots: quota.value.offSlots, name: id => personById(id)?.name ?? "?", approved: approved.value,
   };
 });
-const issues = computed(() => (ctx.value ? validate(ctx.value) : []));
+/** 假別餘額不足（ADR-027）：本月有排、扣完低於門檻；只提醒不擋 */
+const leaveWarn = computed(() => {
+  const m = ed.month.value;
+  const out = new Map<string, { text: string; title: string; negative: boolean }>();
+  if (!m) return out;
+  const rules = leaveRulesOf();
+  for (const r of m.roster) {
+    const low = lowBalances(personLedger(r.personId, props.ym), props.ym, rules);
+    if (!low.length) continue;
+    const parts = low.map(x => `${LEAVE_LABELS[x.kind]} ${fmtLeave(x.hours, rules.hoursPerDay)}`);
+    out.set(r.personId, { text: parts[0], title: `扣掉本月已排的假後剩餘：${parts.join("、")}`, negative: low.some(x => x.hours < 0) });
+  }
+  return out;
+});
+const leaveIssues = computed<Issue[]>(() => [...leaveWarn.value].map(([personId, w]) => ({
+  rule: "R13", personId, day: null, message: `${personById(personId)?.name ?? "?"}：${w.title.replace("扣掉本月已排的假後剩餘：", "")}`,
+})));
+const issues = computed(() => [...(ctx.value ? validate(ctx.value) : []), ...leaveIssues.value]);
 watch(issues, v => emit("issues", v), { immediate: true });
 const issueAt = computed(() => {
   const map = new Map<string, Issue[]>();
@@ -399,6 +417,8 @@ const statusOf = (id: string, itemId: string) => {
           <td class="sticky left-0 z-10 bg-surface px-2 py-0.5 whitespace-nowrap border-b border-hairline">
             <span class="font-medium text-fg">{{ personById(r.personId)?.name }}</span>
             <span class="ml-1 text-2xs text-muted">{{ r.flags.active ? flagShort(r.flags) : "非在職" }}</span>
+            <span v-if="leaveWarn.get(r.personId)" class="ml-1 text-2xs" :class="leaveWarn.get(r.personId)!.negative ? 'text-danger' : 'text-warning'"
+              :title="leaveWarn.get(r.personId)!.title">⚠ {{ leaveWarn.get(r.personId)!.text }}</span>
           </td>
           <td v-for="d in days" :key="d" :data-cell="`${r.personId}|${d}`"
             class="cell h-7 text-center font-semibold border-b border-r border-hairline relative cursor-pointer"
