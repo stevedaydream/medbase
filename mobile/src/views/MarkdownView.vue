@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
 import { toast } from '../lib/ui'
@@ -12,6 +12,12 @@ const source = ref('')
 const saved = ref('')
 const opened = ref(false)
 const mode = ref<'read' | 'edit'>('read')
+const fullscreen = ref(false)
+const reader = ref<HTMLElement | null>(null)
+const expandButton = ref<HTMLButtonElement | null>(null)
+const exitButton = ref<HTMLButtonElement | null>(null)
+let previousOverflow = ''
+let previousScroll = 0
 const busy = ref(false)
 const page = ref(0)
 const pdf = ref<File | null>(null)
@@ -20,6 +26,27 @@ const rendered = computed(() => renderMarkdown(source.value, { image: markdownIm
 const fileName = (ext: string) => `${name.value.trim().replace(/[\\/:*?"<>|]/g, '_').replace(/\.(md|markdown|pdf)$/i, '') || '文件'}.${ext}`
 const canSharePdf = computed(() => !!pdf.value && !!navigator.canShare?.({ files: [pdf.value] }))
 watch([source, name], () => { pdf.value = null })
+
+async function enterFullscreen() {
+  const offset = Math.max(0, -(reader.value?.getBoundingClientRect().top ?? 0))
+  previousScroll = window.scrollY
+  previousOverflow = document.body.style.overflow
+  document.body.style.overflow = 'hidden'
+  fullscreen.value = true
+  await nextTick()
+  if (reader.value) reader.value.scrollTop = offset
+  exitButton.value?.focus({ preventScroll: true })
+}
+async function exitFullscreen() {
+  fullscreen.value = false
+  document.body.style.overflow = previousOverflow
+  await nextTick()
+  window.scrollTo(0, previousScroll)
+  expandButton.value?.focus({ preventScroll: true })
+}
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && fullscreen.value) { event.preventDefault(); void exitFullscreen() }
+}
 
 async function openFile(event: Event) {
   const input = event.target as HTMLInputElement
@@ -69,13 +96,20 @@ async function sharePdf() {
 const confirmLeave = () => !dirty.value || window.confirm('修改尚未另存為 .md，確定離開嗎？')
 onBeforeRouteLeave(confirmLeave)
 function beforeUnload(e: BeforeUnloadEvent) { if (dirty.value) { e.preventDefault(); e.returnValue = '' } }
-onMounted(() => window.addEventListener('beforeunload', beforeUnload))
-onUnmounted(() => window.removeEventListener('beforeunload', beforeUnload))
+onMounted(() => {
+  window.addEventListener('beforeunload', beforeUnload)
+  window.addEventListener('keydown', onKeydown)
+})
+onUnmounted(() => {
+  window.removeEventListener('beforeunload', beforeUnload)
+  window.removeEventListener('keydown', onKeydown)
+  if (fullscreen.value) document.body.style.overflow = previousOverflow
+})
 </script>
 
 <template>
   <div class="accent-blue pad-tabbar" data-no-pull>
-    <PageHeader title="Markdown 文件" back />
+    <PageHeader title="Markdown 文件" back :inert="fullscreen" />
     <div class="p-4 space-y-3">
       <label class="flex items-center justify-center h-12 rounded-xl bg-accent text-white font-bold" :class="busy ? 'opacity-40' : ''">
         開啟 .md 檔案
@@ -104,7 +138,19 @@ onUnmounted(() => window.removeEventListener('beforeunload', beforeUnload))
         </div>
         <textarea v-if="mode === 'edit'" v-model="source" :disabled="busy" aria-label="Markdown 內容" spellcheck="false"
           class="w-full min-h-[55vh] p-3 rounded-2xl bg-surface border border-hairline text-base font-mono leading-relaxed outline-none focus:border-accent" />
-        <article v-else class="markdown-paper rounded-2xl bg-surface border border-hairline p-4 text-fg" v-html="rendered.html || '<p>這份文件沒有內容。</p>'" />
+        <template v-else>
+          <button v-show="!fullscreen" ref="expandButton" @click="enterFullscreen" class="w-full h-11 rounded-xl bg-surface border border-hairline text-accent font-bold">⛶ 全螢幕閱讀</button>
+          <article ref="reader" class="markdown-paper bg-surface text-fg"
+            :class="fullscreen ? 'markdown-fullscreen fixed inset-0 z-40 overflow-y-auto overscroll-contain' : 'rounded-2xl border border-hairline'">
+            <div v-if="fullscreen" class="sticky top-0 z-10 bg-surface border-b border-hairline safe-top">
+              <div class="h-12 px-4 flex items-center gap-3">
+                <span class="flex-1 min-w-0 truncate text-sm font-bold">{{ name }}</span>
+                <button ref="exitButton" @click="exitFullscreen" class="h-10 px-3 rounded-lg text-sm text-accent font-bold whitespace-nowrap">退出全螢幕</button>
+              </div>
+            </div>
+            <div class="p-4" v-html="rendered.html || '<p>這份文件沒有內容。</p>'" />
+          </article>
+        </template>
         <p class="text-xs text-muted leading-relaxed">離開頁面後不保留文件，請先另存。相對路徑圖片須改為完整網址；Mermaid 圖表以原始碼顯示。PDF 使用白底排版，文字以影像呈現。</p>
       </template>
     </div>
@@ -113,6 +159,8 @@ onUnmounted(() => window.removeEventListener('beforeunload', beforeUnload))
 
 <style scoped>
 .markdown-paper { overflow-wrap: anywhere; line-height: 1.7; }
+.markdown-fullscreen { margin: 0 !important; padding-bottom: var(--safe-b); }
+.markdown-fullscreen :deep([id]) { scroll-margin-top: calc(var(--safe-t) + 3.5rem); }
 .markdown-paper :deep(p), .markdown-paper :deep(ul), .markdown-paper :deep(ol), .markdown-paper :deep(pre), .markdown-paper :deep(table), .markdown-paper :deep(blockquote) { margin: 0 0 0.8em; }
 .markdown-paper :deep(h1), .markdown-paper :deep(h2), .markdown-paper :deep(h3), .markdown-paper :deep(h4), .markdown-paper :deep(h5), .markdown-paper :deep(h6) { font-weight: 800; margin: 1em 0 0.5em; line-height: 1.35; }
 .markdown-paper :deep(h1) { font-size: 1.8em; } .markdown-paper :deep(h2) { font-size: 1.45em; } .markdown-paper :deep(h3) { font-size: 1.2em; }
