@@ -317,7 +317,7 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
       <p v-if="sLoading" class="py-12 text-center text-sm text-muted">載入中…</p>
       <p v-else-if="!rows.length" class="py-12 text-center text-sm text-muted">此月尚無已發布的班表</p>
       <div v-else ref="tableBox" class="overflow-x-auto">
-        <table class="text-sm border-collapse min-w-max">
+        <table class="text-sm border-separate border-spacing-0 min-w-max">
           <thead>
             <tr>
               <th class="sticky left-0 z-10 bg-sunken px-3 py-2 text-left text-xs text-muted">姓名</th>
@@ -330,10 +330,12 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
           <tbody>
             <tr v-for="r in sortedRows" :key="r.name" class="border-t border-hairline" :class="isMine(r.name) ? 'bg-accent/10' : ''">
               <td class="sticky left-0 z-10 px-3 py-2 font-bold whitespace-nowrap" :class="isMine(r.name) ? 'bg-sunken text-accent shadow-[inset_3px_0_0_var(--color-accent)]' : 'bg-sunken text-fg'">{{ r.name }}</td>
-              <td v-for="(c, i) in r.days.slice(0, sDays)" :key="i" class="text-center py-1.5 text-sm font-bold border border-sunken"
-                :class="isToday(sy, sm, i + 1) ? (hasColor(c) ? 'shadow-[inset_0_0_0_2px_var(--color-accent)]' : 'bg-accent/10') : ''" :style="codeStyle(c)">
-                <template v-if="c">{{ c }}</template>
-                <span v-else class="text-muted">·</span>
+              <td v-for="(c, i) in r.days.slice(0, sDays)" :key="i" class="p-0.5 text-center text-sm font-bold">
+                <div class="min-w-8 h-9 rounded-xl border flex items-center justify-center"
+                  :class="[isToday(sy, sm, i + 1) ? 'border-accent border-2' : 'border-hairline', hasColor(c) ? '' : 'bg-surface']" :style="codeStyle(c)">
+                  <template v-if="c">{{ c }}</template>
+                  <span v-else class="text-muted">·</span>
+                </div>
               </td>
             </tr>
           </tbody>
