@@ -23,6 +23,7 @@ const router = createRouter({
     { path: '/memos/:id', component: () => import('./views/MemoDetailView.vue') },
     { path: '/tools',    component: () => import('./views/ToolsView.vue') },
     { path: '/docs',     component: () => import('./views/DocsView.vue') },
+    { path: '/markdown', component: () => import('./views/MarkdownView.vue') },
     { path: '/research', component: () => import('./views/ResearchView.vue') },
     { path: '/research/:id', component: () => import('./views/ResearchProjectView.vue') },
     { path: '/settings', component: () => import('./views/SettingsView.vue') },

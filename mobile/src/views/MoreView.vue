@@ -4,6 +4,7 @@ import PageHeader from '../components/PageHeader.vue'
 import { routeAllowed } from '../lib/access'
 
 const ALL = [
+  { to: '/markdown', icon: '📄', label: 'Markdown 文件', desc: '開啟 .md、閱讀、編輯與匯出 PDF' },
   { to: '/items',    icon: '📦', label: '自費品項',   desc: '院內碼、價格、醫師套組' },
   { to: '/memos',    icon: '📝', label: '規則備忘錄', desc: '上班規則與注意事項' },
   { to: '/care',     icon: '🩺', label: '處置及臨床工具', desc: '依症狀、數值判讀、藥物、計算工具、手冊' },

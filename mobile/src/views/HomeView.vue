@@ -27,6 +27,7 @@ interface Hit { type: string; title: string; sub: string; to?: string; copyText?
 const index = computed<Hit[]>(() => {
   const t = data.tables
   return [
+    { type: '工具', title: 'Markdown 文件', sub: '.md 編輯器 閱讀模式 另存 匯出 PDF', to: '/markdown' },
     ...t.prescriptions.map(r => ({ type: '處方', title: r.name, sub: [r.category, r.indication].filter(Boolean).join(' · '), to: `/sets/prescriptions/${r.uid}` })),
     ...t.surgery.map(r => ({ type: '手術', title: r.name, sub: [r.category, r.indication].filter(Boolean).join(' · '), to: `/sets/surgery/${r.uid}` })),
     ...t.disease.map(r => ({ type: '疾病', title: r.name, sub: [r.icd10, r.category].filter(Boolean).join(' · '), to: `/sets/disease/${r.uid}` })),
