@@ -4,6 +4,12 @@ import { SEARCH_EXCLUDED, scoreHit, searchHits, focusRoute, type SearchHit } fro
 import { ALL_GROUP_TABLES } from "@/utils/backupRegistry";
 
 describe("全域搜尋來源", () => {
+  it("Child–Pugh 可用中英文關鍵字搜尋並開啟計算工具", async () => {
+    const hits = await PROVIDERS.find(p => p.key === "child-pugh")!.load();
+    for (const query of ["Child", "Pugh", "肝功能", "肝臟", "CTP"]) {
+      expect(searchHits(hits, query)[0]?.route).toBe("/care?tab=tools&t=child-pugh");
+    }
+  });
   it("自動讀到 providers 資料夾的所有來源，key 不重複", () => {
     expect(PROVIDERS.length).toBeGreaterThanOrEqual(11);
     expect(new Set(PROVIDERS.map(p => p.key)).size).toBe(PROVIDERS.length);

@@ -8,6 +8,47 @@ import { checkHbSpec, searchHandbook, visibleEntries, parseHbSpec, emptyHbSpec, 
 const f = (id: string) => FORMULAS.find(x => x.id === id)!;
 
 describe("公式", () => {
+  it("Child–Pugh：五項加總與 A／B／C 分級邊界", () => {
+    const base = { bili: 1, alb: 4, inr: 1, ascites: 1, encephalopathy: 1 };
+    for (const [bili, alb, inr, ascites, encephalopathy, total, grade] of [
+      [1, 4, 1, 1, 1, 5, "A"], [2, 4, 1, 1, 1, 6, "A"],
+      [2, 3, 1, 1, 1, 7, "B"], [2, 3, 1.7, 2, 1, 9, "B"],
+      [2, 3, 1.7, 2, 2, 10, "C"], [4, 2, 3, 3, 3, 15, "C"],
+    ] as const) {
+      const out = f("child-pugh").compute({ bili, alb, inr, ascites, encephalopathy })!;
+      expect(out).toMatchObject({ value: total, unit: "分", note: `Child–Pugh ${grade} 級` });
+      expect(out.breakdown).toHaveLength(5);
+      expect(out.breakdown!.reduce((sum, item) => sum + item.points, 0)).toBe(total);
+    }
+    expect(f("child-pugh").compute(base)?.value).toBe(5);
+    expect(toolById("child-pugh")?.kind).toBe("formula");
+  });
+  it("Child–Pugh：膽紅素、白蛋白與 INR 門檻包含端點", () => {
+    const base = { bili: 1, alb: 4, inr: 1, ascites: 1, encephalopathy: 1 };
+    const cases = [
+      ["bili", 0, 5], ["bili", 1.99, 5], ["bili", 2, 6], ["bili", 3, 6], ["bili", 3.01, 7],
+      ["alb", 3.51, 5], ["alb", 3.5, 6], ["alb", 2.8, 6], ["alb", 2.79, 7],
+      ["inr", 1.69, 5], ["inr", 1.7, 6], ["inr", 2.3, 6], ["inr", 2.31, 7],
+    ] as const;
+    for (const [key, value, total] of cases) {
+      expect(f("child-pugh").compute({ ...base, [key]: value })?.value, `${key}=${value}`).toBe(total);
+    }
+  });
+  it("Child–Pugh：缺值、非有限數值與無效選項不產生分級", () => {
+    const base = { bili: 1, alb: 4, inr: 1, ascites: 1, encephalopathy: 1 };
+    for (const key of Object.keys(base)) {
+      const missing: Record<string, number> = { ...base };
+      delete missing[key];
+      expect(f("child-pugh").compute(missing)).toBeNull();
+      for (const value of [NaN, Infinity, -1]) expect(f("child-pugh").compute({ ...base, [key]: value })).toBeNull();
+    }
+    for (const key of ["alb", "inr", "ascites", "encephalopathy"]) {
+      expect(f("child-pugh").compute({ ...base, [key]: 0 })).toBeNull();
+    }
+    for (const key of ["ascites", "encephalopathy"]) for (const value of [1.5, 4]) {
+      expect(f("child-pugh").compute({ ...base, [key]: value })).toBeNull();
+    }
+  });
   it("MAP、校正鈣、Anion gap（含白蛋白校正）", () => {
     expect(f("map").compute({ sbp: 120, dbp: 60 })).toMatchObject({ value: 80 });
     expect(f("map").compute({ sbp: 60, dbp: 120 })).toBeNull();

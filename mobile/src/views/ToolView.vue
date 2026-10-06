@@ -43,7 +43,7 @@ const out = computed(() => formula.value?.compute(Object.fromEntries(Object.entr
       <label v-for="i in formula.inputs" :key="i.key" class="block">
         <span class="text-sm font-bold text-fg">{{ i.label }} <span class="text-muted font-normal">{{ i.unit }}</span></span>
         <div v-if="i.options" class="mt-1 grid grid-cols-2 gap-2">
-          <button v-for="o in i.options" :key="o.value" @click="inputs[i.key] = String(o.value)" class="h-11 rounded-xl border font-bold"
+          <button v-for="o in i.options" :key="o.value" @click="inputs[i.key] = String(o.value)" class="min-h-11 px-2 py-2 rounded-xl border font-bold"
             :class="inputs[i.key] === String(o.value) ? 'bg-accent text-white border-accent' : 'bg-sunken border-hairline'">{{ o.label }}</button>
         </div>
         <input v-else v-model="inputs[i.key]" inputmode="decimal" class="mt-1 w-full h-12 px-4 rounded-xl bg-sunken border border-hairline text-xl font-mono" />
@@ -51,7 +51,13 @@ const out = computed(() => formula.value?.compute(Object.fromEntries(Object.entr
       <div v-if="out" class="p-4 rounded-2xl bg-accent/10 border border-accent/30">
         <p class="text-3xl font-black text-accent font-mono">{{ out.value }} <span class="text-base">{{ out.unit }}</span></p>
         <p v-if="out.note" class="text-sm text-fg-secondary mt-1">{{ out.note }}</p>
+        <dl v-if="out.breakdown" class="mt-3 space-y-1 text-sm text-fg-secondary">
+          <div v-for="item in out.breakdown" :key="item.label" class="flex justify-between gap-3">
+            <dt>{{ item.label }}</dt><dd>{{ item.points }} 分</dd>
+          </div>
+        </dl>
       </div>
+      <p v-else class="text-sm text-muted">請完整輸入有效數值並選擇各項條件後顯示結果</p>
       <p v-if="formula.normal" class="text-xs text-muted">參考：{{ formula.normal }}</p>
       <a :href="formula.ref.url" target="_blank" rel="noopener" class="block text-xs underline text-muted">📚 {{ formula.ref.title }}</a>
     </div>

@@ -11,7 +11,7 @@ export interface Formula {
   inputs: FormulaInput[];
   formula: string;
   /** 缺值或不合理時回傳 null */
-  compute: (v: Record<string, number>) => { value: number; unit: string; note?: string; extra?: Record<string, number> } | null;
+  compute: (v: Record<string, number>) => { value: number; unit: string; note?: string; extra?: Record<string, number>; breakdown?: { label: string; points: number }[] } | null;
   normal?: string;
   ref: { title: string; url: string };
   /** 只給數值判讀卡用，不列在計算工具 */
@@ -160,6 +160,38 @@ export const FORMULAS: Formula[] = [
       return { value: s, unit: "分", note: s <= 1 ? "0–1 分為極低風險（指引：急診可考慮門診追蹤）" : "≥2 分需住院評估與處置" };
     },
     ref: { title: "MDCalc: Glasgow-Blatchford Bleeding Score (GBS)", url: "https://www.mdcalc.com/calc/518/glasgow-blatchford-bleeding-score-gbs" },
+  },
+  {
+    id: "child-pugh", name: "Child–Pugh 肝功能分級",
+    inputs: [
+      { key: "bili", label: "總膽紅素", unit: "mg/dL" },
+      { key: "alb", label: "白蛋白", unit: "g/dL" },
+      { key: "inr", label: "INR", unit: "" },
+      { key: "ascites", label: "腹水", unit: "", options: [
+        { value: 1, label: "無" }, { value: 2, label: "輕度／利尿劑可控制" }, { value: 3, label: "利尿劑治療後仍中重度" },
+      ] },
+      { key: "encephalopathy", label: "肝性腦病變", unit: "", options: [
+        { value: 1, label: "無" }, { value: 2, label: "第 I–II 級" }, { value: 3, label: "第 III–IV 級" },
+      ] },
+    ],
+    formula: "總膽紅素、白蛋白、INR、腹水、肝性腦病變各 1–3 分，加總 5–15 分",
+    compute: v => {
+      if (!ok(v.bili, v.alb, v.inr, v.ascites, v.encephalopathy)
+        || v.bili < 0 || v.alb <= 0 || v.inr <= 0
+        || ![1, 2, 3].includes(v.ascites) || ![1, 2, 3].includes(v.encephalopathy)) return null;
+      const breakdown = [
+        { label: "總膽紅素", points: v.bili < 2 ? 1 : v.bili <= 3 ? 2 : 3 },
+        { label: "白蛋白", points: v.alb > 3.5 ? 1 : v.alb >= 2.8 ? 2 : 3 },
+        { label: "INR", points: v.inr < 1.7 ? 1 : v.inr <= 2.3 ? 2 : 3 },
+        { label: "腹水", points: v.ascites },
+        { label: "肝性腦病變", points: v.encephalopathy },
+      ];
+      const total = breakdown.reduce((sum, item) => sum + item.points, 0);
+      const grade = total <= 6 ? "A" : total <= 9 ? "B" : "C";
+      return { value: total, unit: "分", note: `Child–Pugh ${grade} 級`, breakdown };
+    },
+    normal: "A 級 5–6 分；B 級 7–9 分；C 級 10–15 分。各項 1／2／3 分門檻：總膽紅素 <2／2–3／>3 mg/dL；白蛋白 >3.5／2.8–3.5／<2.8 g/dL；INR <1.7／1.7–2.3／>2.3。適用肝硬化的一般計分；膽汁鬱積性疾病可能採不同膽紅素門檻，抗凝血治療可能影響 INR，須由臨床判斷。",
+    ref: { title: "Merck Manual：Child–Turcotte–Pugh 計分", url: "https://www.merckmanuals.com/professional/multimedia/table/child-turcotte-pugh-scoring-system" },
   },
   {
     id: "pump", name: "泵速換算：劑量 → mL/h",
