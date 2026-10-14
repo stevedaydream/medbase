@@ -23,6 +23,8 @@ import {
 type Tab = 'mine' | 'all' | 'pre' | 'staff'
 const tab = ref<Tab>('mine')
 const DOW = ['日', '一', '二', '三', '四', '五', '六']
+/** 醫院公告休假下載頁（院內網路才連得到） */
+const HOSPITAL_LEAVE_URL = 'https://cghweb.cgh.org.tw/unit/A1000/A1500/favorite.htm'
 const today = new Date()
 const ym = (y: number, m: number) => `${y}${String(m).padStart(2, '0')}`
 function shiftMonth(y: number, m: number, d: number) { const t = new Date(y, m - 1 + d, 1); return { y: t.getFullYear(), m: t.getMonth() + 1 } }
@@ -347,6 +349,15 @@ const fmtTime = (iso: string) => { const d = new Date(iso); return `${d.getMonth
 
     <!-- ── 預班 ── -->
     <section v-else class="py-3">
+      <a :href="HOSPITAL_LEAVE_URL" target="_blank" rel="noopener"
+        class="mx-4 mb-3 flex items-center gap-3 p-3 rounded-2xl bg-surface border border-hairline active:bg-raised">
+        <span class="text-xl">📅</span>
+        <span class="flex-1 min-w-0">
+          <span class="block text-sm font-bold text-fg">醫院公告休假</span>
+          <span class="block text-xs text-muted">國定假日／院定休假（休假日仍須排值班）・需院內網路</span>
+        </span>
+        <span class="text-muted">↗</span>
+      </a>
       <p v-if="!sched.loaded || (sched.syncing && !openYms.length)" class="py-12 text-center text-sm text-muted">載入中…</p>
       <p v-else-if="!sched.me" class="mx-4 p-4 rounded-2xl bg-surface border border-hairline text-sm text-fg-secondary">
         你（HIS {{ session.user?.his }}）不在排班名單中，無法登記預班，請洽排班者。
