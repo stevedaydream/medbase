@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { RULES } from "../gas";
+import { SHARED_KEYS } from "../../../src/shared/sched/groups";
 
 const user = { his: "111", name: "甲", fp: "x", exp: 0 };
 const ok = (action: string, args: Record<string, unknown>) => {
@@ -16,6 +17,9 @@ describe("/api/gas 白名單（排班 v3）", () => {
     expect(ok("schGet", { keys: ["prebook:202612", "est:202612", "people", "log:global"] })).toEqual({ keys: ["prebook:202612", "est:202612", "people", "log:global"] });
     expect(ok("schGet", { keys: ["Physicians"] })).toBeNull();
     expect(ok("schGet", { keys: [] })).toBeNull();
+  });
+  it("schGet 接受全部共用文件（漏一個會讓整批下載被拒）", () => {
+    expect(ok("schGet", { keys: [...SHARED_KEYS] })).toEqual({ keys: [...SHARED_KEYS] });
   });
   it("schPut 檢查 key 與 json", () => {
     expect(ok("schPut", { items: [{ key: "month:202612", json: "{}", base: null }] })).toEqual({ items: [{ key: "month:202612", json: "{}", base: null }] });
