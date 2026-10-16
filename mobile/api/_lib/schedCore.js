@@ -669,35 +669,14 @@ function inItem(it, code, ym, day) {
   if (it.dow && !it.dow.includes(dowOf(ym, day))) return 0;
   return 1;
 }
-function swapAdjust(m, items) {
-  const adj = {};
-  const add = (id, k, v) => {
-    if (!v) return;
-    adj[id] ??= {};
-    adj[id][k] = (adj[id][k] ?? 0) + v;
-  };
-  for (const s of m.swaps ?? []) {
-    for (const it of items) {
-      const d = inItem(it, s.bCode, m.ym, s.day) - inItem(it, s.aCode, m.ym, s.day);
-      add(s.a, it.id, d);
-      add(s.b, it.id, -d);
-    }
-  }
-  return adj;
-}
-function targetsWithSwaps(quotas, m, items) {
-  const adj = swapAdjust(m, items);
-  const out = {};
-  for (const [id, q] of Object.entries(quotas)) {
-    out[id] = { ...q };
-    for (const [k, v] of Object.entries(adj[id] ?? {})) out[id][k] = (out[id][k] ?? 0) + v;
-  }
-  return out;
+function debtSwaps(m) {
+  const prefill = new Set((m.prefillSwaps ?? []).map((x) => x.id));
+  return (m.swaps ?? []).filter((s) => !prefill.has(s.id));
 }
 function settleDebts(debts, m, items) {
   const out = debts.map((d) => ({ ...d }));
   const pair = /* @__PURE__ */ new Map();
-  for (const s of m.swaps ?? []) {
+  for (const s of debtSwaps(m)) {
     if (s.settled) continue;
     for (const it of items) {
       const dA = inItem(it, s.bCode, m.ym, s.day) - inItem(it, s.aCode, m.ym, s.day);
@@ -947,8 +926,7 @@ function noticeText(n) {
   return `${md$1(n.ym, n.day)} 的預班「${n.oldValue}」已改為「${n.newValue}」：${n.reason}`;
 }
 function monthTargets(s, m) {
-  const base = m.status === "published" && m.frozenQuotas ? m.frozenQuotas : computeQuotas({ month: m, holidays: s.holidays, shifts: s.shifts, items: s.quotaItems, cell: cellFnOf(m, s.prebooks[m.ym]) }).quotas;
-  return targetsWithSwaps(base, m, s.quotaItems.filter((i) => i.enabled));
+  return m.status === "published" && m.frozenQuotas ? m.frozenQuotas : computeQuotas({ month: m, holidays: s.holidays, shifts: s.shifts, items: s.quotaItems, cell: cellFnOf(m, s.prebooks[m.ym]) }).quotas;
 }
 function prefillSwapCautions(s, ym, to, cells) {
   const out = [];
