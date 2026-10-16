@@ -1,17 +1,17 @@
-/** 班別配色（沿用舊排班頁色票，班表格底色／字色） */
+/** 班別配色（淺色底＋深色字，班表格底色／字色） */
 export const COLOR_PALETTE = [
-  { key: "blue",    bg: "#1e3a5f", text: "#93c5fd" },
-  { key: "violet",  bg: "#2e1065", text: "#c4b5fd" },
-  { key: "emerald", bg: "#064e3b", text: "#6ee7b7" },
-  { key: "gray",    bg: "#374151", text: "#9ca3af" },
-  { key: "red",     bg: "#7f1d1d", text: "#fca5a5" },
-  { key: "orange",  bg: "#431407", text: "#fb923c" },
-  { key: "yellow",  bg: "#422006", text: "#fcd34d" },
-  { key: "pink",    bg: "#500724", text: "#f9a8d4" },
-  { key: "cyan",    bg: "#0c4a6e", text: "#7dd3fc" },
-  { key: "rose",    bg: "#4c0519", text: "#fda4af" },
-  { key: "amber",   bg: "#451a03", text: "#fbbf24" },
-  { key: "lime",    bg: "#1a2e05", text: "#bef264" },
+  { key: "blue",    bg: "#bfdbfe", text: "#1e3a8a" },
+  { key: "violet",  bg: "#ddd6fe", text: "#4c1d95" },
+  { key: "emerald", bg: "#a7f3d0", text: "#064e3b" },
+  { key: "gray",    bg: "#e5e7eb", text: "#374151" },
+  { key: "red",     bg: "#fecaca", text: "#7f1d1d" },
+  { key: "orange",  bg: "#fed7aa", text: "#7c2d12" },
+  { key: "yellow",  bg: "#fef08a", text: "#713f12" },
+  { key: "pink",    bg: "#fbcfe8", text: "#831843" },
+  { key: "cyan",    bg: "#a5f3fc", text: "#164e63" },
+  { key: "rose",    bg: "#fecdd3", text: "#881337" },
+  { key: "amber",   bg: "#fde68a", text: "#78350f" },
+  { key: "lime",    bg: "#d9f99d", text: "#365314" },
 ];
 
 export function colorOf(key: string) {
