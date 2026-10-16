@@ -18,6 +18,14 @@ describe("換班", () => {
     expect(swapAdjust(m, DEFAULT_QUOTA_ITEMS).a).toEqual({ N: 1, OFF: -1, W6OFF: -1 });
   });
 
+  it("預填換人轉來的換班不調整配額、不產生欠班", () => {
+    const s = sw(14, "a", "N", "b", "");
+    const m: MonthDoc = { ...month("202611", [s, sw(3, "a", "D", "b", "S1")]),
+      prefillSwaps: [{ id: s.id, group: "g", day: 14, code: "N", from: "a", to: "b", at: "", by: "", note: "" }] };
+    expect(swapAdjust(m, DEFAULT_QUOTA_ITEMS)).toEqual({ a: { D: -1 }, b: { D: 1 } });
+    expect(settleDebts([], m, DEFAULT_QUOTA_ITEMS).map(d => `${d.from}->${d.to} ${d.item}×${d.qty}`)).toEqual(["a->b D×1"]);
+  });
+
   it("當月一來一往抵銷，不產生欠班", () => {
     const m = month("202611", [sw(3, "a", "D", "b", "S1"), sw(10, "a", "S1", "b", "D")]);
     expect(settleDebts([], m, DEFAULT_QUOTA_ITEMS)).toEqual([]);

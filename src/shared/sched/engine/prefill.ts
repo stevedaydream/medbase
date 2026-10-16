@@ -289,7 +289,7 @@ export function startScheduling(
       m.markers[it.id] = { v: m.vOverride?.[it.id] ?? handoverV(it, prev.roster, prev.markers[it.id], m.roster), x: null };
     }
   }
-  // 預填換人轉成換班紀錄（原本的人該項 −1、接手的人 +1），配額目標與欠班沿用換班機制
+  // 預填換人記入換班紀錄（id 同預填換人）；只是交給別人上，不調整配額目標、不結算欠班（engine/swaps.ts）
   for (const sw of m.prefillSwaps ?? []) {
     if ((m.schedule[sw.to]?.[sw.day - 1] ?? "") !== sw.code) continue;
     (m.swaps ??= []).push({ id: sw.id, day: sw.day, a: sw.from, b: sw.to, aCode: sw.code, bCode: "", at: sw.at, by: sw.by, note: sw.note || "預填換人" });

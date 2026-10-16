@@ -11,6 +11,12 @@ function inItem(it: QuotaItem, code: string, ym: string, day: number): number {
   return 1;
 }
 
+/** 計入配額與欠班的換班：預填換人轉來的（id 同預填換人）只是把預填的班交給別人上，配額總數不變 */
+function quotaSwaps(m: Pick<MonthDoc, "swaps" | "prefillSwaps">) {
+  const prefill = new Set((m.prefillSwaps ?? []).map(x => x.id));
+  return (m.swaps ?? []).filter(s => !prefill.has(s.id));
+}
+
 /** personId → 項目 → 目標調整量（換班後 a 拿到 b 的班、b 拿到 a 的班） */
 export function swapAdjust(m: MonthDoc, items: QuotaItem[]): Record<string, Record<string, number>> {
   const adj: Record<string, Record<string, number>> = {};
@@ -19,7 +25,7 @@ export function swapAdjust(m: MonthDoc, items: QuotaItem[]): Record<string, Reco
     adj[id] ??= {};
     adj[id][k] = (adj[id][k] ?? 0) + v;
   };
-  for (const s of m.swaps ?? []) {
+  for (const s of quotaSwaps(m)) {
     for (const it of items) {
       const d = inItem(it, s.bCode, m.ym, s.day) - inItem(it, s.aCode, m.ym, s.day);
       add(s.a, it.id, d);
@@ -49,7 +55,7 @@ export function targetsWithSwaps(
 export function settleDebts(debts: DebtRec[], m: MonthDoc, items: QuotaItem[]): DebtRec[] {
   const out = debts.map(d => ({ ...d }));
   const pair = new Map<string, number>(); // `${from}|${to}|${item}` → 數量（from 欠 to）
-  for (const s of m.swaps ?? []) {
+  for (const s of quotaSwaps(m)) {
     if (s.settled) continue;
     for (const it of items) {
       const dA = inItem(it, s.bCode, m.ym, s.day) - inItem(it, s.aCode, m.ym, s.day);

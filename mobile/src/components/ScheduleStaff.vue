@@ -434,7 +434,7 @@ const mD = computed(() => Number(ym.value.slice(4)))
       <div v-if="pSwap" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
         <div class="w-full max-w-sm bg-surface rounded-2xl p-5 space-y-3 text-sm">
           <p class="font-bold text-base">預填換人：{{ pSwap.cells.map(c => `${mD}/${c.day}`).join('、') }} {{ pSwap.cells[0].code }}</p>
-          <p class="text-fg-secondary">原本由 {{ nameOf(pSwap.from) }} 上。輪序照舊，開始排班時記為換班（{{ nameOf(pSwap.from) }} −1、代班者 +1）。⚠ 只提示、不阻擋。</p>
+          <p class="text-fg-secondary">原本由 {{ nameOf(pSwap.from) }} 上。輪序照舊，配額不變、不產生欠班。⚠ 只提示、不阻擋。</p>
           <select v-model="pSwapTo" class="w-full h-11 px-3 rounded-xl bg-sunken border border-hairline">
             <option value="">選擇代班者…</option>
             <option v-for="id in pSwapCandidates" :key="id" :value="id">
@@ -509,7 +509,7 @@ const mD = computed(() => Number(ym.value.slice(4)))
           </template>
           <template v-else-if="drawer === 'swap'">
             <template v-if="prefillGroups.length">
-              <p class="font-bold">預填換人{{ month?.status === 'open' ? '' : '（已轉為換班）' }}</p>
+              <p class="font-bold">預填換人{{ month?.status === 'open' ? '' : '（已記入換班紀錄，配額不變）' }}</p>
               <div v-for="g in prefillGroups" :key="g.group" class="p-2 rounded-lg bg-sunken">
                 <div class="flex items-center gap-2">
                   <span class="flex-1">{{ g.days }} {{ g.code }}：{{ nameOf(g.from) }} → {{ nameOf(g.to) }}</span>

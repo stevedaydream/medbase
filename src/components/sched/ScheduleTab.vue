@@ -309,7 +309,7 @@ const lockTime = computed(() => lock.value ? new Date(lock.value.at).toLocaleStr
         <h3 class="text-sm font-semibold text-fg">系統預填換人：{{ pSwap.cells.map(c => `${Number(ym.slice(4))}/${c.day}`).join("、") }} {{ pSwap.cells[0].code }}</h3>
         <p class="text-fg-secondary">
           原本由 {{ personById(pSwap.from)?.name }} 上，改由下列人員代上。輪序照原本計算，下一次仍輪到原本的下一位；
-          開始排班時自動記為換班（{{ personById(pSwap.from)?.name }} 該項 −1、代班者 +1），當月沒換回來會記成欠班。
+          開始排班時記入換班紀錄，但不改變任何人的配額、也不產生欠班。
           ⚠ 標示的注意事項不會阻擋，只記入換人紀錄。
         </p>
         <select v-model="pSwapTo" class="sched-input w-full">

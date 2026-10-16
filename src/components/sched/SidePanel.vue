@@ -108,7 +108,7 @@ defineExpose({ showLog: () => { tab.value = "log"; onlyCell.value = true; } });
       <!-- 換班與欠班 -->
       <div v-else-if="tab === 'swap'" class="p-2 space-y-3">
         <div v-if="month?.prefillSwaps?.length">
-          <div class="font-semibold text-fg mb-1">預填換人{{ month.status === 'open' ? "" : "（已於開始排班轉為換班）" }}</div>
+          <div class="font-semibold text-fg mb-1">預填換人{{ month.status === 'open' ? "" : "（已記入換班紀錄，配額不變）" }}</div>
           <div v-for="g in prefillGroups" :key="g.group" class="px-2 py-1.5 rounded bg-elevated mb-1">
             <div class="flex items-center gap-1">
               <span class="text-fg">{{ g.days }} {{ g.code }}：{{ nm(g.from) }} → {{ nm(g.to) }}</span>

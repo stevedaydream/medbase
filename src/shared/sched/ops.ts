@@ -527,7 +527,7 @@ export function opAddPrefillSwap(
   let p: OpPatch = { ...emptyPatch(), months: [m] };
   p.logs.push({ scope: ym, action: "預填換人", detail: `${when} ${cells[0].code}：${nm(from)} → ${nm(to)}${fullNote ? `（${fullNote}）` : ""}`, actor });
   p.notices.push(notice(to, `${when} 的 ${cells[0].code} 改由你代 ${nm(from)} 上${note ? `（${note}）` : ""}`, now));
-  p.notices.push(notice(from, `${when} 的 ${cells[0].code} 已由 ${nm(to)} 代上，開始排班時記為換班`, now));
+  p.notices.push(notice(from, `${when} 的 ${cells[0].code} 已由 ${nm(to)} 代上（配額不變）`, now));
   p = mergePatch(p, opRecompute(applyToState(s, p), ym, `預填換人（${when}）`, now));
   return p;
 }
