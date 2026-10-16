@@ -1,5 +1,5 @@
 /**
- * 換班對配額目標的調整，與跨月欠班帳（schedular.md §9）。
+ * 換班的跨月欠班帳（schedular.md §9）。換班不改配額目標，只在發布時結算欠班。
  */
 import type { MonthDoc, QuotaItem, DebtRec } from "../types";
 import { newId } from "../types";
@@ -11,41 +11,10 @@ function inItem(it: QuotaItem, code: string, ym: string, day: number): number {
   return 1;
 }
 
-/** 計入配額與欠班的換班：預填換人轉來的（id 同預填換人）只是把預填的班交給別人上，配額總數不變 */
-function quotaSwaps(m: Pick<MonthDoc, "swaps" | "prefillSwaps">) {
+/** 計入欠班的換班：預填換人轉來的（id 同預填換人）只是把預填的班交給別人上，不記欠班 */
+function debtSwaps(m: Pick<MonthDoc, "swaps" | "prefillSwaps">) {
   const prefill = new Set((m.prefillSwaps ?? []).map(x => x.id));
   return (m.swaps ?? []).filter(s => !prefill.has(s.id));
-}
-
-/** personId → 項目 → 目標調整量（換班後 a 拿到 b 的班、b 拿到 a 的班） */
-export function swapAdjust(m: MonthDoc, items: QuotaItem[]): Record<string, Record<string, number>> {
-  const adj: Record<string, Record<string, number>> = {};
-  const add = (id: string, k: string, v: number) => {
-    if (!v) return;
-    adj[id] ??= {};
-    adj[id][k] = (adj[id][k] ?? 0) + v;
-  };
-  for (const s of quotaSwaps(m)) {
-    for (const it of items) {
-      const d = inItem(it, s.bCode, m.ym, s.day) - inItem(it, s.aCode, m.ym, s.day);
-      add(s.a, it.id, d);
-      add(s.b, it.id, -d);
-    }
-  }
-  return adj;
-}
-
-/** 配額＋換班調整 */
-export function targetsWithSwaps(
-  quotas: Record<string, Record<string, number>>, m: MonthDoc, items: QuotaItem[],
-): Record<string, Record<string, number>> {
-  const adj = swapAdjust(m, items);
-  const out: Record<string, Record<string, number>> = {};
-  for (const [id, q] of Object.entries(quotas)) {
-    out[id] = { ...q };
-    for (const [k, v] of Object.entries(adj[id] ?? {})) out[id][k] = (out[id][k] ?? 0) + v;
-  }
-  return out;
 }
 
 /**
@@ -55,7 +24,7 @@ export function targetsWithSwaps(
 export function settleDebts(debts: DebtRec[], m: MonthDoc, items: QuotaItem[]): DebtRec[] {
   const out = debts.map(d => ({ ...d }));
   const pair = new Map<string, number>(); // `${from}|${to}|${item}` → 數量（from 欠 to）
-  for (const s of quotaSwaps(m)) {
+  for (const s of debtSwaps(m)) {
     if (s.settled) continue;
     for (const it of items) {
       const dA = inItem(it, s.bCode, m.ym, s.day) - inItem(it, s.aCode, m.ym, s.day);

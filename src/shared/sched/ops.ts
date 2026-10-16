@@ -9,7 +9,7 @@ import { newId, clone, cellKey, emptyFlags, emptyMonth, CONSTRAINT_MARKS, OPEN_M
 import { nextYm, prevYm, toYm, ymParts, daysIn } from "./calendar";
 import { recomputeFrom, startScheduling, cellFnOf, newMonthFrom, type SchedSnapshot, type Notice } from "./engine/prefill";
 import { computeQuotas } from "./engine/quota";
-import { settleDebts, targetsWithSwaps } from "./engine/swaps";
+import { settleDebts } from "./engine/swaps";
 
 export interface OpsState extends SchedSnapshot {
   rules: RuleParams;
@@ -374,12 +374,11 @@ export function lockDecision(cur: LockInfo | null, machine: string, nowMs: numbe
   return { ok: stale || force, takeover: stale || force, stale };
 }
 
-/** 配額目標（已發布用定案值）＋換班調整 */
+/** 配額目標（已發布用定案值）；換班不改配額，只在發布時記欠班 */
 export function monthTargets(s: OpsState, m: MonthDoc): Record<string, Record<string, number>> {
-  const base = m.status === "published" && m.frozenQuotas
+  return m.status === "published" && m.frozenQuotas
     ? m.frozenQuotas
     : computeQuotas({ month: m, holidays: s.holidays, shifts: s.shifts, items: s.quotaItems, cell: cellFnOf(m, s.prebooks[m.ym]) }).quotas;
-  return targetsWithSwaps(base, m, s.quotaItems.filter(i => i.enabled));
 }
 
 /** 發布到手機的列（姓名＋每日班別） */

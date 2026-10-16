@@ -4,7 +4,6 @@ import { useSchedStore, personById, saveMonth, appendLog, actorName, recompute, 
 import { lowBalances, fmtLeave, LEAVE_LABELS } from "@/shared/sched/leave";
 import { useGridEditor, type Layer, type CellRef, type EditReason } from "@/composables/useGridEditor";
 import { useSchedSession } from "@/composables/useSchedSession";
-import { targetsWithSwaps } from "@/shared/sched/engine/swaps";
 import { computeQuotas } from "@/shared/sched/engine/quota";
 import { cellFnOf } from "@/shared/sched/engine/prefill";
 import { needOf } from "@/shared/sched/engine/staffing";
@@ -48,8 +47,7 @@ const quota = computed(() => {
 const targets = computed(() => {
   const m = ed.month.value;
   if (!m) return {};
-  const base = m.status === "published" && m.frozenQuotas ? m.frozenQuotas : quota.value?.quotas ?? {};
-  return targetsWithSwaps(base, m, items.value);
+  return m.status === "published" && m.frozenQuotas ? m.frozenQuotas : quota.value?.quotas ?? {};
 });
 const approved = computed(() => new Set((ed.month.value?.changeLog ?? []).filter(c => c.approved).map(c => c.personId)));
 const changedCells = computed(() => new Set((ed.month.value?.changeLog ?? []).map(c => `${c.personId}|${c.day}`)));

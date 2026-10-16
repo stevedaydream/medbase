@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { swapAdjust, targetsWithSwaps, settleDebts } from "./swaps";
+import { settleDebts } from "./swaps";
 import { DEFAULT_QUOTA_ITEMS, emptyMonth, type MonthDoc, type SwapRec } from "../types";
 
 const sw = (day: number, a: string, aCode: string, b: string, bCode: string): SwapRec =>
@@ -7,22 +7,10 @@ const sw = (day: number, a: string, aCode: string, b: string, bCode: string): Sw
 const month = (ym: string, swaps: SwapRec[]): MonthDoc => ({ ...emptyMonth(ym), swaps });
 
 describe("換班", () => {
-  it("同日互換：甲 D↔乙 OFF → 甲 D−1 OFF+1、乙相反", () => {
-    const m = month("202611", [sw(3, "a", "D", "b", "OFF")]);
-    expect(swapAdjust(m, DEFAULT_QUOTA_ITEMS)).toEqual({ a: { D: -1, OFF: 1 }, b: { D: 1, OFF: -1 } });
-    expect(targetsWithSwaps({ a: { D: 4, OFF: 10 }, b: { D: 4, OFF: 10 } }, m, DEFAULT_QUOTA_ITEMS))
-      .toEqual({ a: { D: 3, OFF: 11 }, b: { D: 5, OFF: 9 } });
-  });
-  it("週六互換也調整週六 OFF", () => {
-    const m = month("202611", [sw(7, "a", "OFF", "b", "N")]); // 11/7 週六
-    expect(swapAdjust(m, DEFAULT_QUOTA_ITEMS).a).toEqual({ N: 1, OFF: -1, W6OFF: -1 });
-  });
-
-  it("預填換人轉來的換班不調整配額、不產生欠班", () => {
+  it("預填換人轉來的換班不產生欠班", () => {
     const s = sw(14, "a", "N", "b", "");
     const m: MonthDoc = { ...month("202611", [s, sw(3, "a", "D", "b", "S1")]),
       prefillSwaps: [{ id: s.id, group: "g", day: 14, code: "N", from: "a", to: "b", at: "", by: "", note: "" }] };
-    expect(swapAdjust(m, DEFAULT_QUOTA_ITEMS)).toEqual({ a: { D: -1 }, b: { D: 1 } });
     expect(settleDebts([], m, DEFAULT_QUOTA_ITEMS).map(d => `${d.from}->${d.to} ${d.item}×${d.qty}`)).toEqual(["a->b D×1"]);
   });
 
