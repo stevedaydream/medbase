@@ -40,7 +40,7 @@ export function setItemsOf(r: Row): SetItemRow[] {
 
 export const setRecs = computed<SetRec[]>(() => data.tables.sets.map(r => ({
   setId: r.uid,
-  setName: r.name,
+  setName: r.surgery_type?.trim() || r.name, // 與品項套組頁一致：優先顯示術式名稱
   doctorName: r.physician_name || NO_DOCTOR,
   codes: new Set(setItemsOf(r).map(i => i.hospital_code).filter(Boolean)),
 })).sort((a, b) => a.doctorName.localeCompare(b.doctorName, 'zh-TW') || a.setName.localeCompare(b.setName, 'zh-TW')))

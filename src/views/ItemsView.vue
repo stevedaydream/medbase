@@ -82,7 +82,8 @@ async function loadSets() {
   try {
     const db = await getDb();
     const rows = await db.select<{ set_id: number; set_name: string; doctor_name: string; hospital_code: string | null }[]>(`
-      SELECT si.set_id, s.name AS set_name, COALESCE(p.name,'') AS doctor_name, si.hospital_code
+      SELECT si.set_id, COALESCE(NULLIF(TRIM(s.surgery_type),''), s.name) AS set_name, -- 與品項套組頁一致：優先顯示術式名稱
+      COALESCE(p.name,'') AS doctor_name, si.hospital_code
       FROM set_items si
       JOIN sets s ON s.id = si.set_id
       LEFT JOIN physicians p ON p.id = s.physician_id
