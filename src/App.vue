@@ -296,21 +296,35 @@ const updateNotes        = ref("");
 const updateDownloading  = ref(false);
 let _updateObj: Awaited<ReturnType<typeof checkUpdate>> | null = null;
 
-onMounted(async () => {
+const today = () => new Date().toLocaleDateString("sv-SE");
+let lastCheckDay = "";
+/** 按「稍後」的版本與日期：同一版當天不再跳出 */
+let dismissed = { version: "", day: "" };
+
+/** 檢查 GitHub 更新；startup＝啟動時（已是最新版會提示），其餘為每日背景檢查 */
+async function runUpdateCheck(startup: boolean) {
+  if (updateDialogOpen.value || updateDownloading.value) return;
+  lastCheckDay = today();
   try {
     const update = await checkUpdate();
     if (update?.available) {
+      if (!startup && dismissed.version === update.version && dismissed.day === today()) return;
       _updateObj          = update;
       updateVersion.value = update.version ?? "";
       updateNotes.value   = update.body ?? "";
       updateDialogOpen.value = true;
-    } else {
+    } else if (startup) {
       showToast("已是最新版本");
     }
   } catch {
     // 開發模式或網路失敗：靜默略過，不打擾使用者
   }
-});
+}
+
+// App 長時間開著：每小時看一次日期，跨日（含睡眠喚醒後）再檢查一次
+const dailyUpdateTimer = setInterval(() => { if (today() !== lastCheckDay) void runUpdateCheck(false); }, 3600_000);
+onUnmounted(() => clearInterval(dailyUpdateTimer));
+onMounted(() => runUpdateCheck(true));
 
 async function installUpdate() {
   if (!_updateObj) return;
@@ -326,6 +340,7 @@ async function installUpdate() {
 
 function dismissUpdate() {
   updateDialogOpen.value = false;
+  dismissed = { version: updateVersion.value, day: today() };
 }
 </script>
 
