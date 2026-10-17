@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from "vue";
-import { getDb } from "@/db";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { getDb, dbWrite } from "@/db";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { useUiSettings, FONT_SIZE_LABELS, THEME_LABELS, type FontSize, type Theme } from "@/stores/uiSettings";
 import { checkCloudVersions, requestImmediateSync } from "@/composables/useSyncMonitor";
@@ -175,22 +175,40 @@ interface ChangelogEntry { version: string; date: string; body: string }
 const changelog         = ref<ChangelogEntry[]>([]);
 const changelogFetchedAt = ref("");
 const changelogLoading  = ref(false);
+const todayStr = () => new Date().toLocaleDateString("sv-SE");
+
+/** 最新三筆完整顯示，其餘依年月收折 */
+const CHANGELOG_RECENT = 3;
+const changelogSections = computed(() => {
+  const out: { label: string | null; entries: ChangelogEntry[] }[] = [{ label: null, entries: changelog.value.slice(0, CHANGELOG_RECENT) }];
+  for (const e of changelog.value.slice(CHANGELOG_RECENT)) {
+    const label = `${e.date.slice(0, 4)} 年 ${Number(e.date.slice(5, 7))} 月`;
+    const last = out[out.length - 1];
+    if (last.label === label) last.entries.push(e);
+    else out.push({ label, entries: [e] });
+  }
+  return out;
+});
 
 onMounted(async () => {
+  let fetchedDay = "";
   try {
     const db = await getDb();
     const rows = await db.select<{ key: string; value: string }[]>(
-      "SELECT key, value FROM app_settings WHERE key IN (?, ?)",
-      ["changelog_cache", "changelog_fetched_at"]
+      "SELECT key, value FROM app_settings WHERE key IN (?, ?, ?)",
+      ["changelog_cache", "changelog_fetched_at", "changelog_fetched_day"]
     );
     for (const r of rows) {
       if (r.key === "changelog_cache")      changelog.value = JSON.parse(r.value);
       if (r.key === "changelog_fetched_at") changelogFetchedAt.value = r.value;
+      if (r.key === "changelog_fetched_day") fetchedDay = r.value;
     }
   } catch { /* ignore */ }
+  // 每日自動同步一次（背景，失敗不提示）
+  if (fetchedDay !== todayStr()) void fetchChangelog(true);
 });
 
-async function fetchChangelog() {
+async function fetchChangelog(silent = false) {
   changelogLoading.value = true;
   try {
     const res = await fetch("https://api.github.com/repos/stevedaydream/medbase/releases", {
@@ -206,11 +224,12 @@ async function fetchChangelog() {
     changelog.value = parsed;
     const now = new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei" });
     changelogFetchedAt.value = now;
-    const db = await getDb();
-    await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", ["changelog_cache", JSON.stringify(parsed)]);
-    await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", ["changelog_fetched_at", now]);
+    const sql = "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)";
+    await dbWrite(sql, ["changelog_cache", JSON.stringify(parsed)]);
+    await dbWrite(sql, ["changelog_fetched_at", now]);
+    await dbWrite(sql, ["changelog_fetched_day", todayStr()]);
   } catch (e) {
-    showToast(`無法取得日誌：${(e as Error).message}`);
+    if (!silent) showToast(`無法取得日誌：${(e as Error).message}`);
   } finally { changelogLoading.value = false; }
 }
 
@@ -788,7 +807,7 @@ async function pullSettingsFromCloud() {
         <div class="flex items-center gap-3 border-b border-hairline pb-2">
           <p class="text-xs font-bold text-fg-secondary">GitHub Releases 發佈歷史紀錄</p>
           <span v-if="changelogFetchedAt" class="text-xs text-muted">上次同步：{{ changelogFetchedAt }}</span>
-          <button @click="fetchChangelog" :disabled="changelogLoading"
+          <button @click="fetchChangelog()" :disabled="changelogLoading"
             class="ml-auto text-xs font-bold px-3 py-1.5 border border-hairline bg-elevated text-fg-secondary hover:text-fg rounded-lg cursor-pointer transition-all">
             {{ changelogLoading ? '正在擷取…' : '↻ 從雲端同步日誌' }}
           </button>
@@ -797,31 +816,42 @@ async function pullSettingsFromCloud() {
         <!-- 無資料提示 -->
         <div v-if="!changelog.length && !changelogLoading"
           class="py-8 text-center text-xs text-muted italic">
-          本地尚無快取紀錄，請點選「從雲端同步日誌」拉取最新開發者變更紀錄。
+          本地尚無快取紀錄，每天開啟設定頁會自動同步，也可點選「從雲端同步日誌」立即拉取。
         </div>
 
-        <!-- 日誌列表 -->
+        <!-- 日誌列表：最新三筆展開，其餘依年月收折 -->
         <div class="space-y-4 pl-2 max-w-4xl">
-          <div v-for="entry in changelog" :key="entry.version"
-            class="relative pl-6 border-l-2 transition-all pb-1"
-            :class="entry.version === APP_VERSION ? 'border-accent/30' : 'border-hairline'">
-            <!-- Timeline bullet -->
-            <div class="absolute -left-1.5 top-1.5 w-3 h-3 rounded-full border-2 bg-surface"
-              :class="entry.version === APP_VERSION ? 'border-accent/30 shadow-[0_0_10px_rgba(99,102,241,0.5)]' : 'border-hairline'"></div>
+          <component :is="sec.label ? 'details' : 'div'" v-for="sec in changelogSections" :key="sec.label ?? 'recent'"
+            :class="sec.label ? 'group rounded-xl border border-hairline bg-surface' : ''">
+            <summary v-if="sec.label" class="cursor-pointer select-none list-none px-4 py-2.5 text-xs font-bold text-fg-secondary hover:text-fg flex items-center gap-2">
+              <span class="transition-transform group-open:rotate-90">▸</span>
+              {{ sec.label }}
+              <span class="text-muted font-normal">・{{ sec.entries.length }} 個版本</span>
+              <span v-if="sec.entries.some(e => e.version === APP_VERSION)" class="text-2xs font-bold px-2 py-0.5 bg-accent/10 border border-accent/30 text-accent rounded-full">含目前安裝版本</span>
+            </summary>
+            <div class="space-y-4" :class="sec.label ? 'px-4 pb-4 pt-1' : ''">
+              <div v-for="entry in sec.entries" :key="entry.version"
+                class="relative pl-6 border-l-2 transition-all pb-1"
+                :class="entry.version === APP_VERSION ? 'border-accent/30' : 'border-hairline'">
+                <!-- Timeline bullet -->
+                <div class="absolute -left-1.5 top-1.5 w-3 h-3 rounded-full border-2 bg-surface"
+                  :class="entry.version === APP_VERSION ? 'border-accent/30 shadow-[0_0_10px_rgba(99,102,241,0.5)]' : 'border-hairline'"></div>
             
-            <div class="flex items-baseline gap-3 mb-2">
-              <span class="text-xs font-black font-mono tracking-wider"
-                :class="entry.version === APP_VERSION ? 'text-accent' : 'text-fg-secondary'">
-                v{{ entry.version }}
-              </span>
-              <span class="text-2xs text-muted font-mono font-bold">{{ entry.date }}</span>
-              <span v-if="entry.version === APP_VERSION"
-                class="text-2xs font-bold px-2 py-0.5 bg-accent/10 border border-accent/30 text-accent rounded-full shadow-[0_0_10px_rgba(99,102,241,0.05)]">
-                目前安裝版本
-              </span>
+                <div class="flex items-baseline gap-3 mb-2">
+                  <span class="text-xs font-black font-mono tracking-wider"
+                    :class="entry.version === APP_VERSION ? 'text-accent' : 'text-fg-secondary'">
+                    v{{ entry.version }}
+                  </span>
+                  <span class="text-2xs text-muted font-mono font-bold">{{ entry.date }}</span>
+                  <span v-if="entry.version === APP_VERSION"
+                    class="text-2xs font-bold px-2 py-0.5 bg-accent/10 border border-accent/30 text-accent rounded-full shadow-[0_0_10px_rgba(99,102,241,0.05)]">
+                    目前安裝版本
+                  </span>
+                </div>
+                <pre class="text-xs text-muted whitespace-pre-wrap font-sans leading-relaxed p-4 bg-sunken border border-hairline rounded-xl font-medium">{{ entry.body || '（無更新細節說明）' }}</pre>
+              </div>
             </div>
-            <pre class="text-xs text-muted whitespace-pre-wrap font-sans leading-relaxed p-4 bg-sunken border border-hairline rounded-xl font-medium">{{ entry.body || '（無更新細節說明）' }}</pre>
-          </div>
+          </component>
         </div>
       </div>
     </section>
