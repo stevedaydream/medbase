@@ -200,6 +200,25 @@ export interface LogEntry {
 }
 export interface LogDoc { key: string; entries: LogEntry[] }
 
+/**
+ * 存檔點（snap:YYYYMM-NN，每月固定 SNAP_SLOTS 格，一格一份文件；null＝空格）：
+ * 整月排班層與預班層的快照，可在開放預班或排班中還原。
+ */
+export const SNAP_SLOTS = 50;
+export interface SnapshotDoc {
+  ym: string;
+  slot: number;
+  name: string;
+  at: string;
+  by: string;
+  auto?: "start" | "publish";             // 自動建立：開始排班、發布前
+  status: MonthStatus;                    // 建立當下的月份狀態
+  schedule: Record<string, string[]>;
+  origin: Record<string, CellOrigin[]>;
+  prebook: Record<string, PrebookCell>;
+}
+export const snapKey = (ym: string, slot: number) => `${ym}-${String(slot).padStart(2, "0")}`;
+
 /** 員工畫面用的衍生文件（est:YYYYMM）：月份狀態、每日可休、預估配額 */
 export interface EstDoc {
   ym: string;

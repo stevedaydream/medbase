@@ -14,6 +14,8 @@ import { DEFAULT_GROUP } from "@/shared/sched/groups";
 import SchedGrid from "./SchedGrid.vue";
 import SidePanel from "./SidePanel.vue";
 import MonthSettings from "./MonthSettings.vue";
+import SnapshotPanel from "./SnapshotPanel.vue";
+import type { SnapshotDoc } from "@/shared/sched/types";
 
 const emit = defineEmits<{ toast: [msg: string] }>();
 const store = useSchedStore();
@@ -61,6 +63,22 @@ async function run(fn: () => Promise<unknown>, ok?: string) {
 }
 const lockConflict = ref("");
 const takeLock = (force = false) => run(async () => { await acquireLock(ym.value, force); lockConflict.value = ""; }, "已取得排班鎖");
+
+// ── 存檔點 ───────────────────────────────────────────────────
+const showSnaps = ref(false);
+const restoreBlocked = computed(() => {
+  const m = month.value;
+  if (!m) return "";
+  if (m.status === "published") return "已發布的班表不能還原存檔點；需要改動請用「修改已發布班表」";
+  if (m.status === "scheduling" && !hasLock.value) return "排班中的月份要先取得排班鎖才能還原";
+  return "";
+});
+function onRestore(snap: SnapshotDoc) {
+  const r = grid.value?.restoreSnapshot(snap);
+  if (!r) return;
+  emit("toast", r.error || (r.n ? `已還原到「${snap.name}」，改動 ${r.n} 格；按「復原」可撤銷` : "沒有需要還原的格子"));
+  if (!r.error) showSnaps.value = false;
+}
 
 // ── 開始排班 ─────────────────────────────────────────────────
 const confirmForce = ref(false);
@@ -208,8 +226,13 @@ const lockTime = computed(() => lock.value ? new Date(lock.value.at).toLocaleStr
       <span v-else-if="isStaff && lockedByOther" class="text-warning" :title="lockTime">🔒 {{ lock!.name }} 正在排班</span>
 
       <div class="ml-auto flex items-center gap-2">
-        <button class="px-2 py-1 text-muted hover:text-fg disabled:opacity-30" :disabled="!grid?.canUndo" title="復原 Ctrl+Z" @click="grid?.undo()">↶</button>
-        <button class="px-2 py-1 text-muted hover:text-fg disabled:opacity-30" :disabled="!grid?.canRedo" title="重做 Ctrl+Y" @click="grid?.redo()">↷</button>
+        <div class="flex items-center rounded border border-hairline overflow-hidden">
+          <button class="px-2.5 py-1 font-semibold text-fg hover:bg-elevated disabled:opacity-35 disabled:font-normal" :disabled="!grid?.canUndo"
+            title="復原上一步（Ctrl+Z），最多 100 步" @click="grid?.undo()">↶ 復原<span v-if="grid?.undoCount" class="ml-1 text-muted font-normal">{{ grid.undoCount }}</span></button>
+          <button class="px-2.5 py-1 font-semibold text-fg border-l border-hairline hover:bg-elevated disabled:opacity-35 disabled:font-normal" :disabled="!grid?.canRedo"
+            title="重做（Ctrl+Y）" @click="grid?.redo()">↷ 重做<span v-if="grid?.redoCount" class="ml-1 text-muted font-normal">{{ grid.redoCount }}</span></button>
+        </div>
+        <button v-if="isStaff && month" class="px-2.5 py-1 border border-hairline rounded hover:bg-elevated" title="建立或還原整月快照" @click="showSnaps = true">💾 存檔點</button>
         <template v-if="isStaff && month">
           <div class="relative">
             <button class="px-2.5 py-1 border border-hairline rounded hover:bg-elevated" @click="showExport = !showExport">匯出 ▾</button>
@@ -270,6 +293,9 @@ const lockTime = computed(() => lock.value ? new Date(lock.value.at).toLocaleStr
     <MonthSettings v-if="showSettings && month" :ym="ym" @close="showSettings = false" @toast="m => emit('toast', m)" />
 
     <!-- 發布確認 -->
+    <SnapshotPanel v-if="showSnaps && month" :ym="ym" :restore-blocked="restoreBlocked"
+      @close="showSnaps = false" @toast="m => emit('toast', m)" @restore="onRestore" />
+
     <div v-if="showPublish" class="fixed inset-0 z-50 flex items-center justify-center bg-sunken/60 backdrop-blur-sm text-xs">
       <div class="bg-surface border border-hairline rounded-xl shadow-2xl p-5 w-[28rem] space-y-3">
         <h3 class="text-sm font-semibold text-fg">發布 {{ ym }}</h3>

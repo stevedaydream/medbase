@@ -2,8 +2,9 @@
  * 月份流程（schedular.md §7、§9）：排班鎖、發布、退回、發布後修改、換班、欠班。
  */
 import {
-  useSchedStore, saveLock, saveGlobal, appendLog, actorName, personById, startMonth, snapshot, applyPatch,
+  useSchedStore, saveLock, saveGlobal, appendLog, actorName, personById, startMonth, snapshot, applyPatch, saveSnap,
 } from "@/composables/useSchedStore";
+import { pickSnapSlot, makeSnapshot } from "@/shared/sched/snapshots";
 import {
   opPublish, opRevert, opCreateSwap, opDeleteSwap, opSettleDebt, revertDeadline as sharedDeadline,
   opAddPrefillSwap, opRemovePrefillSwap, opReopen, reopenLoss as sharedReopenLoss,
@@ -13,7 +14,7 @@ import { useSchedSession, getMachineId } from "@/composables/useSchedSession";
 import { syncSched, pushScheduleSheet, gasUrl } from "@/composables/useSchedSync";
 import { computeQuotas } from "@/shared/sched/engine/quota";
 import { cellFnOf } from "@/shared/sched/engine/prefill";
-import type { LockInfo, MonthDoc } from "@/shared/sched/types";
+import type { LockInfo, MonthDoc, SnapshotDoc } from "@/shared/sched/types";
 import { personStats, dayStats } from "@/shared/sched/engine/validate";
 import { buildAppWorkbook, buildPositionalWorkbook, type ExportCtx } from "@/utils/sched/excelExport";
 import * as XLSX from "xlsx";
@@ -58,7 +59,26 @@ export async function releaseLock(ym: string): Promise<void> {
 export async function beginScheduling(ym: string, force = false): Promise<void> {
   await acquireLock(ym);
   await startMonth(ym, force);
+  await createSnapshot(ym, "開始排班", "start");
   await syncSched();
+}
+
+// ── 存檔點 ───────────────────────────────────────────────────────────
+/** 整月排班層＋預班層存一份快照；格位用完時覆蓋最舊的自動存檔點 */
+export async function createSnapshot(ym: string, name: string, auto?: SnapshotDoc["auto"]): Promise<SnapshotDoc | null> {
+  const store = useSchedStore();
+  const m = store.months[ym];
+  if (!m) return null;
+  const slot = pickSnapSlot(store.snaps, ym);
+  const doc = makeSnapshot(m, store.prebooks[ym], slot, name.trim() || "未命名", actorName(), new Date().toISOString(), auto);
+  await saveSnap(ym, slot, doc);
+  await appendLog(ym, "建立存檔點", `${doc.name}${auto ? "（自動）" : ""}`, actorName());
+  return doc;
+}
+
+export async function deleteSnapshot(s: SnapshotDoc): Promise<void> {
+  await saveSnap(s.ym, s.slot, null);
+  await appendLog(s.ym, "刪除存檔點", s.name, actorName());
 }
 
 // ── 發布 ─────────────────────────────────────────────────────────────
@@ -78,6 +98,7 @@ async function publishSheet(m: MonthDoc): Promise<boolean> {
 
 export async function publishMonth(ym: string, unresolved: number): Promise<{ sheet: boolean }> {
   if (!await myLock(ym)) throw new Error("排班鎖不在本機，請先取得排班鎖");
+  await createSnapshot(ym, "發布前", "publish");
   await applyPatch(opPublish(snapshot(), ym, unresolved, actorName(), new Date().toISOString()));
   await releaseLock(ym);
   const sheet = await publishSheet(useSchedStore().months[ym]);

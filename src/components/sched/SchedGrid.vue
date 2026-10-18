@@ -10,7 +10,7 @@ import { needOf } from "@/shared/sched/engine/staffing";
 import { validate, personStats, dayStats, shiftMap, type Issue, type GridCtx } from "@/shared/sched/engine/validate";
 import { daysIn, dayTypeOf, dowOf, dateStr, WEEKDAY_LABEL, inCny, prevYm } from "@/shared/sched/calendar";
 import { colorOf } from "@/shared/sched/palette";
-import { cellKey, CONSTRAINT_MARKS, FLAG_DEFS, type Flags } from "@/shared/sched/types";
+import { cellKey, CONSTRAINT_MARKS, FLAG_DEFS, type Flags, type SnapshotDoc } from "@/shared/sched/types";
 
 const props = defineProps<{ ym: string; layer: Layer; showInactive: boolean; hasLock: boolean; postEdit: boolean }>();
 const emit = defineEmits<{
@@ -381,7 +381,15 @@ function goTo(c: CellRef) {
     gridEl.value?.querySelector(`[data-cell="${c.personId}|${c.day}"]`)?.scrollIntoView({ block: "nearest", inline: "center" });
   });
 }
-defineExpose({ goTo, undo: ed.undo, redo: ed.redo, canUndo: ed.canUndo, canRedo: ed.canRedo, confirmReason });
+/** 還原存檔點：回傳變更格數，失敗時回傳錯誤訊息 */
+function restoreSnapshot(snap: SnapshotDoc): { n: number; error: string } {
+  const n = ed.restoreSnapshot(snap);
+  return { n, error: ed.lastError.value };
+}
+defineExpose({
+  goTo, undo: ed.undo, redo: ed.redo, canUndo: ed.canUndo, canRedo: ed.canRedo, undoCount: ed.undoCount, redoCount: ed.redoCount,
+  confirmReason, restoreSnapshot,
+});
 
 const statusOf = (id: string, itemId: string) => {
   const act = stats.value[id]?.counts[itemId] ?? 0;

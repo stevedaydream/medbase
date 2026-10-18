@@ -25,8 +25,8 @@ const READ_TABLES = new Set([
 
 const CONFIG_KEYS = ["np_duty_url"];
 
-/** 排班文件 key：people／shifts…／month:YYYYMM／prebook:YYYYMM／log:global… */
-const SCH_KEY = /^(people|groups|shifts|quotaItems|rules|holidays|holidayDuty|duty84|cny|notices|debts|leaveRules|leaveOpen|(month|prebook|log|lock|est|swapreq|overtime):(\d{6}|global))$/;
+/** 排班文件 key：people／shifts…／month:YYYYMM／prebook:YYYYMM／log:global…／snap:YYYYMM-NN（存檔點） */
+const SCH_KEY = /^(people|groups|shifts|quotaItems|rules|holidays|holidayDuty|duty84|cny|notices|debts|leaveRules|leaveOpen|(month|prebook|log|lock|est|swapreq|overtime):(\d{6}|global)|snap:\d{6}-\d{2})$/;
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 /** super 修改別人的假勤資料（是否為 super 由 GAS 判斷） */
 const target = (a: Args): Args => a.personId ? { personId: str(a.personId, 64) } : {};

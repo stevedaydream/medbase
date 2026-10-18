@@ -21,6 +21,10 @@ describe("/api/gas 白名單（排班 v3）", () => {
   it("schGet 接受全部共用文件（漏一個會讓整批下載被拒）", () => {
     expect(ok("schGet", { keys: [...SHARED_KEYS] })).toEqual({ keys: [...SHARED_KEYS] });
   });
+  it("schGet 接受存檔點文件", () => {
+    expect(ok("schGet", { keys: ["snap:202611-01", "snap:202611-50"] })).toEqual({ keys: ["snap:202611-01", "snap:202611-50"] });
+    expect(ok("schGet", { keys: ["snap:202611"] })).toBeNull();
+  });
   it("schPut 檢查 key 與 json", () => {
     expect(ok("schPut", { items: [{ key: "month:202612", json: "{}", base: null }] })).toEqual({ items: [{ key: "month:202612", json: "{}", base: null }] });
     expect(ok("schPut", { items: [{ key: "evil", json: "{}" }] })).toBeNull();

@@ -1,5 +1,5 @@
 /**
- * 排班格編輯：預班層／排班層寫入、復原重做（100 步，換月清空）、操作紀錄、存檔。
+ * 排班格編輯：預班層／排班層寫入、復原重做（100 步，換月清空）、還原存檔點、操作紀錄、存檔。
  * 排班層變動後更新本月 X；X 改變時往後重算開放月份的 V 交接。
  */
 import { ref, computed, type Ref } from "vue";
@@ -7,7 +7,8 @@ import {
   useSchedStore, saveMonth, savePrebook, saveGlobal, appendLog, actorName, personById, recompute,
 } from "@/composables/useSchedStore";
 import { useSchedSession } from "@/composables/useSchedSession";
-import { cellKey, type PrebookCell, type NoticeItem, CONSTRAINT_MARKS } from "@/shared/sched/types";
+import { cellKey, type PrebookCell, type NoticeItem, type SnapshotDoc, CONSTRAINT_MARKS } from "@/shared/sched/types";
+import { snapshotDiff } from "@/shared/sched/snapshots";
 import { cellChangeNotices } from "@/shared/sched/ops";
 import { republish } from "@/composables/useSchedFlow";
 import { computeQuotas } from "@/shared/sched/engine/quota";
@@ -17,7 +18,8 @@ import { nextYm, daysIn } from "@/shared/sched/calendar";
 export type Layer = "pre" | "sched";
 export interface CellRef { personId: string; day: number }
 interface Change { personId: string; day: number; before: string | PrebookCell | undefined; after: string | PrebookCell | undefined }
-interface Op { layer: Layer; ym: string; changes: Change[] }
+/** 一步操作；還原存檔點會同時改兩層 */
+interface Op { ym: string; parts: { layer: Layer; changes: Change[] }[] }
 
 const UNDO_LIMIT = 100;
 
@@ -118,7 +120,7 @@ export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>, hasLock: Ref<b
     if (skipped) lastError.value = `${skipped} 格不可編輯（系統預填或非本人）已略過`;
     if (!changes.length) return 0;
     if (needsReason.value && reason) recordChanges(changes, reason);
-    push({ layer: l, ym: ym.value, changes });
+    push({ ym: ym.value, parts: [{ layer: l, changes }] });
     commit(l, changes, action, reason);
     return changes.length;
   }
@@ -160,7 +162,7 @@ export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>, hasLock: Ref<b
       }
     }
     if (!all.length) return 0;
-    push({ layer: l, ym: ym.value, changes: all });
+    push({ ym: ym.value, parts: [{ layer: l, changes: all }] });
     commit(l, all, "貼上");
     return all.length;
   }
@@ -175,18 +177,52 @@ export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>, hasLock: Ref<b
     if (needsReason.value) { lastError.value = "已發布班表不提供復原，請直接修改並填寫原因"; return; }
     const op = undoStack.value.pop();
     if (!op || op.ym !== ym.value) return;
-    for (const c of op.changes) write(op.layer, c.personId, c.day, c.before);
+    for (const p of op.parts) {
+      for (const c of p.changes) write(p.layer, c.personId, c.day, c.before);
+      commit(p.layer, p.changes.map(c => ({ ...c, before: c.after, after: c.before })), "復原");
+    }
     redoStack.value.push(op);
-    commit(op.layer, op.changes.map(c => ({ ...c, before: c.after, after: c.before })), "復原");
   }
 
   function redo() {
     if (needsReason.value) return;
     const op = redoStack.value.pop();
     if (!op || op.ym !== ym.value) return;
-    for (const c of op.changes) write(op.layer, c.personId, c.day, c.after);
+    for (const p of op.parts) {
+      for (const c of p.changes) write(p.layer, c.personId, c.day, c.after);
+      commit(p.layer, p.changes, "重做");
+    }
     undoStack.value.push(op);
-    commit(op.layer, op.changes, "重做");
+  }
+
+  /**
+   * 還原存檔點：開放預班還原預班層；排班中（需排班鎖）還原排班層與預班層。
+   * 當成一步操作，可再復原。回傳變更格數。
+   */
+  function restoreSnapshot(snap: SnapshotDoc): number {
+    lastError.value = "";
+    const m = month.value;
+    if (!m || snap.ym !== m.ym) return 0;
+    if (!isStaff.value) { lastError.value = "只有排班者可以還原存檔點"; return 0; }
+    if (m.status === "published") { lastError.value = "已發布班表不能還原存檔點"; return 0; }
+    if (m.status === "scheduling" && !hasLock.value) { lastError.value = "請先取得排班鎖"; return 0; }
+    const d = snapshotDiff(snap, m, prebook.value);
+    const parts: Op["parts"] = [];
+    if (d.pre.length) {
+      for (const c of d.pre) write("pre", c.personId, c.day, c.after);
+      parts.push({ layer: "pre", changes: d.pre });
+    }
+    if (d.sched.length) {
+      for (const c of d.sched) {
+        write("sched", c.personId, c.day, c.after);
+        m.origin[c.personId][c.day - 1] = snap.origin[c.personId]?.[c.day - 1] ?? "";
+      }
+      parts.push({ layer: "sched", changes: d.sched });
+    }
+    if (!parts.length) return 0;
+    push({ ym: m.ym, parts });
+    for (const p of parts) commit(p.layer, p.changes, `還原存檔點「${snap.name}」`);
+    return d.pre.length + d.sched.length;
   }
 
   function clearHistory() {
@@ -263,7 +299,9 @@ export function useGridEditor(ym: Ref<string>, layer: Ref<Layer>, hasLock: Ref<b
   }
 
   return {
-    month, prebook, editable, needsReason, canEditCell, read, setCells, paste, undo, redo, clearHistory,
+    month, prebook, editable, needsReason, canEditCell, read, setCells, paste, undo, redo, clearHistory, restoreSnapshot,
+    undoCount: computed(() => undoStack.value.length),
+    redoCount: computed(() => redoStack.value.length),
     canUndo: computed(() => undoStack.value.length > 0),
     canRedo: computed(() => redoStack.value.length > 0),
     lastError,

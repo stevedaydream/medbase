@@ -9,6 +9,7 @@ import {
   DEFAULT_SHIFTS, DEFAULT_QUOTA_ITEMS, DEFAULT_RULES, clone,
   type Person, type ShiftDef, type QuotaItem, type RuleParams, type HolidayDoc, type HolidayDutyDoc,
   type Duty84Doc, type CnyDoc, type MonthDoc, type PrebookDoc, type NoticeItem, type LogDoc, type DebtRec, type LockInfo, type EstDoc,
+  type SnapshotDoc, snapKey,
 } from "@/shared/sched/types";
 import { emptyHolidays } from "@/shared/sched/calendar";
 import { opRecompute, opStartMonth, opEnsureMonths, opFirstMonth, isEmptyPatch, type OpsState, type OpPatch } from "@/shared/sched/ops";
@@ -41,6 +42,8 @@ export interface SchedState {
   logs: Record<string, LogDoc>;
   locks: Record<string, LockInfo | null>;
   ests: Record<string, EstDoc>;
+  /** 存檔點（key＝YYYYMM-NN；null＝空格） */
+  snaps: Record<string, SnapshotDoc | null>;
   debts: DebtRec[];
   /** 假勤（ADR-027）：參數與期初餘額（共用）、每月加班登記（依群組） */
   leaveRules: Partial<LeaveRules> | null;
@@ -50,7 +53,7 @@ export interface SchedState {
 
 export type GlobalKey = "people" | "groups" | "leaveRules" | "leaveOpen" | "shifts" | "quotaItems" | "rules" | "holidays" | "holidayDuty" | "duty84" | "cny" | "notices" | "debts";
 
-const defaults = (): Omit<SchedState, "loaded" | "group" | "months" | "prebooks" | "logs" | "locks" | "ests" | "overtimes"> => ({
+const defaults = (): Omit<SchedState, "loaded" | "group" | "months" | "prebooks" | "logs" | "locks" | "ests" | "snaps" | "overtimes"> => ({
   groups: [],
   leaveRules: null,
   leaveOpen: {},
@@ -66,14 +69,14 @@ const defaults = (): Omit<SchedState, "loaded" | "group" | "months" | "prebooks"
   debts: [],
 });
 
-const state = reactive<SchedState>({ loaded: false, group: DEFAULT_GROUP, months: {}, prebooks: {}, logs: {}, locks: {}, ests: {}, overtimes: {}, ...defaults() });
+const state = reactive<SchedState>({ loaded: false, group: DEFAULT_GROUP, months: {}, prebooks: {}, logs: {}, locks: {}, ests: {}, snaps: {}, overtimes: {}, ...defaults() });
 let loading: Promise<void> | null = null;
 
 type DocState = Omit<SchedState, "loaded">;
 
 /** 由本機文件組出某群組的狀態（共用文件＋該群組的文件） */
 function stateFromRows(rows: { key: string; json: string }[], group: string): DocState {
-  const s: DocState = { group, months: {}, prebooks: {}, logs: {}, locks: {}, ests: {}, overtimes: {}, ...defaults() };
+  const s: DocState = { group, months: {}, prebooks: {}, logs: {}, locks: {}, ests: {}, snaps: {}, overtimes: {}, ...defaults() };
   for (const r of rows) putDoc(s, r.key, JSON.parse(r.json));
   return s;
 }
@@ -87,6 +90,7 @@ function putDoc(s: DocState, key: string, val: unknown) {
   else if (base.startsWith("log:")) s.logs[base.slice(4)] = val as LogDoc;
   else if (base.startsWith("lock:")) s.locks[base.slice(5)] = val as LockInfo | null;
   else if (base.startsWith("est:")) s.ests[base.slice(4)] = val as EstDoc;
+  else if (base.startsWith("snap:")) s.snaps[base.slice(5)] = val as SnapshotDoc | null;
   else if (base.startsWith("overtime:")) s.overtimes[base.slice(9)] = val as OvertimeDoc;
   else if (base in defaults()) (s as unknown as Record<string, unknown>)[base] = val;
 }
@@ -184,6 +188,13 @@ export function saveMonth(doc: MonthDoc): Promise<void> {
 export function savePrebook(doc: PrebookDoc): Promise<void> {
   state.prebooks[doc.ym] = doc;
   return writeDoc(`prebook:${doc.ym}`, doc);
+}
+
+/** 存檔點寫入該格；doc＝null 為刪除（清空格位） */
+export function saveSnap(ym: string, slot: number, doc: SnapshotDoc | null): Promise<void> {
+  const k = snapKey(ym, slot);
+  state.snaps[k] = doc;
+  return writeDoc(`snap:${k}`, doc);
 }
 
 const LOG_LIMIT = 2000;
