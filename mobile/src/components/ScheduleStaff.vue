@@ -125,11 +125,40 @@ async function setCode(value: string) {
 async function doEdit(edits: { personId: string; day: number; value: string }[], reason?: { text: string; approved: boolean }) {
   busy.value = true
   try {
+    const before = edits.map(e => ({ personId: e.personId, day: e.day, before: read(e.personId, e.day), after: e.value }))
     const n = await editCells(ym.value, layer.value, edits, reason)
     if (!n) toast('沒有變更')
+    else if (month.value?.status !== 'published') pushUndo({ ym: ym.value, layer: layer.value, edits: before.filter(e => e.before !== e.after) })
     pick.value = null
   } catch (e) { toast((e as Error).message) } finally { busy.value = false }
 }
+
+// ── 復原／重做（100 步，換月清空；已發布不提供，與桌機相同）────────────
+interface UndoOp { ym: string; layer: 'pre' | 'sched'; edits: { personId: string; day: number; before: string; after: string }[] }
+const UNDO_LIMIT = 100
+const undoStack = ref<UndoOp[]>([])
+const redoStack = ref<UndoOp[]>([])
+watch(ym, () => { undoStack.value = []; redoStack.value = [] })
+function pushUndo(op: UndoOp) {
+  if (!op.edits.length) return
+  undoStack.value.push(op)
+  if (undoStack.value.length > UNDO_LIMIT) undoStack.value.shift()
+  redoStack.value = []
+}
+const canHistory = computed(() => editable.value && month.value?.status !== 'published')
+async function replay(from: typeof undoStack, to: typeof undoStack, dir: 'before' | 'after', label: string) {
+  const op = from.value[from.value.length - 1]
+  if (!op || op.ym !== ym.value || busy.value) return
+  busy.value = true
+  try {
+    await editCells(op.ym, op.layer, op.edits.map(e => ({ personId: e.personId, day: e.day, value: e[dir] })))
+    from.value.pop()
+    to.value.push(op)
+    toast(`已${label} ${op.edits.length} 格`)
+  } catch (e) { toast((e as Error).message) } finally { busy.value = false }
+}
+const undo = () => replay(undoStack, redoStack, 'before', '復原')
+const redo = () => replay(redoStack, undoStack, 'after', '重做')
 async function confirmReason() {
   const r = reasonFor.value
   if (!r) return
@@ -261,6 +290,10 @@ const mD = computed(() => Number(ym.value.slice(4)))
           {{ STATUS[month.status] }}{{ month.prefilled === false ? '・遠期' : '' }}{{ postEdit ? '・修改中' : '' }}
         </span>
         <span v-if="mine" class="text-xs text-success font-bold">🔒 本機持鎖</span>
+        <div v-if="canHistory" class="ml-auto flex rounded-lg border border-hairline overflow-hidden text-sm font-bold">
+          <button :disabled="busy || !undoStack.length" @click="undo" class="h-9 px-3 disabled:opacity-35">↶ 復原<span v-if="undoStack.length" class="ml-1 text-muted font-normal">{{ undoStack.length }}</span></button>
+          <button :disabled="busy || !redoStack.length" @click="redo" class="h-9 px-3 border-l border-hairline disabled:opacity-35">↷ 重做<span v-if="redoStack.length" class="ml-1 text-muted font-normal">{{ redoStack.length }}</span></button>
+        </div>
         <span v-else-if="lock" class="text-xs text-warning font-bold">🔒 {{ lock.name }} 排班中</span>
       </div>
       <div v-if="month" class="px-3 flex gap-2 flex-wrap">
