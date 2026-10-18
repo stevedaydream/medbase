@@ -334,3 +334,21 @@ describe("GAS 假勤（ADR-027）", () => {
     expect((a._schSetPay(x, sup, {}, "nobody") as { error: string }).error).toContain("找不到");
   });
 });
+
+describe("GAS 新手提示紀錄", () => {
+  const ctx: Record<string, unknown> = {};
+  vm.createContext(ctx);
+  vm.runInContext(readFileSync("gas/scheduler.gs", "utf8") + "\n;this.api = { _schGetTips, _schSetTips, _schNoHidden, _schView };", ctx);
+  const a = ctx.api as Api;
+  it("依 HIS 帳號各存一份，只收字串 id；不進同步清單", () => {
+    const x: Docs = { people: doc([]) };
+    expect(a._schSetTips(x, "111", { off: 1, seen: ["sched-start", 3, "x".repeat(41)] })).toEqual({ ok: true });
+    expect(a._schSetTips(x, "222", { seen: ["ahk-new"] })).toEqual({ ok: true });
+    expect(a._schGetTips(x, "111")).toEqual({ off: true, seen: ["sched-start"] });
+    expect(a._schGetTips(x, "222")).toEqual({ off: false, seen: ["ahk-new"] });
+    expect(a._schGetTips(x, "")).toBeNull();
+    expect((a._schSetTips(x, "", {}) as { ok: boolean }).ok).toBe(false);
+    expect(Object.keys(a._schNoHidden(x))).not.toContain("tips");
+    expect(Object.keys(a._schView(x, "9A9B"))).not.toContain("tips");
+  });
+});

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TipBar from "@/tips/TipBar.vue";
 import { ref, computed, onMounted, watch } from "vue";
 import { useFocusFromRoute } from "@/composables/useFocusFromRoute";
 import { getDb } from "@/db";
@@ -301,6 +302,8 @@ async function restorePhysicianExts() {
 
 <template>
   <div class="accent-cyan flex flex-col h-full gap-3">
+
+    <TipBar :ids="['contacts-account']" class="shrink-0" />
 
     <!-- 搜尋與操作 -->
     <div class="shrink-0 flex flex-col gap-2.5 bg-surface rounded-2xl border border-hairline px-4 py-3">

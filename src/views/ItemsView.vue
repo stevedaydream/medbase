@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TipBar from "@/tips/TipBar.vue";
 import { ref, computed, onMounted, onUnmounted, watch, type Ref } from "vue";
 import { useFocusFromRoute } from "@/composables/useFocusFromRoute";
 import { refDebounced } from "@vueuse/core";
@@ -445,6 +446,7 @@ function showSurgToast(msg: string) {
 
     <!-- ── 右側：搜尋與結果 ────────────────────────────────── -->
     <div class="flex-1 min-w-0 flex flex-col gap-3">
+      <TipBar :ids="['items-filter', 'app-search']" class="shrink-0" />
       <div class="shrink-0 flex flex-col gap-2 bg-surface border border-hairline rounded-2xl px-4 py-3">
         <div class="flex items-center gap-3 flex-wrap">
           <button v-if="!panelOpen" @click="panelOpen = true"

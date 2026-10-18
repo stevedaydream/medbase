@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { getDb, dbWrite } from "@/db";
+import { useTips, loadTips, setMyHis, setTipsEnabled, resetTips } from "@/tips/useTips";
 import { useCloudSettings } from "@/stores/cloudSettings";
 import { useUiSettings, FONT_SIZE_LABELS, THEME_LABELS, type FontSize, type Theme } from "@/stores/uiSettings";
 import { checkCloudVersions, requestImmediateSync } from "@/composables/useSyncMonitor";
@@ -231,6 +232,27 @@ async function fetchChangelog(silent = false) {
   } catch (e) {
     if (!silent) showToast(`無法取得日誌：${(e as Error).message}`);
   } finally { changelogLoading.value = false; }
+}
+
+// ── 新手提示（跟著「我的 HIS」存雲端）──────────────────────────────
+const tips = useTips();
+const hisOptions = ref<{ name: string; his: string }[]>([]);
+onMounted(async () => {
+  void loadTips();
+  try {
+    const db = await getDb();
+    hisOptions.value = await db.select<{ name: string; his: string }[]>(
+      "SELECT name, his_account AS his FROM physicians WHERE his_account IS NOT NULL AND TRIM(his_account) != '' ORDER BY name",
+    );
+  } catch { /* 網頁版 */ }
+});
+async function onMyHis(e: Event) {
+  await setMyHis((e.target as HTMLSelectElement).value);
+  showToast(tips.myHis ? "已綁定，新手提示紀錄會跟著這個帳號" : "已取消綁定，提示紀錄只存在這台電腦");
+}
+function onResetTips() {
+  resetTips();
+  showToast("已重新開啟全部新手提示");
 }
 
 // ── Gemini API Key ─────────────────────────────────────────────────────
@@ -853,6 +875,30 @@ async function pullSettingsFromCloud() {
             </div>
           </component>
         </div>
+      </div>
+    </section>
+
+    <!-- ── 新手提示 ──────────────────────────────────────────────── -->
+    <section class="bg-surface rounded-2xl border border-hairline p-5 shadow-xl space-y-4">
+      <h2 class="text-xs font-black text-muted">新手提示</h2>
+      <p class="text-xs text-fg-secondary leading-relaxed">
+        在排班、自費品項、AHK、通訊錄等頁面顯示操作提示，一次一則，按「知道了」就不再出現。
+        綁定自己的 HIS 帳號後，看過哪些提示會跟著帳號存到雲端，換電腦也一樣；未綁定時只存在這台電腦。
+      </p>
+      <div class="flex items-center gap-3 flex-wrap text-xs">
+        <label class="font-bold text-fg-secondary">我的 HIS 帳號</label>
+        <select :value="tips.myHis" class="px-3 py-1.5 rounded-lg bg-sunken border border-hairline text-fg" @change="onMyHis">
+          <option value="">（未綁定）</option>
+          <option v-for="o in hisOptions" :key="o.his" :value="o.his">{{ o.name }}（{{ o.his }}）</option>
+        </select>
+      </div>
+      <div class="flex items-center gap-4 flex-wrap text-xs">
+        <label class="flex items-center gap-2 font-bold text-fg-secondary cursor-pointer">
+          <input type="checkbox" :checked="!tips.off" @change="setTipsEnabled(($event.target as HTMLInputElement).checked)" />
+          顯示新手提示
+        </label>
+        <span class="text-muted">已看過 {{ tips.seen.length }} 則</span>
+        <button class="px-3 py-1.5 rounded-lg border border-hairline bg-elevated text-fg-secondary hover:text-fg font-bold" @click="onResetTips">重新顯示全部提示</button>
       </div>
     </section>
 

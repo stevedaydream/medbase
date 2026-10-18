@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TipBar from "@/tips/TipBar.vue";
 import { ref, computed, onMounted, watch } from "vue";
 import { useRoute } from "vue-router";
 import { getDb, dbWrite } from "@/db";
@@ -486,6 +487,7 @@ const tabs: { key: Tab; icon: string; label: string; count: () => number }[] = [
 
       <!-- ── 自費品項 表格 ─────────────────────────── -->
       <div v-if="activeTab === 'items'" class="flex-1 overflow-auto px-6 py-4">
+        <TipBar :ids="['items-batch']" class="mb-3" />
         <div class="bg-surface rounded-2xl border border-hairline shadow-2xl overflow-hidden w-max min-w-full">
           <table class="w-full text-left border-collapse">
             <thead>

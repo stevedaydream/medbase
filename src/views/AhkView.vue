@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TipBar from "@/tips/TipBar.vue";
 import { ref, computed, onMounted } from "vue";
 import { useFocusFromRoute } from "@/composables/useFocusFromRoute";
 import { getDb } from "@/db";
@@ -658,6 +659,8 @@ function insertBuilderToScript() {
         ⚙ 設定
       </button>
     </div>
+
+    <TipBar :ids="['ahk-scripts', 'ahk-pass']" class="mx-6 mt-3 shrink-0" />
 
     <!-- Settings Panel -->
     <div v-if="showSettings" class="flex items-center gap-4 px-6 py-3 bg-surface/20 border-b border-hairline flex-shrink-0 z-[2]">

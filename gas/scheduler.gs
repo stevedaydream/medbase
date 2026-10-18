@@ -715,7 +715,7 @@ const SCH_DEFAULT_GROUP = '9A9B';
 const SCH_SHARED = ['people', 'groups', 'holidays', 'duty84', 'cny', 'notices', 'leaveRules', 'leaveOpen'];
 const SCH_SUPER_ONLY = ['people', 'groups', 'holidays', 'duty84', 'cny', 'leaveRules', 'leaveOpen'];
 /** 個人薪資設定（時薪、值班費，ADR-027）：不進任何同步清單，只能經 mobileGetPay／mobileSetPay 讀寫本人的 */
-const SCH_HIDDEN = ['pay', 'prefs'];
+const SCH_HIDDEN = ['pay', 'prefs', 'tips'];
 const SCH_CLIENT_SCHEMA = 2;
 const SCH_GROUP_ID = /^[A-Za-z0-9]{1,12}$/;
 
@@ -925,6 +925,23 @@ function _schSetPrefs(docs, person, prefs) {
   const all = _schParse(docs, 'prefs', {});
   all[person.id] = { colors: colors };
   docs.prefs = { version: _schVersion(docs.prefs && docs.prefs.version), json: JSON.stringify(all) };
+  return { ok: true };
+}
+
+/** 新手提示紀錄（跟著 HIS 帳號，桌機用）：{ off: 是否關閉, seen: 已看過的提示 id } */
+function _schGetTips(docs, his) {
+  const key = String(his || '').trim();
+  return key ? (_schParse(docs, 'tips', {})[key] || null) : null;
+}
+
+function _schSetTips(docs, his, tips) {
+  const key = String(his || '').trim();
+  if (!key || key.length > 40) return { ok: false, error: '缺少 HIS 帳號' };
+  const src = tips && typeof tips === 'object' ? tips : {};
+  const seen = (Array.isArray(src.seen) ? src.seen : []).filter(x => typeof x === 'string' && x.length <= 40).slice(0, 200);
+  const all = _schParse(docs, 'tips', {});
+  all[key] = { off: !!src.off, seen: seen };
+  docs.tips = { version: _schVersion(docs.tips && docs.tips.version), json: JSON.stringify(all) };
   return { ok: true };
 }
 
@@ -1908,6 +1925,19 @@ function doPost(e) {
           const sh = _schSheet(ss);
           const docs = _schReadAll(sh);
           const r = _schSetPay(docs, _schPerson(docs, p._mobile && p._mobile.his), p.pay, p.personId);
+          if (r.ok) _schWriteAll(sh, docs);
+          return json(r);
+        });
+      }
+      // 新手提示（桌機，跟著設定頁綁定的 HIS 帳號）
+      case 'tipsGet': {
+        return json({ ok: true, tips: _schGetTips(_schReadAll(_schSheet(ss)), p.his) });
+      }
+      case 'tipsSet': {
+        return _withLock(() => {
+          const sh = _schSheet(ss);
+          const docs = _schReadAll(sh);
+          const r = _schSetTips(docs, p.his, p.tips);
           if (r.ok) _schWriteAll(sh, docs);
           return json(r);
         });

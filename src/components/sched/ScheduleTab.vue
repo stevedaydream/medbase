@@ -15,6 +15,8 @@ import SchedGrid from "./SchedGrid.vue";
 import SidePanel from "./SidePanel.vue";
 import MonthSettings from "./MonthSettings.vue";
 import SnapshotPanel from "./SnapshotPanel.vue";
+import TipBar from "@/tips/TipBar.vue";
+import type { TipId } from "@/tips/catalog";
 import type { SnapshotDoc } from "@/shared/sched/types";
 
 const emit = defineEmits<{ toast: [msg: string] }>();
@@ -63,6 +65,20 @@ async function run(fn: () => Promise<unknown>, ok?: string) {
 }
 const lockConflict = ref("");
 const takeLock = (force = false) => run(async () => { await acquireLock(ym.value, force); lockConflict.value = ""; }, "已取得排班鎖");
+
+// ── 新手提示：依目前情境挑出適用的 ─────────────────────────────
+const tipIds = computed<TipId[]>(() => {
+  const m = month.value;
+  if (!m) return [];
+  if (!isStaff.value) return m.status === "open" ? ["sched-layers", "sched-grid"] : [];
+  if (m.status === "open") {
+    return ["sched-layers", "sched-grid", ...(m.prefilled === false ? [] : ["sched-prefill-swap"] as TipId[]), "sched-settings", "sched-start", "sched-undo"];
+  }
+  if (m.status === "scheduling") {
+    return hasLock.value ? ["sched-grid", "sched-undo", "sched-issues", "sched-settings", "sched-publish"] : ["sched-lock"];
+  }
+  return ["sched-postedit"];
+});
 
 // ── 存檔點 ───────────────────────────────────────────────────
 const showSnaps = ref(false);
@@ -261,6 +277,8 @@ const lockTime = computed(() => lock.value ? new Date(lock.value.at).toLocaleStr
         </template>
       </div>
     </div>
+
+    <TipBar :ids="tipIds" class="mx-3 mt-2" />
 
     <div v-if="lockConflict" class="flex items-center gap-2 px-3 py-2 bg-warning/10 border-b border-warning/40 text-xs">
       <span class="text-warning">{{ lockConflict }} 正在這個月份排班。強制接手會讓對方的電腦無法再存檔，請先確認對方已離開。</span>

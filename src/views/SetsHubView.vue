@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import TipBar from "@/tips/TipBar.vue";
 import { computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import PrescriptionsView from "@/views/PrescriptionsView.vue";
@@ -53,6 +54,7 @@ watch(active, (key) => {
 
 <template>
   <div class="flex flex-col h-full gap-3">
+    <TipBar :ids="['app-search']" class="shrink-0" />
     <div class="shrink-0 flex gap-1 rounded-2xl bg-surface border border-hairline p-1 overflow-x-auto no-scrollbar" role="tablist">
       <button v-for="t in TABS" :key="t.key" @click="select(t.key)"
         role="tab" :aria-selected="active === t.key"
