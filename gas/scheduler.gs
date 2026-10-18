@@ -1195,7 +1195,9 @@ function doPost(e) {
       // 支援 spreadsheetId 參數，可寫入獨立班表試算表
       case 'batchSaveShifts':
       case 'saveSchedule': {
-        const tss = getTargetSS(p);
+        // 以 Config 的班表試算表為準（手機 getSchedule 讀這份）；各台桌機的設定不同時才不會寫到別份
+        const sid = _getConfigValue('schedule_spreadsheet_id') || p.spreadsheetId;
+        const tss = sid ? SpreadsheetApp.openById(sid) : ss;
         let sh = tss.getSheetByName(p.sheetName) || tss.insertSheet(p.sheetName);
         const rw = p.data.map(r => [r.name].concat(r.days.map(d => d || '')));
         _writeScheduleSheet(sh, rw);
