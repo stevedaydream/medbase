@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { useSchedStore, saveGlobal, appendLog, actorName, recompute, leaveRulesOf, type GlobalKey } from "@/composables/useSchedStore";
-import { leaveOf, compAccrueOf, LEAVE_LABELS, DEFAULT_LEAVE_RULES, type LeaveRules } from "@/shared/sched/leave";
+import {
+  leaveOf, compAccrueOf, LEAVE_LABELS, DEFAULT_LEAVE_RULES, hasDutyPay, fmtDutyPay, packDutyPay, unpackDutyPay, type LeaveRules,
+} from "@/shared/sched/leave";
 import { COLOR_PALETTE, colorOf } from "@/shared/sched/palette";
 import {
-  DEFAULT_SHIFTS, DEFAULT_QUOTA_ITEMS, DEFAULT_RULES, FLAG_DEFS, LEAVE_SHIFTS, newId, clone,
-  type ShiftDef, type QuotaItem, type ShiftCategory, type FlagKey, type LeaveKind,
+  DEFAULT_SHIFTS, DEFAULT_QUOTA_ITEMS, DEFAULT_RULES, FLAG_DEFS, LEAVE_SHIFTS, PAY_DAYS, newId, clone,
+  type ShiftDef, type PayDay, type QuotaItem, type ShiftCategory, type FlagKey, type LeaveKind,
 } from "@/shared/sched/types";
 import { WEEKDAY_LABEL } from "@/shared/sched/calendar";
 
@@ -48,8 +50,15 @@ function setLeaveHours(s: ShiftDef, h: number) {
   const lv = leaveOf(s);
   if (lv) { s.leave = { ...lv, hours: h }; persist("shifts"); }
 }
-function setNum(s: ShiftDef, key: "compAccrue" | "dutyPay", v: string) {
+function setNum(s: ShiftDef, key: "compAccrue", v: string) {
   if (v === "") delete s[key]; else s[key] = Number(v);
+  persist("shifts");
+}
+/** 展開中的值班費分價列 */
+const payOpen = ref<ShiftDef | null>(null);
+function setDutyPay(s: ShiftDef, day: PayDay, v: string) {
+  const p = packDutyPay({ ...unpackDutyPay(s.dutyPay), [day]: v });
+  if (p === undefined) delete s.dutyPay; else s.dutyPay = p;
   persist("shifts");
 }
 
@@ -150,12 +159,13 @@ function resetRules() {
             <th class="px-2">統計歸類</th>
             <th class="px-2" title="排這個班扣哪一種假、扣幾小時">扣假</th>
             <th class="px-2" title="排這個班累積的補假時數（空白＝12 小時以上的上班班別累積超出 8 小時的部分）">累積補假</th>
-            <th class="px-2" title="值班費預設值；個人可在手機設定自己的金額">值班費</th>
+            <th class="px-2" title="值班費預設值，點開可依平日／週六／週日／國定／春節分價；個人可在手機設定自己的金額">值班費</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="s in store.shifts" :key="s.code + store.shifts.indexOf(s)" class="border-t border-hairline">
+          <template v-for="s in store.shifts" :key="s.code + store.shifts.indexOf(s)">
+          <tr class="border-t border-hairline">
             <td class="px-2 py-1">
               <input v-model="s.code" :disabled="!canEdit" class="sched-input w-14 font-semibold" :style="colorStyle(s.color)" @change="persist('shifts')" />
             </td>
@@ -188,13 +198,30 @@ function resetRules() {
                 @change="setNum(s, 'compAccrue', ($event.target as HTMLInputElement).value)" />
             </td>
             <td class="px-2">
-              <input :value="s.dutyPay ?? ''" type="number" min="0" step="50" :disabled="!canEdit" class="sched-input w-20"
-                @change="setNum(s, 'dutyPay', ($event.target as HTMLInputElement).value)" />
+              <button class="sched-input min-w-20 max-w-56 truncate text-left" :class="hasDutyPay(s.dutyPay) ? '' : 'text-muted'"
+                :title="fmtDutyPay(s.dutyPay) || '未設定'" @click="payOpen = payOpen === s ? null : s">
+                {{ fmtDutyPay(s.dutyPay) || "—" }}
+              </button>
             </td>
             <td class="px-2">
               <button v-if="canEdit" class="text-muted hover:text-danger" @click="removeShift(s)">刪除</button>
             </td>
           </tr>
+          <!-- 值班費依日別分價 -->
+          <tr v-if="payOpen === s">
+            <td colspan="14" class="px-2 pb-2">
+              <div class="flex flex-wrap items-center gap-3 px-3 py-2 rounded border border-hairline bg-surface">
+                <span class="font-semibold text-fg">{{ s.code }} 值班費</span>
+                <label v-for="d in PAY_DAYS" :key="d.key" class="flex items-center gap-1 text-fg-secondary">{{ d.label }}
+                  <input :value="unpackDutyPay(s.dutyPay)[d.key] ?? ''" type="number" min="0" step="50" :disabled="!canEdit" class="sched-input w-20"
+                    :placeholder="d.key === 'weekday' ? '未設定' : '同平日'"
+                    @change="setDutyPay(s, d.key, ($event.target as HTMLInputElement).value)" />
+                </label>
+                <span class="text-muted">空白＝同平日價；國定、春節空白時乘假勤參數的倍率</span>
+              </div>
+            </td>
+          </tr>
+          </template>
         </tbody>
       </table>
     </section>
@@ -258,7 +285,7 @@ function resetRules() {
       <div class="grid grid-cols-[14rem_auto] gap-y-2 items-center">
         <span class="text-fg-secondary">1 天＝幾小時</span>
         <input v-model.number="leaveRules.hoursPerDay" type="number" min="1" :disabled="!canEdit" class="sched-input w-16" @change="saveLeaveRules" />
-        <span class="text-fg-secondary">國定假日、春節值班費倍率</span>
+        <span class="text-fg-secondary" title="班別沒有填國定／春節價時，平日價乘這個倍率">國定假日、春節值班費倍率</span>
         <input v-model.number="leaveRules.holidayPayRate" type="number" min="0" step="0.1" :disabled="!canEdit" class="sched-input w-16" @change="saveLeaveRules" />
         <span class="text-fg-secondary">排班時假別餘額低於（天）提醒</span>
         <input v-model.number="leaveRules.lowBalanceDays" type="number" min="0" step="0.5" :disabled="!canEdit" class="sched-input w-16" @change="saveLeaveRules" />

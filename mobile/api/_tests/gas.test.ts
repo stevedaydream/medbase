@@ -47,6 +47,8 @@ describe("/api/gas 白名單（排班 v3）", () => {
     expect(ok("mobileSetOvertime", { ym: "2026-12" })).toBeNull();
     expect(ok("mobileSetPay", { pay: { hourly: "300", dutyPay: { D: 1000, N: "" } } }))
       .toEqual({ pay: { hourly: 300, dutyPay: { D: 1000 } } });
+    expect(ok("mobileSetPay", { pay: { hourly: 0, dutyPay: { N: { weekday: "1000", sunday: 2000, cny: "", x: 9 }, D: {} } } }))
+      .toEqual({ pay: { hourly: 0, dutyPay: { N: { weekday: 1000, sunday: 2000 } } } });
     // 指定對象只轉給 GAS，是否為 super 由 GAS 判斷
     expect(ok("mobileGetPay", { personId: "p2" })).toEqual({ personId: "p2" });
   });

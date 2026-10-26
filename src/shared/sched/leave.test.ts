@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   annualDaysAt, grantPoints, requiredOffDays, leaveLedger, lowBalances, fmtLeave, leaveOf, compAccrueOf, hourlyOf, monthlyCounted,
-  DEFAULT_LEAVE_RULES as R, type LeaveInput, type LeaveMonthInput,
+  packDutyPay, unpackDutyPay, fmtDutyPay, hasDutyPay, DEFAULT_LEAVE_RULES as R, type LeaveInput, type LeaveMonthInput,
 } from "./leave";
 import { DEFAULT_SHIFTS } from "./types";
 import { emptyHolidays, daysIn } from "./calendar";
@@ -111,6 +111,37 @@ describe("假勤帳", () => {
     }));
     expect(l.months["202602"].dutyPay).toBe(1000 + 2000 + 2000);
     expect(l.months["202602"].dutyPayDefaults).toEqual(["D"]);
+  });
+  it("值班費依日別分價：沒填的日別用平日價；有自己價的國定假日不乘倍率；補班日算平日", () => {
+    // 2026-02：2 日週一、7 日週六、8 日週日、9 日國定（無國定價→平日價×倍率）、10 日春節、14 日週六補班
+    const shifts = DEFAULT_SHIFTS.map(s => s.code === "N" ? { ...s, dutyPay: { weekday: 1000, saturday: 1500, sunday: 2000, cny: 5000 } } : s);
+    const l = leaveLedger(base({
+      hireDate: "", shifts,
+      rules: { ...R, holidayPayRate: 2 },
+      holidays: { ...emptyHolidays(), days: { "2026-02-09": "測試假日" }, workdays: ["2026-02-14"], cny: [{ from: "2026-02-10", to: "2026-02-10" }] },
+      months: [month("202602", allOff("202602", { 2: "N", 7: "N", 8: "N", 9: "N", 10: "N", 14: "N" }))],
+    }));
+    const st = l.months["202602"];
+    expect(st.dutyPay).toBe(1000 + 1500 + 2000 + 2000 + 5000 + 1000);
+    expect(st.dutyPayByDay).toEqual({
+      weekday: { count: 2, amount: 2000 }, saturday: { count: 1, amount: 1500 }, sunday: { count: 1, amount: 2000 },
+      holiday: { count: 1, amount: 2000 }, cny: { count: 1, amount: 5000 },
+    });
+    // 個人設定整組覆蓋預設（只填平日＝各日同價）
+    const own = leaveLedger(base({
+      hireDate: "", shifts, months: [month("202602", allOff("202602", { 7: "N", 8: "N" }))],
+      pay: { hourly: 0, dutyPay: { N: 1200 } },
+    }));
+    expect(own.months["202602"].dutyPay).toBe(2400);
+    expect(own.months["202602"].dutyPayDefaults).toEqual([]);
+  });
+  it("值班費格式轉換", () => {
+    expect(packDutyPay({ weekday: 1000, saturday: "" })).toBe(1000);
+    expect(packDutyPay({ weekday: "", sunday: 2000 })).toEqual({ sunday: 2000 });
+    expect(packDutyPay({})).toBeUndefined();
+    expect(unpackDutyPay(1500)).toEqual({ weekday: 1500 });
+    expect(fmtDutyPay({ weekday: 1000, cny: 3000 })).toBe("平日 1000／春節 3000");
+    expect(hasDutyPay({})).toBe(false);
   });
 });
 

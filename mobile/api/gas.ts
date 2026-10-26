@@ -28,6 +28,7 @@ const CONFIG_KEYS = ["np_duty_url"];
 /** 排班文件 key：people／shifts…／month:YYYYMM／prebook:YYYYMM／log:global…／snap:YYYYMM-NN（存檔點） */
 const SCH_KEY = /^(people|groups|shifts|quotaItems|rules|holidays|holidayDuty|duty84|cny|notices|debts|leaveRules|leaveOpen|(month|prebook|log|lock|est|swapreq|overtime):(\d{6}|global)|snap:\d{6}-\d{2})$/;
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+const PAY_DAY_KEYS = ["weekday", "saturday", "sunday", "holiday", "cny"];
 /** super 修改別人的假勤資料（是否為 super 由 GAS 判斷） */
 const target = (a: Args): Args => a.personId ? { personId: str(a.personId, 64) } : {};
 const MAX_DOC = 2_000_000;
@@ -114,7 +115,14 @@ export const RULES: Record<string, Rule> = {
     build: (a) => {
       const p = (a.pay && typeof a.pay === "object" ? a.pay : {}) as Args;
       const src = (p.dutyPay && typeof p.dutyPay === "object" ? p.dutyPay : {}) as Args;
-      const dutyPay = Object.fromEntries(Object.entries(src).slice(0, 40).filter(([, v]) => v !== "" && v != null).map(([k, v]) => [str(k, 10), num(v)]));
+      // 值班費：單一金額，或依日別分價
+      const day = (v: unknown) => {
+        if (v === "" || v == null) return undefined;
+        if (typeof v !== "object") return num(v);
+        const o = Object.fromEntries(PAY_DAY_KEYS.filter(k => (v as Args)[k] !== "" && (v as Args)[k] != null).map(k => [k, num((v as Args)[k])]));
+        return Object.keys(o).length ? o : undefined;
+      };
+      const dutyPay = Object.fromEntries(Object.entries(src).slice(0, 40).map(([k, v]) => [str(k, 10), day(v)]).filter(([, v]) => v !== undefined));
       const sal = (p.salary && typeof p.salary === "object" ? p.salary : null) as Args | null;
       const salary = sal ? {
         base: num(sal.base), professional: num(sal.professional),

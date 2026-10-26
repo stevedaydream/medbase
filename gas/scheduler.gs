@@ -945,13 +945,27 @@ function _schSetTips(docs, his, tips) {
   return { ok: true };
 }
 
+/** 值班費：單一金額，或依日別（平日／週六／週日／國定／春節）分價；空白＝null */
+function _schDutyPay(v) {
+  if (v === '' || v == null) return null;
+  if (typeof v !== 'object') return _num(v, 0, 1000000);
+  const out = {};
+  ['weekday', 'saturday', 'sunday', 'holiday', 'cny'].forEach(k => {
+    if (v[k] !== '' && v[k] != null) out[k] = _num(v[k], 0, 1000000);
+  });
+  return Object.keys(out).length ? out : null;
+}
+
 /** 設定時薪與各班別值班費（本人，或 super 指定 targetId） */
 function _schSetPay(docs, person, pay, targetId) {
   const t = _schLeaveTarget(docs, person, targetId);
   if (t.error) return { ok: false, error: t.error };
   const dutyPay = {};
   const src = pay && pay.dutyPay && typeof pay.dutyPay === 'object' ? pay.dutyPay : {};
-  Object.keys(src).slice(0, 40).forEach(k => { if (src[k] !== '' && src[k] != null) dutyPay[String(k).slice(0, 10)] = _num(src[k], 0, 1000000); });
+  Object.keys(src).slice(0, 40).forEach(k => {
+    const v = _schDutyPay(src[k]);
+    if (v !== null) dutyPay[String(k).slice(0, 10)] = v;
+  });
   const all = _schParse(docs, 'pay', {});
   all[t.id] = { hourly: _num(pay && pay.hourly, 0, 100000), dutyPay: dutyPay };
   // 薪資條結構（本薪、專業加給、自訂項目），時薪由此換算

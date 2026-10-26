@@ -9,7 +9,7 @@ import {
   leaveLedger, normalizeLeaveRules, fmtLeave, hourlyOf, LEAVE_LABELS,
   type LeaveRules, type LeaveOpen, type LeaveOpenDoc, type OvertimeDoc, type PaySetting, type LeaveMonthInput,
 } from '@shared/sched/leave'
-import { DEFAULT_SHIFTS, type MonthDoc, type ShiftDef, type HolidayDoc, type LeaveKind } from '@shared/sched/types'
+import { DEFAULT_SHIFTS, PAY_DAYS, type MonthDoc, type ShiftDef, type HolidayDoc, type LeaveKind } from '@shared/sched/types'
 import { daysIn } from '@shared/sched/calendar'
 
 /** 假勤統計（ADR-027）：本月值班費與補假、補換假，目前各假別餘額；登記加班、期初餘額、時薪與值班費 */
@@ -50,6 +50,9 @@ const ledger = computed(() => leaveLedger({
   today: new Date().toLocaleString('sv-SE').slice(0, 10),
 }))
 const stat = computed(() => ledger.value.months[props.ym])
+/** 值班費依日別：「平日 6 班 9,000、週六 2 班 4,000」 */
+const dutyBreakdown = computed(() => PAY_DAYS.map(d => ({ d, b: stat.value?.dutyPayByDay[d.key] })).filter(x => x.b)
+  .map(({ d, b }) => `${d.label} ${b!.count} 班 ${Math.round(b!.amount).toLocaleString()}`).join('、'))
 const bal = computed(() => ledger.value.balance)
 const lastExpired = computed(() => bal.value.expired[bal.value.expired.length - 1])
 const daysLeft = (date: string) => Math.ceil((new Date(date).getTime() - Date.now()) / 86400000)
@@ -106,6 +109,7 @@ const ymLabel = computed(() => `${Number(props.ym.slice(4))} 月`)
           <span class="text-fg-secondary">值班費</span>
           <span class="font-bold tabular-nums">{{ money(stat.dutyPay) }}</span>
         </div>
+        <p v-if="dutyBreakdown" class="text-xs text-muted">{{ dutyBreakdown }}</p>
         <p v-if="stat.dutyPayDefaults.length" class="text-xs text-muted">{{ stat.dutyPayDefaults.join('、') }} 用單位預設金額；可在下方設定自己的</p>
         <p v-if="stat.dutyPayMissing.length" class="text-xs text-warning">{{ stat.dutyPayMissing.join('、') }} 還沒有值班費金額</p>
         <div class="flex justify-between">

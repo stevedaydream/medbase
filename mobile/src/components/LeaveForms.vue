@@ -4,9 +4,10 @@ import { doc, sched, syncSchedDocs } from '../lib/sched'
 import { gas } from '../lib/api'
 import { toast } from '../lib/ui'
 import {
-  compAccrueOf, normalizeLeaveRules, hourlyOf, monthlyCounted, type LeaveOpen, type LeaveRules, type PaySetting, type Salary,
+  compAccrueOf, normalizeLeaveRules, hourlyOf, monthlyCounted, hasDutyPay, packDutyPay, unpackDutyPay,
+  type LeaveOpen, type LeaveRules, type PaySetting, type Salary,
 } from '@shared/sched/leave'
-import { DEFAULT_SHIFTS, type ShiftDef } from '@shared/sched/types'
+import { DEFAULT_SHIFTS, PAY_DAYS, type ShiftDef, type PayDay } from '@shared/sched/types'
 
 /**
  * 期初餘額／時薪與值班費表單（底部抽屜，ADR-027）。
@@ -26,13 +27,19 @@ const rules = computed(() => normalizeLeaveRules(doc<Partial<LeaveRules>>('leave
 const hpd = computed(() => rules.value.hoursPerDay)
 const shifts = computed(() => doc<ShiftDef[]>('shifts') ?? DEFAULT_SHIFTS)
 /** 會領值班費的班別：有預設值或會累積補假的班 */
-const dutyShifts = computed(() => shifts.value.filter(s => s.dutyPay !== undefined || compAccrueOf(s) > 0))
+const dutyShifts = computed(() => shifts.value.filter(s => hasDutyPay(s.dutyPay) || compAccrueOf(s) > 0))
+/** 預設金額提示：該日別有預設價就顯示，否則平日顯示預設或「未設定」、其他日別顯示「同平日」 */
+function defaultHint(s: ShiftDef, day: PayDay): string {
+  const d = unpackDutyPay(s.dutyPay)[day]
+  if (d !== undefined) return `預設 ${d}`
+  return day === 'weekday' ? '未設定' : '同平日'
+}
 const who = computed(() => props.name ? `${props.name}的` : '')
 
 const openForm = ref<LeaveOpen>(props.open ? { ...props.open } : { from: props.ym, annual: 0, carry: 0, carryUntil: '', comp: 0, swap: 0 })
-const payForm = ref<{ hourly: number; dutyPay: Record<string, number | ''>; salary: Salary }>({
+const payForm = ref<{ hourly: number; dutyPay: Record<string, Partial<Record<PayDay, number | ''>>>; salary: Salary }>({
   hourly: props.pay?.hourly ?? 0,
-  dutyPay: Object.fromEntries(dutyShifts.value.map(s => [s.code, props.pay?.dutyPay?.[s.code] ?? ''])),
+  dutyPay: Object.fromEntries(dutyShifts.value.map(s => [s.code, unpackDutyPay(props.pay?.dutyPay?.[s.code])])),
   salary: props.pay?.salary ? JSON.parse(JSON.stringify(props.pay.salary)) : { base: 0, professional: 0, custom: [] },
 })
 /** 薪資條換算：有填薪資就自動算時薪（月薪 ÷ 240），全部清空才可手動填 */
@@ -58,7 +65,7 @@ async function save() {
       const hasSalary = salary.base || salary.professional || salary.custom.length
       value = {
         hourly: hasSalary ? autoHourly.value : Number(f.hourly) || 0,
-        dutyPay: Object.fromEntries(Object.entries(f.dutyPay).filter(([, v]) => v !== '').map(([k, v]) => [k, Number(v)])),
+        dutyPay: Object.fromEntries(Object.entries(f.dutyPay).map(([k, v]) => [k, packDutyPay(v)]).filter(([, v]) => v !== undefined)),
         ...(hasSalary ? { salary } : {}),
       }
       r = await gas('mobileSetPay', { pay: value, ...target() })
@@ -115,10 +122,16 @@ async function save() {
           <input v-else v-model.number="payForm.hourly" type="number" min="0" class="flex-1 h-10 px-2 rounded-lg bg-sunken border border-hairline" />
         </label>
         <p v-if="monthly > 0" class="text-xs text-muted">＝ 月薪 {{ fmtMoney(monthly) }} ÷ {{ rules.hourlyDivisor }}（清空薪資項目才可手動填時薪）</p>
-        <label v-for="s in dutyShifts" :key="s.code" class="flex items-center gap-2">{{ s.code }} 值班費
-          <input v-model="payForm.dutyPay[s.code]" type="number" min="0" step="50" :placeholder="s.dutyPay !== undefined ? `預設 ${s.dutyPay}` : '未設定'"
-            class="flex-1 h-10 px-2 rounded-lg bg-sunken border border-hairline" />
-        </label>
+        <div v-for="s in dutyShifts" :key="s.code" class="space-y-1">
+          <p class="font-bold text-fg">{{ s.code }} 值班費</p>
+          <div class="grid grid-cols-5 gap-1.5">
+            <label v-for="d in PAY_DAYS" :key="d.key" class="flex flex-col gap-0.5 text-xs text-fg-secondary">{{ d.label }}
+              <input v-model="payForm.dutyPay[s.code][d.key]" type="number" inputmode="numeric" min="0" step="50" :placeholder="defaultHint(s, d.key)"
+                class="w-full min-w-0 h-10 px-1.5 rounded-lg bg-sunken border border-hairline text-sm text-fg placeholder:text-[11px]" />
+            </label>
+          </div>
+        </div>
+        <p v-if="dutyShifts.length" class="text-xs text-muted">整班空白＝用單位預設；有填的班，空白的日別＝同自己的平日價。</p>
         <button class="w-full h-11 rounded-xl bg-accent text-white font-bold disabled:opacity-40" :disabled="busy" @click="save">儲存</button>
       </template>
     </div>

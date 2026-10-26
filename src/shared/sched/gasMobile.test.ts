@@ -319,6 +319,8 @@ describe("GAS 假勤（ADR-027）", () => {
     expect((a._schSetLeaveOpen(x, me, { from: "2026-11" }) as { ok: boolean }).ok).toBe(false);
     expect(a._schSetPay(x, me, { hourly: 320, dutyPay: { D: 1200, N: "" } })).toEqual({ ok: true });
     expect(JSON.parse(x.pay.json).e1).toEqual({ hourly: 320, dutyPay: { D: 1200 } });
+    a._schSetPay(x, me, { hourly: 0, dutyPay: { N: { weekday: "1000", saturday: 1500, cny: "", bad: 1 }, D: {} } });
+    expect(JSON.parse(x.pay.json).e1.dutyPay).toEqual({ N: { weekday: 1000, saturday: 1500 } });
     expect((a._schSetPay(x, null, {}) as { ok: boolean }).ok).toBe(false);
     a._schSetPay(x, me, { hourly: 0, dutyPay: {}, salary: { base: "48000", professional: 12000, custom: [{ name: "交通", amount: 2000, counted: 1 }, null] } });
     expect(JSON.parse(x.pay.json).e1.salary).toEqual({ base: 48000, professional: 12000, custom: [{ name: "交通", amount: 2000, counted: true }, { name: "", amount: 0, counted: false }] });

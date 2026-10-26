@@ -6,8 +6,8 @@
  * - 補假：每排一班累積該班別的補假時數＋（應休天數 − 實際 OFF 天數）× 1 天時數；只在月份發布後計入
  * - 補換假：員工登記的加班時數
  */
-import type { HolidayDoc, LeaveKind, ShiftDef, MonthDoc, PrebookDoc } from "./types";
-import { daysIn, dateStr, dowOf, inCny } from "./calendar";
+import { PAY_DAYS, type HolidayDoc, type LeaveKind, type ShiftDef, type MonthDoc, type PrebookDoc, type DutyPay, type PayDay } from "./types";
+import { daysIn, dateStr, dowOf, inCny, dayTypeOf } from "./calendar";
 import { cellFnOf } from "./engine/prefill";
 
 export interface AnnualStep { months: number; days: number }
@@ -19,7 +19,7 @@ export interface LeaveRules {
   annual: AnnualStep[];
   incPerYear: number;
   maxDays: number;
-  /** 國定假日、春節的值班費倍率 */
+  /** 國定假日、春節的值班費倍率（該日別有自己的價時不乘） */
   holidayPayRate: number;
   /** 排班時任一假別餘額低於此天數即提醒 */
   lowBalanceDays: number;
@@ -60,7 +60,52 @@ export interface Salary { base: number; professional: number; custom: SalaryItem
  * 個人薪資設定（只有本人與 super）：時薪、各班別值班費（覆蓋班別預設值）。
  * 有填薪資結構時，時薪一律由薪資結構換算（見 hourlyOf）。
  */
-export interface PaySetting { hourly: number; dutyPay: Record<string, number>; salary?: Salary }
+export interface PaySetting { hourly: number; dutyPay: Record<string, DutyPay>; salary?: Salary }
+
+/** 該日的值班費日別 */
+export function payDayOf(ym: string, day: number, h: HolidayDoc): PayDay {
+  if (inCny(h, dateStr(ym, day))) return "cny";
+  return dayTypeOf(ym, day, h);
+}
+
+/** 有沒有設定值班費（空物件＝沒設定） */
+export function hasDutyPay(p: DutyPay | undefined): p is DutyPay {
+  return typeof p === "number" || (!!p && Object.keys(p).length > 0);
+}
+
+/** 某日別的金額；explicit＝該日別有自己的價（不再乘國定假日倍率） */
+export function dutyPayAt(p: DutyPay | undefined, day: PayDay): { amount: number; explicit: boolean } {
+  if (typeof p === "number") return { amount: p, explicit: false };
+  const v = p?.[day];
+  if (v !== undefined) return { amount: v, explicit: day !== "weekday" };
+  return { amount: p?.weekday ?? 0, explicit: false };
+}
+
+/** 各日別輸入 → 儲存格式：全空＝undefined、只有平日＝單一數字 */
+export function packDutyPay(v: Partial<Record<PayDay, number | "" | null | undefined>>): DutyPay | undefined {
+  const out: Partial<Record<PayDay, number>> = {};
+  for (const { key } of PAY_DAYS) {
+    const x = v[key];
+    if (x !== "" && x != null && Number.isFinite(Number(x))) out[key] = Number(x);
+  }
+  const keys = Object.keys(out);
+  if (!keys.length) return undefined;
+  if (keys.length === 1 && out.weekday !== undefined) return out.weekday;
+  return out;
+}
+
+/** 儲存格式 → 各日別輸入（單一數字放平日） */
+export function unpackDutyPay(p: DutyPay | undefined): Partial<Record<PayDay, number>> {
+  if (typeof p === "number") return { weekday: p };
+  return { ...(p ?? {}) };
+}
+
+/** 簡短顯示：「1500」或「平日 1500／週六 2000」 */
+export function fmtDutyPay(p: DutyPay | undefined): string {
+  if (!hasDutyPay(p)) return "";
+  if (typeof p === "number") return String(p);
+  return PAY_DAYS.filter(d => p[d.key] !== undefined).map(d => `${d.label} ${p[d.key]}`).join("／");
+}
 
 /** 計入時薪的月薪合計 */
 export function monthlyCounted(s: Salary | undefined): number {
@@ -173,6 +218,8 @@ export interface LeaveMonthStat {
   offDays: number;
   swapFromOvertime: number;
   dutyPay: number;
+  /** 依日別：值班次數與金額（有值班費的班才計） */
+  dutyPayByDay: Partial<Record<PayDay, { count: number; amount: number }>>;
   /** 用班別預設值計算值班費的班別 */
   dutyPayDefaults: string[];
   /** 已設定值班費（個人或預設）卻是 0 的班別不算；沒有任何設定的值班班別 */
@@ -260,7 +307,7 @@ export function leaveLedger(inp: LeaveInput): LeaveLedger {
     const st: LeaveMonthStat = {
       ym: m.ym, published: m.published, used: { annual: 0, comp: 0, swap: 0 },
       compFromShifts: 0, compFromUnrest: 0, requiredOff: requiredOffDays(m.ym, h), offDays: 0,
-      swapFromOvertime: 0, dutyPay: 0, dutyPayDefaults: [], dutyPayMissing: [],
+      swapFromOvertime: 0, dutyPay: 0, dutyPayByDay: {}, dutyPayDefaults: [], dutyPayMissing: [],
     };
     for (let d = 1; d <= daysIn(m.ym); d++) {
       const date = dateStr(m.ym, d);
@@ -277,13 +324,22 @@ export function leaveLedger(inp: LeaveInput): LeaveLedger {
         else bal[lv.kind] -= lv.hours;
       }
       if (m.published) st.compFromShifts += compAccrueOf(s);
-      // 值班費：個人設定優先，沒有就用班別預設值
+      // 值班費：個人設定優先，沒有就用班別預設值；依日別取價，沒填的日別用平日價
       const own = inp.pay?.dutyPay?.[code];
-      const base = own ?? s?.dutyPay ?? 0;
-      if (own === undefined && s?.dutyPay) { if (!st.dutyPayDefaults.includes(code)) st.dutyPayDefaults.push(code); }
-      if (own === undefined && s?.dutyPay === undefined && s && compAccrueOf(s) > 0 && !st.dutyPayMissing.includes(code)) st.dutyPayMissing.push(code);
-      const holiday = date in h.days || inCny(h, date);
-      st.dutyPay += base * (holiday ? rules.holidayPayRate : 1);
+      const mine = hasDutyPay(own);
+      const def = s?.dutyPay;
+      if (!mine && hasDutyPay(def)) { if (!st.dutyPayDefaults.includes(code)) st.dutyPayDefaults.push(code); }
+      if (!mine && !hasDutyPay(def) && s && compAccrueOf(s) > 0 && !st.dutyPayMissing.includes(code)) st.dutyPayMissing.push(code);
+      const pd = payDayOf(m.ym, d, h);
+      const at = dutyPayAt(mine ? own : def, pd);
+      const holiday = pd === "cny" || pd === "holiday";
+      const amount = at.amount * (holiday && !at.explicit ? rules.holidayPayRate : 1);
+      if (amount) {
+        const b = (st.dutyPayByDay[pd] ??= { count: 0, amount: 0 });
+        b.count++;
+        b.amount += amount;
+      }
+      st.dutyPay += amount;
     }
     if (m.published) {
       st.compFromUnrest = Math.max(0, st.requiredOff - st.offDays) * hpd;

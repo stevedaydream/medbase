@@ -49,12 +49,24 @@ export interface ShiftDef {
   leave?: { kind: LeaveKind; hours: number } | null;
   /** 排此班累積的補假時數；沒有此欄時 12 小時以上的上班班別累積（時數 − 8） */
   compAccrue?: number;
-  /** 值班費預設值（個人可覆蓋） */
-  dutyPay?: number;
+  /** 值班費預設值（個人可覆蓋）；可依日別分價 */
+  dutyPay?: DutyPay;
 }
 
 /** 特休、補假、補換假 */
 export type LeaveKind = "annual" | "comp" | "swap";
+
+/** 值班費的日別：春節優先，其次國定假日；補班日算平日 */
+export type PayDay = "weekday" | "saturday" | "sunday" | "holiday" | "cny";
+export const PAY_DAYS: { key: PayDay; label: string }[] = [
+  { key: "weekday",  label: "平日" },
+  { key: "saturday", label: "週六" },
+  { key: "sunday",   label: "週日" },
+  { key: "holiday",  label: "國定" },
+  { key: "cny",      label: "春節" },
+];
+/** 值班費：單一金額（各日別同價），或依日別分價（沒填的日別用平日價） */
+export type DutyPay = number | Partial<Record<PayDay, number>>;
 
 /** 空白格：平日＝S1、週六＝H3；週日／國定假日不允許空白 */
 export const BLANK_BY_DAYTYPE: Record<DayType, string | null> = {
