@@ -1,14 +1,24 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, watch, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useUiSettings } from "@/stores/uiSettings";
 import NpDutySidebarCard from "@/components/NpDutySidebarCard.vue";
+import MobileQrDialog from "@/components/MobileQrDialog.vue";
 
 const emit = defineEmits<{ "enter-compact": [] }>();
 
 const route  = useRoute();
 const router = useRouter();
 const ui     = useUiSettings();
+
+// 手機版 QR code：側欄按鈕或 Ctrl+K（任一頁加 ?show=mobile-qr）開啟
+const showMobileQr = ref(false);
+watch(() => route.query.show, (show) => {
+  if (show !== "mobile-qr") return;
+  showMobileQr.value = true;
+  const { show: _, ...query } = route.query;
+  router.replace({ path: route.path, query });
+}, { immediate: true });
 
 interface NavItem { path: string; icon: string; label: string }
 
@@ -187,7 +197,15 @@ onUnmounted(() => {
         <span class="text-base leading-none">{{ item.icon }}</span>
         <span>{{ item.label }}</span>
       </RouterLink>
+      <button
+        @click="showMobileQr = true"
+        class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-fg-secondary hover:bg-elevated hover:text-fg transition-colors"
+      >
+        <span class="text-base leading-none">📱</span>
+        <span>手機版 QR code</span>
+      </button>
     </div>
+    <MobileQrDialog v-if="showMobileQr" @close="showMobileQr = false" />
 
     <!-- 收合按鈕 + 版本號 -->
     <div class="px-3 pb-3 flex items-center gap-2">

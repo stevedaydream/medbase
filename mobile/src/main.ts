@@ -4,10 +4,12 @@ import App from './App.vue'
 import router from './router'
 import { applyTheme, installKeyboardWatch } from './lib/ui'
 import { startIdleWatch } from './lib/session'
+import { installPromptWatch } from './lib/install'
 
 applyTheme()
 installKeyboardWatch()
 startIdleWatch()
+installPromptWatch()
 
 createApp(App).use(router).mount('#app')
 

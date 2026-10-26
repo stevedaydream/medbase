@@ -20,7 +20,8 @@ const router = useRouter()
 // 登入後：先顯示手機快取，再取得最新權限（ADR-026）後背景更新（ADR-013）
 watch(() => session.user?.his, (his) => {
   if (his) { loadCache().then(() => refreshAccess().catch(() => null)).then(() => refresh()); void syncSchedDocs() }
-  else if (route.path !== '/login') router.replace('/login')
+  // 等初始導覽完成再判斷，公開頁（/install）不導去登入
+  else void router.isReady().then(() => { if (!session.user && !route.meta.public) router.replace('/login') })
 }, { immediate: true })
 
 // 權限被收回時離開目前頁面
