@@ -18,14 +18,16 @@ defineExpose({ load })
 
 const incoming = computed(() => items.value.filter(r => r.status === 'pending' && r.b === props.me))
 const outgoing = computed(() => items.value.filter(r => r.status === 'pending' && r.a === props.me))
-const recent = computed(() => items.value.filter(r => r.status !== 'pending').slice(0, 5))
+/** super 才會拿到：別人之間待回覆的申請，可代對象回覆 */
+const proxied = computed(() => items.value.filter(r => r.status === 'pending' && r.a !== props.me && r.b !== props.me))
+const recent = computed(() => items.value.filter(r => r.status !== 'pending' && (r.a === props.me || r.b === props.me)).slice(0, 5))
 const open = ref(false)
 
 const STATUS: Record<string, string> = { done: '已生效', rejected: '已婉拒', cancelled: '已撤回', failed: '未成立' }
 const mo = (r: SwapReq) => Number(r.ym.slice(4))
-/** 從我的角度：我換前 → 換後 */
-function line(r: SwapReq) {
-  const iAmA = r.a === props.me
+/** 從某人的角度（預設我）：換前 → 換後 */
+function line(r: SwapReq, who = props.me) {
+  const iAmA = r.a === who
   return r.days.map(x => {
     const mine = iAmA ? x.aCode : x.bCode, theirs = iAmA ? x.bCode : x.aCode
     return `${mo(r)}/${x.day} ${mine || '空白'}→${theirs || '空白'}`
@@ -33,6 +35,8 @@ function line(r: SwapReq) {
 }
 
 async function act(r: SwapReq, action: 'accept' | 'reject' | 'cancel') {
+  if (r.a !== props.me && r.b !== props.me
+    && !window.confirm(`確定代 ${props.nameOf(r.b)} ${action === 'accept' ? '同意' : '婉拒'}這筆換班？雙方都會收到通知。`)) return
   busy.value = r.id
   try {
     const res = await swapApi<{ error?: string }>(action, { ym: r.ym, id: r.id })
@@ -58,6 +62,17 @@ async function act(r: SwapReq, action: 'accept' | 'reject' | 'cancel') {
       <div class="flex gap-2 pt-1">
         <button :disabled="busy === r.id" @click="act(r, 'reject')" class="flex-1 h-10 rounded-xl bg-sunken font-bold disabled:opacity-40">婉拒</button>
         <button :disabled="busy === r.id" @click="act(r, 'accept')" class="flex-1 h-10 rounded-xl bg-accent text-white font-bold disabled:opacity-40">同意</button>
+      </div>
+    </div>
+    <div v-for="r in proxied" :key="r.id" class="p-3 rounded-2xl bg-surface border border-warning/50 space-y-1.5">
+      <p class="font-bold">{{ nameOf(r.a) }} 想跟 {{ nameOf(r.b) }}{{ KIND_LABELS[r.kind] }}</p>
+      <p>{{ nameOf(r.b) }} 的班：{{ line(r, r.b) }}</p>
+      <p v-if="r.note" class="text-fg-secondary">原因：{{ r.note }}</p>
+      <p v-for="w in r.warnings" :key="w" class="text-xs text-warning">⚠ {{ w }}</p>
+      <p class="text-xs text-muted">{{ nameOf(r.b) }} 沒用手機時，可由你代為回覆</p>
+      <div class="flex gap-2 pt-1">
+        <button :disabled="busy === r.id" @click="act(r, 'reject')" class="flex-1 h-10 rounded-xl bg-sunken font-bold disabled:opacity-40">代為婉拒</button>
+        <button :disabled="busy === r.id" @click="act(r, 'accept')" class="flex-1 h-10 rounded-xl bg-accent text-white font-bold disabled:opacity-40">代為同意</button>
       </div>
     </div>
     <div v-for="r in outgoing" :key="r.id" class="p-3 rounded-2xl bg-surface border border-hairline flex items-center gap-2">

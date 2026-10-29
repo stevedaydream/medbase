@@ -4,7 +4,7 @@ import { DEFAULT_SHIFTS, DEFAULT_QUOTA_ITEMS, DEFAULT_RULES, emptyFlags, emptyMo
 import { dowOf } from "../../../src/shared/sched/calendar";
 
 /** 記憶體中的 SchDocs（schList／schGet／schPut atomic／schPublish） */
-function fakeGas() {
+function fakeGas(roles: Record<string, string> = {}) {
   const store: Record<string, { version: string; json: string }> = {};
   let v = 0;
   const calls: string[] = [];
@@ -27,7 +27,7 @@ function fakeGas() {
       default: return { ok: false, error: "?" };
     }
   };
-  const people = ["a", "b", "c"].map((id, i) => ({ id, name: id.toUpperCase(), unit: "9A", ext: "", his: id, role: "employee", code84: "", order: i, exempt84: false, exemptCny: false, active: true }));
+  const people = ["a", "b", "c"].map((id, i) => ({ id, name: id.toUpperCase(), unit: "9A", ext: "", his: id, role: roles[id] ?? "employee", code84: "", order: i, exempt84: false, exemptCny: false, active: true }));
   const m = { ...emptyMonth("202611"), status: "published", publishedAt: "2026-10-20T00:00:00Z", imported: true };
   m.roster = people.map(p => ({ personId: p.id, flags: emptyFlags() }));
   for (const p of people) m.schedule[p.id] = Array.from({ length: 30 }, (_, i) => [0, 6].includes(dowOf("202611", i + 1)) ? "OFF" : "S1");
@@ -87,5 +87,39 @@ describe("/api/swap", () => {
     await handle({ action: "list" }, { ...A, group: "8A" }, gas, NOW);
     expect(new Set(groups)).toEqual(new Set(["8A"]));
     await expect(handle({ action: "list" }, { ...A, group: "" }, gas, NOW)).rejects.toThrow("不在排班名單");
+  });
+
+  it("super 收到申請通知、看得到別人的申請並可代為同意", async () => {
+    const f = fakeGas({ c: "super" });
+    const C = { id: "c", name: "C", role: "super", group: "9A9B" };
+    await handle({ action: "create", ym: "202611", kind: "same", b: "b", give: [10] }, A, f.gas, NOW);
+    expect(f.read("notices").map((n: { personId: string }) => n.personId)).toEqual(["b", "c"]);
+    const list = await handle({ action: "list" }, C, f.gas, NOW);
+    const id = (list.items as { id: string }[])[0].id;
+    expect(await handle({ action: "accept", ym: "202611", id }, C, f.gas, NOW)).toEqual({ ok: true });
+    expect(f.read("month:202611").schedule.b[9]).toBe("D");
+    expect(f.read("swapreq:202611").items[0]).toMatchObject({ status: "done", by: "c" });
+    const texts = f.read("notices").map((n: { personId: string; text: string }) => `${n.personId}:${n.text}`);
+    expect(texts.some((t: string) => t.startsWith("b:C 已代你同意換班"))).toBe(true);
+    expect(texts.some((t: string) => t.startsWith("a:B 已同意換班（由 C 代為同意）"))).toBe(true);
+  });
+
+  it("一般員工不能代為回覆；super 不能代同意自己提出的申請", async () => {
+    const f = fakeGas({ a: "super" });
+    const SA = { ...A, role: "super" }, C = { id: "c", name: "C", role: "employee", group: "9A9B" };
+    await handle({ action: "create", ym: "202611", kind: "same", b: "b", give: [10] }, SA, f.gas, NOW);
+    const id = f.read("swapreq:202611").items[0].id;
+    await expect(handle({ action: "accept", ym: "202611", id }, SA, f.gas, NOW)).rejects.toThrow("找不到");
+    await expect(handle({ action: "reject", ym: "202611", id }, C, f.gas, NOW)).rejects.toThrow("找不到");
+    expect((await handle({ action: "list" }, C, f.gas, NOW)).items).toEqual([]);
+  });
+
+  it("super 代為婉拒", async () => {
+    const f = fakeGas({ c: "super" });
+    await handle({ action: "create", ym: "202611", kind: "same", b: "b", give: [10] }, A, f.gas, NOW);
+    const id = f.read("swapreq:202611").items[0].id;
+    expect(await handle({ action: "reject", ym: "202611", id }, { id: "c", name: "C", role: "super", group: "9A9B" }, f.gas, NOW)).toEqual({ ok: true });
+    expect(f.read("swapreq:202611").items[0]).toMatchObject({ status: "rejected", by: "c" });
+    expect(f.read("month:202611").schedule.a[9]).toBe("D");
   });
 });

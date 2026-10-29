@@ -39,6 +39,8 @@ export interface SwapReq {
   at: string;
   decidedAt?: string;
   reason?: string;
+  /** super 代對象回覆時的 super personId */
+  by?: string;
 }
 
 export interface SwapReqDoc { ym: string; items: SwapReq[] }
@@ -178,6 +180,7 @@ export function describeReq(r: Pick<SwapReq, "ym" | "kind" | "a" | "b" | "days">
 }
 
 const staffIds = (people: Person[]) => people.filter(p => p.active && p.role !== "employee").map(p => p.id);
+const superIds = (people: Person[]) => people.filter(p => p.active && p.role === "super").map(p => p.id);
 
 /** 提出申請：只做檢查與記錄，不改班表 */
 export function opRequestSwap(
@@ -193,18 +196,27 @@ export function opRequestSwap(
   const out = clone(reqs);
   out.items.push(req);
   const nm = nameFn(s.people);
-  return { plan, reqs: out, req, notices: [notice(inp.b, `${nm(inp.a)} 想跟你換班：${describeReq(req, s.people)}，請到「我的班」回覆`, now)] };
+  const text = describeReq(req, s.people);
+  // 對象可能沒用手機收不到通知：一併通知 super，可代為同意
+  const supers = superIds(s.people).filter(id => id !== inp.a && id !== inp.b)
+    .map(id => notice(id, `${nm(inp.a)} 向 ${nm(inp.b)} 提出換班：${text}。若 ${nm(inp.b)} 沒用手機，可到「我的班」代為回覆`, now));
+  return { plan, reqs: out, req, notices: [notice(inp.b, `${nm(inp.a)} 想跟你換班：${text}，請到「我的班」回覆`, now), ...supers] };
 }
 
-/** 同意：以最新班表重新檢查，通過就套用 */
+/**
+ * 同意：以最新班表重新檢查，通過就套用。
+ * proxy＝super 代對象同意（對象沒用手機時），通知對象由誰代為同意。
+ */
 export function opAcceptSwap(
-  s: OpsState, reqs: SwapReqDoc, id: string, me: string, actor: string, now: string, today: string,
+  s: OpsState, reqs: SwapReqDoc, id: string, me: string, actor: string, now: string, today: string, proxy = false,
 ): { patch: OpPatch; reqs: SwapReqDoc; error?: string } {
   const out = clone(reqs);
   const r = out.items.find(x => x.id === id);
-  if (!r || r.b !== me) throw new Error("找不到這筆換班申請");
+  // 代為同意不能用在自己提出的申請
+  if (!r || (r.b !== me && !(proxy && r.a !== me))) throw new Error("找不到這筆換班申請");
   if (r.status !== "pending") throw new Error("這筆申請已經處理過了");
   const nm = nameFn(s.people);
+  const by = r.b !== me ? me : "";
   const fail = (why: string) => {
     r.status = "failed"; r.decidedAt = now; r.reason = why;
     const p = emptyPatch();
@@ -221,33 +233,39 @@ export function opAcceptSwap(
   if (!same(plan.days, r.days)) return fail("申請後班表已變動，請重新提出");
   if (plan.hard.length) return fail(plan.hard.join("；"));
   r.status = "done"; r.decidedAt = now; r.warnings = plan.soft;
+  if (by) r.by = by;
   const p = plan.patch;
   const text = describeReq(r, s.people);
-  p.notices.push(notice(r.a, `${nm(r.b)} 已同意換班：${text}`, now));
-  p.notices.push(notice(r.b, `你已同意換班：${text}`, now));
+  const via = by ? `（由 ${nm(by)} 代為同意）` : "";
+  p.notices.push(notice(r.a, `${nm(r.b)} 已同意換班${via}：${text}`, now));
+  p.notices.push(notice(r.b, by ? `${nm(by)} 已代你同意換班：${text}` : `你已同意換班：${text}`, now));
   for (const sid of staffIds(s.people)) {
-    if (sid === r.a || sid === r.b) continue;
+    if (sid === r.a || sid === r.b || sid === by) continue;
     p.notices.push(notice(sid, `員工換班已生效：${text}${plan.soft.length ? `（注意：${plan.soft.join("；")}）` : ""}`, now));
   }
   return { patch: p, reqs: out };
 }
 
-/** 拒絕（對象）或撤回（申請人） */
+/** 拒絕（對象，或 super 代對象：proxy）或撤回（申請人） */
 export function opCloseSwap(
-  s: OpsState, reqs: SwapReqDoc, id: string, me: string, how: "rejected" | "cancelled", now: string,
+  s: OpsState, reqs: SwapReqDoc, id: string, me: string, how: "rejected" | "cancelled", now: string, proxy = false,
 ): { reqs: SwapReqDoc; notices: ReturnType<typeof notice>[] } {
   const out = clone(reqs);
   const r = out.items.find(x => x.id === id);
-  if (!r || (how === "rejected" ? r.b : r.a) !== me) throw new Error("找不到這筆換班申請");
+  const owner = how === "rejected" ? r?.b : r?.a;
+  if (!r || (owner !== me && !(proxy && how === "rejected" && r.a !== me))) throw new Error("找不到這筆換班申請");
   if (r.status !== "pending") throw new Error("這筆申請已經處理過了");
   r.status = how; r.decidedAt = now;
+  const by = owner !== me ? me : "";
+  if (by) r.by = by;
   const nm = nameFn(s.people);
   const text = describeReq(r, s.people);
+  if (how === "cancelled") return { reqs: out, notices: [notice(r.b, `${nm(r.a)} 撤回了換班申請：${text}`, now)] };
   return {
     reqs: out,
-    notices: [how === "rejected"
-      ? notice(r.a, `${nm(r.b)} 婉拒了換班：${text}`, now)
-      : notice(r.b, `${nm(r.a)} 撤回了換班申請：${text}`, now)],
+    notices: by
+      ? [notice(r.a, `${nm(r.b)} 婉拒了換班（由 ${nm(by)} 代為回覆）：${text}`, now), notice(r.b, `${nm(by)} 已代你婉拒換班：${text}`, now)]
+      : [notice(r.a, `${nm(r.b)} 婉拒了換班：${text}`, now)],
   };
 }
 

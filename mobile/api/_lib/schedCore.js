@@ -1073,6 +1073,7 @@ function describeReq(r, people) {
   return `${KIND_LABELS[r.kind]} ${r.days.map((x) => `${md(r.ym, x.day)} ${nm(r.a)} ${x.aCode || "空白"}↔${nm(r.b)} ${x.bCode || "空白"}`).join("、")}`;
 }
 const staffIds = (people) => people.filter((p) => p.active && p.role !== "employee").map((p) => p.id);
+const superIds = (people) => people.filter((p) => p.active && p.role === "super").map((p) => p.id);
 function opRequestSwap(s, reqs, inp, actor, now, today) {
   const id = newId();
   const plan = planEmpSwap(s, inp, id, actor, now, today);
@@ -1094,14 +1095,17 @@ function opRequestSwap(s, reqs, inp, actor, now, today) {
   const out = clone(reqs);
   out.items.push(req);
   const nm = nameFn(s.people);
-  return { plan, reqs: out, req, notices: [notice(inp.b, `${nm(inp.a)} 想跟你換班：${describeReq(req, s.people)}，請到「我的班」回覆`, now)] };
+  const text = describeReq(req, s.people);
+  const supers = superIds(s.people).filter((id2) => id2 !== inp.a && id2 !== inp.b).map((id2) => notice(id2, `${nm(inp.a)} 向 ${nm(inp.b)} 提出換班：${text}。若 ${nm(inp.b)} 沒用手機，可到「我的班」代為回覆`, now));
+  return { plan, reqs: out, req, notices: [notice(inp.b, `${nm(inp.a)} 想跟你換班：${text}，請到「我的班」回覆`, now), ...supers] };
 }
-function opAcceptSwap(s, reqs, id, me, actor, now, today) {
+function opAcceptSwap(s, reqs, id, me, actor, now, today, proxy = false) {
   const out = clone(reqs);
   const r = out.items.find((x) => x.id === id);
-  if (!r || r.b !== me) throw new Error("找不到這筆換班申請");
+  if (!r || r.b !== me && !(proxy && r.a !== me)) throw new Error("找不到這筆換班申請");
   if (r.status !== "pending") throw new Error("這筆申請已經處理過了");
   const nm = nameFn(s.people);
+  const by = r.b !== me ? me : "";
   const fail = (why) => {
     r.status = "failed";
     r.decidedAt = now;
@@ -1122,28 +1126,34 @@ function opAcceptSwap(s, reqs, id, me, actor, now, today) {
   r.status = "done";
   r.decidedAt = now;
   r.warnings = plan.soft;
+  if (by) r.by = by;
   const p = plan.patch;
   const text = describeReq(r, s.people);
-  p.notices.push(notice(r.a, `${nm(r.b)} 已同意換班：${text}`, now));
-  p.notices.push(notice(r.b, `你已同意換班：${text}`, now));
+  const via = by ? `（由 ${nm(by)} 代為同意）` : "";
+  p.notices.push(notice(r.a, `${nm(r.b)} 已同意換班${via}：${text}`, now));
+  p.notices.push(notice(r.b, by ? `${nm(by)} 已代你同意換班：${text}` : `你已同意換班：${text}`, now));
   for (const sid of staffIds(s.people)) {
-    if (sid === r.a || sid === r.b) continue;
+    if (sid === r.a || sid === r.b || sid === by) continue;
     p.notices.push(notice(sid, `員工換班已生效：${text}${plan.soft.length ? `（注意：${plan.soft.join("；")}）` : ""}`, now));
   }
   return { patch: p, reqs: out };
 }
-function opCloseSwap(s, reqs, id, me, how, now) {
+function opCloseSwap(s, reqs, id, me, how, now, proxy = false) {
   const out = clone(reqs);
   const r = out.items.find((x) => x.id === id);
-  if (!r || (how === "rejected" ? r.b : r.a) !== me) throw new Error("找不到這筆換班申請");
+  const owner = how === "rejected" ? r?.b : r?.a;
+  if (!r || owner !== me && !(proxy && how === "rejected" && r.a !== me)) throw new Error("找不到這筆換班申請");
   if (r.status !== "pending") throw new Error("這筆申請已經處理過了");
   r.status = how;
   r.decidedAt = now;
+  const by = owner !== me ? me : "";
+  if (by) r.by = by;
   const nm = nameFn(s.people);
   const text = describeReq(r, s.people);
+  if (how === "cancelled") return { reqs: out, notices: [notice(r.b, `${nm(r.a)} 撤回了換班申請：${text}`, now)] };
   return {
     reqs: out,
-    notices: [how === "rejected" ? notice(r.a, `${nm(r.b)} 婉拒了換班：${text}`, now) : notice(r.b, `${nm(r.a)} 撤回了換班申請：${text}`, now)]
+    notices: by ? [notice(r.a, `${nm(r.b)} 婉拒了換班（由 ${nm(by)} 代為回覆）：${text}`, now), notice(r.b, `${nm(by)} 已代你婉拒換班：${text}`, now)] : [notice(r.a, `${nm(r.b)} 婉拒了換班：${text}`, now)]
   };
 }
 function stateOf(docs) {

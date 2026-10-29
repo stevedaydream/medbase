@@ -10,6 +10,7 @@ import {
  * { action: "list" }                                     我相關的換班申請
  * { action: "preview" | "create", ym, kind, b, give, take, note }
  * { action: "accept" | "reject" | "cancel", ym, id }
+ * super 的 list 另含群組內所有待回覆申請，並可代對象 accept／reject（對象沒用手機時）
  *
  * 員工沒有寫班表的權限，由這裡以最新雲端文件執行共用的換班邏輯（與桌機、排班者手機相同），
  * 身分取自憑證與 GAS（schMe）；寫入用 atomic 版本比對，衝突時重讀重算。
@@ -70,12 +71,15 @@ export async function handle(body: Args, me: Me, gas0: Gas, now: Date): Promise<
   const nowIso = now.toISOString();
   const today = taipeiToday(now);
   const actor = `${me.name}（手機）`;
+  // super 可代對象回覆（對象沒用手機時）
+  const proxy = me.role === "super";
 
   if (action === "list") {
     const { docs } = await load(gas, null);
     const since = prevYm(today.slice(0, 6));
+    // super 另外看得到群組內所有待回覆的申請
     const items = Object.entries(docs).filter(([k]) => k.startsWith("swapreq:") && k.slice(8) >= since)
-      .flatMap(([, d]) => (d as SwapReqDoc).items).filter(r => r.a === me.id || r.b === me.id)
+      .flatMap(([, d]) => (d as SwapReqDoc).items).filter(r => r.a === me.id || r.b === me.id || (proxy && r.status === "pending"))
       .sort((x, y) => (x.at < y.at ? 1 : -1));
     return { ok: true, me: me.id, items };
   }
@@ -107,13 +111,16 @@ export async function handle(body: Args, me: Me, gas0: Gas, now: Date): Promise<
       out[reqKey] = r.reqs;
       result = { ok: true, req: r.req };
     } else if (action === "accept") {
-      const r = opAcceptSwap(s, reqs, str(body.id, 64), me.id, actor, nowIso, today);
+      const id = str(body.id, 64);
+      const target = reqs.items.find(x => x.id === id);
+      const by = target && target.b !== me.id ? `${me.name}（手機，代 ${s.people.find(p => p.id === target.b)?.name ?? target.b} 同意）` : actor;
+      const r = opAcceptSwap(s, reqs, id, me.id, by, nowIso, today, proxy);
       out = docsOfPatch(docs, r.patch as OpPatch, nowIso);
       out[reqKey] = r.reqs;
       published = !r.error && s.months[ym]?.status === "published";
       result = r.error ? { ok: false, error: r.error } : { ok: true };
     } else if (action === "reject" || action === "cancel") {
-      const r = opCloseSwap(s, reqs, str(body.id, 64), me.id, action === "reject" ? "rejected" : "cancelled", nowIso);
+      const r = opCloseSwap(s, reqs, str(body.id, 64), me.id, action === "reject" ? "rejected" : "cancelled", nowIso, proxy);
       out = docsOfPatch(docs, { months: [], prebooks: [], ests: [], warnings: [], notices: r.notices, logs: [] }, nowIso);
       out[reqKey] = r.reqs;
     } else {
