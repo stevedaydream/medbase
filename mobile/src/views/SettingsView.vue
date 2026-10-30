@@ -10,8 +10,34 @@ import { usePullRefresh } from '../lib/pull'
 import { themeMode, applyTheme, fmtTime, toast, type ThemeMode } from '../lib/ui'
 import { geminiKey, saveGeminiKey, geminiModel, geminiModels, saveGeminiModel, loadGeminiModels } from '../lib/gemini'
 import { modelOptions } from '@shared/geminiModels'
+import { linkCodeApi } from '../lib/api'
 
 const version = __APP_VERSION__
+
+// ── LINE 通知（醫院群組助手 bot）──────────────────────────────────
+const linking = ref(false)
+const linkCode = ref('')
+async function linkLine() {
+  linking.value = true
+  try {
+    const r = await linkCodeApi()
+    linkCode.value = r.code
+    // 開啟與 bot 的聊天並預填「綁定 <碼>」，使用者按送出即可
+    window.location.href = r.lineUrl
+  } catch (e) {
+    toast(`無法產生綁定碼：${(e as Error).message}`)
+  } finally {
+    linking.value = false
+  }
+}
+async function copyLinkText() {
+  try {
+    await navigator.clipboard.writeText(`綁定 ${linkCode.value}`)
+    toast('已複製，請貼到與「醫院群組助手」的聊天')
+  } catch {
+    toast('無法複製，請長按文字自行複製')
+  }
+}
 
 const keyDraft = ref(geminiKey.value)
 const showKey = ref(false)
@@ -97,6 +123,19 @@ const THEMES: { key: ThemeMode; label: string }[] = [
             <button @click="confirmLogout = false" class="flex-1 h-11 rounded-xl bg-sunken border border-hairline font-bold">取消</button>
             <button @click="logout()" class="flex-1 h-11 rounded-xl bg-danger text-white font-bold">確定登出</button>
           </div>
+        </div>
+      </section>
+
+      <!-- LINE 通知（醫院群組助手 bot） -->
+      <section v-if="session.user?.personId" class="p-4 rounded-2xl bg-surface border border-hairline space-y-2">
+        <p class="font-bold text-fg">LINE 通知</p>
+        <p class="text-xs text-muted leading-relaxed">綁定「醫院群組助手」後，可在 LINE 輸入「我的班」「明天值班」查詢班表，換班申請與回覆也會私訊通知你。綁定不會傳送你的密碼。</p>
+        <button @click="linkLine" :disabled="linking" class="w-full h-11 rounded-xl bg-accent text-white font-bold disabled:opacity-40">
+          {{ linking ? '產生綁定碼中…' : '綁定 LINE' }}
+        </button>
+        <div v-if="linkCode" class="text-xs text-muted space-y-1">
+          <p>若沒有自動開啟 LINE，請複製下方文字傳給「醫院群組助手」（10 分鐘內有效）：</p>
+          <button @click="copyLinkText" class="w-full p-2 rounded-lg bg-sunken border border-hairline font-mono text-left break-all text-fg-secondary">綁定 {{ linkCode }}</button>
         </div>
       </section>
 

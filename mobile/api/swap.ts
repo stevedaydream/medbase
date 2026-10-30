@@ -4,6 +4,7 @@ import {
   stateOf, docsOfPatch, planEmpSwap, opRequestSwap, opAcceptSwap, opCloseSwap,
   type DocMap, type SwapReqDoc, type EmpSwapKind, type OpPatch,
 } from "./_lib/schedCore.js";
+import { notifyBot, type BotNotice } from "./_lib/botNotify.js";
 
 /**
  * POST /api/swap  員工自行換班（ADR-016）
@@ -55,6 +56,29 @@ async function load(gas: Gas, ym: string | null): Promise<{ docs: DocMap; versio
   return { docs, versions };
 }
 
+const SCHEDULE_URL = "https://medbase-mobile.vercel.app/schedule";
+
+type SwapReqLike = SwapReqDoc["items"][number];
+
+/** 換班事件要私訊給誰、說什麼（LINE bot，ADR-016 延伸）；找不到對方的 HIS 帳號就不通知 */
+export function swapNotice(
+  event: BotNotice["event"], req: SwapReqLike | undefined, people: { id: string; name: string; his?: string }[],
+): BotNotice | null {
+  if (!req) return null;
+  const person = (id: string) => people.find(p => p.id === id);
+  const a = person(req.a), b = person(req.b);
+  const month = `${Number(req.ym.slice(4))} 月`;
+  const dayList = req.days.map(d => `${d.day} 日`).join("、");
+  const to = event === "swap_request" || event === "swap_cancelled" ? b : a;
+  const text = {
+    swap_request: `🔁 ${a?.name ?? "同事"} 向你提出換班（${month} ${dayList}）${req.note ? `\n備註：${req.note}` : ""}\n請到 MedBase 回覆：${SCHEDULE_URL}`,
+    swap_accepted: `✅ ${b?.name ?? "對方"} 已同意你的換班（${month} ${dayList}），班表已更新。`,
+    swap_rejected: `❌ ${b?.name ?? "對方"} 婉拒了你的換班（${month} ${dayList}）。${req.reason ? `\n原因：${req.reason}` : ""}`,
+    swap_cancelled: `↩️ ${a?.name ?? "同事"} 取消了換班申請（${month} ${dayList}）。`,
+  }[event];
+  return to?.his ? { event, toHis: String(to.his).trim(), text, ym: req.ym } : null;
+}
+
 async function save(gas: Gas, out: DocMap, versions: Record<string, string>): Promise<boolean> {
   const items = Object.entries(out).map(([key, v]) => ({ key, json: JSON.stringify(v), base: versions[key] ?? null }));
   if (!items.length) return true;
@@ -96,6 +120,7 @@ export async function handle(body: Args, me: Me, gas0: Gas, now: Date): Promise<
     let out: DocMap = {};
     let result: Args = { ok: true };
     let published = false;
+    let notice: BotNotice | null = null;
 
     if (action === "preview" || action === "create") {
       const kind = str(body.kind, 10) as EmpSwapKind;
@@ -110,6 +135,7 @@ export async function handle(body: Args, me: Me, gas0: Gas, now: Date): Promise<
       out = docsOfPatch(docs, { months: [], prebooks: [], ests: [], warnings: [], notices: r.notices, logs: [] }, nowIso);
       out[reqKey] = r.reqs;
       result = { ok: true, req: r.req };
+      notice = swapNotice("swap_request", r.req, s.people);
     } else if (action === "accept") {
       const id = str(body.id, 64);
       const target = reqs.items.find(x => x.id === id);
@@ -119,16 +145,21 @@ export async function handle(body: Args, me: Me, gas0: Gas, now: Date): Promise<
       out[reqKey] = r.reqs;
       published = !r.error && s.months[ym]?.status === "published";
       result = r.error ? { ok: false, error: r.error } : { ok: true };
+      if (!r.error) notice = swapNotice("swap_accepted", r.reqs.items.find(x => x.id === id), s.people);
     } else if (action === "reject" || action === "cancel") {
-      const r = opCloseSwap(s, reqs, str(body.id, 64), me.id, action === "reject" ? "rejected" : "cancelled", nowIso, proxy);
+      const id = str(body.id, 64);
+      const r = opCloseSwap(s, reqs, id, me.id, action === "reject" ? "rejected" : "cancelled", nowIso, proxy);
       out = docsOfPatch(docs, { months: [], prebooks: [], ests: [], warnings: [], notices: r.notices, logs: [] }, nowIso);
       out[reqKey] = r.reqs;
+      notice = swapNotice(action === "reject" ? "swap_rejected" : "swap_cancelled", r.reqs.items.find(x => x.id === id), s.people);
     } else {
       throw new HttpError(400, "不允許的操作");
     }
 
     if (await save(gas, out, versions)) {
       if (published) await gas({ action: "schPublish", ym }).catch(() => null);
+      // LINE 私訊當事人（bot 未設定或送不出去都不影響換班結果）
+      if (notice) await notifyBot(notice);
       return result;
     }
   }

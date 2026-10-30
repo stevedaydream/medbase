@@ -36,6 +36,11 @@ export function swapApi<T = Record<string, unknown>>(action: string, args: Recor
   return post<T>('/api/swap', action, args)
 }
 
+/** 綁定醫院群組助手 LINE bot 的短效碼（/api/linkcode） */
+export function linkCodeApi(): Promise<{ ok: true; code: string; lineUrl: string; expiresIn: number }> {
+  return post('/api/linkcode', 'create', {})
+}
+
 async function post<T>(path: string, action: string, args: Record<string, unknown>): Promise<T & { ok: true }> {
   if (!session.token) throw new ApiError('AUTH', '請先登入')
   let res: Response
