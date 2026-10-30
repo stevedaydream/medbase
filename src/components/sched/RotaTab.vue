@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   useSchedStore, saveGlobal, recompute, sortedYms, personById, firstOpenYm, appendLog, actorName, groupPeople, createFirstMonth,
 } from "@/composables/useSchedStore";
 import { ymOfDate, WEEKDAY_LABEL, dowOfDate } from "@/shared/sched/calendar";
 import type { Duty84Entry } from "@/shared/sched/types";
 import {
-  planHolidayImport, applyHolidayImport, earliestDate, TW_CALENDAR_URL, type HolidayImportPlan, type TwCalDay,
+  planHolidayImport, applyHolidayImport, earliestDate, TW_CALENDAR_URL, HOSPITAL_LEAVE_URL, type HolidayImportPlan, type TwCalDay,
 } from "@/shared/sched/holidayImport";
 import QuotaPreview from "./QuotaPreview.vue";
 
@@ -253,7 +254,9 @@ async function setLastD(y: string, id: string) {
         <button v-else class="ml-auto px-2 py-1 border border-hairline rounded hover:bg-elevated disabled:opacity-40" :disabled="busy || importing"
           @click="fetchHolidayPlan">{{ importing ? "取得中…" : `↓ 從政府辦公日曆匯入 ${year} 年` }}</button>
       </div>
-      <p class="text-muted">抽籤在系統外進行，這裡填入每個國定假日 D、N 由誰上；春節區間內不抽籤。切換上方「年度」可匯入下一年度。</p>
+      <p class="text-muted">抽籤在系統外進行，這裡填入每個國定假日 D、N 由誰上；春節區間內不抽籤。切換上方「年度」可匯入下一年度。
+        <button class="underline hover:text-accent" title="國定假日／院定休假（休假日仍須排值班）・需院內網路" @click="openUrl(HOSPITAL_LEAVE_URL)">📅 醫院公告休假 ↗</button>
+      </p>
       <div v-if="importPlan" class="border border-accent/40 rounded p-3 space-y-2 bg-accent/5">
         <div class="font-semibold text-fg">{{ importPlan.year }} 年政府辦公日曆：確認後新增（已存在的 {{ importPlan.existing }} 天不變）</div>
         <div v-if="importPlan.days.length">
