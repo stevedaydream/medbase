@@ -35,6 +35,10 @@ function fakeGas() {
         { month: "2026-11", duty_date: "2026-11-02", ward: "9A", np_name: "乙", extension: "62855", shift: "夜八" },
         { month: "2026-11", duty_date: "2026-11-01", ward: "9B", np_name: "", extension: "", shift: "白八" },
       ] } } };
+      case "readTable": return { ok: true, rows: [
+        { name: "王 醫師", his_account: " 10586 ", ext: "61350", password: "x" },
+        { name: "甲", his_account: "2001" },
+      ] };
       default: return { ok: false, error: "?" };
     }
   };
@@ -77,13 +81,21 @@ describe("/api/bot", () => {
     await expect(handleBot({ action: "person", his: "1001", from: "2026-11-01", to: "2026-12-05" }, gas)).rejects.toBeInstanceOf(BotError);
   });
 
-  it("duty：NP／VS 值班表該日的列，略過沒有姓名的格", async () => {
+  it("duty：NP／VS 值班表該日的列，略過沒有姓名的格；只有 VS 總值附 HIS 帳號", async () => {
     const { gas, calls } = fakeGas();
     expect(await handleBot({ action: "duty", date: "2026-11-01" }, gas)).toEqual({
       ok: true, date: "2026-11-01",
-      items: [{ ward: "9A", shift: "白八", name: "甲", extension: "62855" }, { ward: "總值", shift: "", name: "王醫師", extension: "" }],
+      items: [{ ward: "9A", shift: "白八", name: "甲", extension: "62855" }, { ward: "總值", shift: "", name: "王醫師", extension: "", his: "10586" }],
     });
     expect(calls[0]).toEqual({ action: "getNpDutyMonths", months: ["2026-11"] });
+    expect(calls[1]).toEqual({ action: "readTable", table: "physicians" });
+  });
+
+  it("duty：通訊錄讀不到時照常回值班表", async () => {
+    const { gas } = fakeGas();
+    const failing = async (b: Record<string, unknown>) => b.action === "readTable" ? { ok: false, error: "x" } : gas(b);
+    const r = await handleBot({ action: "duty", date: "2026-11-01" }, failing);
+    expect(r.items[1]).toEqual({ ward: "總值", shift: "", name: "王醫師", extension: "" });
   });
 
   it("versions：只回班表分頁版本", async () => {

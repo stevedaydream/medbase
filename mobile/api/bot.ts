@@ -9,7 +9,7 @@ import { verifyLinkCode } from "./_lib/linkCode.js";
  *
  * { action: "day", date: "YYYY-MM-DD", group? }          該日已發布班表 → items: [{ name, shift }]
  * { action: "person", his, from: "YYYY-MM-DD", to }      某人區間內的班（最多 31 天）
- * { action: "duty", date: "YYYY-MM-DD" }                 NP／VS 值班表（NpDuty）該日 → items: [{ ward, shift, name, extension }]
+ * { action: "duty", date: "YYYY-MM-DD" }                 NP／VS 值班表（NpDuty）該日 → items: [{ ward, shift, name, extension, his? }]（his 只有 VS 總值）
  * { action: "versions", group? }                          已發布班表分頁版本（bot 偵測發布）
  * { action: "redeem", code }                              兌換綁定碼 → { his, name, group }
  */
@@ -68,6 +68,17 @@ async function readPeople(gas: Gas): Promise<PersonRow[]> {
   try { return doc ? (JSON.parse(doc.json) as PersonRow[]) : []; } catch { return []; }
 }
 
+const VS_PRIMARY = "總值";
+const normName = (name: string) => name.replace(/\s+/g, "");
+
+/** 通訊錄姓名 → HIS 帳號；讀不到時回空表，值班表照常回傳 */
+async function hisByName(gas: Gas): Promise<Map<string, string>> {
+  const r = await gas({ action: "readTable", table: "physicians" });
+  if (!r.ok) return new Map();
+  const rows = (r.rows as { name?: string; his_account?: string }[]) ?? [];
+  return new Map(rows.filter(p => p.name && p.his_account?.trim()).map(p => [normName(String(p.name)), String(p.his_account).trim()]));
+}
+
 async function findPerson(gas: Gas, his: string) {
   const p = (await readPeople(gas)).find(x => x.active && String(x.his ?? "").trim() === his);
   return p ? { his, name: p.name, group: personGroup(p) } : null;
@@ -116,12 +127,17 @@ export async function handleBot(body: Args, gas: Gas, now = Date.now()): Promise
     // NP／VS 值班表（首頁 DutyCard 同一份資料），不分排班群組
     const date = isoDay(parseDate(body.date));
     const month = date.slice(0, 7);
-    const r = await gas({ action: "getNpDutyMonths", months: [month] });
+    const [r, his] = await Promise.all([gas({ action: "getNpDutyMonths", months: [month] }), hisByName(gas)]);
     if (!r.ok) throw new BotError(502, r.error ?? "讀取值班表失敗");
     const rows = ((r.data as Record<string, { rows: Record<string, string>[] }>)?.[month]?.rows) ?? [];
     const items = rows
       .filter(x => String(x.duty_date).slice(0, 10) === date && x.np_name)
-      .map(x => ({ ward: String(x.ward), shift: String(x.shift), name: String(x.np_name), extension: String(x.extension ?? "") }));
+      .map(x => {
+        const name = String(x.np_name);
+        // 只附 VS 總值的 HIS 帳號（同首頁 DutyCard），不外流其他通訊錄欄位
+        const vsHis = x.ward === VS_PRIMARY ? his.get(normName(name)) : undefined;
+        return { ward: String(x.ward), shift: String(x.shift), name, extension: String(x.extension ?? ""), ...(vsHis ? { his: vsHis } : {}) };
+      });
     return { ok: true, date, items };
   }
 
