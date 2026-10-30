@@ -9,6 +9,7 @@ import { verifyLinkCode } from "./_lib/linkCode.js";
  *
  * { action: "day", date: "YYYY-MM-DD", group? }          該日已發布班表 → items: [{ name, shift }]
  * { action: "person", his, from: "YYYY-MM-DD", to }      某人區間內的班（最多 31 天）
+ * { action: "duty", date: "YYYY-MM-DD" }                 NP／VS 值班表（NpDuty）該日 → items: [{ ward, shift, name, extension }]
  * { action: "versions", group? }                          已發布班表分頁版本（bot 偵測發布）
  * { action: "redeem", code }                              兌換綁定碼 → { his, name, group }
  */
@@ -109,6 +110,19 @@ export async function handleBot(body: Args, gas: Gas, now = Date.now()): Promise
       days.push({ date: isoDay(d), published: !!rows, shift: row?.[d.getUTCDate()] ? String(row[d.getUTCDate()]) : "" });
     }
     return { ok: true, found: true, name: person.name, group: person.group, days };
+  }
+
+  if (action === "duty") {
+    // NP／VS 值班表（首頁 DutyCard 同一份資料），不分排班群組
+    const date = isoDay(parseDate(body.date));
+    const month = date.slice(0, 7);
+    const r = await gas({ action: "getNpDutyMonths", months: [month] });
+    if (!r.ok) throw new BotError(502, r.error ?? "讀取值班表失敗");
+    const rows = ((r.data as Record<string, { rows: Record<string, string>[] }>)?.[month]?.rows) ?? [];
+    const items = rows
+      .filter(x => String(x.duty_date).slice(0, 10) === date && x.np_name)
+      .map(x => ({ ward: String(x.ward), shift: String(x.shift), name: String(x.np_name), extension: String(x.extension ?? "") }));
+    return { ok: true, date, items };
   }
 
   if (action === "versions") {

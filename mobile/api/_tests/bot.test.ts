@@ -29,6 +29,12 @@ function fakeGas() {
       }
       case "schGet": return { ok: true, docs: [{ key: "people", version: "v1", json: JSON.stringify(people) }] };
       case "schList": return { ok: true, docs: [{ key: "people", version: "v1" }], sheets: { Schedule_202611: "t1" } };
+      case "getNpDutyMonths": return { ok: true, data: { "2026-11": { version: "x", rows: [
+        { month: "2026-11", duty_date: "2026-11-01", ward: "9A", np_name: "甲", extension: "62855", shift: "白八" },
+        { month: "2026-11", duty_date: "2026-11-01", ward: "總值", np_name: "王醫師", extension: "", shift: "" },
+        { month: "2026-11", duty_date: "2026-11-02", ward: "9A", np_name: "乙", extension: "62855", shift: "夜八" },
+        { month: "2026-11", duty_date: "2026-11-01", ward: "9B", np_name: "", extension: "", shift: "白八" },
+      ] } } };
       default: return { ok: false, error: "?" };
     }
   };
@@ -69,6 +75,15 @@ describe("/api/bot", () => {
     const { gas } = fakeGas();
     expect(await handleBot({ action: "person", his: "1003", from: "2026-11-01", to: "2026-11-02" }, gas)).toEqual({ ok: true, found: false, days: [] });
     await expect(handleBot({ action: "person", his: "1001", from: "2026-11-01", to: "2026-12-05" }, gas)).rejects.toBeInstanceOf(BotError);
+  });
+
+  it("duty：NP／VS 值班表該日的列，略過沒有姓名的格", async () => {
+    const { gas, calls } = fakeGas();
+    expect(await handleBot({ action: "duty", date: "2026-11-01" }, gas)).toEqual({
+      ok: true, date: "2026-11-01",
+      items: [{ ward: "9A", shift: "白八", name: "甲", extension: "62855" }, { ward: "總值", shift: "", name: "王醫師", extension: "" }],
+    });
+    expect(calls[0]).toEqual({ action: "getNpDutyMonths", months: ["2026-11"] });
   });
 
   it("versions：只回班表分頁版本", async () => {
