@@ -8,8 +8,9 @@ import { computeQuotas } from "@/shared/sched/engine/quota";
 import { cellFnOf } from "@/shared/sched/engine/prefill";
 import { needOf } from "@/shared/sched/engine/staffing";
 import { validate, personStats, dayStats, shiftMap, type Issue, type GridCtx } from "@/shared/sched/engine/validate";
-import { daysIn, dayTypeOf, dowOf, dateStr, WEEKDAY_LABEL, inCny, prevYm } from "@/shared/sched/calendar";
+import { daysIn, dayTypeOf, dowOf, dateStr, WEEKDAY_LABEL, prevYm } from "@/shared/sched/calendar";
 import { colorOf } from "@/shared/sched/palette";
+import { dayMark } from "@/shared/sched/holidayLabel";
 import { cellKey, CONSTRAINT_MARKS, FLAG_DEFS, type Flags, type SnapshotDoc } from "@/shared/sched/types";
 
 const props = defineProps<{ ym: string; layer: Layer; showInactive: boolean; hasLock: boolean; postEdit: boolean }>();
@@ -109,8 +110,8 @@ function dayHead(d: number) {
   const date = dateStr(props.ym, d);
   const dt = dayTypeOf(props.ym, d, store.holidays);
   const tags: string[] = [];
-  if (inCny(store.holidays, date)) tags.push("春節");
-  else if (store.holidays.days[date]) tags.push(store.holidays.days[date].slice(0, 3));
+  const mk = dayMark(store.holidays, date);
+  if (mk) tags.push(mk.label);
   if (store.duty84.log.some(e => e.date === date)) tags.push("8-4");
   return { dow: WEEKDAY_LABEL[dowOf(props.ym, d)], rest: dt !== "weekday", tag: tags.join(" ") };
 }

@@ -14,6 +14,7 @@ import SwapInbox from '../components/SwapInbox.vue'
 import { shiftColor, loadMyColors } from '../lib/shiftColors'
 import { dayTypeOf, daysIn, dateStr } from '@shared/sched/calendar'
 import { dayMark } from '@shared/sched/holidayLabel'
+import { HOSPITAL_LEAVE_URL } from '@shared/sched/holidayImport'
 import {
   BLANK_BY_DAYTYPE, CONSTRAINT_MARKS, cellKey,
   type ShiftDef, type PrebookDoc, type EstDoc, type HolidayDoc, type NoticeItem,
@@ -23,8 +24,6 @@ import {
 type Tab = 'mine' | 'all' | 'pre' | 'staff'
 const tab = ref<Tab>('mine')
 const DOW = ['日', '一', '二', '三', '四', '五', '六']
-/** 醫院公告休假下載頁（院內網路才連得到） */
-const HOSPITAL_LEAVE_URL = 'https://cghweb.cgh.org.tw/unit/A1000/A1500/favorite.htm'
 const today = new Date()
 const ym = (y: number, m: number) => `${y}${String(m).padStart(2, '0')}`
 function shiftMonth(y: number, m: number, d: number) { const t = new Date(y, m - 1 + d, 1); return { y: t.getFullYear(), m: t.getMonth() + 1 } }

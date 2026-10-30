@@ -15,6 +15,8 @@ export interface HolidayImportPlan {
 }
 
 export const TW_CALENDAR_URL = (year: string) => `https://cdn.jsdelivr.net/gh/ruyut/TaiwanCalendar/data/${year}.json`;
+/** 醫院公告休假下載頁（院內網路才連得到） */
+export const HOSPITAL_LEAVE_URL = "https://cghweb.cgh.org.tw/unit/A1000/A1500/favorite.htm";
 
 const iso = (s: string) => `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
 const isWeekend = (d: TwCalDay) => d.week === "六" || d.week === "日";
