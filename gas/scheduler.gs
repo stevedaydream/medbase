@@ -351,7 +351,7 @@ const MOBILE_FAIL_TTL = 900;          // 15 分鐘
 const MOBILE_MAX_ACCOUNT_FAILS = 5;
 const MOBILE_MAX_IP_FAILS = 20;
 // 手機（經 Vercel）專用的 action：不論開關，一律要帶金鑰
-const KEY_ALWAYS_REQUIRED = { mobileLogin: true, setRequireApiKey: true };
+const KEY_ALWAYS_REQUIRED = { mobileLogin: true, setRequireApiKey: true, botItems: true };
 
 function setupApiKey() {
   const props = PropertiesService.getScriptProperties();
@@ -1118,6 +1118,33 @@ function _writeNpDutyVersions(ss, versions) {
   }
 }
 
+/** LINE bot 的自費唯讀查詢；his 由持有服務金鑰的 bot 從已兌換綁定取得。 */
+function _botItems(ss, p) {
+  const person = _findPhysicianByHis(ss, String(p.his || '').trim());
+  if (!person || _mobileAccess(person).features.indexOf('items') < 0) {
+    return { ok: false, code: 'FORBIDDEN', error: '你的 MedBase 帳號沒有自費品項查詢權限' };
+  }
+  const q = String(p.query || '').trim();
+  const offset = Number(p.offset || 0);
+  if (!q || q.length > 100 || !Number.isInteger(offset) || offset < 0 || offset > 10000) {
+    return { ok: false, code: 'INVALID', error: '請提供 1～100 字的關鍵字與有效頁碼' };
+  }
+  const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const rows = _readSyncTable(ss, 'items', true).rows;
+  const matched = Object.keys(rows).map(k => rows[k]).filter(r => {
+    if (!String(r.hospital_code || '').trim()) return false;
+    const haystack = [r.hospital_code, r.name_zh, r.name_en, r.depts, r.purpose, r.supplier, r.unit, r.notes].join(' ').toLowerCase();
+    return terms.every(t => haystack.indexOf(t) >= 0);
+  });
+  const rank = r => String(r.hospital_code).toLowerCase() === q.toLowerCase() ? 0 : 1;
+  matched.sort((a, b) => rank(a) - rank(b) || String(a.name_zh || a.name_en || a.hospital_code).localeCompare(String(b.name_zh || b.name_en || b.hospital_code), 'zh-TW') || String(a.hospital_code).localeCompare(String(b.hospital_code)));
+  return { ok: true, total: matched.length, offset: offset, items: matched.slice(offset, offset + 5).map(r => ({
+    hospital_code: String(r.hospital_code), name_zh: String(r.name_zh || ''), name_en: String(r.name_en || ''),
+    price: r.price !== '' && r.price != null && Number.isFinite(Number(r.price)) && Number(r.price) >= 0 ? Number(r.price) : null,
+    unit: String(r.unit || ''), depts: String(r.depts || '').split(',').map(d => d.trim()).filter(Boolean)
+  })) };
+}
+
 function doPost(e) {
   const p  = JSON.parse(e.postData.contents);
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1765,6 +1792,10 @@ function doPost(e) {
           if (changed) _trashWrite(sh, items);
           return json({ ok: true, items: p.action === 'trashList' ? Object.keys(items).map(id => items[id]) : undefined });
         });
+      }
+
+      case 'botItems': {
+        return json(_botItems(ss, p));
       }
 
       case 'readTable': {

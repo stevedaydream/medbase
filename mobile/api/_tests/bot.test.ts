@@ -46,6 +46,33 @@ function fakeGas() {
 }
 
 describe("/api/bot", () => {
+  it("attendingRoster：只回主治姓名、科別與職稱，保留同名不同科，排除敏感欄位", async () => {
+    const calls: Record<string, unknown>[] = [];
+    const result = await handleBot({ action: "attendingRoster" }, async body => {
+      calls.push(body);
+      return { ok: true, rows: [
+        { name: "王 甲", department: "骨科", title: "主治醫師", his_account: "123", his_password: "secret", ext: "12345", notes: "private" },
+        { name: "王甲", department: "骨科", title: "主治醫師" },
+        { name: "王甲", department: "泌尿科", title: "VS" },
+        { name: "乙", department: "骨科", title: "專科護理師" },
+        { name: "丙", department: "骨科", title: "住院醫師" },
+        { name: "丁", department: "骨科", title: "" },
+        { name: "", department: "骨科", title: "主治醫師" },
+      ] };
+    });
+    expect(calls).toEqual([{ action: "readTable", table: "physicians" }]);
+    expect(result).toEqual({ ok: true, items: expect.arrayContaining([
+      { name: "王甲", department: "骨科", title: "主治醫師" },
+      { name: "王甲", department: "泌尿科", title: "VS" },
+    ]) });
+    expect((result.items as unknown[]).length).toBe(2);
+  });
+
+  it("attendingRoster：來源失敗或格式錯誤不會當成空名單", async () => {
+    await expect(handleBot({ action: "attendingRoster" }, async () => ({ ok: false, error: "secret" }))).rejects.toThrow("讀取主治醫師名單失敗");
+    await expect(handleBot({ action: "attendingRoster" }, async () => ({ ok: true, rows: null }))).rejects.toThrow("主治醫師名單格式錯誤");
+  });
+
   it("day：只回該日有班的人，預設群組 9A9B", async () => {
     const { gas, calls } = fakeGas();
     expect(await handleBot({ action: "day", date: "2026-11-01" }, gas)).toEqual({
@@ -118,6 +145,13 @@ describe("/api/bot", () => {
     const [body, sig] = (await signLinkCode("1001")).split(".");
     await expect(handleBot({ action: "redeem", code: `${body}x.${sig}` }, gas)).rejects.toBeInstanceOf(BotError);
     await expect(handleBot({ action: "redeem", code: await signLinkCode("9999") }, gas)).rejects.toThrow(/不在排班名單/);
+  });
+
+  it("redeem：已登入的通訊錄人員即使沒有排班身分也能綁定自費查詢", async () => {
+    const { gas } = fakeGas();
+    expect(await handleBot({ action: "redeem", code: await signLinkCode("10586") }, gas)).toEqual({
+      ok: true, his: "10586", name: "王 醫師", group: "",
+    });
   });
 
   it("不在白名單的 action 一律拒絕", async () => {

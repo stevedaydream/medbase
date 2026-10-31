@@ -4,14 +4,17 @@ import { verifyLinkCode } from "./_lib/linkCode.js";
 /**
  * POST /api/bot  { action, ...args }  （Authorization: Bearer <BOT_API_KEY>）
  *
- * 醫院群組助手 LINE bot 專用的唯讀入口：只開放已發布班表、班表版本與綁定碼兌換，
- * 碰不到通訊錄、帳密或排班文件。金鑰只存在 Vercel（BOT_API_KEY）與 bot 的 .env。
+ * 醫院群組助手 LINE bot 專用的唯讀入口：提供已發布班表、班表版本、綁定碼兌換與主治名單。
+ * 主治名單只回姓名、科別與職稱，不回傳帳密、分機或通訊錄其他欄位。
+ * 金鑰只存在 Vercel（BOT_API_KEY）與 bot 的 .env。
  *
  * { action: "day", date: "YYYY-MM-DD", group? }          該日已發布班表 → items: [{ name, shift }]
  * { action: "person", his, from: "YYYY-MM-DD", to }      某人區間內的班（最多 31 天）
  * { action: "duty", date: "YYYY-MM-DD" }                 NP／VS 值班表（NpDuty）該日 → items: [{ ward, shift, name, extension, his? }]（his 只有 VS 總值）
  * { action: "versions", group? }                          已發布班表分頁版本（bot 偵測發布）
  * { action: "redeem", code }                              兌換綁定碼 → { his, name, group }
+ * { action: "attendingRoster" }                          通訊錄主治醫師 → items: [{ name, department, title }]
+ * { action: "items", his, query, offset? }               依綁定帳號權限查詢自費品項，每頁 5 筆
  */
 
 type Args = Record<string, unknown>;
@@ -87,6 +90,47 @@ async function findPerson(gas: Gas, his: string) {
 export async function handleBot(body: Args, gas: Gas, now = Date.now()): Promise<Args> {
   const action = str(body.action, 20);
 
+  if (action === "items") {
+    const his = str(body.his, 64).trim();
+    const query = String(body.query ?? "").trim();
+    const offset = body.offset ?? 0;
+    if (!his || !query || query.length > 100 || !Number.isInteger(offset) || Number(offset) < 0 || Number(offset) > 10000) throw new BotError(400, "請提供 1～100 字的關鍵字與有效頁碼");
+    const r = await gas({ action: "botItems", his, query, offset });
+    if (!r.ok) throw new BotError(r.code === "FORBIDDEN" ? 403 : 502,
+      r.code === "FORBIDDEN" ? "你的 MedBase 帳號沒有自費品項查詢權限" : "自費查詢暫時無法使用，請確認 GAS 已更新或稍後再試");
+    if (!Array.isArray(r.items) || !Number.isInteger(r.total) || Number(r.total) < 0) throw new BotError(502, "自費查詢資料格式錯誤");
+    return { ok: true, total: r.total, offset, items: (r.items as Args[]).slice(0, 5).map(p => {
+      if (!p || typeof p !== "object") throw new BotError(502, "自費品項格式錯誤");
+      const code = String(p.hospital_code ?? "");
+      const nameZh = String(p.name_zh ?? ""), nameEn = String(p.name_en ?? "");
+      if (!code.trim() || code.length > 100 || nameZh.length > 500 || nameEn.length > 500) throw new BotError(502, "自費品名或院內碼格式錯誤");
+      return {
+        hospital_code: code, name_zh: nameZh, name_en: nameEn,
+        price: typeof p.price === "number" && Number.isFinite(p.price) && p.price >= 0 ? p.price : null,
+        unit: str(p.unit, 40), depts: Array.isArray(p.depts) ? p.depts.map(d => str(d, 40)).slice(0, 10) : []
+      };
+    }) };
+  }
+
+  if (action === "attendingRoster") {
+    const r = await gas({ action: "readTable", table: "physicians" });
+    if (!r.ok) throw new BotError(502, "讀取主治醫師名單失敗");
+    if (!Array.isArray(r.rows)) throw new BotError(502, "主治醫師名單格式錯誤");
+    const seen = new Set<string>();
+    const items = (r.rows as Args[]).flatMap(p => {
+      if (!p || typeof p !== "object") return [];
+      const name = str(p.name, 80).replace(/\s+/g, "");
+      const department = str(p.department, 80).trim();
+      const title = str(p.title, 80).trim();
+      if (!name || !(/主治/.test(title) || /^VS$/i.test(title))) return [];
+      const key = JSON.stringify([name, department]);
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return [{ name, department, title }];
+    }).sort((a, b) => a.department.localeCompare(b.department, "zh-TW") || a.name.localeCompare(b.name, "zh-TW"));
+    return { ok: true, items };
+  }
+
   if (action === "day") {
     const date = parseDate(body.date);
     const group = groupOf(body);
@@ -151,8 +195,15 @@ export async function handleBot(body: Args, gas: Gas, now = Date.now()): Promise
   if (action === "redeem") {
     const his = await verifyLinkCode(str(body.code, 400), now);
     if (!his) throw new BotError(400, "綁定碼無效或已過期，請在 MedBase 重新取得");
-    const person = await findPerson(gas, his);
-    if (!person) throw new BotError(404, "你不在排班名單中，無法綁定");
+    let person = await findPerson(gas, his);
+    if (!person) {
+      const r = await gas({ action: "readTable", table: "physicians" });
+      if (!r.ok) throw new BotError(502, "讀取綁定人員失敗");
+      if (!Array.isArray(r.rows)) throw new BotError(502, "綁定人員資料格式錯誤");
+      const row = (r.rows as Args[]).find(p => p && String(p.his_account ?? "").trim() === his);
+      if (row && String(row.name ?? "").trim()) person = { his, name: String(row.name), group: "" };
+    }
+    if (!person) throw new BotError(404, "你不在排班名單或 MedBase 通訊錄中，無法綁定");
     return { ok: true, ...person };
   }
 
