@@ -30,3 +30,26 @@ it("reads calendar cells and embedded images from a docx", () => {
   expect(result.images).toHaveLength(1);
   expect(result.text).toContain("外科值班表");
 });
+
+it("reads DOCX EQ field codes when no display result exists", () => {
+  const xml = `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+    <w:p><w:r><w:t>NP</w:t></w:r></w:p><w:p>
+    <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+    <w:r><w:instrText> EQ \\o\\ac(○,f)</w:instrText></w:r>
+    <w:r><w:fldChar w:fldCharType="end"/></w:r><w:r><w:t>.王小明62001</w:t></w:r>
+    </w:p><w:p><w:r><w:t>NP(SICU)</w:t></w:r></w:p></w:body></w:document>`;
+  const bytes = zipSync({ "word/document.xml": strToU8(xml) });
+  const doc = readDutyDocx(bytes.buffer as ArrayBuffer);
+  expect(parseDutyWordText(doc.text, "2026-11").sourcePeople)
+    .toContainEqual({ name: "王小明", staffCode: "f", extension: "62001", group: "NP" });
+});
+
+it("normalizes circle glyphs, fullwidth codes and slash separators without guessing missing symbols", () => {
+  const calendar = [["1", "一", "ⓕ／⒧", "Ｃ", "/ⓧ"]];
+  const result = parseDutyWordText("NP\n○f.王小明62001\n⒧.李小美62002\nＣ.陳測試62003\n.無代號62004\nNP(SICU)", "2026-11", calendar);
+  expect(result.rows.find(row => row.ward === "9A" && row.staffCode === "l"))
+    .toMatchObject({ npName: "李小美", shift: "夜八" });
+  expect(result.rows.find(row => row.ward === "9B")).toMatchObject({ npName: "陳測試", staffCode: "c" });
+  expect(result.rows.find(row => row.ward === "8A"))
+    .toMatchObject({ staffCode: "x", shift: "夜八", resolution: "unresolved" });
+});

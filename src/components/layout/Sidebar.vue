@@ -30,7 +30,8 @@ const DEFAULT_NAV: NavItem[] = [
   { path: "/schedule",    icon: "📅", label: "排班表" },
   { path: "/shift-memos", icon: "📝", label: "規則備忘錄" },
   { path: "/docs",        icon: "📄", label: "Markdown 文件" },
-  { path: "/note-polish", icon: "✍️", label: "病歷潤飾" },
+  { path: "/learning",    icon: "📚", label: "學習資源" },
+  { path: "/note-polish", icon: "✍️", label: "AI 行政助手" },
   { path: "/research",    icon: "🎓", label: "論文專案" },
 ];
 
@@ -142,9 +143,19 @@ onUnmounted(() => {
   <aside class="flex flex-col w-52 min-h-screen border-r bg-sunken border-hairline relative">
 
     <!-- Logo -->
-    <div class="px-4 py-5 border-b border-hairline">
+    <div class="flex items-center justify-between h-12 px-4 border-b border-hairline shrink-0">
       <span class="text-lg font-bold tracking-tight text-fg">MedBase</span>
-      <p class="text-xs mt-0.5 text-muted">臨床工作平台</p>
+      <button
+        @click="showMobileQr = true"
+        title="手機版 QR code" aria-label="開啟手機版 QR code"
+        class="flex items-center gap-1 px-2 py-1.5 rounded-md text-xs text-fg-secondary hover:bg-elevated hover:text-fg transition-colors"
+      >
+        <span class="text-base leading-none">📱</span>
+        <span>QR</span>
+      </button>
+    </div>
+    <div class="px-4 py-3 border-b border-hairline">
+      <p class="text-xs text-muted">臨床工作平台</p>
       <NpDutySidebarCard />
     </div>
 
@@ -197,13 +208,7 @@ onUnmounted(() => {
         <span class="text-base leading-none">{{ item.icon }}</span>
         <span>{{ item.label }}</span>
       </RouterLink>
-      <button
-        @click="showMobileQr = true"
-        class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-fg-secondary hover:bg-elevated hover:text-fg transition-colors"
-      >
-        <span class="text-base leading-none">📱</span>
-        <span>手機版 QR code</span>
-      </button>
+
     </div>
     <MobileQrDialog v-if="showMobileQr" @close="showMobileQr = false" />
 
@@ -224,7 +229,7 @@ onUnmounted(() => {
       >
         <span class="text-sm">{{ ui.resolvedDark ? "☀" : "☾" }}</span>
       </button>
-      <span class="ml-auto text-xs text-muted">v1.3.7</span>
+      <span class="ml-auto text-xs text-muted">v1.3.8</span>
     </div>
 
     <!-- Drag ghost -->

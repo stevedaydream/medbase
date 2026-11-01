@@ -15,6 +15,7 @@ import {
 } from "@/utils/npDutyXlsx";
 import { parseNpDutyPdf } from "@/utils/npDutyPdf";
 import { parseDutyWordText, readDutyDocx } from "@/utils/npDutyWord";
+import { readDutyDoc } from "@/utils/npDutyDoc";
 import { recognizeDutyImages, rosterMatchesFromOcr } from "@/utils/npDutyOcr";
 import { applyDutyCorrection, dutyCodeKey, reconcileDutyRows,
   type DutyPerson, type SavedDutyMap } from "@/utils/npDutyMatch";
@@ -251,7 +252,7 @@ async function handleFile(event: Event) {
     if (lower.endsWith(".pdf")) preview.value = await parseNpDutyPdf(buffer, rosterMonth.value);
     else if (lower.endsWith(".doc")) {
       const { default: docToText } = await import("duty-doc-reader");
-      const text = docToText(buffer);
+      const text = readDutyDoc(buffer);
       if (!text) throw new Error("無法讀取此舊版 Word 檔，請另存為 .docx 再試");
       preview.value = parseDutyWordText(text, rosterMonth.value);
       embeddedImages = docToText.images(buffer).map(image => image.bytes);
@@ -280,11 +281,11 @@ async function handleFile(event: Event) {
         return person ? { ...row, npName: person.name, extension: person.extension, resolution: "file" as const } : row;
       });
       const npRosterNames = preview.value.sourcePeople?.filter(person => person.group === "NP").map(person => person.name) ?? [];
-      const wordRoster = (lower.endsWith(".doc") || lower.endsWith(".docx")) && npRosterNames.length
+      const fileRoster = npRosterNames.length
         ? new Set([...npRosterNames,
           ...Object.values(imagePeople).map(person => person.name)])
         : undefined;
-      preview.value.rows = reconcileDutyRows(preview.value.rows, history.value, savedPeople.value, wordRoster);
+      preview.value.rows = reconcileDutyRows(preview.value.rows, history.value, savedPeople.value, fileRoster);
       for (const row of preview.value.rows) {
         const key = dutyCodeKey(row);
         if (!row.npName.trim() && !correctionInputs.value[key]) correctionInputs.value[key] = { name: "", extension: "" };
@@ -451,7 +452,7 @@ function rowLabel(row: NpDutyImportRow) {
     </div>
 
     <p class="text-xs leading-relaxed text-muted">
-      可選一份 PDF、.doc、.docx 或 Excel；Word 可同時加選圖片名冊辨識代號與姓名。辨識不到的代號會先比對已儲存的校正與舊班表，再請你確認。NP 斜線前為白八、斜線後為夜八。Excel 欄位為日期、單位、姓名、班別，可選填代號、分機與備註。
+      可選一份 PDF、.doc、.docx 或 Excel；PDF 支援兩頁與跨頁班表，Word 支援圈字母與疊字公式代號，也可加選圖片名冊。辨識不到的代號會先比對已儲存的校正與舊班表，再請你確認。NP 斜線前為白八、斜線後為夜八。Excel 欄位為日期、單位、姓名、班別，可選填代號、分機與備註。
     </p>
 
     <div v-if="parsing" class="rounded-xl border border-hairline bg-sunken px-4 py-3 text-xs text-muted">正在解析班表…</div>

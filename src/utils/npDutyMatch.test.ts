@@ -39,4 +39,11 @@ describe("duty personnel reconciliation", () => {
     expect(matches["VS:GS|1"]?.name).toBe("陳小華");
     expect(matches["VS:NS|2"]).toBeUndefined();
   });
+
+  it("handles overlaid circle markers and spaces within OCR names and extensions", () => {
+    const matches = rosterMatchesFromOcr("○ⓧ.王 小 明 6 2 0 0 1\n（ⓛ）.李 小 美 62002\n①.陳小華61111 GS", [row("9A", "x"), row("8A", "l"), row("GS", "1")]);
+    expect(matches["NP|x"]).toEqual({ name: "王小明", extension: "62001" });
+    expect(matches["NP|l"]?.name).toBe("李小美");
+    expect(matches["VS:GS|1"]?.name).toBe("陳小華");
+  });
 });
