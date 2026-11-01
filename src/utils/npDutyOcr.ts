@@ -1,6 +1,7 @@
 import { createWorker } from "tesseract.js";
 import { isNpWard, type NpDutyImportRow } from "./npDutyXlsx";
 import type { SavedDutyMap } from "./npDutyMatch";
+import { normalizeDutySymbols } from "./dutySymbols";
 
 export async function recognizeDutyImages(images: Array<Blob | Uint8Array>): Promise<string> {
   if (!images.length) return "";
@@ -24,8 +25,8 @@ export async function recognizeDutyImages(images: Array<Blob | Uint8Array>): Pro
 
 export function rosterMatchesFromOcr(text: string, rows: NpDutyImportRow[]): SavedDutyMap {
   const matches: SavedDutyMap = {};
-  for (const line of text.normalize("NFKC").split(/\r?\n/)) {
-    const match = line.trim().match(/^([a-z]|\d{1,2})\s*[.．:：、○◯〇●◎⊙◉)]*\s*([\u3400-\u9fff]{2,4})\s*(\d{5})?\s*(GS|CRS|ORTHO|NS|PS|URO|CVS?|Chest|Trauma|ICU|總值)?/i);
+  for (const line of normalizeDutySymbols(text).split(/\r?\n/)) {
+    const match = line.replace(/\s+/g, "").match(/^[([]?([a-z]|\d{1,2})[.．:：、)\]]*([\u3400-\u9fff]{2,4})(\d{5})?(GS|CRS|ORTHO|NS|PS|URO|CVS?|Chest|Trauma|ICU|總值)?/i);
     if (!match) continue;
     const code = match[1].toLowerCase();
     const name = match[2];

@@ -1,4 +1,5 @@
 import { unzipSync, strFromU8 } from "fflate";
+import { normalizeDutySymbols, dutyEquationCode } from "./dutySymbols";
 import { DUTY_UNITS, type DutyUnit, type NpDutyImportRow, type NpDutyParseResult } from "./npDutyXlsx";
 
 interface Person { name: string; extension: string }
@@ -56,7 +57,7 @@ function npRoster(text: string): Map<string, Person> {
   const people = new Map<string, Person>();
   if (!match) return people;
   for (const line of match[1].split(/\r?\n/)) {
-    const entry = line.trim().match(/^(?:([a-z])\s*[.．]?|[.．])\s*([\u3400-\u9fff]{2,4})\s*(\d{5})/i);
+    const entry = line.replace(/\s+/g, "").match(/^(?:[([]?([a-z])[)\]]?[.．:]?|[.．])([\u3400-\u9fff]{2,4})(\d{5})/i);
     if (entry) people.set(entry[1]?.toLowerCase() ?? `?${entry[2]}`, { name: entry[2], extension: entry[3] });
   }
   return people;
@@ -73,6 +74,12 @@ function calendarRows(text: string): string[][] {
 }
 
 function xmlText(xml: string): string {
+  // EQ fields may have no cached display result. Recover their actual code.
+  xml = xml.replace(/<w:fldChar\b[^>]*w:fldCharType="begin"[^>]*\/>[\s\S]*?<w:fldChar\b[^>]*w:fldCharType="end"[^>]*\/>/g, field => {
+    const instruction = [...field.matchAll(/<w:instrText\b[^>]*>([\s\S]*?)<\/w:instrText>/g)].map(m => m[1]).join("");
+    const code = dutyEquationCode(instruction);
+    return code ? `<w:t>${code}</w:t>` : field;
+  });
   return [...xml.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:tab\s*\/>/g)]
     .map(match => match[1] === undefined ? "\t" : match[1]
       .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
@@ -94,7 +101,7 @@ export function readDutyDocx(data: ArrayBuffer): { text: string; calendar: strin
 }
 
 export function parseDutyWordText(text: string, fallbackMonth: string, suppliedCalendar?: string[][]): NpDutyParseResult {
-  const normalizedText = text.normalize("NFKC");
+  const normalizedText = normalizeDutySymbols(text);
   const month = monthFromTitle(normalizedText, fallbackMonth);
   const calendar = suppliedCalendar?.length ? suppliedCalendar : calendarRows(normalizedText);
   const np = npRoster(normalizedText);
@@ -124,7 +131,7 @@ export function parseDutyWordText(text: string, fallbackMonth: string, suppliedC
       ...cells.slice(7 + offset)];
     CALENDAR_UNITS.forEach((unit, index) => {
       if (!DUTY_UNITS.includes(unit as DutyUnit)) return; // OR/SICU are outside this app's NP/VS scope.
-      const raw = (values[index] ?? "").trim();
+      const raw = normalizeDutySymbols(values[index] ?? "").trim();
       if (!raw) return;
       if (unit === "9B" && /PGY/i.test(raw)) {
         rows.push({ dutyDate, ward: unit as DutyUnit, npName: "PGY", staffCode: "PGY", extension: "", shift: "值班", notes: "", sourceSheet: "Word", resolution: "file" });
@@ -135,8 +142,9 @@ export function parseDutyWordText(text: string, fallbackMonth: string, suppliedC
         return;
       }
       const codes = raw.split("/").map(value => unit === "9A" || unit === "9B" || unit === "8A"
-        ? value.replace(/[^a-z]/gi, "").toLowerCase() : value.replace(/\D/g, "")).filter(Boolean);
+        ? value.replace(/[^a-z]/gi, "").toLowerCase() || value.trim() : value.replace(/\D/g, ""));
       codes.forEach((code, codeIndex) => {
+        if (!code) return;
         const person = unit === "9A" || unit === "9B" || unit === "8A"
           ? np.get(code) : (unit === "ICU" || unit === "總值" ? vs.get(code) : specialty.get(unit)?.get(code));
         rows.push({ dutyDate, ward: unit as DutyUnit, npName: person?.name ?? "", staffCode: code,

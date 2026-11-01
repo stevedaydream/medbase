@@ -1,45 +1,38 @@
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
+import { useDocxDraft } from "@/composables/useDocxDraft";
+import type { GeminiModel } from "@/shared/geminiModels";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import { getDb } from "@/db";
 import { DOCX_TEMPLATES, dayCount } from "@/shared/docxTemplates";
-import type { MetaValues, BlockValues, MetaField } from "@/shared/docxTemplates";
+import type { MetaField } from "@/shared/docxTemplates";
 // 檔案讀取、提示組裝、模板填充見 shared/docxCompose（手機共用，ADR-013）
-import { readSourceFile, buildGeminiParts, generateBlocks, renderDocx, type SourceFile } from "@/shared/docxCompose";
+import { readSourceFile, buildGeminiParts, generateBlocks, renderDocx } from "@/shared/docxCompose";
 
 const props = defineProps<{
   template: "case" | "leave";
   apiKey: string;
   model: string;
+  models: GeminiModel[];
+  modelLoading: boolean;
 }>();
-const emit = defineEmits<{ (e: "toast", msg: string): void }>();
-
-type UploadedFile = SourceFile;
+const emit = defineEmits<{
+  (e: "toast", msg: string): void;
+  (e: "update:model", model: string): void;
+  (e: "refreshModels"): void;
+}>();
+const selectedModel = computed({
+  get: () => props.model,
+  set: model => emit("update:model", model),
+});
 
 const tpl = computed(() => DOCX_TEMPLATES[props.template]);
 
 // ── State ──────────────────────────────────────────────────────────────
-const meta        = reactive<MetaValues>({});
-const blocks      = reactive<BlockValues>({});
-const files       = ref<UploadedFile[]>([]);
-const manualText  = ref("");
-const deidentify  = ref(props.template === "case");
-const isGenerating = ref(false);
+const { meta, blocks, files, manualText, deidentify, isGenerating } = useDocxDraft(props.template);
 const isExporting  = ref(false);
 const fileInput   = ref<HTMLInputElement | null>(null);
-
-// 依模板初始化欄位 / 區塊
-function resetForTemplate() {
-  for (const k of Object.keys(meta)) delete meta[k];
-  for (const f of tpl.value.fields) meta[f.key] = f.default ?? "";
-  for (const k of Object.keys(blocks)) delete blocks[k];
-  for (const b of tpl.value.blocks) blocks[b.key] = "";
-  files.value = [];
-  manualText.value = "";
-  deidentify.value = props.template === "case";
-}
-watch(() => props.template, resetForTemplate, { immediate: true });
 
 const leaveDays = computed(() =>
   props.template === "leave" ? dayCount(meta.date_from, meta.date_to) : null
@@ -75,6 +68,22 @@ watch(() => meta.date_from, (nv) => {
   if (nv && !meta.date_to) meta.date_to = nv;
 });
 
+function onDatePaste(event: ClipboardEvent, key: string) {
+  event.preventDefault();
+  const match = event.clipboardData?.getData("text").trim().match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
+  if (match) {
+    const [, year, month, day] = match;
+    const value = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+    const date = new Date(`${value}T00:00:00`);
+    if (Number(year) > 0 && date.getFullYear() === Number(year)
+      && date.getMonth() + 1 === Number(month) && date.getDate() === Number(day)) {
+      meta[key] = value;
+      return;
+    }
+  }
+  emit("toast", "請輸入有效日期，例如 2026/8/3");
+}
+
 const hasSource = computed(() => files.value.length > 0 || manualText.value.trim().length > 0);
 
 // ── 檔案處理 ────────────────────────────────────────────────────────────
@@ -98,6 +107,7 @@ function removeFile(i: number) { files.value.splice(i, 1); }
 
 // ── AI 整理 ─────────────────────────────────────────────────────────────
 async function generate() {
+  if (isGenerating.value) return;
   if (!props.apiKey) { emit("toast", "請先至設定頁填入 Gemini API Key"); return; }
   if (!hasSource.value) { emit("toast", "請先上傳檔案或輸入文字"); return; }
   isGenerating.value = true;
@@ -183,6 +193,9 @@ async function exportDocx() {
           <input v-else
             v-model="meta[f.key]"
             :type="f.type === 'date' ? 'date' : f.type === 'time' ? 'time' : 'text'"
+            :min="f.type === 'date' ? '0001-01-01' : undefined"
+            :max="f.type === 'date' ? '9999-12-31' : undefined"
+            @paste="f.type === 'date' && onDatePaste($event, f.key)"
             :placeholder="f.placeholder ?? ''"
             class="text-xs px-3 py-1.5 bg-sunken border border-hairline rounded-xl text-fg
                    placeholder:text-muted focus:outline-none focus:border-accent/50 font-bold
@@ -232,7 +245,17 @@ async function exportDocx() {
         rows="3"
         class="w-full resize-y text-xs bg-sunken border border-hairline focus:border-accent/30 rounded-2xl p-3.5 placeholder:text-muted focus:outline-none leading-relaxed text-fg custom-scrollbar transition-all" />
 
-      <div class="mt-3">
+      <div class="mt-3 flex flex-wrap items-center gap-3">
+        <label class="flex items-center gap-2 text-xs font-bold text-muted">
+          模型
+          <select v-model="selectedModel" :disabled="isGenerating"
+            class="max-w-64 text-xs px-3 py-2 bg-surface border border-hairline rounded-xl text-fg-secondary focus:outline-none focus:border-accent/50 cursor-pointer disabled:opacity-40">
+            <option v-for="m in models" :key="m.id" :value="m.id">{{ m.label }}</option>
+          </select>
+        </label>
+        <button @click="emit('refreshModels')" :disabled="modelLoading || isGenerating"
+          title="向 Gemini 重新查詢可用模型" aria-label="更新模型清單"
+          class="text-xs text-muted hover:text-fg disabled:opacity-40 cursor-pointer">{{ modelLoading ? "…" : "↻" }}</button>
         <button @click="generate"
           :disabled="isGenerating || !hasSource || !apiKey"
           :title="!apiKey ? '請先至設定頁填入 Gemini API Key' : ''"
@@ -274,6 +297,8 @@ async function exportDocx() {
         </button>
       </div>
     </section>
+
+    <p class="text-xs text-muted">草稿會在切換頁面時保留；關閉程式後清除，請於關閉前匯出。</p>
   </div>
 </template>
 

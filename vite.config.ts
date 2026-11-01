@@ -2,12 +2,32 @@ import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "path";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import type { Plugin } from "vite";
 
 const host = process.env.TAURI_DEV_HOST;
 const require = createRequire(import.meta.url);
+
+// PDF 的繁中字型對照表隨程式打包，院內與離線環境不需向外部 CDN 取字型資料。
+function dutyPdfCmaps(): Plugin {
+  const directory = resolve(require.resolve("pdfjs-dist/package.json"), "../cmaps");
+  const names = new Set(readdirSync(directory).filter(name => name.endsWith(".bcmap")));
+  return {
+    name: "duty-pdf-cmaps",
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        const name = request.url?.split("?")[0]?.replace(/^\/pdf\/cmaps\//, "");
+        if (!request.url?.startsWith("/pdf/cmaps/") || !name || !names.has(name)) return next();
+        response.setHeader("Content-Type", "application/octet-stream");
+        response.end(readFileSync(resolve(directory, name)));
+      });
+    },
+    generateBundle() {
+      for (const name of names) this.emitFile({ type: "asset", fileName: `pdf/cmaps/${name}`, source: readFileSync(resolve(directory, name)) });
+    },
+  };
+}
 
 function dutyOcrAssets(): Plugin {
   const packageDir = (name: string) => resolve(require.resolve(`${name}/package.json`), "..");
@@ -39,7 +59,7 @@ function dutyOcrAssets(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
-  plugins: [vue(), tailwindcss(), dutyOcrAssets()],
+  plugins: [vue(), tailwindcss(), dutyOcrAssets(), dutyPdfCmaps()],
   resolve: {
     alias: {
       "@": resolve(__dirname, "src"),

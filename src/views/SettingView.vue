@@ -783,7 +783,7 @@ async function pullSettingsFromCloud() {
           </button>
         </div>
         <p class="text-xs text-muted leading-relaxed font-medium">
-          此 API 金鑰僅會安全儲存於本機資料庫中，用於「病歷潤飾」功能時調用 Gemini 模型。您可以免費前往
+          此 API 金鑰僅會安全儲存於本機資料庫中，用於「AI 行政助手」功能時調用 Gemini 模型。您可以免費前往
           <a href="https://aistudio.google.com/" target="_blank" class="text-accent hover:text-accent-hover underline font-bold">Google AI Studio</a>
           申請個人專屬的免費額度 API Key。
         </p>
