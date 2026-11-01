@@ -127,9 +127,9 @@ const THEMES: { key: ThemeMode; label: string }[] = [
       </section>
 
       <!-- LINE 通知（醫院群組助手 bot） -->
-      <section v-if="session.user?.personId" class="p-4 rounded-2xl bg-surface border border-hairline space-y-2">
+      <section v-if="session.user?.his" class="p-4 rounded-2xl bg-surface border border-hairline space-y-2">
         <p class="font-bold text-fg">LINE 通知</p>
-        <p class="text-xs text-muted leading-relaxed">綁定「醫院群組助手」後，可在 LINE 輸入「我的班」「明天值班」查詢班表，換班申請與回覆也會私訊通知你。綁定不會傳送你的密碼。</p>
+        <p class="text-xs text-muted leading-relaxed">綁定「醫院群組助手」後，可依你的 MedBase 權限在 LINE 查詢自費資料；有排班身分時，也可查詢「我的班」及接收換班私訊通知。綁定不會傳送你的密碼。</p>
         <button @click="linkLine" :disabled="linking" class="w-full h-11 rounded-xl bg-accent text-white font-bold disabled:opacity-40">
           {{ linking ? '產生綁定碼中…' : '綁定 LINE' }}
         </button>
