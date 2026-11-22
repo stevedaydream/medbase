@@ -45,6 +45,10 @@ function save() {
 const input = "w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-accent/50 font-bold";
 const area = "w-full px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-accent/50 resize-y font-medium leading-relaxed";
 const lbl = "text-muted text-xs font-black block mb-1.5";
+// 自訂欄位一列：標題固定寬、內容吃剩下的寬度。不能沿用 input／area 的 w-full，
+// 否則 w-full 蓋過固定寬，標題佔滿整列、內容被擠到右側只剩一條
+const fieldLabel = "w-48 shrink-0 px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-accent/50 font-bold";
+const fieldValue = "flex-1 min-w-0 px-3 py-2 bg-sunken border border-hairline rounded-xl text-fg text-xs outline-none focus:border-accent/50 resize-y font-medium leading-relaxed";
 </script>
 
 <template>
@@ -106,9 +110,9 @@ const lbl = "text-muted text-xs font-black block mb-1.5";
             <div class="space-y-2">
               <label :class="lbl">自訂欄位（例如出院準備、末期照護等收合區塊）</label>
               <div v-for="(f, i) in spec.extra" :key="i" class="flex gap-2 items-start">
-                <input v-model="f.label" :class="[input, 'w-40 shrink-0']" placeholder="欄位標題" />
-                <textarea v-model="f.value" rows="2" :class="area" placeholder="內容" />
-                <button @click="spec.extra.splice(i, 1)" class="text-muted hover:text-danger text-lg px-1 cursor-pointer">×</button>
+                <input v-model="f.label" :class="fieldLabel" placeholder="欄位標題" />
+                <textarea v-model="f.value" rows="2" :class="fieldValue" placeholder="內容" />
+                <button @click="spec.extra.splice(i, 1)" class="shrink-0 text-muted hover:text-danger text-lg px-1 cursor-pointer">×</button>
               </div>
               <button @click="addField(spec.extra)" class="text-xs text-accent font-bold cursor-pointer">＋ 自訂欄位</button>
             </div>
@@ -159,9 +163,9 @@ const lbl = "text-muted text-xs font-black block mb-1.5";
               <div class="space-y-2">
                 <label :class="lbl">此決定的自訂欄位</label>
                 <div v-for="(f, j) in d.extra" :key="j" class="flex gap-2 items-start">
-                  <input v-model="f.label" :class="[input, 'w-40 shrink-0']" placeholder="欄位標題" />
-                  <textarea v-model="f.value" rows="2" :class="area" placeholder="內容" />
-                  <button @click="d.extra.splice(j, 1)" class="text-muted hover:text-danger text-lg px-1 cursor-pointer">×</button>
+                  <input v-model="f.label" :class="fieldLabel" placeholder="欄位標題" />
+                  <textarea v-model="f.value" rows="2" :class="fieldValue" placeholder="內容" />
+                  <button @click="d.extra.splice(j, 1)" class="shrink-0 text-muted hover:text-danger text-lg px-1 cursor-pointer">×</button>
                 </div>
                 <button @click="addField(d.extra)" class="text-xs text-accent font-bold cursor-pointer">＋ 自訂欄位</button>
               </div>
