@@ -4,6 +4,10 @@ import { sha256 } from "@/utils/sha256";
 import { legacyUid } from "@/utils/syncUid";
 
 let db: Database | null = null;
+let opening: Promise<Database> | null = null;
+
+/** `npm run dev` 的一般瀏覽器（沒有 Tauri 後端）：改用瀏覽器版 SQLite 讀本機真實資料快照（webDb.ts） */
+const IS_WEB_DEV = import.meta.env.DEV && typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window);
 let _writeChain: Promise<void> = Promise.resolve();
 
 export async function closeDb(): Promise<void> {
@@ -27,17 +31,23 @@ export async function dbWrite(sql: string, params?: unknown[]): Promise<import("
 }
 
 export async function getDb(): Promise<Database> {
-  if (!db) {
-    // _busy_timeout 寫進 URL，讓連線池的每條連線都自動套用
-    db = await Database.load("sqlite:medbase.db");
-    await db.execute("PRAGMA journal_mode=WAL");
-    await db.execute("PRAGMA busy_timeout=5000");
-    await initSchema(db);
-    await seedIfEmpty(db);
+  if (db) return db;
+  // 同時多處呼叫時共用同一次開啟：避免重複開檔，也避免有人拿到還沒建完表的連線
+  // （網頁開發版若各自開啟，會變成好幾份互不相通的資料庫副本）
+  opening ??= (async () => {
+    const d = IS_WEB_DEV
+      ? (await (await import("./webDb")).WebDatabase.load("sqlite:medbase.db")) as unknown as Database
+      : await Database.load("sqlite:medbase.db");
+    await d.execute("PRAGMA journal_mode=WAL");
+    await d.execute("PRAGMA busy_timeout=5000");
+    await initSchema(d);
+    await seedIfEmpty(d);
     // 必須在 seed 之後：新裝機的種子資料要拿到固定 uid 與最舊時間戳
-    await initSyncSchema(db);
-  }
-  return db;
+    await initSyncSchema(d);
+    db = d;
+    return d;
+  })().finally(() => { opening = null; });
+  return opening;
 }
 
 /**

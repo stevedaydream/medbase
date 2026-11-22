@@ -19,7 +19,8 @@
 - 改 `src/`：`npm run build` + `npm test` 通過
 - 改 `mobile/`：`cd mobile && npm run build` 通過
 - 改 `src-tauri/`：`cd src-tauri && cargo check`
-- UI 用 `npm run dev` 的網頁版檢查；Tauri 專屬功能（fs、dialog、SQL）網頁版無法執行，需回報「未在 Tauri 內實測」
+- UI 用 `npm run dev` 的網頁版檢查：資料庫改用瀏覽器版 SQLite（`src/db/webDb.ts`），每次開頁面載入本機真實資料庫快照（`%APPDATA%/com.medbase.app/medbase.db`，可用 `MEDBASE_DB` 指定），修改只在該分頁、不寫回、不連雲端
+- 網頁版仍無法執行 fs、dialog、Rust `invoke`（AHK 啟動、備份等），這類功能需回報「未在 Tauri 內實測」
 
 ## 專案禁忌
 - DB 寫入必須用 `dbWrite()`，不可直接 `db.execute()`（SQLITE_BUSY，BF-006）

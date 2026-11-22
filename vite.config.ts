@@ -2,7 +2,8 @@ import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "path";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 import type { Plugin } from "vite";
 
@@ -57,9 +58,45 @@ function dutyOcrAssets(): Plugin {
   };
 }
 
+/**
+ * 網頁開發版（npm run dev）的真實資料：把本機桌機版的 medbase.db 做一份一致的快照給瀏覽器（src/db/webDb.ts）。
+ * 用 VACUUM INTO 複製，含 WAL 裡尚未寫回主檔的資料，且不改動來源。只在開發伺服器、且只綁 localhost 時提供。
+ * 路徑可用環境變數 MEDBASE_DB 指定；預設 %APPDATA%/com.medbase.app/medbase.db。
+ */
+function devRealDb(): Plugin {
+  return {
+    name: "dev-real-db",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use("/__dev/medbase.db", async (_request, response) => {
+        const fail = (code: number, msg: string) => { response.statusCode = code; response.setHeader("Content-Type", "text/plain; charset=utf-8"); response.end(msg); };
+        if (host) return fail(403, "開發伺服器對外開放（TAURI_DEV_HOST）時不提供真實資料");
+        const src = process.env.MEDBASE_DB || resolve(process.env.APPDATA ?? "", "com.medbase.app", "medbase.db");
+        if (!existsSync(src)) return fail(404, `找不到本機資料庫：${src}`);
+        const tmp = resolve(tmpdir(), `medbase-dev-${process.pid}-${Date.now()}.db`);
+        try {
+          const { DatabaseSync } = await import("node:sqlite");
+          let db;
+          try { db = new DatabaseSync(src, { readOnly: true }); db.exec(`VACUUM INTO '${tmp.replace(/'/g, "''")}'`); }
+          catch { db?.close(); db = new DatabaseSync(src); db.exec(`VACUUM INTO '${tmp.replace(/'/g, "''")}'`); }
+          db.close();
+          response.setHeader("Content-Type", "application/octet-stream");
+          response.setHeader("Cache-Control", "no-store");
+          response.setHeader("X-MedBase-Db", encodeURIComponent(src));
+          response.end(readFileSync(tmp));
+        } catch (e) {
+          fail(500, `讀取本機資料庫失敗：${(e as Error).message}`);
+        } finally {
+          rmSync(tmp, { force: true });
+        }
+      });
+    },
+  };
+}
+
 // https://vite.dev/config/
 export default defineConfig(async () => ({
-  plugins: [vue(), tailwindcss(), dutyOcrAssets(), dutyPdfCmaps()],
+  plugins: [vue(), tailwindcss(), dutyOcrAssets(), dutyPdfCmaps(), devRealDb()],
   resolve: {
     alias: {
       "@": resolve(__dirname, "src"),
