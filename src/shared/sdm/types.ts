@@ -104,6 +104,19 @@ export function groupByDept(list: SdmEntry[]): { dept: string; items: SdmEntry[]
     .map(([dept, items]) => ({ dept, items: items.sort((a, b) => a.name.localeCompare(b.name, "zh-Hant")) }));
 }
 
+export const SDM_UNCATEGORIZED = "未分類";
+const deptOf = (e: SdmEntry) => e.spec.dept.trim() || SDM_UNCATEGORIZED;
+
+/** 科別篩選：dept 空字串＝全部；「未分類」對應沒填科別的範本 */
+export function filterByDept(list: SdmEntry[], dept: string): SdmEntry[] {
+  return dept ? list.filter(e => deptOf(e) === dept) : list;
+}
+
+/** 篩選列的科別與範本數（依名稱排序，未分類放最後） */
+export function deptCounts(list: SdmEntry[]): { dept: string; count: number }[] {
+  return groupByDept(list).map(g => ({ dept: g.dept, count: g.items.length }));
+}
+
 /** 這個決定在 HIS 要勾的大項（依有填的欄位判斷） */
 export function decisionSections(d: SdmDecision, explanation: string): string[] {
   const out: string[] = [];

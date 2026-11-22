@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  parseSdmSpec, emptySdmSpec, emptyDecision, searchSdm, groupByDept, decisionSections, checkSdm, normalizeSdm, type SdmEntry,
+  parseSdmSpec, emptySdmSpec, emptyDecision, searchSdm, groupByDept, filterByDept, deptCounts, decisionSections, checkSdm, normalizeSdm, type SdmEntry,
 } from "./types";
 
 const entry = (uid: string, name: string, patch: Partial<ReturnType<typeof emptySdmSpec>> = {}): SdmEntry =>
@@ -32,6 +32,14 @@ describe("SDM 範本", () => {
     const g = groupByDept([entry("1", "B", { dept: "骨科" }), entry("2", "X"), entry("3", "A", { dept: "骨科" }), entry("4", "C", { dept: "一般外科" })]);
     expect(g.map(x => x.dept)).toEqual(["一般外科", "骨科", "未分類"]);
     expect(g[1].items.map(e => e.name)).toEqual(["A", "B"]);
+  });
+
+  it("科別篩選：全部、指定科別、未分類；篩選列附數量", () => {
+    const list = [entry("1", "B", { dept: "骨科" }), entry("2", "X"), entry("3", "A", { dept: " 骨科 " }), entry("4", "C", { dept: "一般外科" })];
+    expect(filterByDept(list, "").length).toBe(4);
+    expect(filterByDept(list, "骨科").map(e => e.uid)).toEqual(["1", "3"]);
+    expect(filterByDept(list, "未分類").map(e => e.uid)).toEqual(["2"]);
+    expect(deptCounts(list)).toEqual([{ dept: "一般外科", count: 1 }, { dept: "骨科", count: 2 }, { dept: "未分類", count: 1 }]);
   });
 
   it("要勾的大項依有填的欄位判斷", () => {

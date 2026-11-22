@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useFocusFromRoute } from "@/composables/useFocusFromRoute";
 import { onTableSynced } from "@/composables/useTableSync";
 import { loadSdm, saveSdm, deleteSdm, getEditorName, setEditorName, SDM_TABLE } from "@/composables/useSdm";
-import { searchSdm, groupByDept, decisionSections, type SdmEntry } from "@/shared/sdm/types";
+import { searchSdm, groupByDept, filterByDept, deptCounts, decisionSections, type SdmEntry } from "@/shared/sdm/types";
 import CloudSyncButtons from "@/components/CloudSyncButtons.vue";
 import SdmCopyField from "@/components/sdm/SdmCopyField.vue";
 import SdmEditor from "@/components/sdm/SdmEditor.vue";
@@ -43,9 +43,26 @@ onMounted(async () => {
 onTableSynced(SDM_TABLE, reload);
 
 // 全域搜尋點結果：?focus=sdm:<uid> 直接選中
-useFocusFromRoute("sdm", () => list.value, e => e.uid, e => { search.value = ""; selUid.value = e.uid; });
+useFocusFromRoute("sdm", () => list.value, e => e.uid, e => { search.value = ""; deptFilter.value = ""; selUid.value = e.uid; });
 
-const groups = computed(() => groupByDept(searchSdm(list.value, search.value)));
+// 科別篩選（空字串＝全部）；記住上次選的科別，只是本機便利，讀寫失敗就當沒有
+const DEPT_KEY = "medbase.sdm.deptFilter";
+const deptFilter = ref((() => { try { return localStorage.getItem(DEPT_KEY) ?? ""; } catch { return ""; } })());
+watch(deptFilter, v => { try { localStorage.setItem(DEPT_KEY, v); } catch { /* 無痕或封鎖儲存 */ } });
+
+const searched = computed(() => searchSdm(list.value, search.value));
+const filtered = computed(() => filterByDept(searched.value, deptFilter.value));
+const groups = computed(() => groupByDept(filtered.value));
+/** 篩選列：依搜尋結果計數；目前選的科別即使搜尋後為 0 也保留，才點得回「全部」以外的狀態 */
+const deptOptions = computed(() => {
+  const opts = deptCounts(searched.value);
+  if (deptFilter.value && !opts.some(o => o.dept === deptFilter.value)) opts.push({ dept: deptFilter.value, count: 0 });
+  return opts;
+});
+// 科別已不存在（例如範本都改了科別或被刪除）時回到全部
+watch(list, l => {
+  if (deptFilter.value && !filterByDept(l, deptFilter.value).length) deptFilter.value = "";
+});
 const depts = computed(() => [...new Set(list.value.map(e => e.spec.dept.trim()).filter(Boolean))].sort());
 const selected = computed(() => list.value.find(e => e.uid === selUid.value) ?? null);
 const decision = computed(() => selected.value?.spec.decisions[decIdx.value] ?? selected.value?.spec.decisions[0] ?? null);
@@ -73,6 +90,9 @@ async function onSave(v: { name: string; spec: SdmEntry["spec"]; editor: string 
     editing.value = null;
     await reload();
     selUid.value = uid;
+    // 存檔後的範本不在目前篩選的科別裡時，切到它的科別，避免存完就從清單消失
+    const saved = list.value.find(e => e.uid === uid);
+    if (saved && deptFilter.value && !filterByDept([saved], deptFilter.value).length) deptFilter.value = saved.spec.dept.trim() || "未分類";
     toast("已儲存，將同步到全院電腦");
   } catch (e) {
     toast(`儲存失敗：${(e as Error).message}`);
@@ -105,12 +125,24 @@ async function onDelete() {
           class="w-10 h-10 flex items-center justify-center rounded-xl bg-accent hover:bg-accent-hover text-white text-lg font-bold transition-all active:scale-95 cursor-pointer"
           title="新增 SDM 範本">＋</button>
       </div>
+      <div v-if="deptOptions.length > 1 || deptFilter" class="flex flex-wrap gap-1.5 mb-3 shrink-0" role="group" aria-label="科別篩選">
+        <button v-for="o in [{ dept: '', count: searched.length }, ...deptOptions]" :key="o.dept || '__all'"
+          @click="deptFilter = o.dept" :aria-pressed="deptFilter === o.dept"
+          class="px-2.5 py-1 rounded-full border text-xs font-bold transition-colors cursor-pointer whitespace-nowrap"
+          :class="deptFilter === o.dept
+            ? 'bg-accent/15 border-accent/50 text-accent'
+            : 'bg-sunken border-hairline text-muted hover:text-fg-secondary'">
+          {{ o.dept || "全部" }}<span class="ml-1 font-mono opacity-70">{{ o.count }}</span>
+        </button>
+      </div>
       <div class="flex items-center justify-between px-1.5 mb-3 shrink-0">
-        <span class="text-muted text-xs font-black font-mono">{{ list.length }} 個範本</span>
+        <span class="text-muted text-xs font-black font-mono">
+          {{ filtered.length === list.length ? `${list.length} 個範本` : `${filtered.length} / ${list.length} 個範本` }}
+        </span>
         <CloudSyncButtons :table="SDM_TABLE" @synced="reload" @message="toast" />
       </div>
       <div class="flex-1 overflow-y-auto space-y-4 pr-1">
-        <div v-if="!groups.length" class="text-muted text-xs italic text-center py-12">{{ list.length ? "找不到符合的範本" : "尚無範本，點 ＋ 新增" }}</div>
+        <div v-if="!groups.length" class="text-muted text-xs italic text-center py-12">{{ !list.length ? "尚無範本，點 ＋ 新增" : deptFilter ? `「${deptFilter}」沒有符合的範本` : "找不到符合的範本" }}</div>
         <div v-for="g in groups" :key="g.dept">
           <p class="text-xs font-black text-accent px-1.5 mb-1.5">{{ g.dept }}（{{ g.items.length }}）</p>
           <div class="space-y-1.5">
