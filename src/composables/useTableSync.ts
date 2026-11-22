@@ -217,19 +217,34 @@ async function readAhkScripts(): Promise<Row[]> {
   return out;
 }
 
+/** 雲端新腳本在本機的存放路徑：避開資料庫已登記與磁碟上已存在的檔名 */
+async function freeAhkPath(uid: string, filename: string): Promise<string> {
+  const db = await getDb();
+  const dir = await join(await documentDir(), "MedBase", "ahk");
+  await mkdir(dir, { recursive: true }).catch(() => {});
+  const stem = filename.replace(/\.ahk$/i, "");
+  const candidates = [filename, `${uid.slice(0, 8)}_${filename}`, `${uid}_${filename}`];
+  for (let i = 2; i < 100; i++) candidates.push(`${uid.slice(0, 8)}_${stem}_${i}.ahk`);
+  for (const name of candidates) {
+    const path = await join(dir, name);
+    const taken = (await db.select<{ c: number }[]>("SELECT COUNT(*) AS c FROM ahk_scripts WHERE file_path = ? COLLATE NOCASE", [path]))[0].c > 0;
+    if (!taken && !await exists_(path)) return path;
+  }
+  throw new Error(`找不到可用的檔名：${filename}`);
+}
+
 async function applyAhkScript(r: Row, exists: boolean): Promise<void> {
   const db = await getDb();
   const uid = str(r.uid);
   let path: string;
   if (exists) {
     path = (await db.select<{ file_path: string }[]>("SELECT file_path FROM ahk_scripts WHERE uid = ?", [uid]))[0].file_path;
+    // pass.ahk 由本機通訊錄產生，不讓雲端內容蓋掉（舊版曾同步過 pass.ahk）
+    if (path === await getPassAhkPath()) return;
   } else {
-    const dir = await join(await documentDir(), "MedBase", "ahk");
-    await mkdir(dir, { recursive: true }).catch(() => {});
-    const filename = str(r.filename) || `${uid}.ahk`;
-    path = await join(dir, filename);
-    const taken = (await db.select<{ c: number }[]>("SELECT COUNT(*) AS c FROM ahk_scripts WHERE file_path = ?", [path]))[0].c > 0;
-    if (taken || await exists_(path)) path = await join(dir, `${uid.slice(0, 8)}_${filename}`);
+    // 先選定不衝突的路徑再寫檔：舊寫法的備用檔名沒檢查資料庫，撞到 UNIQUE(file_path) 時
+    // 檔案已被覆寫、整批同步失敗，之後每次同步都卡在同一筆
+    path = await freeAhkPath(uid, str(r.filename) || `${uid}.ahk`);
   }
   // 試算表儲存格會把 \r\n 存成 \n，寫回 Windows 檔案時還原
   await writeTextFile(path, str(r.content).replace(/\r?\n/g, "\r\n"));
@@ -532,6 +547,7 @@ async function runSync(table: string, gasUrl: string, force: boolean): Promise<S
   const cloudRows = json.rows ?? [];
   const cloudTombs = json.tombstones ?? [];
   let inserted = 0, updated = 0, deleted = 0;
+  const failed: string[] = [];
 
   // ── 寫回雲端合併結果 ──
   for (const cr of cloudRows) {
@@ -541,8 +557,14 @@ async function runSync(table: string, gasUrl: string, force: boolean): Promise<S
     // 本地沒送出的列（例如讀不到檔案）一律以雲端為準
     if (lr && !lr._local_only && str(cr.updated_at) <= str(lr.updated_at)) continue;
     const exists = !!lr;
-    if (cfg.applyRow) await cfg.applyRow(cr, exists);
-    else await defaultApply(cfg, cr, exists);
+    // 單筆失敗不拖垮整批：其餘照常寫回，失敗的那筆下次同步會再試（雲端版本仍較新）
+    try {
+      if (cfg.applyRow) await cfg.applyRow(cr, exists);
+      else await defaultApply(cfg, cr, exists);
+    } catch (e) {
+      failed.push(`${str(cr.name) || key}：${e instanceof Error ? e.message : String(e)}`);
+      continue;
+    }
     if (!exists) inserted++;
     else if (cfg.fields.some(f => str(lr[f]) !== str(cr[f]))) updated++;
   }
@@ -574,6 +596,7 @@ async function runSync(table: string, gasUrl: string, force: boolean): Promise<S
   const message = changed ? (await cfg.afterApply?.()) ?? null : null;
   if (changed) window.dispatchEvent(new CustomEvent(TABLE_SYNCED_EVENT, { detail: { table } }));
 
+  if (failed.length) addLog("warn", `[雲端同步] ${cfg.label}有 ${failed.length} 筆無法寫回本機，下次同步再試`, failed.join("\n"));
   addLog(
     "info",
     `[雲端同步] ${force ? "覆蓋" : "同步"} ${cfg.label} — 新增 ${inserted}、更新 ${updated}、刪除 ${deleted}`,
