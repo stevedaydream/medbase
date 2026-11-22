@@ -2,7 +2,7 @@
 import TipBar from "@/tips/TipBar.vue";
 import { ref, computed, onMounted } from "vue";
 import { useFocusFromRoute } from "@/composables/useFocusFromRoute";
-import { getDb } from "@/db";
+import { getDb, dbWrite } from "@/db";
 import { readTextFile, writeTextFile, remove as removeFile } from "@tauri-apps/plugin-fs";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
@@ -41,6 +41,8 @@ const scriptContent = ref("");
 const groupScriptIds = ref<number[]>([]);
 const ahkExePath = ref("");
 const passAhkPath = ref<string | null>(null);
+/** 啟動腳本時關掉其他執行中的 AHK（保留 pass.ahk），避免多人的腳本熱鍵互相打架 */
+const ahkExclusive = ref(true);
 const passAhkMode = ref<PassAhkMode>("input");
 const isRefreshingPass = ref(false);
 const isSwitchingMode = ref(false);
@@ -112,6 +114,8 @@ async function loadAll() {
     "SELECT value FROM app_settings WHERE key = 'ahk_exe_path'"
   );
   ahkExePath.value = row[0]?.value ?? "";
+  const ex = await db.select<{ value: string }[]>("SELECT value FROM app_settings WHERE key = 'ahk_exclusive'");
+  ahkExclusive.value = ex[0]?.value !== "0";
   passAhkPath.value = await getPassAhkPath();
   passAhkMode.value = await getPassAhkMode();
 }
@@ -222,6 +226,28 @@ async function saveScript(andReload: boolean) {
   }
 }
 
+async function setAhkExclusive(on: boolean) {
+  ahkExclusive.value = on;
+  await dbWrite("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('ahk_exclusive', ?)", [on ? "1" : "0"]);
+}
+
+/**
+ * 只保留這次要跑的腳本與 pass.ahk，其餘執行中的 AHK 全部關掉（包含別人開的、不在 MedBase 名單裡的）。
+ * 未指定帳密腳本時，以檔名 pass.ahk 保留。回傳附加在提示後面的文字。
+ */
+async function closeOtherAhk(keep: string[]): Promise<string> {
+  if (!ahkExclusive.value) return "";
+  try {
+    const closed = await invoke<string[]>("close_other_ahk", { keep: [...keep, passAhkPath.value || "pass.ahk"] });
+    if (!closed.length) return "";
+    const names = closed.map(p => p.split(/[\\/]/).pop()).join("、");
+    return `，已關閉其他腳本：${names}`;
+  } catch (e) {
+    showError(`關閉其他腳本失敗：${(e as Error).message ?? e}`, e);
+    return "";
+  }
+}
+
 async function triggerReload(filePath: string) {
   if (!ahkExePath.value) {
     showSettings.value = true;
@@ -229,8 +255,10 @@ async function triggerReload(filePath: string) {
     return;
   }
   try {
+    // 重載帳密腳本本身不影響其他腳本
+    const extra = filePath === passAhkPath.value ? "" : await closeOtherAhk([filePath]);
     await invoke("reload_ahk", { exePath: ahkExePath.value, scriptPath: filePath });
-    showToast("已儲存並 Reload ✓");
+    showToast(`已儲存並 Reload ✓${extra}`);
   } catch (e) {
     showError(`Reload 失敗：${(e as Error).message}`, e);
   }
@@ -309,6 +337,7 @@ async function reloadGroup() {
      WHERE gs.group_id = ? ORDER BY gs.sort_order`,
     [selectedGroup.value.id]
   );
+  const extra = await closeOtherAhk(rows.map(r => r.file_path).filter(Boolean));
   let count = 0;
   for (const row of rows) {
     if (row.file_path) {
@@ -320,7 +349,7 @@ async function reloadGroup() {
       }
     }
   }
-  showToast(`已 Reload ${count} 個腳本`);
+  showToast(`已 Reload ${count} 個腳本${extra}`);
 }
 
 async function deleteGroup() {
@@ -689,6 +718,11 @@ function insertBuilderToScript() {
       <span class="text-xs text-muted font-bold">
         預設路徑: C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe
       </span>
+      <label class="flex items-center gap-1.5 text-xs text-fg-secondary font-bold whitespace-nowrap cursor-pointer"
+        title="Reload 腳本或套組時，關掉其他執行中的 AutoHotkey 腳本（包含別人開的），只保留這次的腳本與帳密腳本 pass.ahk">
+        <input type="checkbox" :checked="ahkExclusive" @change="setAhkExclusive(($event.target as HTMLInputElement).checked)" />
+        啟動時關閉其他腳本（保留 pass）
+      </label>
     </div>
 
     <!-- Tabs -->
