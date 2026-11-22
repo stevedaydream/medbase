@@ -55,6 +55,18 @@ const scriptForm = ref({ name: "", file_path: "", description: "" });
 const showDeleteConfirm = ref(false);
 const groupForm = ref({ name: "", description: "" });
 
+// 時間顯示：created_at 是 SQLite 預設 datetime('now')（UTC）；updated_at 由同步 trigger 寫本地時間
+const EPOCH_TS = "1970-01-01 00:00:00";
+const pad2 = (n: number) => String(n).padStart(2, "0");
+function fmtTs(raw: string | null | undefined, utc: boolean): string {
+  if (!raw || raw === EPOCH_TS) return "—";
+  const d = new Date(raw.replace(" ", "T") + (utc ? "Z" : ""));
+  if (Number.isNaN(d.getTime())) return raw;
+  return `${d.getFullYear()}/${pad2(d.getMonth() + 1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+const createdText = (s: AhkScript) => fmtTs(s.created_at, true);
+const updatedText = (s: AhkScript) => fmtTs(s.updated_at, false);
+
 const filteredScripts = computed(() => {
   const q = search.value.toLowerCase();
   if (!q) return scripts.value;
@@ -748,6 +760,10 @@ function insertBuilderToScript() {
             </div>
             <div class="text-2xs text-muted font-mono truncate mt-1">
               {{ s.file_path.split(/[\\/]/).pop() }}
+            </div>
+            <div class="text-2xs text-muted tabular-nums truncate mt-0.5"
+              :title="`建立：${createdText(s)}（加入本機的時間）\n最後修改：${updatedText(s)}`">
+              建立 {{ createdText(s) }} · 修改 {{ updatedText(s) }}
             </div>
           </button>
           <div v-if="filteredScripts.length === 0" class="text-center text-muted text-xs py-10 italic">
