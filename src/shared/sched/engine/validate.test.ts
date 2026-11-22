@@ -33,6 +33,23 @@ describe("effectiveCode／統計", () => {
     // D12 + N12 + 公假8 + S1×(平日空白) ... 只驗前 7 天之外全為預設
     expect(st.hours).toBeGreaterThan(24);
   });
+  it("新人獨立排班：不套用個人檢核規則", () => {
+    const c = ctxOf({ n: ["", "D", "D", "D", "D", "D", "D", "D"] }, {}, { n: { noStaff: true } });
+    expect(validate(c).filter(i => i.personId === "n")).toEqual([]);
+  });
+  it("新人月中併入：併入前不計人力、不檢核，併入後照常", () => {
+    const c = ctxOf({ a: ["", "D", "D"], n: ["", "D", "D", "D", "D", "D", "D", "D", "D", "D"] }, {}, { n: { noStaff: true } });
+    c.month.roster.find(r => r.personId === "n")!.newUntil = 2;
+    expect(dayStats(c, 2).D).toBe(1);
+    expect(dayStats(c, 3).D).toBe(2);
+    // 3 日起才開始算連續上班：3~10 共 8 天，未超過 maxConsecutiveWork 前不應報 R1 於 2 日以前
+    expect(validate(c).filter(i => i.personId === "n" && (i.day ?? 99) <= 2)).toEqual([]);
+  });
+  it("每日人力：新人（獨立排班）的上班與休假都不計", () => {
+    const c = ctxOf({ a: ["", "D"], b: ["", "N"], n: ["", "D", "OFF"] }, {}, { n: { noStaff: true } });
+    expect(dayStats(c, 2)).toEqual({ D: 1, N: 1, S1: 0, off: 0 });
+    expect(dayStats(c, 3).off).toBe(0);
+  });
   it("每日人力：支援人員的 S1 不算", () => {
     const c = ctxOf({ a: ["", "D"], b: ["", "N"], s: ["", ""] }, {}, { s: { support: true } });
     expect(dayStats(c, 2)).toEqual({ D: 1, N: 1, S1: 0, off: 0 });

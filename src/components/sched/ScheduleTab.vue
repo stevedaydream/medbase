@@ -186,7 +186,7 @@ function openPrefillSwap(c: CellRef) {
   pSwapTo.value = ""; pSwapNote.value = "";
 }
 const pSwapCandidates = computed(() => pSwap.value && month.value
-  ? prefillSwapCandidates(month.value, pSwap.value.cells[0].code, pSwap.value.from, store.shifts) : []);
+  ? prefillSwapCandidates(month.value, pSwap.value.cells[0].code, pSwap.value.from, store.shifts, pSwap.value.cells.map(c => c.day)) : []);
 const cautionOf = (id: string) => {
   const c = pSwap.value ? prefillSwapCautions(snapshot(), ym.value, id, pSwap.value.cells) : [];
   return c.length ? `⚠ ${c.join("、")}` : "";

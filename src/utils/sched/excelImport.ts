@@ -116,6 +116,7 @@ export function parseMonthSheet(wb: XLSX.WorkBook, sheet: string, knownCodes: st
     const flags: Flags = {
       active: f(fc.active) && !inactiveX,
       support: f(fc.support),
+      noStaff: false, // Excel 沒有此欄
       noD, noN,
       nightTransfer: f(fc.nightTransfer),
       // Excel 隱含規則：不排 D＋不排 N → OFF 固定＝假日數且只休假日（v3 拆為獨立旗標）

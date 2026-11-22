@@ -2,7 +2,7 @@
  * 排班統計與檢核（schedular.md §8；只警告不阻擋）。
  */
 import type { MonthDoc, PrebookDoc, HolidayDoc, ShiftDef, QuotaItem, RuleParams } from "../types";
-import { BLANK_BY_DAYTYPE, cellKey } from "../types";
+import { BLANK_BY_DAYTYPE, cellKey, isNewOn } from "../types";
 import { daysIn, dayTypeOf, dowOf, dateStr, inCny } from "../calendar";
 import { needOf } from "./staffing";
 
@@ -73,11 +73,15 @@ export function personStats(ctx: GridCtx, personId: string): PersonStats {
   let hours = 0;
   const nd = daysIn(ctx.month.ym);
   for (const it of ctx.items) counts[it.id] = 0;
+  // 月中併入的新人：配額只算併入後的日子（整月新人沒有配額，照實顯示）
+  const re = ctx.month.roster.find(r => r.personId === personId);
+  const partial = !!re?.flags.noStaff && !!re.newUntil;
   for (let d = 1; d <= nd; d++) {
     const raw = ctx.cell(personId, d);
     const eff = effectiveCode(ctx, personId, d);
     if (eff) byCode[eff] = (byCode[eff] ?? 0) + 1;
     hours += sm.get(eff)?.hours ?? 0;
+    if (partial && isNewOn(re, d)) continue;
     for (const it of ctx.items) {
       if (it.dow && !it.dow.includes(dowOf(ctx.month.ym, d))) continue;
       if (raw && it.countShifts.includes(raw)) counts[it.id]++;
@@ -92,7 +96,7 @@ export function dayStats(ctx: GridCtx, day: number): DayStats {
   const sm = shiftMap(ctx.shifts);
   const st: DayStats = { D: 0, N: 0, S1: 0, off: 0 };
   for (const r of ctx.month.roster) {
-    if (!r.flags.active) continue;
+    if (!r.flags.active || isNewOn(r, day)) continue; // 新人獨立排班期間：上班、休假都不佔當日名額
     const s = sm.get(effectiveCode(ctx, r.personId, day));
     if (!s) continue;
     if (s.takesOff) st.off++;
@@ -132,6 +136,8 @@ export function validate(ctx: GridCtx): Issue[] {
       const dt = dayTypeOf(m.ym, d, h);
       const pc = ctx.prebook?.cells[cellKey(id, d)];
       const pre = pc?.auto ? "" : pc?.v ?? "";
+      // 新人獨立排班期間：不套用檢核規則，連續天數從併入當天重新起算
+      if (isNewOn(r, d)) { work = 0; duty = 0; continue; }
 
       work = !eff || s?.isRest ? 0 : work + 1;
       if (on("R1") && scheduling && work === rules.maxConsecutiveWork + 1) {

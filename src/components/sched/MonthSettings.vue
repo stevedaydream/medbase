@@ -72,8 +72,19 @@ const { dragId, dropBefore, dropAtEnd, onGripDown } = useRowDrag({
 });
 function toggleFlag(r: RosterEntry, k: FlagKey) {
   r.flags[k] = !r.flags[k];
+  if (k === "noStaff" && !r.flags.noStaff) delete r.newUntil;
   const label = FLAG_DEFS.find(f => f.key === k)!.label;
   persist(`${nm(r)} ${label}：${r.flags[k] ? "是" : "否"}`);
+}
+/** 新人獨立排班至第幾日（空白＝整月；填到月底也視為整月） */
+function setNewUntil(r: RosterEntry, e: Event) {
+  const el = e.target as HTMLInputElement;
+  const n = Math.floor(Number(el.value));
+  const last = daysIn(month.value!.ym);
+  if (!el.value || !Number.isFinite(n) || n < 1 || n >= last) delete r.newUntil;
+  else r.newUntil = n;
+  el.value = r.newUntil ? String(r.newUntil) : "";
+  persist(`${nm(r)} 新人獨立排班：${r.newUntil ? `至 ${r.newUntil} 日，${r.newUntil + 1} 日起併入正式人力` : "整月"}`);
 }
 function addPerson() {
   const m = month.value;
@@ -227,6 +238,11 @@ function clearAdjust(d: string) {
                 <td class="px-2 whitespace-nowrap text-fg">{{ nm(r) }} <span class="text-muted">{{ personById(r.personId)?.unit }}</span></td>
                 <td v-for="f in FLAG_DEFS" :key="f.key" class="px-1.5 text-center">
                   <input type="checkbox" :checked="r.flags[f.key]" :disabled="readonly" @change="toggleFlag(r, f.key)" />
+                  <label v-if="f.key === 'noStaff' && r.flags.noStaff" class="ml-1 inline-flex items-center gap-0.5 text-muted whitespace-nowrap"
+                    title="獨立排班到這天（含），隔天起併入正式人力；空白＝整月">
+                    至<input type="number" min="1" :max="daysIn(month.ym) - 1" placeholder="月底" class="sched-input w-12 text-center"
+                      :value="r.newUntil ?? ''" :disabled="readonly" @change="setNewUntil(r, $event)" />日
+                  </label>
                 </td>
                 <td class="px-2"><button v-if="!readonly" class="text-muted hover:text-danger" @click="removePerson(i)">移除</button></td>
               </tr>

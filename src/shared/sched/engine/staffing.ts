@@ -2,7 +2,7 @@
  * 每日人力與可休人數（三層覆蓋：日類型人力表 → 日期區段 → 單日微調）。
  * Excel 對照：第 18 列「放假人數」公式。
  */
-import type { MonthDoc, Need, HolidayDoc, ShiftDef } from "../types";
+import { isNewOn, type MonthDoc, type Need, type HolidayDoc, type ShiftDef } from "../types";
 import { dayTypeOf, dateStr, inCny, daysIn } from "../calendar";
 
 /** 取某格的班別（排班層或預班層，由呼叫端決定） */
@@ -17,9 +17,9 @@ export function needOf(m: MonthDoc, day: number, h: HolidayDoc): Need {
   return (range?.table ?? m.staffing.base)[dt];
 }
 
-/** 參與人力計算的人：在職且非支援 */
-export function staffIds(m: MonthDoc): string[] {
-  return m.roster.filter(r => r.flags.active && !r.flags.support).map(r => r.personId);
+/** 某日參與人力計算的人：在職、非支援、不在新人獨立排班期間 */
+export function staffIds(m: MonthDoc, day: number): string[] {
+  return m.roster.filter(r => r.flags.active && !r.flags.support && !isNewOn(r, day)).map(r => r.personId);
 }
 
 /**
@@ -30,7 +30,7 @@ export function offSlots(
   m: MonthDoc, day: number, h: HolidayDoc, shifts: ShiftDef[], cell: CellFn,
   cnyDuty?: (day: number) => number,
 ): number {
-  const ids = staffIds(m);
+  const ids = staffIds(m, day);
   const reduce = new Set(shifts.filter(s => s.reducesOff).map(s => s.code));
   const away = ids.filter(id => reduce.has(cell(id, day))).length;
   let working: number;

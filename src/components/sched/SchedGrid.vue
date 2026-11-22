@@ -11,7 +11,7 @@ import { validate, personStats, dayStats, shiftMap, type Issue, type GridCtx } f
 import { daysIn, dayTypeOf, dowOf, dateStr, WEEKDAY_LABEL, prevYm } from "@/shared/sched/calendar";
 import { colorOf } from "@/shared/sched/palette";
 import { dayMark } from "@/shared/sched/holidayLabel";
-import { cellKey, CONSTRAINT_MARKS, FLAG_DEFS, type Flags, type SnapshotDoc } from "@/shared/sched/types";
+import { cellKey, CONSTRAINT_MARKS, FLAG_DEFS, isNewOn, type Flags, type RosterEntry, type SnapshotDoc } from "@/shared/sched/types";
 
 const props = defineProps<{ ym: string; layer: Layer; showInactive: boolean; hasLock: boolean; postEdit: boolean }>();
 const emit = defineEmits<{
@@ -26,7 +26,12 @@ const ed = useGridEditor(ymRef, layerRef, computed(() => props.hasLock), compute
 
 const nd = computed(() => daysIn(props.ym));
 const days = computed(() => Array.from({ length: nd.value }, (_, i) => i + 1));
-const rows = computed(() => (ed.month.value?.roster ?? []).filter(r => props.showInactive || r.flags.active));
+// 新人獨立排班：排在正式人員之後，另起一區
+const rows = computed(() => {
+  const list = (ed.month.value?.roster ?? []).filter(r => props.showInactive || r.flags.active);
+  return [...list.filter(r => !r.flags.noStaff), ...list.filter(r => r.flags.noStaff)];
+});
+const firstNew = computed(() => rows.value.find(r => r.flags.noStaff)?.personId ?? null);
 const rowIds = computed(() => rows.value.map(r => r.personId));
 const sm = computed(() => shiftMap(store.shifts));
 const items = computed(() => store.quotaItems.filter(i => i.enabled));
@@ -140,6 +145,7 @@ function markOf(id: string, d: number): string {
   return isMark(v) ? v : "";
 }
 const flagShort = (f: Flags) => FLAG_DEFS.filter(x => x.key !== "active" && f[x.key]).map(x => x.short).join(" ");
+const rowFlags = (r: RosterEntry) => flagShort(r.flags) + (r.flags.noStaff && r.newUntil ? ` 至${r.newUntil}日` : "");
 
 // ── 選取 ─────────────────────────────────────────────────────
 const anchor = ref<CellRef | null>(null);
@@ -420,10 +426,15 @@ const statusOf = (id: string, itemId: string) => {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="r in rows" :key="r.personId" :class="[hoverRow === r.personId ? 'row-hover' : '', r.flags.active ? '' : 'opacity-40']">
+        <template v-for="r in rows" :key="r.personId">
+        <tr v-if="r.personId === firstNew">
+          <td class="sticky left-0 z-10 bg-surface px-2 pt-2 pb-0.5 text-2xs text-accent font-medium border-b border-hairline">新人（獨立排班）</td>
+          <td :colspan="days.length + items.length + 1" class="pt-2 pb-0.5 text-2xs text-muted border-b border-hairline">獨立排班期間不計入人力、可休、配額，也不套用檢核規則；指定日期的隔天起併入正式人力</td>
+        </tr>
+        <tr :class="[hoverRow === r.personId ? 'row-hover' : '', r.flags.active ? '' : 'opacity-40']">
           <td class="sticky left-0 z-10 bg-surface px-2 py-0.5 whitespace-nowrap border-b border-hairline">
             <span class="font-medium text-fg">{{ personById(r.personId)?.name }}</span>
-            <span class="ml-1 text-2xs text-muted">{{ r.flags.active ? flagShort(r.flags) : "非在職" }}</span>
+            <span class="ml-1 text-2xs text-muted">{{ r.flags.active ? rowFlags(r) : "非在職" }}</span>
             <span v-if="leaveWarn.get(r.personId)" class="ml-1 text-2xs" :class="leaveWarn.get(r.personId)!.negative ? 'text-danger' : 'text-warning'"
               :title="leaveWarn.get(r.personId)!.title">⚠ {{ leaveWarn.get(r.personId)!.text }}</span>
           </td>
@@ -435,6 +446,7 @@ const statusOf = (id: string, itemId: string) => {
               origin(r.personId, d) === 'pre' ? 'is-pre' : '',
               origin(r.personId, d) === 'sys' ? 'is-sys' : '',
               heads[d - 1].rest ? 'is-rest' : '',
+              isNewOn(r, d) ? 'is-new' : '',
             ]"
             :style="cellStyle(r.personId, d)"
             :title="issueAt.get(`${r.personId}|${d}`)?.map(i => i.message).join('\n')"
@@ -450,6 +462,7 @@ const statusOf = (id: string, itemId: string) => {
           </td>
           <td class="px-1.5 text-center tabular-nums text-fg-secondary border-b border-hairline">{{ r.flags.active ? stats[r.personId]?.hours : "" }}</td>
         </tr>
+        </template>
       </tbody>
       <tfoot class="sticky bottom-0 z-20 bg-surface">
         <tr>
@@ -524,6 +537,7 @@ const statusOf = (id: string, itemId: string) => {
 .sched-grid td.cell { transition: box-shadow 0.08s; }
 .sched-grid td.is-rest:not([style*="background"]) { background: color-mix(in srgb, var(--color-danger) 5%, transparent); }
 .sched-grid td.is-pre span:first-child { color: var(--color-danger) !important; }
+.sched-grid td.is-new { background-image: repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in srgb, var(--color-accent) 12%, transparent) 4px 5px); }
 .sched-grid td.is-sys { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-muted) 55%, transparent); font-style: italic; }
 .sched-grid td.is-bad { box-shadow: inset 0 0 0 2px var(--color-danger); }
 .sched-grid td.is-sel { box-shadow: inset 0 0 0 2px var(--color-accent); filter: brightness(1.15); }

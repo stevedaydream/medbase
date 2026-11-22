@@ -14,7 +14,7 @@ import { computeQuotas } from "./engine/quota";
 import { settleDebts } from "./engine/swaps";
 import { validate, RULE_LABELS, type GridCtx, type Issue, type RuleCode } from "./engine/validate";
 import {
-  emptyPatch, mergePatch, applyToState, notice, opRecompute, monthTargets, prefillSwapCells, prefillSwapCautions,
+  emptyPatch, mergePatch, applyToState, notice, opRecompute, monthTargets, prefillSwapCells, prefillSwapCautions, newSideMatch,
   type OpsState, type OpPatch,
 } from "./ops";
 
@@ -113,6 +113,8 @@ export function planEmpSwap(s: OpsState, inp: EmpSwapInput, reqId: string, actor
   if (!give.length) throw new Error("請選擇要換出的日子");
   if (kind === "cross" && !take.length) throw new Error("請選擇對方要換給你的日子");
   if (kind === "cross" && give.some(d => take.includes(d))) throw new Error("跨日換班的兩邊不能是同一天，請改用同日互換");
+  const ra = m0.roster.find(r => r.personId === a), rb = m0.roster.find(r => r.personId === b);
+  if (!newSideMatch(ra, rb, uniq([...give, ...take]))) throw new Error("新人獨立排班期間，不能與正式人員換班");
   const nm = nameFn(s.people);
 
   if (m0.status === "published") {

@@ -58,6 +58,26 @@ describe("holidayCount", () => {
   });
 });
 
+describe("新人獨立排班的配額", () => {
+  const R = (id: string, f: Partial<ReturnType<typeof emptyFlags>> = {}, newUntil?: number) => ({ personId: id, flags: { ...emptyFlags(), ...f }, newUntil });
+  const run = (roster: MonthDoc["roster"]) => computeQuotas({
+    month: { ...emptyMonth("202611"), roster }, holidays: emptyHolidays(), shifts: DEFAULT_SHIFTS,
+    items: DEFAULT_QUOTA_ITEMS.filter(i => i.id === "D"), cell: () => "",
+  });
+  it("整月新人沒有配額目標，D 全分給正式人員", () => {
+    const r = run([R("a"), R("b"), R("n", { noStaff: true })]);
+    expect(r.quotas.n).toBeUndefined();
+    expect(r.quotas.a.D + r.quotas.b.D).toBe(r.totals.D);
+  });
+  it("月中併入（15 日起）：依併入天數折算約半份，總數不變", () => {
+    const r = run([R("a"), R("b"), R("n", { noStaff: true }, 15)]);
+    const full = r.quotas.a.D;
+    expect(r.quotas.n.D).toBeLessThan(full);
+    expect(r.quotas.n.D).toBeGreaterThan(0);
+    expect(r.quotas.a.D + r.quotas.b.D + r.quotas.n.D).toBe(r.totals.D);
+  });
+});
+
 // ── 與醫院 Excel 202610 逐項比對 ─────────────────────────────────────
 const XLS = "data/9A值班表(排班用、預班)-9A9B combind.xls";
 const hasXls = existsSync(XLS);

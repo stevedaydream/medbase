@@ -3,9 +3,9 @@
  * 桌機（SQLite）與手機（IndexedDB）各自以 applyPatch 存檔與同步。
  */
 import type {
-  MonthDoc, PrebookDoc, Duty84Doc, CnyDoc, DebtRec, NoticeItem, RuleParams, EstDoc, Person, LockInfo,
+  MonthDoc, PrebookDoc, Duty84Doc, CnyDoc, DebtRec, NoticeItem, RuleParams, EstDoc, Person, LockInfo, RosterEntry,
 } from "./types";
-import { newId, clone, cellKey, emptyFlags, emptyMonth, CONSTRAINT_MARKS, OPEN_MONTHS, NEAR_MONTHS } from "./types";
+import { newId, clone, cellKey, emptyFlags, emptyMonth, CONSTRAINT_MARKS, OPEN_MONTHS, NEAR_MONTHS, isNewOn, carryRoster } from "./types";
 import { nextYm, prevYm, toYm, ymParts, daysIn } from "./calendar";
 import { recomputeFrom, startScheduling, cellFnOf, newMonthFrom, type SchedSnapshot, type Notice } from "./engine/prefill";
 import { computeQuotas } from "./engine/quota";
@@ -223,7 +223,7 @@ export function monthWindow(today: Date): { near: string[]; far: string[] } {
 function syncFar(s: OpsState, m: MonthDoc, tpl: MonthDoc): MonthDoc {
   const out = clone(m);
   const inactive = new Set(s.people.filter(p => !p.active).map(p => p.id));
-  out.roster = clone(tpl.roster).filter(r => !inactive.has(r.personId));
+  out.roster = carryRoster(tpl.roster).filter(r => !inactive.has(r.personId));
   out.staffing.base = clone(tpl.staffing.base);
   return out;
 }
@@ -474,9 +474,16 @@ function describeChanges(ym: string, changes: { personId: string; day: number; f
 }
 
 // ── 預填換人（開放預班）───────────────────────────────────────────────
-/** 可接手的人：名單上的在職者（不擋，只列出注意事項） */
-export function prefillSwapCandidates(m: MonthDoc, _code: string, from: string, _shifts?: unknown): string[] {
-  return m.roster.filter(r => r.personId !== from && r.flags.active).map(r => r.personId);
+/** 可接手的人：名單上的在職者（不擋，只列出注意事項）；新人獨立排班期間只能與同為新人者互換 */
+export function prefillSwapCandidates(m: MonthDoc, _code: string, from: string, _shifts?: unknown, days: number[] = []): string[] {
+  const fr = m.roster.find(r => r.personId === from);
+  return m.roster.filter(r => r.personId !== from && r.flags.active && newSideMatch(fr, r, days)).map(r => r.personId);
+}
+
+/** 換班的兩人在這些日子是否同屬新人獨立排班（或同屬正式人力）；沒給日期時以整月判斷 */
+export function newSideMatch(a: RosterEntry | undefined, b: RosterEntry | undefined, days: number[]): boolean {
+  if (!days.length) return !!a?.flags.noStaff === !!b?.flags.noStaff;
+  return days.every(d => isNewOn(a, d) === isNewOn(b, d));
 }
 
 /** 換人的注意事項：旗標排除、當天已有系統預填（只記錄，不阻擋） */
@@ -513,6 +520,8 @@ export function opAddPrefillSwap(
   const m0 = s.months[ym];
   if (!m0 || m0.status !== "open") throw new Error("只有開放預班的月份可以預填換人");
   if (!cells.length) throw new Error("沒有可換的格子");
+  const fr = m0.roster.find(r => r.personId === from), tr = m0.roster.find(r => r.personId === to);
+  if (!newSideMatch(fr, tr, cells.map(c => c.day))) throw new Error("新人獨立排班期間，不能與正式人員換班");
   const cautions = prefillSwapCautions(s, ym, to, cells);
   const fullNote = [note, ...cautions.map(c => `注意：${c}`)].filter(Boolean).join("；");
   const m = clone(m0);

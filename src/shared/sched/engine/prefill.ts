@@ -6,8 +6,8 @@ import type {
   MonthDoc, PrebookDoc, Person, HolidayDoc, HolidayDutyDoc, Duty84Doc, CnyDoc, ShiftDef, QuotaItem,
   CellOrigin, WeekendPointers,
 } from "../types";
-import { cellKey, emptyMonth, clone, CONSTRAINT_MARKS } from "../types";
-import { daysIn, dateStr, dayOfDate, prevYm, nextYm, addDays, dowOf, dayTypeOf, inCny } from "../calendar";
+import { cellKey, emptyMonth, clone, CONSTRAINT_MARKS, isNewOn, carryRoster } from "../types";
+import { daysIn, dateStr, dayOfDate, ymOfDate, prevYm, nextYm, addDays, dowOf, dayTypeOf, inCny } from "../calendar";
 import {
   holidayAssigns, weekendAssigns, duty84Assigns, cnyAssigns, recompute84, recomputeCny, type Assign,
 } from "./rotation";
@@ -77,7 +77,7 @@ export function cellFnOf(m: MonthDoc, pb: PrebookDoc | undefined) {
 export function newMonthFrom(prev: MonthDoc | undefined, ym: string): MonthDoc {
   const m = emptyMonth(ym);
   if (prev) {
-    m.roster = clone(prev.roster);
+    m.roster = carryRoster(prev.roster);
     m.staffing.base = clone(prev.staffing.base);
   }
   return m;
@@ -91,6 +91,9 @@ export function monthAssigns(
   s: SchedSnapshot, m: MonthDoc, prev: MonthDoc | undefined, cny: CnyDoc, log84: Duty84Doc["log"],
 ): { assigns: Assign[]; end: MonthDoc["weekend"]["end"]; warnings: string[] } {
   const inRoster = new Set(m.roster.map(r => r.personId));
+  const entry = new Map(m.roster.map(r => [r.personId, r]));
+  const thisMonth = (date: string) => ymOfDate(date) === m.ym;
+  const newOn = (a: Assign) => thisMonth(a.date) && isNewOn(entry.get(a.personId), dayOfDate(a.date));
   const fixed: Assign[] = [
     ...cnyAssigns(m.ym, cny),
     ...duty84Assigns(m.ym, log84),
@@ -128,7 +131,9 @@ export function monthAssigns(
     if (clash) { warnings.push(`${date} 預填換人失效：接手的人當天已有 ${clash.code}，${sw.code} 仍由原本的人上`); continue; }
     hit.personId = sw.to;
   }
-  const all = raw.filter(a => inRoster.has(a.personId));
+  // 新人獨立排班期間：全外科預填輪到時不寫入，提示另外安排
+  for (const a of raw) if (newOn(a)) warnings.push(`${a.date} ${a.code} 輪到新人（獨立排班），未預填，請另外安排`);
+  const all = raw.filter(a => inRoster.has(a.personId) && !newOn(a));
   // 同一格只取第一個（優先順序如上）
   const seen = new Set<string>();
   const kept = new Map<string, Assign>();
@@ -171,9 +176,9 @@ export function applyAutoOff(
   const warnings: string[] = [];
   const takesOff = new Set(shifts.filter(x => x.takesOff).map(x => x.code));
   const sm = new Map(shifts.map(x => [x.code, x]));
-  const ids = staffIds(m);
   const cell = cellFnOf(m, doc);
   for (let d = 1; d <= daysIn(m.ym); d++) {
+    const ids = staffIds(m, d);
     const date = dateStr(m.ym, d);
     const t = dayTypeOf(m.ym, d, h);
     const cny = inCny(h, date);

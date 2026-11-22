@@ -181,7 +181,7 @@ function openPrefillSwap(id: string, d: number) {
   pSwapTo.value = ''; pSwapNote.value = ''
   pick.value = null
 }
-const pSwapCandidates = computed(() => pSwap.value && month.value ? prefillSwapCandidates(month.value, pSwap.value.cells[0].code, pSwap.value.from) : [])
+const pSwapCandidates = computed(() => pSwap.value && month.value ? prefillSwapCandidates(month.value, pSwap.value.cells[0].code, pSwap.value.from, undefined, pSwap.value.cells.map(c => c.day)) : [])
 const cautionOf = (id: string) => {
   const c = pSwap.value ? prefillSwapCautions(snapshot(), ym.value, id, pSwap.value.cells) : []
   return c.length ? `⚠ ${c.join('、')}` : ''

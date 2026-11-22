@@ -103,6 +103,7 @@ export type ConstraintMark = typeof CONSTRAINT_MARKS[number];
 export interface Flags {
   active: boolean;
   support: boolean;
+  noStaff: boolean;   // 新人獨立排班：不併入任何計算（人力、可休、配額、輪序、全外科預填、檢核、換班）
   noD: boolean;
   noN: boolean;
   nightTransfer: boolean;
@@ -113,6 +114,7 @@ export type FlagKey = keyof Flags;
 export const FLAG_DEFS: { key: FlagKey; label: string; short: string }[] = [
   { key: "active",          label: "在職",              short: "職" },
   { key: "support",         label: "支援人員",          short: "支" },
+  { key: "noStaff",         label: "新人（獨立排班）",  short: "新" },
   { key: "noD",             label: "不排 D",            short: "⊘D" },
   { key: "noN",             label: "不排 N",            short: "⊘N" },
   { key: "nightTransfer",   label: "夜班配額轉出",      short: "N→" },
@@ -120,7 +122,7 @@ export const FLAG_DEFS: { key: FlagKey; label: string; short: string }[] = [
   { key: "offHolidayOnly",  label: "OFF 只能排在假日",  short: "假休" },
 ];
 export const emptyFlags = (): Flags => ({
-  active: true, support: false, noD: false, noN: false,
+  active: true, support: false, noStaff: false, noD: false, noN: false,
   nightTransfer: false, fixedHolidayOff: false, offHolidayOnly: false,
 });
 
@@ -259,7 +261,29 @@ export const NEAR_MONTHS = 2;
 
 // ── 每月文件 ──────────────────────────────────────────────────────────
 export type MonthStatus = "open" | "scheduling" | "published";
-export interface RosterEntry { personId: string; flags: Flags }
+export interface RosterEntry {
+  personId: string;
+  flags: Flags;
+  /** 新人獨立排班至本月第幾日（含）；未設＝整月。只在 flags.noStaff 時有意義 */
+  newUntil?: number;
+}
+
+/** 這一天是否仍在新人獨立排班期間 */
+export function isNewOn(r: RosterEntry | undefined, day: number): boolean {
+  return !!r?.flags.noStaff && (!r.newUntil || day <= r.newUntil);
+}
+/** 整個月都是新人獨立排班 */
+export function isNewAllMonth(r: RosterEntry | undefined): boolean {
+  return !!r?.flags.noStaff && !r.newUntil;
+}
+/** 沿用名單到下個月：本月已指定併入日期的新人，下個月起併入正式人力 */
+export function carryRoster(roster: RosterEntry[]): RosterEntry[] {
+  return roster.map(r => {
+    const out: RosterEntry = { personId: r.personId, flags: { ...r.flags } };
+    if (r.flags.noStaff && r.newUntil) out.flags.noStaff = false;
+    return out;
+  });
+}
 export type CellOrigin = "" | "pre" | "sys";
 export interface WeekendPointers { wkN: string | null; satD: string | null; sunD: string | null }
 

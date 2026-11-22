@@ -2,6 +2,7 @@
  * 逐日指派：週末階梯輪序、國定假日抽籤、全外科 8-4 輪值、春節階梯輪值（schedular.md §6）。
  * 全部為純函式；結果由 prefill.ts 寫入預班層。
  */
+import { isNewOn, isNewAllMonth } from "../types";
 import type {
   RosterEntry, HolidayDoc, HolidayDutyDoc, WeekendPointers, Person, Duty84Doc, Duty84Entry, CnyDoc,
 } from "../types";
@@ -51,9 +52,11 @@ export interface WeekendOutput { assigns: Assign[]; end: WeekendPointers; warnin
 export function weekendAssigns(inp: WeekendInput): WeekendOutput {
   const { ym, roster, holidays: h } = inp;
   const order = roster.map(r => r.personId);
-  const flags = new Map(roster.map(r => [r.personId, r.flags]));
-  const okD = (id: string) => { const f = flags.get(id)!; return f.active && !f.noD; };
-  const okN = (id: string) => { const f = flags.get(id)!; return f.active && !f.noN && !f.nightTransfer; };
+  const entry = new Map(roster.map(r => [r.personId, r]));
+  // 新人獨立排班期間不進輪序（跨到下個月的日期：月中併入者下月已併入，整月新人仍跳過）
+  const isNew = (id: string, date: string) => ymOfDate(date) === ym ? isNewOn(entry.get(id), dayOfDate(date)) : isNewAllMonth(entry.get(id));
+  const okD = (date: string) => (id: string) => { const f = entry.get(id)!.flags; return f.active && !f.noD && !isNew(id, date); };
+  const okN = (date: string) => (id: string) => { const f = entry.get(id)!.flags; return f.active && !f.noN && !f.nightTransfer && !isNew(id, date); };
   const lotteryN = (date: string) => inp.holidayDuty[date.slice(0, 4)]?.[date]?.N ?? null;
   const out: Assign[] = [];
   const warnings: string[] = [];
@@ -79,7 +82,7 @@ export function weekendAssigns(inp: WeekendInput): WeekendOutput {
     if (!n) return null;
     const busy = inp.busy(date);
     if (!busy.has(n)) return n;
-    const next = nextInOrder(order, end.wkN, x => okN(x) && !busy.has(x));
+    const next = nextInOrder(order, end.wkN, x => okN(date)(x) && !busy.has(x));
     if (next) end.wkN = next;
     warnings.push(`${date} 週末 N 原由${why}連值，但當天已有其他預填，改由輪序下一位`);
     return next;
@@ -93,7 +96,7 @@ export function weekendAssigns(inp: WeekendInput): WeekendOutput {
     const inMonth = ymOfDate(sun) === ym;
     const n = inMonth ? nOn.get(sun) : nOn.get(sat);
     const avoid = new Set([...inp.busy(sun), ...(n ? [n] : [])]);
-    return nextInOrder(order, end.sunD, x => okD(x) && !avoid.has(x));
+    return nextInOrder(order, end.sunD, x => okD(sun)(x) && !avoid.has(x));
   }
   for (let d = 1; d <= nd; d++) {
     const date = dateStr(ym, d);
@@ -105,7 +108,7 @@ export function weekendAssigns(inp: WeekendInput): WeekendOutput {
       const holSat = isHoliday(h, date), holSun = isHoliday(h, sun);
       if (!holSat && !holSun) {
         const busy = new Set([...inp.busy(date), ...inp.busy(sun)]);
-        const n = pick("wkN", okN, busy, `${date} 週末 N`);
+        const n = pick("wkN", okN(date), busy, `${date} 週末 N`);
         if (n) {
           nOn.set(date, n); nOn.set(sun, n);
           out.push({ date, personId: n, code: "N", source: "weekend" });
@@ -123,12 +126,12 @@ export function weekendAssigns(inp: WeekendInput): WeekendOutput {
         // 六日不連上 D：週六輪到的人若週日也輪到 D，週六往下移一格（輪序直接跳過，兩條輪序因此錯開）
         const sunD = sunDOf(sun, date);
         let skip: string | null = null;
-        if (sunD && nextInOrder(order, end.satD, x => okD(x) && !avoid.has(x)) === sunD) {
+        if (sunD && nextInOrder(order, end.satD, x => okD(date)(x) && !avoid.has(x)) === sunD) {
           skip = sunD;
           avoid.add(sunD);
           warnings.push(`${date} 週六 D 輪到的人週日也輪到 D，改由下一位${ymOfDate(sun) === ym ? "" : "（週日在下個月，依輪序預估，請確認）"}`);
         }
-        const dd = pick("satD", okD, avoid, `${date} 週六 D`, skip);
+        const dd = pick("satD", okD(date), avoid, `${date} 週六 D`, skip);
         if (dd) out.push({ date, personId: dd, code: "D", source: "weekend" });
       }
     } else {
@@ -140,7 +143,7 @@ export function weekendAssigns(inp: WeekendInput): WeekendOutput {
       }
       if (!holSun) {
         const avoid = new Set([...inp.busy(date), ...(nOn.has(date) ? [nOn.get(date)!] : [])]);
-        const dd = pick("sunD", okD, avoid, `${date} 週日 D`);
+        const dd = pick("sunD", okD(date), avoid, `${date} 週日 D`);
         if (dd) out.push({ date, personId: dd, code: "D", source: "weekend" });
       }
     }

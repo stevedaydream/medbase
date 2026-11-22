@@ -6,6 +6,7 @@ import { parseMonthSheet, parse84 } from "@/utils/sched/excelImport";
 import { buildImport } from "@/utils/sched/importApply";
 import { DEFAULT_SHIFTS, DEFAULT_QUOTA_ITEMS, cellKey, emptyFlags, type PrebookDoc } from "../types";
 import { emptyHolidays } from "../calendar";
+import { staffIds } from "./staffing";
 
 describe("applyPrefill", () => {
   it("清除舊 sys 格、覆蓋員工預約時產生通知、同值不通知", () => {
@@ -91,7 +92,7 @@ describe.skipIf(!hasXls)("由 202610 起點往後重算 202611", () => {
 
 describe("預填優先順序", () => {
   it("8-4 與國定假日抽籤撞在同一人同一天：保留 8-4，並提示", () => {
-    const m = { ...newMonthFrom(undefined, "202610"), roster: [{ personId: "a", flags: { active: true, support: false, noD: false, noN: false, nightTransfer: false, fixedHolidayOff: false, offHolidayOnly: false } }] };
+    const m = { ...newMonthFrom(undefined, "202610"), roster: [{ personId: "a", flags: { active: true, support: false, noStaff: false, noD: false, noN: false, nightTransfer: false, fixedHolidayOff: false, offHolidayOnly: false } }] };
     const h = emptyHolidays();
     h.days["2026-10-26"] = "補假";
     const s = {
@@ -104,7 +105,7 @@ describe("預填優先順序", () => {
     expect(r.warnings.some(w => w.includes("只保留 8-4"))).toBe(true);
   });
 
-  const flags = { active: true, support: false, noD: false, noN: false, nightTransfer: false, fixedHolidayOff: false, offHolidayOnly: false };
+  const flags = { active: true, support: false, noStaff: false, noD: false, noN: false, nightTransfer: false, fixedHolidayOff: false, offHolidayOnly: false };
   const four = () => ({ ...newMonthFrom(undefined, "202610"), roster: ["a", "b", "c", "d"].map(personId => ({ personId, flags })) });
   const snap4 = () => ({
     people: [], shifts: DEFAULT_SHIFTS, quotaItems: DEFAULT_QUOTA_ITEMS, holidays: emptyHolidays(), holidayDuty: {},
@@ -121,6 +122,38 @@ describe("預填優先順序", () => {
     expect(n).not.toBe(who);
     expect(r.end?.wkN).toBe(n);   // 下月 11/1 由同一人連值
     expect(r.assigns.some(a => a.date.startsWith("2026-11"))).toBe(false);
+  });
+
+  it("新人獨立排班：不進週末輪序；全外科預填輪到時不寫入並提示", () => {
+    const s = snap4();
+    const m = four();
+    m.roster = m.roster.map(r => ({ ...r, flags: { ...r.flags, noStaff: r.personId === "d" } }));
+    const r = monthAssigns(s, m, undefined, s.cny, [e84("2026-10-11", "d")]);
+    expect(r.assigns.some(a => a.personId === "d")).toBe(false);
+    expect(r.assigns.some(a => a.source === "weekend")).toBe(true);
+    expect(r.warnings.some(w => w.includes("2026-10-11 8-4 輪到新人"))).toBe(true);
+  });
+
+  it("新人月中併入：併入後才進週末輪序與全外科預填", () => {
+    const s = snap4();
+    const m = four();
+    m.roster = m.roster.map(r => r.personId === "d" ? { ...r, flags: { ...r.flags, noStaff: true }, newUntil: 15 } : r);
+    const r = monthAssigns(s, m, undefined, s.cny, [e84("2026-10-11", "d"), e84("2026-10-25", "d")]);
+    const dDays = r.assigns.filter(a => a.personId === "d").map(a => Number(a.date.slice(8)));
+    expect(dDays.every(d => d > 15)).toBe(true);
+    expect(dDays).toContain(25);
+    expect(r.warnings.some(w => w.includes("2026-10-11 8-4 輪到新人"))).toBe(true);
+  });
+
+  it("沿用名單到下個月：月中併入者下月起為正式人力，整月新人維持", () => {
+    const prev = four();
+    prev.roster = prev.roster.map(r => r.personId === "c" ? { ...r, flags: { ...r.flags, noStaff: true } }
+      : r.personId === "d" ? { ...r, flags: { ...r.flags, noStaff: true }, newUntil: 10 } : r);
+    const next = newMonthFrom(prev, "202611");
+    expect(next.roster.find(r => r.personId === "c")!.flags.noStaff).toBe(true);
+    const d = next.roster.find(r => r.personId === "d")!;
+    expect(d.flags.noStaff).toBe(false);
+    expect(d.newUntil).toBeUndefined();
   });
 
   it("預填換人的接手者當天已有 8-4：不換，仍由原本的人上", () => {
@@ -165,6 +198,15 @@ describe("週日／國定假日／春節自動補 OFF", () => {
     // 11/8 週日 D／N 還沒排定：不補、提示
     expect(Object.keys(r.doc.cells).filter(k => k.endsWith("|8"))).toEqual([]);
     expect(r.warnings.join()).toContain("2026-11-08 當天值班還沒排定");
+  });
+
+  it("新人獨立排班：不自動補 OFF、不算人頭", () => {
+    const m = month();
+    m.roster.push({ personId: "n", flags: { ...emptyFlags(), noStaff: true } });
+    const r = applyAutoOff(m, pb(), emptyHolidays(), DEFAULT_SHIFTS, "now");
+    expect(r.doc.cells[cellKey("n", 1)]).toBeUndefined();
+    expect(r.doc.cells[cellKey("e", 1)]?.v).toBe("OFF");
+    expect(staffIds(m, 1)).not.toContain("n");
   });
 
   it("國定假日與春節也補；可休不足（單日人力 −1）時當天不補並提示", () => {

@@ -2,7 +2,7 @@
  * 月配額引擎：移植 Excel VBA `FillQuotas` / `DistributeQuota` / `TransferNightQuota` /
  * `NoDutyOffQuota` / `PerformHandover`（ADR-014）。
  */
-import type { MonthDoc, HolidayDoc, ShiftDef, QuotaItem, Flags, RosterEntry } from "../types";
+import { isNewOn, isNewAllMonth, type MonthDoc, type HolidayDoc, type ShiftDef, type QuotaItem, type Flags, type RosterEntry } from "../types";
 import { daysIn, dowOf, isRestDay } from "../calendar";
 import { needOf, allOffSlots, type CellFn } from "./staffing";
 
@@ -81,7 +81,8 @@ export function holidayCount(ym: string, h: HolidayDoc): number {
 }
 
 export function isEligible(item: QuotaItem, f: Flags): boolean {
-  return f.active && !item.exclude.some(k => f[k]);
+  // 新人（含月中併入者）不進 V／X 輪序；月中併入者另依併入天數折算（computeQuotas）
+  return f.active && !f.noStaff && !item.exclude.some(k => f[k]);
 }
 
 export interface QuotaInput {
@@ -99,7 +100,7 @@ export function computeQuotas(inp: QuotaInput): QuotaResult {
   const offSlots = allOffSlots(m, h, inp.shifts, inp.cell, inp.cnyDuty);
   const fixedOff = holidayCount(m.ym, h);
   const quotas: Record<string, Record<string, number>> = {};
-  for (const r of m.roster) quotas[r.personId] = {};
+  for (const r of m.roster) if (!isNewAllMonth(r)) quotas[r.personId] = {}; // 整月新人：沒有配額目標
   const totals: Record<string, number> = {};
   const markers: QuotaResult["markers"] = {};
   const dist: Record<string, DistResult & { eligible: string[]; v: string | null }> = {};
@@ -135,6 +136,19 @@ export function computeQuotas(inp: QuotaInput): QuotaResult {
         v = order.slice(i + 1).concat(order.slice(0, i)).find(id => eligible.includes(id)) ?? null;
       }
     }
+    // 月中併入的新人：依併入後的天數折算，先自總數扣除，其餘照常分給正式人員
+    const itemDays = Array.from({ length: nd }, (_, i) => i + 1).filter(d => inDow(it, d));
+    const partial = m.roster.filter(r => r.flags.active && r.flags.noStaff && r.newUntil && !it.exclude.some(k => r.flags[k]))
+      .map(r => ({ id: r.personId, w: itemDays.length ? itemDays.filter(d => !isNewOn(r, d)).length / itemDays.length : 0 }));
+    if (partial.length) {
+      const denom = eligible.length + partial.reduce((a, p) => a + p.w, 0);
+      const base = dividend;
+      for (const p of partial) {
+        const share = denom > 0 ? Math.min(dividend, Math.round(base * p.w / denom)) : 0;
+        quotas[p.id][it.id] = share;
+        dividend -= share;
+      }
+    }
     const r = distribute(eligible, dividend, v);
     dist[it.id] = { ...r, eligible, v };
   }
@@ -149,7 +163,7 @@ export function computeQuotas(inp: QuotaInput): QuotaResult {
 
   for (const it of enabled) {
     const r = dist[it.id];
-    for (const e of m.roster) quotas[e.personId][it.id] ??= 0;
+    for (const e of m.roster) if (quotas[e.personId]) quotas[e.personId][it.id] ??= 0;
     for (const [id, v] of Object.entries(r.values)) quotas[id][it.id] = v;
     markers[it.id] = { v: r.v, x: r.x };
   }

@@ -43,6 +43,19 @@ const DEFAULT_STAFFING = {
   sunday: { D: 1, N: 1, S1: 0 },
   holiday: { D: 1, N: 1, S1: 0 }
 };
+function isNewOn(r, day) {
+  return !!r?.flags.noStaff && (!r.newUntil || day <= r.newUntil);
+}
+function isNewAllMonth(r) {
+  return !!r?.flags.noStaff && !r.newUntil;
+}
+function carryRoster(roster) {
+  return roster.map((r) => {
+    const out = { personId: r.personId, flags: { ...r.flags } };
+    if (r.flags.noStaff && r.newUntil) out.flags.noStaff = false;
+    return out;
+  });
+}
 const cellKey = (personId, day) => `${personId}|${day}`;
 function newId() {
   return crypto.randomUUID();
@@ -149,14 +162,15 @@ function holidayAssigns(ym, h, duty) {
 function weekendAssigns(inp) {
   const { ym, roster, holidays: h } = inp;
   const order = roster.map((r) => r.personId);
-  const flags = new Map(roster.map((r) => [r.personId, r.flags]));
-  const okD = (id) => {
-    const f = flags.get(id);
-    return f.active && !f.noD;
+  const entry = new Map(roster.map((r) => [r.personId, r]));
+  const isNew = (id, date) => ymOfDate(date) === ym ? isNewOn(entry.get(id), dayOfDate(date)) : isNewAllMonth(entry.get(id));
+  const okD = (date) => (id) => {
+    const f = entry.get(id).flags;
+    return f.active && !f.noD && !isNew(id, date);
   };
-  const okN = (id) => {
-    const f = flags.get(id);
-    return f.active && !f.noN && !f.nightTransfer;
+  const okN = (date) => (id) => {
+    const f = entry.get(id).flags;
+    return f.active && !f.noN && !f.nightTransfer && !isNew(id, date);
   };
   const lotteryN = (date) => inp.holidayDuty[date.slice(0, 4)]?.[date]?.N ?? null;
   const out = [];
@@ -178,7 +192,7 @@ function weekendAssigns(inp) {
     if (!n) return null;
     const busy = inp.busy(date);
     if (!busy.has(n)) return n;
-    const next = nextInOrder(order, end.wkN, (x) => okN(x) && !busy.has(x));
+    const next = nextInOrder(order, end.wkN, (x) => okN(date)(x) && !busy.has(x));
     if (next) end.wkN = next;
     warnings.push(`${date} 週末 N 原由${why}連值，但當天已有其他預填，改由輪序下一位`);
     return next;
@@ -189,7 +203,7 @@ function weekendAssigns(inp) {
     const inMonth = ymOfDate(sun) === ym;
     const n = inMonth ? nOn.get(sun) : nOn.get(sat);
     const avoid = /* @__PURE__ */ new Set([...inp.busy(sun), ...n ? [n] : []]);
-    return nextInOrder(order, end.sunD, (x) => okD(x) && !avoid.has(x));
+    return nextInOrder(order, end.sunD, (x) => okD(sun)(x) && !avoid.has(x));
   }
   for (let d = 1; d <= nd; d++) {
     const date = dateStr(ym, d);
@@ -200,7 +214,7 @@ function weekendAssigns(inp) {
       const holSat = isHoliday(h, date), holSun = isHoliday(h, sun);
       if (!holSat && !holSun) {
         const busy = /* @__PURE__ */ new Set([...inp.busy(date), ...inp.busy(sun)]);
-        const n = pick("wkN", okN, busy, `${date} 週末 N`);
+        const n = pick("wkN", okN(date), busy, `${date} 週末 N`);
         if (n) {
           nOn.set(date, n);
           nOn.set(sun, n);
@@ -224,12 +238,12 @@ function weekendAssigns(inp) {
         const avoid = /* @__PURE__ */ new Set([...inp.busy(date), ...nOn.has(date) ? [nOn.get(date)] : []]);
         const sunD = sunDOf(sun, date);
         let skip = null;
-        if (sunD && nextInOrder(order, end.satD, (x) => okD(x) && !avoid.has(x)) === sunD) {
+        if (sunD && nextInOrder(order, end.satD, (x) => okD(date)(x) && !avoid.has(x)) === sunD) {
           skip = sunD;
           avoid.add(sunD);
           warnings.push(`${date} 週六 D 輪到的人週日也輪到 D，改由下一位${ymOfDate(sun) === ym ? "" : "（週日在下個月，依輪序預估，請確認）"}`);
         }
-        const dd = pick("satD", okD, avoid, `${date} 週六 D`, skip);
+        const dd = pick("satD", okD(date), avoid, `${date} 週六 D`, skip);
         if (dd) out.push({ date, personId: dd, code: "D", source: "weekend" });
       }
     } else {
@@ -244,7 +258,7 @@ function weekendAssigns(inp) {
       }
       if (!holSun) {
         const avoid = /* @__PURE__ */ new Set([...inp.busy(date), ...nOn.has(date) ? [nOn.get(date)] : []]);
-        const dd = pick("sunD", okD, avoid, `${date} 週日 D`);
+        const dd = pick("sunD", okD(date), avoid, `${date} 週日 D`);
         if (dd) out.push({ date, personId: dd, code: "D", source: "weekend" });
       }
     }
@@ -334,11 +348,11 @@ function needOf(m, day, h) {
   const range = [...m.staffing.ranges].reverse().find((r) => day >= r.from && day <= r.to);
   return (range?.table ?? m.staffing.base)[dt];
 }
-function staffIds$1(m) {
-  return m.roster.filter((r) => r.flags.active && !r.flags.support).map((r) => r.personId);
+function staffIds$1(m, day) {
+  return m.roster.filter((r) => r.flags.active && !r.flags.support && !isNewOn(r, day)).map((r) => r.personId);
 }
 function offSlots(m, day, h, shifts, cell, cnyDuty) {
-  const ids = staffIds$1(m);
+  const ids = staffIds$1(m, day);
   const reduce = new Set(shifts.filter((s) => s.reducesOff).map((s) => s.code));
   const away = ids.filter((id) => reduce.has(cell(id, day))).length;
   let working;
@@ -404,7 +418,7 @@ function holidayCount(ym, h) {
   return c;
 }
 function isEligible(item, f) {
-  return f.active && !item.exclude.some((k) => f[k]);
+  return f.active && !f.noStaff && !item.exclude.some((k) => f[k]);
 }
 function computeQuotas(inp) {
   const { month: m, holidays: h } = inp;
@@ -412,7 +426,7 @@ function computeQuotas(inp) {
   const offSlots2 = allOffSlots(m, h, inp.shifts, inp.cell, inp.cnyDuty);
   const fixedOff = holidayCount(m.ym, h);
   const quotas = {};
-  for (const r of m.roster) quotas[r.personId] = {};
+  for (const r of m.roster) if (!isNewAllMonth(r)) quotas[r.personId] = {};
   const totals = {};
   const markers = {};
   const dist = {};
@@ -444,6 +458,17 @@ function computeQuotas(inp) {
         v = order.slice(i + 1).concat(order.slice(0, i)).find((id) => eligible.includes(id)) ?? null;
       }
     }
+    const itemDays = Array.from({ length: nd }, (_, i) => i + 1).filter((d) => inDow(it, d));
+    const partial = m.roster.filter((r2) => r2.flags.active && r2.flags.noStaff && r2.newUntil && !it.exclude.some((k) => r2.flags[k])).map((r2) => ({ id: r2.personId, w: itemDays.length ? itemDays.filter((d) => !isNewOn(r2, d)).length / itemDays.length : 0 }));
+    if (partial.length) {
+      const denom = eligible.length + partial.reduce((a, p) => a + p.w, 0);
+      const base = dividend;
+      for (const p of partial) {
+        const share = denom > 0 ? Math.min(dividend, Math.round(base * p.w / denom)) : 0;
+        quotas[p.id][it.id] = share;
+        dividend -= share;
+      }
+    }
     const r = distribute(eligible, dividend, v);
     dist[it.id] = { ...r, eligible, v };
   }
@@ -455,7 +480,7 @@ function computeQuotas(inp) {
   }
   for (const it of enabled) {
     const r = dist[it.id];
-    for (const e of m.roster) quotas[e.personId][it.id] ??= 0;
+    for (const e of m.roster) if (quotas[e.personId]) quotas[e.personId][it.id] ??= 0;
     for (const [id, v] of Object.entries(r.values)) quotas[id][it.id] = v;
     markers[it.id] = { v: r.v, x: r.x };
   }
@@ -507,13 +532,16 @@ function cellFnOf(m, pb) {
 function newMonthFrom(prev, ym) {
   const m = emptyMonth(ym);
   if (prev) {
-    m.roster = clone(prev.roster);
+    m.roster = carryRoster(prev.roster);
     m.staffing.base = clone(prev.staffing.base);
   }
   return m;
 }
 function monthAssigns(s, m, prev, cny, log84) {
   const inRoster = new Set(m.roster.map((r) => r.personId));
+  const entry = new Map(m.roster.map((r) => [r.personId, r]));
+  const thisMonth = (date) => ymOfDate(date) === m.ym;
+  const newOn = (a) => thisMonth(a.date) && isNewOn(entry.get(a.personId), dayOfDate(a.date));
   const fixed = [
     ...cnyAssigns(m.ym, cny),
     ...duty84Assigns(m.ym, log84),
@@ -558,7 +586,8 @@ function monthAssigns(s, m, prev, cny, log84) {
     }
     hit.personId = sw.to;
   }
-  const all = raw.filter((a) => inRoster.has(a.personId));
+  for (const a of raw) if (newOn(a)) warnings.push(`${a.date} ${a.code} 輪到新人（獨立排班），未預填，請另外安排`);
+  const all = raw.filter((a) => inRoster.has(a.personId) && !newOn(a));
   const seen = /* @__PURE__ */ new Set();
   const kept = /* @__PURE__ */ new Map();
   const assigns = all.filter((a) => {
@@ -594,9 +623,9 @@ function applyAutoOff(m, pb, h, shifts, now) {
   const warnings = [];
   const takesOff = new Set(shifts.filter((x) => x.takesOff).map((x) => x.code));
   const sm = new Map(shifts.map((x) => [x.code, x]));
-  const ids = staffIds$1(m);
   const cell = cellFnOf(m, doc);
   for (let d = 1; d <= daysIn(m.ym); d++) {
+    const ids = staffIds$1(m, d);
     const date = dateStr(m.ym, d);
     const t = dayTypeOf(m.ym, d, h);
     const cny = inCny(h, date);
@@ -741,11 +770,14 @@ function personStats(ctx, personId) {
   let hours = 0;
   const nd = daysIn(ctx.month.ym);
   for (const it of ctx.items) counts[it.id] = 0;
+  const re = ctx.month.roster.find((r) => r.personId === personId);
+  const partial = !!re?.flags.noStaff && !!re.newUntil;
   for (let d = 1; d <= nd; d++) {
     const raw = ctx.cell(personId, d);
     const eff = effectiveCode(ctx, personId, d);
     if (eff) byCode[eff] = (byCode[eff] ?? 0) + 1;
     hours += sm.get(eff)?.hours ?? 0;
+    if (partial && isNewOn(re, d)) continue;
     for (const it of ctx.items) {
       if (it.dow && !it.dow.includes(dowOf(ctx.month.ym, d))) continue;
       if (raw && it.countShifts.includes(raw)) counts[it.id]++;
@@ -757,7 +789,7 @@ function dayStats(ctx, day) {
   const sm = shiftMap(ctx.shifts);
   const st = { D: 0, N: 0, S1: 0, off: 0 };
   for (const r of ctx.month.roster) {
-    if (!r.flags.active) continue;
+    if (!r.flags.active || isNewOn(r, day)) continue;
     const s = sm.get(effectiveCode(ctx, r.personId, day));
     if (!s) continue;
     if (s.takesOff) st.off++;
@@ -796,6 +828,11 @@ function validate(ctx) {
       const dt = dayTypeOf(m.ym, d, h);
       const pc = ctx.prebook?.cells[cellKey(id, d)];
       const pre = pc?.auto ? "" : pc?.v ?? "";
+      if (isNewOn(r, d)) {
+        work = 0;
+        duty = 0;
+        continue;
+      }
       work = !eff || s?.isRest ? 0 : work + 1;
       if (on("R1") && scheduling && work === rules.maxConsecutiveWork + 1) {
         out.push({ rule: "R1", personId: id, day: d, message: `${nm} 至 ${d2(d)} 已連續上班 ${work} 天（上限 ${rules.maxConsecutiveWork}）` });
@@ -928,6 +965,10 @@ function noticeText(n) {
 function monthTargets(s, m) {
   return m.status === "published" && m.frozenQuotas ? m.frozenQuotas : computeQuotas({ month: m, holidays: s.holidays, shifts: s.shifts, items: s.quotaItems, cell: cellFnOf(m, s.prebooks[m.ym]) }).quotas;
 }
+function newSideMatch(a, b, days) {
+  if (!days.length) return !!a?.flags.noStaff === !!b?.flags.noStaff;
+  return days.every((d) => isNewOn(a, d) === isNewOn(b, d));
+}
 function prefillSwapCautions(s, ym, to, cells) {
   const out = [];
   const f = s.months[ym]?.roster.find((r) => r.personId === to)?.flags;
@@ -1008,6 +1049,8 @@ function planEmpSwap(s, inp, reqId, actor, now, today) {
   if (!give.length) throw new Error("請選擇要換出的日子");
   if (kind === "cross" && !take.length) throw new Error("請選擇對方要換給你的日子");
   if (kind === "cross" && give.some((d) => take.includes(d))) throw new Error("跨日換班的兩邊不能是同一天，請改用同日互換");
+  const ra = m0.roster.find((r) => r.personId === a), rb = m0.roster.find((r) => r.personId === b);
+  if (!newSideMatch(ra, rb, uniq([...give, ...take]))) throw new Error("新人獨立排班期間，不能與正式人員換班");
   const nm = nameFn(s.people);
   if (m0.status === "published") {
     const all = uniq([...give, ...take]);
