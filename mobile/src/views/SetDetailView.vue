@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '../components/PageHeader.vue'
 import { data, type Row, type TableName, pullRefresh } from '../lib/data'
@@ -38,9 +38,16 @@ const setLines = computed(() => row.value && kind.value === 'sets'
   ? setItemsOf(row.value).map(si => {
       const it = itemByCode.value.get(si.hospital_code)
       const price = si.price ?? it?.price ?? null
-      return { ...si, name: it?.name_zh || it?.name_en || '（品項資料缺漏）', unitPrice: price, subtotal: price != null ? price * (si.quantity || 1) : null }
+      return { ...si, item: it, name: it?.name_zh || it?.name_en || '（品項資料缺漏）', unitPrice: price, subtotal: price != null ? price * (si.quantity || 1) : null }
     })
   : [])
+/** 點品項展開細節（品名下方的英文名、用途、科別、廠商…） */
+const expanded = ref(new Set<number>())
+function toggleItem(i: number) {
+  const s = new Set(expanded.value)
+  if (s.has(i)) s.delete(i); else s.add(i)
+  expanded.value = s
+}
 const setTotal = computed(() => setLines.value.filter(l => !l.is_optional).reduce((n, l) => n + (l.subtotal ?? 0), 0))
 
 usePullRefresh(() => pullRefresh(['prescriptions', 'surgery', 'examination', 'disease', 'sets', 'items']))
@@ -88,8 +95,19 @@ usePullRefresh(() => pullRefresh(['prescriptions', 'surgery', 'examination', 'di
           <div v-for="(l, i) in setLines" :key="i" class="px-4 py-2.5">
             <div class="flex items-baseline gap-2">
               <button @click="copy(l.hospital_code, '院內碼')" class="shrink-0 font-mono text-xs font-bold text-accent">{{ l.hospital_code }}</button>
-              <span class="flex-1 min-w-0 text-sm font-bold text-fg">{{ l.name }}</span>
+              <button @click="toggleItem(i)" :disabled="!l.item" class="flex-1 min-w-0 flex items-baseline gap-1 text-left text-sm font-bold text-fg">
+                <span class="flex-1 min-w-0">{{ l.name }}</span>
+                <span v-if="l.item" class="shrink-0 text-xs text-muted">{{ expanded.has(i) ? '▾' : '▸' }}</span>
+              </button>
               <span v-if="l.is_optional" class="shrink-0 text-2xs font-bold rounded bg-warning/15 text-warning px-1.5">PRN</span>
+            </div>
+            <div v-if="l.item && expanded.has(i)" class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-secondary">
+              <span v-if="l.item.name_zh && l.item.name_en">{{ l.item.name_en }}</span>
+              <span v-if="l.item.purpose" class="rounded-full bg-accent/10 text-accent px-2 py-px font-bold">{{ l.item.purpose }}</span>
+              <span v-for="d in l.item.depts" :key="d" class="rounded-full bg-sunken border border-hairline px-2 py-px">{{ d }}</span>
+              <span v-if="l.item.unit" class="text-muted">單位 {{ l.item.unit }}</span>
+              <span v-if="l.item.supplier" class="text-muted">{{ l.item.supplier }}</span>
+              <span v-if="l.item.notes" class="w-full text-muted whitespace-pre-wrap">{{ l.item.notes }}</span>
             </div>
             <p class="mt-0.5 text-xs text-muted tabular-nums">
               × {{ l.quantity || 1 }}
