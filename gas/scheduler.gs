@@ -319,6 +319,73 @@ function _trashAdd(items, incoming) {
   });
 }
 
+// ── Excel 排班範本：Excel 上傳整份活頁簿，其他電腦從 MedBase 下載可操作的副本 ──
+// Templates 工作表：id / name / saved_at / by / size / chunk / data（data 為 base64，過長分段）
+// 每個名稱只留最近 TPL_KEEP 份；列表只讀前 6 欄，不讀內容
+const TPL_KEEP = 5;
+const TPL_CHUNK = 45000;
+const TPL_MAX_B64 = 28000000;   // 約 20MB 的檔案
+
+function _tplSheet(ss) {
+  let sh = ss.getSheetByName('Templates');
+  if (!sh) {
+    sh = ss.insertSheet('Templates');
+    sh.getRange(1, 1, 1, 7).setValues([['id', 'name', 'saved_at', 'by', 'size', 'chunk', 'data']]);
+  }
+  return sh;
+}
+
+/** 讀出 { id: { id, name, saved_at, by, size, data? } }；withData=false 時不讀內容 */
+function _tplRead(sh, withData) {
+  const out = {};
+  const last = sh.getLastRow();
+  if (last < 2) return out;
+  const rows = sh.getRange(2, 1, last - 1, withData ? 7 : 6).getValues().map(r => r.map(v => String(v))).filter(r => r[0]);
+  rows.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : Number(a[5]) - Number(b[5]));
+  rows.forEach(r => {
+    if (!out[r[0]]) out[r[0]] = { id: r[0], name: r[1], saved_at: r[2], by: r[3], size: Number(r[4]) || 0 };
+    if (withData) out[r[0]].data = (out[r[0]].data || '') + r[6];
+  });
+  return out;
+}
+
+function _tplWrite(sh, items) {
+  const rows = [];
+  Object.keys(items).sort().forEach(id => {
+    const it = items[id], d = it.data || '';
+    for (let i = 0, c = 0; i < d.length || c === 0; i += TPL_CHUNK, c++) {
+      rows.push([id, it.name, it.saved_at, it.by, String(it.size), String(c), d.slice(i, i + TPL_CHUNK)]);
+    }
+  });
+  const last = sh.getLastRow();
+  if (last >= 2) sh.getRange(2, 1, last - 1, 7).clearContent();
+  if (rows.length) {
+    const range = sh.getRange(2, 1, rows.length, 7);
+    range.setNumberFormat('@');
+    range.setValues(rows);
+  }
+}
+
+/** 新增一份範本並只留每個名稱最近 TPL_KEEP 份；回傳新 id，格式錯誤時回傳錯誤訊息物件 */
+function _tplAdd(items, p, nowIso) {
+  const name = String(p.name || '').trim();
+  const data = typeof p.data === 'string' ? p.data : '';
+  if (!name || name.length > 100) return { error: '範本名稱需為 1～100 字' };
+  if (!data || data.length > TPL_MAX_B64 || !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) return { error: '範本內容格式錯誤或太大' };
+  const id = name + '@' + nowIso;
+  items[id] = { id: id, name: name, saved_at: nowIso, by: String(p.by || '').slice(0, 100), size: Math.floor(data.length * 3 / 4), data: data };
+  const same = Object.keys(items).filter(k => items[k].name === name).sort((a, b) => items[b].saved_at < items[a].saved_at ? -1 : 1);
+  same.slice(TPL_KEEP).forEach(k => { delete items[k]; });
+  return { id: id };
+}
+
+/** 列表（新的在前，不含內容） */
+function _tplList(items) {
+  return Object.keys(items).map(k => items[k])
+    .sort((a, b) => a.saved_at < b.saved_at ? 1 : a.saved_at > b.saved_at ? -1 : 0)
+    .map(it => ({ id: it.id, name: it.name, saved_at: it.saved_at, by: it.by, size: it.size }));
+}
+
 // ── 同步基準：某台電腦「覆蓋」後才允許一般同步 ──
 // 升級前的雲端資料沒有 updated_at，無法判斷新舊；在基準建立前放行一般同步，
 // 不是本地修改被舊資料改回去，就是舊資料蓋掉雲端。
@@ -1792,6 +1859,31 @@ function doPost(e) {
           if (changed) _trashWrite(sh, items);
           return json({ ok: true, items: p.action === 'trashList' ? Object.keys(items).map(id => items[id]) : undefined });
         });
+      }
+
+      // ── Excel 排班範本（只給桌機與 Excel；手機不能用）────────────
+      case 'tplPut':
+      case 'tplList':
+      case 'tplGet': {
+        if (p._mobile) return json({ ok: false, code: 'FORBIDDEN', error: '手機不能使用 Excel 範本' });
+        const sh = _tplSheet(ss);
+        if (p.action === 'tplList') return json({ ok: true, templates: _tplList(_tplRead(sh, false)) });
+        if (p.action === 'tplGet') {
+          const items = _tplRead(sh, true);
+          let id = String(p.id || '');
+          if (!id && p.name) id = (_tplList(items).find(t => t.name === String(p.name)) || {}).id || '';
+          const it = items[id];
+          if (!it) return json({ ok: false, error: '找不到這份範本' });
+          return json({ ok: true, id: it.id, name: it.name, saved_at: it.saved_at, by: it.by, size: it.size, data: it.data });
+        }
+        const r = _withLock(() => {
+          const items = _tplRead(sh, true);
+          const res = _tplAdd(items, p, new Date().toISOString());
+          if (res.id) _tplWrite(sh, items);
+          return res;
+        });
+        if (r.error) return json({ ok: false, error: r.error });
+        return json({ ok: true, id: r.id });
       }
 
       case 'botItems': {

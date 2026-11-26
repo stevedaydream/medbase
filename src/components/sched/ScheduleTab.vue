@@ -15,6 +15,7 @@ import SchedGrid from "./SchedGrid.vue";
 import SidePanel from "./SidePanel.vue";
 import MonthSettings from "./MonthSettings.vue";
 import SnapshotPanel from "./SnapshotPanel.vue";
+import ExcelTemplatePanel from "./ExcelTemplatePanel.vue";
 import TipBar from "@/tips/TipBar.vue";
 import type { TipId } from "@/tips/catalog";
 import type { SnapshotDoc } from "@/shared/sched/types";
@@ -82,6 +83,7 @@ const tipIds = computed<TipId[]>(() => {
 
 // ── 存檔點 ───────────────────────────────────────────────────
 const showSnaps = ref(false);
+const showTemplates = ref(false);
 const restoreBlocked = computed(() => {
   const m = month.value;
   if (!m) return "";
@@ -255,6 +257,7 @@ const lockTime = computed(() => lock.value ? new Date(lock.value.at).toLocaleStr
             <div v-if="showExport" class="absolute right-0 top-8 z-40 w-56 bg-surface border border-hairline rounded-lg shadow-2xl py-1">
               <button class="w-full text-left px-3 py-1.5 hover:bg-elevated" @click="doExport('app')">班表 XLSX（含 8-4／春節明細）</button>
               <button v-if="store.group === DEFAULT_GROUP" class="w-full text-left px-3 py-1.5 hover:bg-elevated" @click="doExport('positional')">Excel 完整格式（過渡期貼回用）</button>
+              <button v-if="store.group === DEFAULT_GROUP" class="w-full text-left px-3 py-1.5 hover:bg-elevated border-t border-hairline" @click="showExport = false; showTemplates = true">Excel 排班表範本（下載副本）…</button>
             </div>
           </div>
           <button class="px-2.5 py-1 border border-hairline rounded hover:bg-elevated" @click="showSettings = true">本月設定</button>
@@ -313,6 +316,7 @@ const lockTime = computed(() => lock.value ? new Date(lock.value.at).toLocaleStr
     <!-- 發布確認 -->
     <SnapshotPanel v-if="showSnaps && month" :ym="ym" :restore-blocked="restoreBlocked"
       @close="showSnaps = false" @toast="m => emit('toast', m)" @restore="onRestore" />
+    <ExcelTemplatePanel v-if="showTemplates" @close="showTemplates = false" @toast="m => emit('toast', m)" />
 
     <div v-if="showPublish" class="fixed inset-0 z-50 flex items-center justify-center bg-sunken/60 backdrop-blur-sm text-xs">
       <div class="bg-surface border border-hairline rounded-xl shadow-2xl p-5 w-[28rem] space-y-3">
